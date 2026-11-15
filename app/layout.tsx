@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
@@ -10,30 +10,24 @@ const inter = Inter({
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
   title: {
-    default: "CampusERP — Multi-Institution School ERP",
-    template: "%s | CampusERP",
+    default: "Institutional ERP — Multi-Campus Portal",
+    template: "%s | Institutional ERP",
   },
   description:
-    "Unified multi-institution School ERP platform for academics, attendance, and campus operations.",
+    "Unified multi-institution ERP platform for students, parents, faculty, and administrators.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
-      className={cn(
-        "h-full antialiased",
-        inter.variable,
-        geistMono.variable,
-        "font-sans"
-      )}
+      className={cn("h-full antialiased font-sans", inter.variable)}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}

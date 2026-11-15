@@ -103,6 +103,18 @@
   --ring: #2563eb;
   --radius: 0.625rem;
 
+  /* Mandated Institutional Design System Palette */
+  --erp-brand: #153B66;
+  --erp-action: #2563EB;
+  --erp-accent: #14B8A6;
+  --erp-page-bg: #F8FAFC;
+  --erp-card: #FFFFFF;
+  --erp-text-primary: #1E293B;
+  --erp-text-secondary: #64748B;
+  --erp-success: #16A34A;
+  --erp-warning: #F59E0B;
+  --erp-error: #DC2626;
+
   /* Charts */
   --chart-1: #2563eb;
   --chart-2: #14b8a6;
@@ -180,5 +192,6 @@
   }
   body {
     @apply bg-background text-foreground text-[14px] leading-relaxed antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 }

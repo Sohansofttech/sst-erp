@@ -3,6 +3,7 @@ import { TrendingDown, TrendingUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge as SharedBadge } from "./Badge"
 
 export type StatCardTone =
   | "primary"
@@ -28,38 +29,65 @@ export interface StatCardTrend {
 }
 
 export interface StatCardProps {
-  label: string
+  // Supports both Teacher portal (label) and Student/Parent portal (title)
+  label?: string
+  title?: string
   value: string | number
-  icon: React.ReactNode
+  icon?: React.ReactNode
   tone?: StatCardTone
   trend?: StatCardTrend
   description?: string
+  subtitle?: string
+  badgeText?: string
+  badgeVariant?: "success" | "warning" | "error" | "info" | "brand" | "neutral"
   className?: string
+  onClick?: () => void
 }
 
 export function StatCard({
   label,
+  title,
   value,
   icon,
   tone = "primary",
   trend,
   description,
+  subtitle,
+  badgeText,
+  badgeVariant = "info",
   className,
+  onClick,
 }: StatCardProps) {
+  const displayTitle = label ?? title ?? ""
+  const displaySubtitle = description ?? subtitle
   const direction = trend?.direction ?? "neutral"
 
   return (
-    <Card className={cn("gap-0 py-5 shadow-xs", className)}>
+    <Card
+      onClick={onClick}
+      className={cn(
+        "gap-0 py-5 shadow-xs transition-all",
+        onClick && "cursor-pointer hover:border-primary hover:shadow-md",
+        className
+      )}
+    >
       <CardContent className="flex items-start justify-between gap-4 px-5">
         <div className="min-w-0 space-y-1.5">
           <p className="truncate text-[13px] font-medium text-muted-foreground">
-            {label}
+            {displayTitle}
           </p>
-          <p className="text-2xl font-bold tracking-tight text-foreground sm:text-[26px]">
-            {value}
-          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-bold tracking-tight text-foreground sm:text-[26px]">
+              {value}
+            </p>
+            {badgeText && (
+              <SharedBadge variant={badgeVariant} size="sm">
+                {badgeText}
+              </SharedBadge>
+            )}
+          </div>
 
-          {(trend || description) && (
+          {(trend || displaySubtitle) && (
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
               {trend && (
                 <span
@@ -75,25 +103,26 @@ export function StatCard({
                   {trend.value}
                 </span>
               )}
-              {(trend?.label || description) && (
+              {(trend?.label || displaySubtitle) && (
                 <span className="text-[13px] text-muted-foreground">
-                  {trend?.label ?? description}
+                  {trend?.label ?? displaySubtitle}
                 </span>
               )}
             </div>
           )}
         </div>
 
-        <div
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5",
-            TONE_CLASSES[tone]
-          )}
-        >
-          {icon}
-        </div>
+        {icon && (
+          <div
+            className={cn(
+              "flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5",
+              TONE_CLASSES[tone]
+            )}
+          >
+            {icon}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
 }
-
