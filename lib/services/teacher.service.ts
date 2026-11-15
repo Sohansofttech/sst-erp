@@ -431,7 +431,7 @@ export async function getTeacherProfile(
 
   // Format distinct subjects handled
   const subjectsSet = new Set<string>()
-  slots.forEach((s) => {
+  slots.forEach((s: any) => {
     if (s.subjects) {
       const clsName = s.semester === 1 ? "10" : "11"
       subjectsSet.add(`${s.subjects.name} (${clsName}-${s.section})`)
@@ -770,7 +770,7 @@ export async function getWeeklyTimetable(
   // Group periods per day to assign sequential period numbers
   const periodCounters: Record<string, number> = {}
 
-  const slots: TimetableSlot[] = dbSlots.map((s) => {
+  const slots: TimetableSlot[] = dbSlots.map((s: any) => {
     const dayName = s.dayOfWeek as DayOfWeek
     periodCounters[dayName] = (periodCounters[dayName] ?? 0) + 1
     const period = periodCounters[dayName]
@@ -866,9 +866,9 @@ export async function getSectionStudents(
 
   const houses = ["Ashoka", "Tagore", "Raman", "Sarojini"]
 
-  const roster: StudentRosterItem[] = dbStudents.map((st, index) => {
+  const roster: StudentRosterItem[] = dbStudents.map((st: any, index: number) => {
     const primaryGlink =
-      st.guardian_links.find((gl) => gl.isPrimary) ?? st.guardian_links[0]
+      st.guardian_links?.find((gl: any) => gl.isPrimary) ?? st.guardian_links?.[0]
     const guardianAccount = primaryGlink?.guardian_accounts
 
     let relation: "Father" | "Mother" | "Guardian" = "Guardian"
@@ -968,12 +968,12 @@ export async function getAttendanceSessions(filters?: {
     const className = `Class ${grade}`
     const sessionId = `att-${sectionId}-${dateStr.replace(/-/g, "")}`
 
-    const presentCount = records.filter((r) => r.status.toUpperCase() === "PRESENT").length
-    const absentCount = records.filter((r) => r.status.toUpperCase() === "ABSENT").length
-    const lateCount = records.filter((r) => r.status.toUpperCase() === "LATE").length
-    const onDutyCount = records.filter((r) => r.status.toUpperCase() === "ON_DUTY").length
+    const presentCount = records.filter((r: any) => r.status.toUpperCase() === "PRESENT").length
+    const absentCount = records.filter((r: any) => r.status.toUpperCase() === "ABSENT").length
+    const lateCount = records.filter((r: any) => r.status.toUpperCase() === "LATE").length
+    const onDutyCount = records.filter((r: any) => r.status.toUpperCase() === "ON_DUTY").length
 
-    const mappedRecords: AttendanceRecord[] = records.map((r) => ({
+    const mappedRecords: AttendanceRecord[] = records.map((r: any) => ({
       id: r.id,
       sessionId,
       studentId: r.studentId,
@@ -1128,7 +1128,7 @@ export async function submitAttendance(
   }
 
   // 3. Batch upsert into attendance_records inside a Prisma transaction
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const enrollments = await tx.enrollments.findMany({
       where: {
         institutionId: activeTenantId,
@@ -1136,7 +1136,7 @@ export async function submitAttendance(
         status: "ACTIVE",
       },
     })
-    const enrollmentMap = new Map(enrollments.map((e) => [e.studentId, e.id]))
+    const enrollmentMap = new Map(enrollments.map((e: any) => [e.studentId, e.id]))
 
     let subjectId = input.subjectId
     if (!subjectId) {
@@ -1263,14 +1263,14 @@ export async function getInternalAssessments(filters?: {
     }),
   ])
 
-  const approvalMap = new Map(
-    dbApprovalRequests.map((apr) => [apr.id.replace("apr-ia-", ""), apr])
+  const approvalMap = new Map<string, any>(
+    dbApprovalRequests.map((apr: any) => [apr.id.replace("apr-ia-", ""), apr])
   )
 
   // Sync database state into in-memory assessments
   if (dbAssessmentRecords.length > 0) {
     for (const ia of store.internalAssessments) {
-      const matchingApr = approvalMap.get(ia.id)
+      const matchingApr: any = approvalMap.get(ia.id)
       if (matchingApr) {
         if (matchingApr.status === "APPROVED") {
           ia.status = "approved"
@@ -1284,14 +1284,14 @@ export async function getInternalAssessments(filters?: {
 
       // Sync marks from assessment_records
       const recsForIa = dbAssessmentRecords.filter(
-        (r) =>
+        (r: any) =>
           r.assessmentName === ia.title ||
           r.id.startsWith(`rec-${ia.id}-`)
       )
       if (recsForIa.length > 0) {
-        const markMap = new Map(recsForIa.map((r) => [r.studentId, r]))
+        const markMap = new Map<string, any>(recsForIa.map((r: any) => [r.studentId, r]))
         ia.marks = ia.marks.map((m) => {
-          const dbRec = markMap.get(m.studentId)
+          const dbRec: any = markMap.get(m.studentId)
           if (!dbRec) return m
           return {
             ...m,
@@ -1331,7 +1331,7 @@ export async function saveIAMarks(
   const markUpdates = new Map(input.marks.map((m) => [m.studentId, m]))
 
   // 1. Transaction: batch upsert assessment_records & approval request
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const enrollments = await tx.enrollments.findMany({
       where: {
         institutionId: activeTenantId,
@@ -1339,7 +1339,7 @@ export async function saveIAMarks(
         status: "ACTIVE",
       },
     })
-    const enrollmentMap = new Map(enrollments.map((e) => [e.studentId, e.id]))
+    const enrollmentMap = new Map(enrollments.map((e: any) => [e.studentId, e.id]))
 
     let subjectId = assessment.subjectId
     if (subjectId.startsWith("sub-")) {
@@ -1489,7 +1489,7 @@ export async function publishInternalAssessment(
   const current = store.internalAssessments[idx]
 
   // Persist publication and audit log inside transaction
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.approval_requests.upsert({
       where: { id: `apr-ia-${assessmentId}` },
       update: {
@@ -1555,7 +1555,7 @@ export async function requestIACorrection(
   const current = store.internalAssessments[idx]
 
   // Persist correction request and audit log inside transaction
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.approval_requests.upsert({
       where: { id: `apr-ia-${assessmentId}` },
       update: {
@@ -1679,13 +1679,13 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
     select: { id: true, currentSection: true, currentSemester: true },
   })
 
-  const liveAssignments: Assignment[] = dbAssignments.map((dbAsg) => {
+  const liveAssignments: Assignment[] = dbAssignments.map((dbAsg: any) => {
     const rawSubmissions = dbAsg.assignment_submissions || []
     const submittedCount = rawSubmissions.filter(
-      (s) => s.status.toUpperCase() !== "PENDING"
+      (s: any) => s.status.toUpperCase() !== "PENDING"
     ).length
     const gradedCount = rawSubmissions.filter(
-      (s) => s.status.toUpperCase() === "GRADED" || s.score !== null
+      (s: any) => s.status.toUpperCase() === "GRADED" || s.score !== null
     ).length
 
     // Determine section from submissions or fallback
@@ -1693,7 +1693,7 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
     const inferredSection = firstSubSection || "A"
     const inferredSectionId = `sec-10${inferredSection.toLowerCase()}`
     const matchingStudentsCount = activeStudents.filter(
-      (s) => s.currentSection.toUpperCase() === inferredSection.toUpperCase()
+      (s: any) => s.currentSection.toUpperCase() === inferredSection.toUpperCase()
     ).length
 
     const isClosed = new Date() > new Date(dbAsg.dueDate)
@@ -1772,7 +1772,7 @@ export async function getAssignmentSubmissions(
   })
 
   if (dbSubmissions.length > 0) {
-    const liveSubs: AssignmentSubmission[] = dbSubmissions.map((s) => {
+    const liveSubs: AssignmentSubmission[] = dbSubmissions.map((s: any) => {
       const isGraded = s.status.toUpperCase() === "GRADED" || s.score !== null
       const statusLower = s.status.toLowerCase()
       const status: AssignmentSubmission["status"] = (
@@ -1895,7 +1895,7 @@ export async function createAssignment(
     : undefined
 
   // Persist into database inside a multi-tenant transaction
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.assignments.create({
       data: {
         id,
@@ -1924,7 +1924,7 @@ export async function createAssignment(
 
     if (secStudents.length > 0) {
       await tx.assignment_submissions.createMany({
-        data: secStudents.map((st) => ({
+        data: secStudents.map((st: any) => ({
           id: `sub-${id}-${st.id}`,
           institutionId: activeTenantId,
           assignmentId: id,
@@ -2103,7 +2103,7 @@ export async function getLearningMaterials(filters?: {
     orderBy: { uploadedAt: "desc" },
   })
 
-  const liveMaterials: LearningMaterial[] = dbMaterials.map((m) => {
+  const liveMaterials: LearningMaterial[] = dbMaterials.map((m: any) => {
     const unitLabel = formatUnitLabel(m.unitNumber)
     return {
       id: m.id,
@@ -2260,8 +2260,8 @@ export async function getQuizzes(sectionId?: string): Promise<Quiz[]> {
     orderBy: { createdAt: "desc" },
   })
 
-  const liveQuizzes: Quiz[] = dbQuizzes.map((q) => {
-    const questions: QuizQuestion[] = q.quiz_questions.map((ques, idx) => ({
+  const liveQuizzes: Quiz[] = dbQuizzes.map((q: any) => {
+    const questions: QuizQuestion[] = q.quiz_questions.map((ques: any, idx: number) => ({
       id: ques.id,
       quizId: ques.quizId,
       questionNumber: idx + 1,
@@ -2340,7 +2340,7 @@ export async function getQuizSubmissions(
   })
 
   if (dbAttempts.length > 0) {
-    const liveSubs: QuizSubmission[] = dbAttempts.map((att) => {
+    const liveSubs: QuizSubmission[] = dbAttempts.map((att: any) => {
       let answers: Record<string, string> = {}
       let feedback: string | undefined = undefined
 
@@ -2415,7 +2415,7 @@ export async function createQuiz(input: CreateQuizInput): Promise<Quiz> {
   }
 
   // Create quiz and questions in Prisma transaction
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.quizzes.create({
       data: {
         id: quizId,
@@ -2689,7 +2689,7 @@ export async function getExamDuties(): Promise<ExamDuty[]> {
     },
   })
 
-  const liveDuties: ExamDuty[] = dbSlots.map((slot) => {
+  const liveDuties: ExamDuty[] = dbSlots.map((slot: any) => {
     const isMorning =
       slot.startTime.includes("09:") ||
       slot.startTime.includes("10:") ||
@@ -2746,7 +2746,7 @@ export async function getExamSchedule(): Promise<ExamScheduleItem[]> {
     },
   })
 
-  const liveSchedule: ExamScheduleItem[] = dbSlots.map((slot) => ({
+  const liveSchedule: ExamScheduleItem[] = dbSlots.map((slot: any) => ({
     id: slot.id,
     examName: slot.exam_schedules.title,
     examDate: slot.examDate.toISOString().slice(0, 10),
@@ -2872,7 +2872,7 @@ export async function getResultEntries(): Promise<ResultEntry[]> {
     const liveEntries: ResultEntry[] = Array.from(groups.entries()).map(
       ([, results]) => {
         const first = results[0]
-        const rows: ResultMarkRow[] = results.map((r) => ({
+        const rows: ResultMarkRow[] = results.map((r: any) => ({
           studentId: r.studentId,
           rollNo: r.students.rollNumber,
           studentName: `${r.students.firstName} ${r.students.lastName}`,
@@ -2976,7 +2976,7 @@ export async function saveResultMarks(
     }
   })
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     for (const r of updatedRows) {
       const isAbsent = r.isAbsent || r.totalMarks === null
       const total = isAbsent ? 0 : r.totalMarks ?? 0
@@ -3138,8 +3138,8 @@ export async function getMentees(): Promise<Mentee[]> {
     const liveMentees: Mentee[] = Array.from(studentMap.entries()).map(
       ([, records]) => {
         const student = records[0].students
-        const latestPublic = records.find((r) => !r.isPrivateNote)
-        const latestPrivate = records.find((r) => r.isPrivateNote)
+        const latestPublic = records.find((r: any) => !r.isPrivateNote)
+        const latestPrivate = records.find((r: any) => r.isPrivateNote)
         const guardian = student.guardian_links[0]?.guardian_accounts
 
         return {
@@ -3212,7 +3212,7 @@ export async function getMentoringSessions(
   })
 
   if (dbRecords.length > 0) {
-    const liveSessions: MentoringSession[] = dbRecords.map((r) => {
+    const liveSessions: MentoringSession[] = dbRecords.map((r: any) => {
       let actionItems: string[] = []
       if (r.studentActionItems) {
         try {
@@ -3536,7 +3536,7 @@ export async function getStudentLogReviews(): Promise<StudentLogReview[]> {
   })
 
   if (dbLogs.length > 0) {
-    const liveReviews: StudentLogReview[] = dbLogs.map((lb) => ({
+    const liveReviews: StudentLogReview[] = dbLogs.map((lb: any) => ({
       id: lb.id,
       studentId: lb.studentId,
       rollNo: lb.students.rollNumber,
@@ -3817,7 +3817,7 @@ export async function getNotifications(): Promise<NotificationItem[]> {
     },
   })
 
-  const liveNotifs: NotificationItem[] = dbRecipients.map((rec) => ({
+  const liveNotifs: NotificationItem[] = dbRecipients.map((rec: any) => ({
     id: rec.id,
     institutionId: rec.notifications.institutionId,
     title: rec.notifications.title,
@@ -3885,7 +3885,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     orderBy: { createdAt: "desc" },
   })
 
-  const liveAnn: Announcement[] = dbAnnouncements.map((n) => ({
+  const liveAnn: Announcement[] = dbAnnouncements.map((n: any) => ({
     id: n.id,
     institutionId: n.institutionId,
     academicYearId: "ay_demo_2026_27",
@@ -3982,7 +3982,7 @@ export async function getDepartmentFacultyLoad(): Promise<
   })
 
   if (deptTeachers.length > 0) {
-    const liveLoads: DepartmentFacultyLoad[] = deptTeachers.map((t) => ({
+    const liveLoads: DepartmentFacultyLoad[] = deptTeachers.map((t: any) => ({
       teacherId: t.id,
       fullName: t.users.fullName,
       designation: t.designation || "Senior PGT Faculty",

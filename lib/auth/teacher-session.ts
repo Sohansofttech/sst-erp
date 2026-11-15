@@ -1,9 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
-import type { institutions, academic_years, teachers, users } from "@/generated/prisma/client"
+import type { Institution, AcademicYear, Teacher, User } from "@prisma/client"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
-import type { Institution, AcademicYear, TenantContext } from "@/types/common"
+import type { Institution as CommonInstitution, AcademicYear as CommonAcademicYear, TenantContext } from "@/types/common"
 import type { TeacherProfile } from "@/types/teacher"
+
+type institutions = Institution
+type academic_years = AcademicYear
+type teachers = Teacher
+type users = User
 
 export interface TeacherSession {
   institution: institutions
@@ -39,7 +44,7 @@ export class TeacherAuthError extends Error {
 /**
  * Maps database institution record to the frontend TenantContext Institution model.
  */
-export function mapDbInstitutionToCommon(inst: institutions): Institution {
+export function mapDbInstitutionToCommon(inst: institutions): CommonInstitution {
   return {
     id: inst.id,
     name: inst.name,
@@ -56,7 +61,7 @@ export function mapDbInstitutionToCommon(inst: institutions): Institution {
 /**
  * Maps database academic_years record to the frontend AcademicYear model.
  */
-export function mapDbAcademicYearToCommon(ay: academic_years): AcademicYear {
+export function mapDbAcademicYearToCommon(ay: academic_years): CommonAcademicYear {
   return {
     id: ay.id,
     institutionId: ay.institutionId,
@@ -152,7 +157,7 @@ export async function getTenantContext(slug: string): Promise<TenantContext> {
 
   const academicYears = dbYears.map(mapDbAcademicYearToCommon)
   const currentAcademicYear =
-    academicYears.find((y) => y.isCurrent) ??
+    academicYears.find((y: CommonAcademicYear) => y.isCurrent) ??
     academicYears[0] ?? {
       id: "ay-default",
       institutionId: institution.id,
@@ -222,7 +227,7 @@ export async function getTeacherSession(
     getAuthenticatedUser(),
   ])
 
-  const currentAcademicYear = dbYears.find((y) => y.isCurrent) ?? dbYears[0] ?? null
+  const currentAcademicYear = dbYears.find((y: any) => y.isCurrent) ?? dbYears[0] ?? null
 
   const academicYearsCommon = dbYears.map(mapDbAcademicYearToCommon)
   const currentAcademicYearCommon = currentAcademicYear

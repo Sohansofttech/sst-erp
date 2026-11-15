@@ -12,8 +12,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Institutional ERP — Multi-Campus Portal",
-    template: "%s | Institutional ERP",
+    default: "CampusERP — Multi-Institution ERP",
+    template: "%s | CampusERP",
   },
   description:
     "Unified multi-institution ERP platform for students, parents, faculty, and administrators.",

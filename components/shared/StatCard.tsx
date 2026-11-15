@@ -29,45 +29,46 @@ export interface StatCardTrend {
 }
 
 export interface StatCardProps {
-  // Supports both Teacher portal (label) and Student/Parent portal (title)
-  label?: string
   title?: string
+  label?: string
   value: string | number
+  subtitle?: string
+  description?: string
+  helperText?: string
   icon?: React.ReactNode
   tone?: StatCardTone
   trend?: StatCardTrend
-  description?: string
-  subtitle?: string
   badgeText?: string
   badgeVariant?: "success" | "warning" | "error" | "info" | "brand" | "neutral"
-  className?: string
   onClick?: () => void
+  className?: string
 }
 
 export function StatCard({
-  label,
   title,
+  label,
   value,
+  subtitle,
+  description,
+  helperText,
   icon,
   tone = "primary",
   trend,
-  description,
-  subtitle,
   badgeText,
   badgeVariant = "info",
-  className,
   onClick,
+  className,
 }: StatCardProps) {
-  const displayTitle = label ?? title ?? ""
-  const displaySubtitle = description ?? subtitle
+  const displayTitle = title ?? label ?? ""
+  const displaySubtitle = subtitle ?? description ?? helperText
   const direction = trend?.direction ?? "neutral"
 
   return (
     <Card
       onClick={onClick}
       className={cn(
-        "gap-0 py-5 shadow-xs transition-all",
-        onClick && "cursor-pointer hover:border-primary hover:shadow-md",
+        "gap-0 py-5 shadow-xs transition-all hover:shadow-md",
+        onClick && "cursor-pointer hover:border-primary",
         className
       )}
     >
@@ -103,7 +104,7 @@ export function StatCard({
                   {trend.value}
                 </span>
               )}
-              {(trend?.label || displaySubtitle) && (
+              {displaySubtitle && (
                 <span className="text-[13px] text-muted-foreground">
                   {trend?.label ?? displaySubtitle}
                 </span>

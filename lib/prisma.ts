@@ -1,59 +1,71 @@
-import "dotenv/config"
-import { Pool } from "pg"
-import { PrismaClient, Prisma } from "@/generated/prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
+import { db } from "./db"
 
-/**
- * Creates a cached or new PrismaClient singleton instance for Next.js.
- * Uses PrismaPg driver adapter with a managed connection pool to connect
- * to Supabase/PostgreSQL safely across development fast-refresh and production.
- *
- * Pool size is capped at 5 to safely operate within Supabase Session Pooler
- * limits (max 15 clients) without throwing EMAXCONNSESSION.
- */
-const globalForPrisma = globalThis as unknown as {
-  __sst_prisma: PrismaClient | undefined
-  __sst_pg_pool: Pool | undefined
+const modelMapping: Record<string, string> = {
+  teachers: "teacher",
+  users: "user",
+  institutions: "institution",
+  academic_years: "academicYear",
+  courses: "course",
+  subjects: "subject",
+  students: "student",
+  student_documents: "studentDocument",
+  guardian_accounts: "guardianAccount",
+  guardian_links: "guardianLink",
+  enrollments: "enrollment",
+  timetable_slots: "timetableSlot",
+  attendance_records: "attendanceRecord",
+  campus_in_out_logs: "campusInOutLog",
+  assessment_records: "assessmentRecord",
+  exam_schedules: "examSchedule",
+  exam_slots: "examSlot",
+  exam_admit_cards: "examAdmitCard",
+  exam_results: "examResult",
+  fee_invoices: "feeInvoice",
+  fee_invoice_items: "feeInvoiceItem",
+  fee_payments: "feePayment",
+  fee_receipts: "feeReceipt",
+  lms_course_materials: "lmsCourseMaterial",
+  assignments: "assignment",
+  assignment_submissions: "assignmentSubmission",
+  quizzes: "quiz",
+  quiz_questions: "quizQuestion",
+  quiz_attempts: "quizAttempt",
+  elective_courses: "electiveCourse",
+  elective_selections: "electiveSelection",
+  hostel_allocations: "hostelAllocation",
+  transport_allocations: "transportAllocation",
+  events: "event",
+  resource_bookings: "resourceBooking",
+  mentoring_records: "mentoringRecord",
+  log_book_entries: "logBookEntry",
+  feedback: "feedback",
+  notifications: "notification",
+  notification_recipients: "notificationRecipient",
+  approval_requests: "approvalRequest",
+  audit_logs: "auditLog",
 }
 
-function getOrCreatePool(connectionString: string): Pool {
-  if (!globalForPrisma.__sst_pg_pool) {
-    // When connecting through Supabase pooler, use port 6543 (Transaction Mode)
-    // to multiplex connections efficiently and prevent EMAXCONNSESSION errors.
-    const normalizedUrl = connectionString.includes("pooler.supabase.com:5432")
-      ? connectionString.replace(":5432", ":6543")
-      : connectionString
-
-    globalForPrisma.__sst_pg_pool = new Pool({
-      connectionString: normalizedUrl,
-      max: 10,
-      idleTimeoutMillis: 15000,
-      connectionTimeoutMillis: 10000,
-    })
-  }
-  return globalForPrisma.__sst_pg_pool
-}
-
-function createPrismaClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL
-  if (!connectionString) {
-    throw new Error(
-      "DATABASE_URL is not defined in the environment. Please ensure it is present in .env."
-    )
-  }
-
-  const pool = getOrCreatePool(connectionString)
-  const adapter = new PrismaPg(pool)
-  return new PrismaClient({
-    adapter,
+function wrapWithMapping(client: any): any {
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      if (prop === "$transaction") {
+        const origTransaction = target.$transaction.bind(target)
+        return async (arg: any, options?: any) => {
+          if (typeof arg === "function") {
+            return origTransaction((tx: any) => arg(wrapWithMapping(tx)), options)
+          }
+          return origTransaction(arg, options)
+        }
+      }
+      if (typeof prop === "string" && modelMapping[prop]) {
+        return target[modelMapping[prop]]
+      }
+      return Reflect.get(target, prop, receiver)
+    },
   })
 }
 
-export const prisma = globalForPrisma.__sst_prisma ?? createPrismaClient()
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.__sst_prisma = prisma
-}
-
-export { Prisma, PrismaClient }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const prisma: any = wrapWithMapping(db)
+export { db }
 export default prisma
