@@ -407,8 +407,7 @@ export default function StudentProfilePage() {
           <div className="p-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-lg text-xs text-[#92400E] flex items-start gap-2">
             <ShieldAlert className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" />
             <span>
-              Per Section 7, students may not directly mutate protected identity or academic data.
-              Submissions enter the institution admin approval engine.
+              For institutional security and data accuracy, official student profile updates require verification and approval by the Academic Registrar before taking effect.
             </span>
           </div>
 

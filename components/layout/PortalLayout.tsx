@@ -25,12 +25,27 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     fullName: string;
     role: "STUDENT" | "PARENT" | string;
     institutionName: string;
+    email?: string;
   } | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("erp_active_child_id");
       if (stored) setInternalChildId(stored);
+      try {
+        const storedUser = localStorage.getItem("erp_user");
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          if (parsed.fullName) {
+            setUser({
+              fullName: parsed.fullName,
+              role: parsed.role || "STUDENT",
+              institutionName: parsed.institutionName || "Apex Institute of Technology",
+              email: parsed.email || "john.doe@student.apex.edu",
+            });
+          }
+        }
+      } catch {}
     }
     const handleChildChanged = (e: any) => {
       if (e.detail?.childId) {
@@ -61,6 +76,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
             fullName: json.data.session.fullName,
             role: json.data.session.role,
             institutionName: json.data.session.institutionName,
+            email: json.data.session.email,
           });
         }
       } catch (err) {
@@ -88,6 +104,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         selectedChildId={currentChildId}
+        userFullName={user?.fullName}
+        userEmail={user?.email}
       />
 
       {/* Main Content Area */}

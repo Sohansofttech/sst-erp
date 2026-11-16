@@ -187,7 +187,7 @@ export default function AttendancePage() {
 
       {tab === "MONTHLY" && (
         <Card
-          title="Monthly Attendance Summary (STU-FE-06)"
+          title="Monthly Attendance Summary"
           subtitle="Monthly session attendance tracking and academic percentage"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

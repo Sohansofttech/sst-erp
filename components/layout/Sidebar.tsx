@@ -27,19 +27,32 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   selectedChildId?: string;
+  userFullName?: string;
+  userEmail?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   portalType,
   isOpen,
   onClose,
+  userFullName,
+  userEmail,
 }) => {
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string>(portalType || "STUDENT");
   const [userInfo, setUserInfo] = useState<{ fullName: string; email: string }>({
-    fullName: "John Doe",
-    email: "john.doe@student.apex.edu",
+    fullName: userFullName || "John Doe",
+    email: userEmail || "john.doe@student.apex.edu",
   });
+
+  useEffect(() => {
+    if (userFullName) {
+      setUserInfo((prev) => ({
+        fullName: userFullName,
+        email: userEmail || prev.email,
+      }));
+    }
+  }, [userFullName, userEmail]);
 
   useEffect(() => {
     if (portalType) {
