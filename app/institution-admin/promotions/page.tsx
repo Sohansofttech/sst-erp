@@ -522,7 +522,7 @@ function PromotionsContent() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Link
-              href="/admin"
+              href="/institution-admin"
               className="text-xs font-semibold text-[#64748B] hover:text-[#153B66] flex items-center gap-1"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Dashboard

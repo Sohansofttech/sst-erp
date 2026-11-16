@@ -215,7 +215,7 @@ export default function HomePage() {
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-100 flex flex-col gap-2">
-              <Link href="/admin/login" className="block">
+              <Link href="/institution-admin/login" className="block">
                 <Button
                   variant="primary"
                   className="w-full justify-center bg-[#153B66] hover:bg-[#0F2942] shadow-sm text-xs font-semibold py-2.5"
@@ -224,7 +224,7 @@ export default function HomePage() {
                   Admin Login
                 </Button>
               </Link>
-              <Link href="/admin" className="block text-center text-xs font-medium text-[#2563EB] hover:underline py-1">
+              <Link href="/institution-admin" className="block text-center text-xs font-medium text-[#2563EB] hover:underline py-1">
                 Direct Dashboard
               </Link>
             </div>

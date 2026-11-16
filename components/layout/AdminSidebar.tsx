@@ -44,20 +44,20 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const [academicsOpen, setAcademicsOpen] = useState(
-    pathname.startsWith("/admin/academics") || pathname === "/admin"
+    pathname.startsWith("/institution-admin/academics") || pathname === "/institution-admin"
   );
 
-  const isAcademicsActive = pathname.startsWith("/admin/academics");
+  const isAcademicsActive = pathname.startsWith("/institution-admin/academics");
 
   const placeholderLinks = [
-    { section: "Campus Services & Finance", href: "/admin/placeholder/fees-finance", label: "Fees & Finance", icon: CreditCard },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/hostel", label: "Hostel", icon: Home },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/transport", label: "Transport", icon: Bus },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/events-resources", label: "Events & Resources", icon: CalendarDays },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/gate-management", label: "Gate Management", icon: Shield },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/communication", label: "Communication", icon: MessageSquare },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/approvals", label: "Approvals", icon: CheckSquare },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/audit-logs", label: "Audit Logs", icon: History },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/fees-finance", label: "Fees & Finance", icon: CreditCard },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/hostel", label: "Hostel", icon: Home },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/transport", label: "Transport", icon: Bus },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/events-resources", label: "Events & Resources", icon: CalendarDays },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/gate-management", label: "Gate Management", icon: Shield },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/communication", label: "Communication", icon: MessageSquare },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/approvals", label: "Approvals", icon: CheckSquare },
+    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/audit-logs", label: "Audit Logs", icon: History },
   ];
 
   return (
@@ -80,7 +80,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       >
         {/* Brand / Logo Area (Fixed Top) */}
         <div className="flex items-center justify-between h-16 px-5 border-b border-[#1E4D82] bg-[#0E2847] shrink-0">
-          <Link href="/admin" className="flex items-center gap-2.5">
+          <Link href="/institution-admin" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center font-black text-white text-base shadow-xs">
               SST
             </div>
@@ -107,11 +107,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* 1. Dashboard */}
           <Link
-            href="/admin"
+            href="/institution-admin"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname === "/admin"
+              pathname === "/institution-admin"
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -125,11 +125,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* 2. Institution Settings */}
           <Link
-            href="/admin/settings"
+            href="/institution-admin/settings"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname === "/admin/settings"
+              pathname === "/institution-admin/settings"
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -167,11 +167,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             {academicsOpen && (
               <div className="mt-1 ml-4 pl-3 border-l border-[#1E4D82] space-y-1">
                 <Link
-                  href="/admin/academics/academic-years"
+                  href="/institution-admin/academics/academic-years"
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/admin/academics/academic-years"
+                    pathname === "/institution-admin/academics/academic-years"
                       ? "bg-[#2563EB] text-white font-semibold"
                       : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
                   )}
@@ -181,11 +181,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 </Link>
 
                 <Link
-                  href="/admin/academics/courses"
+                  href="/institution-admin/academics/courses"
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/admin/academics/courses"
+                    pathname === "/institution-admin/academics/courses"
                       ? "bg-[#2563EB] text-white font-semibold"
                       : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
                   )}
@@ -195,11 +195,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 </Link>
 
                 <Link
-                  href="/admin/academics/departments"
+                  href="/institution-admin/academics/departments"
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/admin/academics/departments"
+                    pathname === "/institution-admin/academics/departments"
                       ? "bg-[#2563EB] text-white font-semibold"
                       : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
                   )}
@@ -209,11 +209,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 </Link>
 
                 <Link
-                  href="/admin/academics/classes"
+                  href="/institution-admin/academics/classes"
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/admin/academics/classes"
+                    pathname === "/institution-admin/academics/classes"
                       ? "bg-[#2563EB] text-white font-semibold"
                       : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
                   )}
@@ -223,11 +223,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 </Link>
 
                 <Link
-                  href="/admin/academics/subjects"
+                  href="/institution-admin/academics/subjects"
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/admin/academics/subjects"
+                    pathname === "/institution-admin/academics/subjects"
                       ? "bg-[#2563EB] text-white font-semibold"
                       : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
                   )}
@@ -241,11 +241,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* 4. Roles & Permissions */}
           <Link
-            href="/admin/roles-permissions"
+            href="/institution-admin/roles-permissions"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname === "/admin/roles-permissions"
+              pathname === "/institution-admin/roles-permissions"
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -264,11 +264,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* 5. Admissions */}
           <Link
-            href="/admin/admissions"
+            href="/institution-admin/admissions"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/admissions")
+              pathname.startsWith("/institution-admin/admissions")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -282,11 +282,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* 6. Students */}
           <Link
-            href="/admin/students"
+            href="/institution-admin/students"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/students")
+              pathname.startsWith("/institution-admin/students")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -300,11 +300,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* 7. Guardians */}
           <Link
-            href="/admin/guardians"
+            href="/institution-admin/guardians"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/guardians")
+              pathname.startsWith("/institution-admin/guardians")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -318,11 +318,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* 8. Staff Management */}
           <Link
-            href="/admin/staff"
+            href="/institution-admin/staff"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/staff")
+              pathname.startsWith("/institution-admin/staff")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -341,11 +341,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* Timetable Management */}
           <Link
-            href="/admin/timetable"
+            href="/institution-admin/timetable"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/timetable")
+              pathname.startsWith("/institution-admin/timetable")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -359,11 +359,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* Attendance Management */}
           <Link
-            href="/admin/attendance"
+            href="/institution-admin/attendance"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/attendance")
+              pathname.startsWith("/institution-admin/attendance")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -377,11 +377,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* Examinations Management */}
           <Link
-            href="/admin/examinations"
+            href="/institution-admin/examinations"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/examinations")
+              pathname.startsWith("/institution-admin/examinations")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -395,11 +395,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* Internal Assessments (Phase 4A) */}
           <Link
-            href="/admin/ia"
+            href="/institution-admin/ia"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/ia")
+              pathname.startsWith("/institution-admin/ia")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -413,11 +413,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* Results & Grade Cards (Phase 4C) */}
           <Link
-            href="/admin/results"
+            href="/institution-admin/results"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/results")
+              pathname.startsWith("/institution-admin/results")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -431,11 +431,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* Promotions & Academic Standing (Phase 4D) */}
           <Link
-            href="/admin/promotions"
+            href="/institution-admin/promotions"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/promotions")
+              pathname.startsWith("/institution-admin/promotions")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}
@@ -449,11 +449,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
           {/* Certificates & Degrees (Phase 4E) */}
           <Link
-            href="/admin/certificates"
+            href="/institution-admin/certificates"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/certificates")
+              pathname.startsWith("/institution-admin/certificates")
                 ? "bg-[#2563EB] text-white shadow-xs"
                 : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
             )}

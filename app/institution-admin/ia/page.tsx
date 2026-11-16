@@ -691,7 +691,7 @@ export default function InternalAssessmentsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Link
-              href="/admin"
+              href="/institution-admin"
               className="text-xs font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
@@ -715,7 +715,7 @@ export default function InternalAssessmentsPage() {
 
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <Link href="/admin/ia/marks-entry">
+          <Link href="/institution-admin/ia/marks-entry">
             <Button
               variant="outline"
               size="sm"
@@ -1368,7 +1368,7 @@ export default function InternalAssessmentsPage() {
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Link
-                          href={`/admin/ia/marks-entry?assessmentId=${assessment.id}&classId=${assessment.classId}&sectionId=${assessment.sectionId || "ALL"}`}
+                          href={`/institution-admin/ia/marks-entry?assessmentId=${assessment.id}&classId=${assessment.classId}&sectionId=${assessment.sectionId || "ALL"}`}
                         >
                           <Button
                             variant="ghost"

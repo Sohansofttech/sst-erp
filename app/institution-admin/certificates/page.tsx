@@ -588,7 +588,7 @@ function CertificatesContent() {
         {/* Top Fast Actions */}
         <div className="flex items-center gap-2.5 flex-wrap">
           <Link
-            href="/admin/certificates/verify"
+            href="/institution-admin/certificates/verify"
             className="h-9 px-3.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-bold text-[#1E293B] flex items-center gap-2 shadow-2xs transition-colors"
           >
             <ShieldCheck className="w-4 h-4 text-[#2563EB]" /> Public Registry Desk
@@ -830,7 +830,7 @@ function CertificatesContent() {
 
               <div className="flex items-center gap-2">
                 <Link
-                  href="/admin/settings"
+                  href="/institution-admin/settings"
                   className="px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-xs font-semibold text-[#1E293B] hover:bg-[#F8FAFC] transition-colors"
                 >
                   Configure Institution Header

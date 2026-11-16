@@ -172,7 +172,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Link
-              href="/admin"
+              href="/institution-admin"
               className="text-xs font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
@@ -192,7 +192,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
             </Badge>
           </div>
         </div>
-        <Link href="/admin">
+        <Link href="/institution-admin">
           <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />}>
             Back to Dashboard
           </Button>
@@ -208,7 +208,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1">
             <span className="text-sm">The complete Attendance Management module is now fully deployed and operational.</span>
-            <Link href="/admin/attendance">
+            <Link href="/institution-admin/attendance">
               <Button size="sm" variant="primary">
                 Open Attendance Management
               </Button>
@@ -225,7 +225,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1">
             <span className="text-sm">The complete Examination Management module (Cycles, Timetable Scheduling, Halls, Invigilators, and Eligibility) is fully deployed and operational.</span>
-            <Link href="/admin/examinations">
+            <Link href="/institution-admin/examinations">
               <Button size="sm" variant="primary">
                 Open Examination Management
               </Button>
@@ -242,7 +242,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1">
             <span className="text-sm">The Phase 4A Internal Assessment (IA) Management module (Assessments, Multi-Component Rubrics, Weightage Validation, Academic Mapping, and Lifecycle Status) is fully deployed and operational.</span>
-            <Link href="/admin/ia">
+            <Link href="/institution-admin/ia">
               <Button size="sm" variant="primary">
                 Open Internal Assessment Management
               </Button>
@@ -337,37 +337,37 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link href="/admin/settings">
+            <Link href="/institution-admin/settings">
               <Button variant="outline" size="sm">
                 Institution Settings
               </Button>
             </Link>
-            <Link href="/admin/academics/academic-years">
+            <Link href="/institution-admin/academics/academic-years">
               <Button variant="outline" size="sm">
                 Academic Years
               </Button>
             </Link>
-            <Link href="/admin/academics/courses">
+            <Link href="/institution-admin/academics/courses">
               <Button variant="outline" size="sm">
                 Courses
               </Button>
             </Link>
-            <Link href="/admin/academics/departments">
+            <Link href="/institution-admin/academics/departments">
               <Button variant="outline" size="sm">
                 Departments
               </Button>
             </Link>
-            <Link href="/admin/academics/classes">
+            <Link href="/institution-admin/academics/classes">
               <Button variant="outline" size="sm">
                 Classes & Sections
               </Button>
             </Link>
-            <Link href="/admin/academics/subjects">
+            <Link href="/institution-admin/academics/subjects">
               <Button variant="outline" size="sm">
                 Subjects
               </Button>
             </Link>
-            <Link href="/admin/roles-permissions">
+            <Link href="/institution-admin/roles-permissions">
               <Button variant="accent" size="sm">
                 Roles & Permissions
               </Button>

@@ -289,7 +289,7 @@ export default function StaffPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link href="/admin/roles">
+          <Link href="/institution-admin/roles">
             <Button variant="outline" size="sm" className="gap-2">
               <ShieldCheck className="h-4 w-4 text-slate-600" />
               Roles & Permissions

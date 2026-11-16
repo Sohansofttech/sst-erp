@@ -9,7 +9,7 @@ import { AdminSidebar } from "./AdminSidebar";
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const isLoginPage = pathname === "/admin/login";
+  const isLoginPage = pathname === "/institution-admin/login";
 
   if (isLoginPage) {
     return (

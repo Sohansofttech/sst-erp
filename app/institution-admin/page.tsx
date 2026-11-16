@@ -54,7 +54,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Link href="/admin/academics/academic-years">
+          <Link href="/institution-admin/academics/academic-years">
             <Button
               variant="outline"
               size="sm"
@@ -63,7 +63,7 @@ export default function DashboardPage() {
               AY {activeAcademicYear?.name || "None"}
             </Button>
           </Link>
-          <Link href="/admin/settings">
+          <Link href="/institution-admin/settings">
             <Button variant="primary" size="sm">
               Institution Settings
             </Button>
@@ -90,7 +90,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <Link href="/admin/settings">
+          <Link href="/institution-admin/settings">
             <Button variant="outline" size="sm" className="bg-white/10 hover:bg-white/20 text-white border-white/20">
               Institution Settings
             </Button>
@@ -195,19 +195,19 @@ export default function DashboardPage() {
 
       {/* Secondary Metric Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl bg-white border border-[#E2E8F0] shadow-xs">
-        <Link href="/admin/admissions" className="text-center md:border-r border-[#F1F5F9] group">
+        <Link href="/institution-admin/admissions" className="text-center md:border-r border-[#F1F5F9] group">
           <span className="text-xs text-[#64748B] font-medium group-hover:text-[#2563EB]">New Admissions</span>
           <p className="text-xl font-bold text-[#1E293B] mt-0.5 group-hover:text-[#2563EB]">{stats.totalAdmissions ?? 6}</p>
         </Link>
-        <Link href="/admin/students" className="text-center md:border-r border-[#F1F5F9] group">
+        <Link href="/institution-admin/students" className="text-center md:border-r border-[#F1F5F9] group">
           <span className="text-xs text-[#64748B] font-medium group-hover:text-[#2563EB]">Active Enrolled Students</span>
           <p className="text-xl font-bold text-[#1E293B] mt-0.5 group-hover:text-[#2563EB]">{stats.totalStudents}</p>
         </Link>
-        <Link href="/admin/guardians" className="text-center md:border-r border-[#F1F5F9] group">
+        <Link href="/institution-admin/guardians" className="text-center md:border-r border-[#F1F5F9] group">
           <span className="text-xs text-[#64748B] font-medium group-hover:text-[#2563EB]">Registered Guardians</span>
           <p className="text-xl font-bold text-[#1E293B] mt-0.5 group-hover:text-[#2563EB]">{stats.totalGuardians ?? 7}</p>
         </Link>
-        <Link href="/admin/staff" className="text-center group">
+        <Link href="/institution-admin/staff" className="text-center group">
           <span className="text-xs text-[#64748B] font-medium group-hover:text-[#2563EB]">Institutional Staff</span>
           <p className="text-xl font-bold text-[#16A34A] mt-0.5 group-hover:text-[#2563EB]">
             {stats.totalStaff}
@@ -223,7 +223,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <Link href="/admin/admissions">
+          <Link href="/institution-admin/admissions">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <FileText className="w-4 h-4" />
@@ -235,7 +235,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/students">
+          <Link href="/institution-admin/students">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <Users className="w-4 h-4" />
@@ -247,7 +247,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/guardians">
+          <Link href="/institution-admin/guardians">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#F0FDF4] text-[#16A34A] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <Users className="w-4 h-4" />
@@ -259,7 +259,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/staff">
+          <Link href="/institution-admin/staff">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#CCFBF1] text-[#0D9488] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <Briefcase className="w-4 h-4" />
@@ -271,7 +271,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/timetable">
+          <Link href="/institution-admin/timetable">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <Clock className="w-4 h-4" />
@@ -283,7 +283,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/attendance">
+          <Link href="/institution-admin/attendance">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <CalendarCheck className="w-4 h-4" />
@@ -295,7 +295,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/examinations">
+          <Link href="/institution-admin/examinations">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <FileSpreadsheet className="w-4 h-4" />
@@ -307,7 +307,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/ia">
+          <Link href="/institution-admin/ia">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#CCFBF1] text-[#0D9488] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <Award className="w-4 h-4" />
@@ -319,7 +319,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/results">
+          <Link href="/institution-admin/results">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <GraduationCap className="w-4 h-4" />
@@ -331,7 +331,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/promotions">
+          <Link href="/institution-admin/promotions">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <TrendingUp className="w-4 h-4" />
@@ -343,7 +343,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/certificates">
+          <Link href="/institution-admin/certificates">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <FileText className="w-4 h-4" />
@@ -355,7 +355,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/academics/departments">
+          <Link href="/institution-admin/academics/departments">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#CCFBF1] text-[#0D9488] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <Building className="w-4 h-4" />
@@ -367,7 +367,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/academics/courses">
+          <Link href="/institution-admin/academics/courses">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#E0E7FF] text-[#153B66] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <BookOpen className="w-4 h-4" />
@@ -379,7 +379,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/academics/classes">
+          <Link href="/institution-admin/academics/classes">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <Layers className="w-4 h-4" />
@@ -391,7 +391,7 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          <Link href="/admin/roles-permissions">
+          <Link href="/institution-admin/roles-permissions">
             <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
               <div className="w-9 h-9 rounded-lg bg-[#FEE2E2] text-[#DC2626] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
                 <ShieldCheck className="w-4 h-4" />
@@ -417,7 +417,7 @@ export default function DashboardPage() {
                   Core academic units managed within this institution
                 </p>
               </div>
-              <Link href="/admin/academics/departments">
+              <Link href="/institution-admin/academics/departments">
                 <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="w-4 h-4" />}>
                   View All
                 </Button>
