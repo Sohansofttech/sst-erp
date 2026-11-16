@@ -45,8 +45,8 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "That institution code or slug is already in use.", success: null };
     return { error: "The institution could not be saved. Confirm that the database migration is applied and try again.", success: null };
   }
-  revalidatePath("/admin");
-  revalidatePath("/admin/institutions");
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/institutions");
   return { error: null, success: "Institution created." };
 }
 
@@ -70,9 +70,9 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "That institution code or slug is already in use.", success: null };
     return { error: "The institution could not be updated. Check the database and try again.", success: null };
   }
-  revalidatePath("/admin");
-  revalidatePath("/admin/institutions");
-  revalidatePath(`/admin/institutions/${id.data}`);
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/institutions");
+  revalidatePath(`/super-admin/institutions/${id.data}`);
   return { error: null, success: "Institution details updated." };
 }
 
@@ -86,9 +86,9 @@ export async function updateInstitutionStatus(formData: FormData) {
     await tx.platformInstitution.update({ where: { id: institution.id }, data: { status: parsed.data.status } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: parsed.data.status === "ACTIVE" ? "INSTITUTION_ACTIVATED" : "INSTITUTION_SUSPENDED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status, status: parsed.data.status } } });
   });
-  revalidatePath("/admin");
-  revalidatePath("/admin/institutions");
-  revalidatePath(`/admin/institutions/${institution.id}`);
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/institutions");
+  revalidatePath(`/super-admin/institutions/${institution.id}`);
 }
 
 export async function archiveInstitution(formData: FormData) {
@@ -101,8 +101,8 @@ export async function archiveInstitution(formData: FormData) {
     await tx.platformInstitution.update({ where: { id: institution.id }, data: { status: "ARCHIVED", archivedAt: new Date() } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_ARCHIVED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status } } });
   });
-  revalidatePath("/admin");
-  revalidatePath("/admin/institutions");
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/institutions");
 }
 
 export async function setInstitutionFeatureOverride(formData: FormData) {
@@ -115,6 +115,6 @@ export async function setInstitutionFeatureOverride(formData: FormData) {
     await tx.institutionFeatureOverride.upsert({ where: { institutionId_featureId: { institutionId: input.data.institutionId, featureId: input.data.featureId } }, create: { institutionId: input.data.institutionId, featureId: input.data.featureId, enabled: input.data.enabled === "true", reason: input.data.reason, expiresAt }, update: { enabled: input.data.enabled === "true", reason: input.data.reason, expiresAt } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "INSTITUTION_FEATURE_OVERRIDE_CHANGED", entity: "InstitutionFeatureOverride", entityId: input.data.featureId, result: "SUCCESS", metadata: { enabled: input.data.enabled === "true", expiresAt: expiresAt?.toISOString() ?? null, reason: input.data.reason } } });
   });
-  revalidatePath(`/admin/institutions/${input.data.institutionId}`);
-  revalidatePath("/admin/modules");
+  revalidatePath(`/super-admin/institutions/${input.data.institutionId}`);
+  revalidatePath("/super-admin/modules");
 }

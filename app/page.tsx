@@ -5,15 +5,12 @@ import Link from "next/link";
 import {
   School,
   GraduationCap,
-  Users,
   BookOpen,
   Building2,
   ShieldCheck,
   ArrowRight,
   LogOut,
   Sparkles,
-  Lock,
-  Clock,
 } from "lucide-react";
 import { Button } from "@/components/shared/Button";
 
@@ -196,17 +193,17 @@ export default function HomePage() {
           </div>
 
           {/* Card 4: Institution Admin Login (Active - Batches 1-6) */}
-          <div className="bg-white rounded-2xl border border-[#153B66]/30 p-6 shadow-sm hover:shadow-lg hover:border-[#153B66] transition-all flex flex-col justify-between group relative ring-1 ring-[#153B66]/10">
+          <div className="bg-white rounded-2xl border border-[#123B5A]/20 p-6 shadow-sm hover:shadow-lg hover:border-[#F5A000] transition-all flex flex-col justify-between group relative ring-1 ring-[#123B5A]/10">
             <div>
               <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-[#153B66]/10 text-[#153B66] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="w-12 h-12 rounded-xl bg-[#123B5A]/10 text-[#123B5A] flex items-center justify-center group-hover:scale-105 transition-transform">
                   <Building2 className="w-6 h-6" />
                 </div>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Active
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-[#153B66] group-hover:text-[#2563EB] transition-colors">
+              <h2 className="text-lg font-bold text-[#123B5A] group-hover:text-[#F5A000] transition-colors">
                 Institution Admin
               </h2>
               <p className="text-xs text-[#64748B] mt-2 leading-relaxed">
@@ -218,13 +215,13 @@ export default function HomePage() {
               <Link href="/admin/login" className="block">
                 <Button
                   variant="primary"
-                  className="w-full justify-center bg-[#153B66] hover:bg-[#0F2942] shadow-sm text-xs font-semibold py-2.5"
+                  className="w-full justify-center bg-[#F5A000] hover:bg-[#DE9100] shadow-sm text-xs font-semibold py-2.5 text-white"
                   icon={<ArrowRight className="w-3.5 h-3.5" />}
                 >
                   Admin Login
                 </Button>
               </Link>
-              <Link href="/admin" className="block text-center text-xs font-medium text-[#2563EB] hover:underline py-1">
+              <Link href="/admin" className="block text-center text-xs font-medium text-[#123B5A] hover:text-[#F5A000] hover:underline py-1">
                 Direct Dashboard
               </Link>
             </div>
@@ -250,7 +247,7 @@ export default function HomePage() {
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-100">
-              <Link href="/admin/login?role=super-admin" className="block">
+              <Link href="/super-admin/login" className="block">
                 <Button
                   variant="primary"
                   className="w-full justify-center bg-slate-900 hover:bg-slate-800 shadow-sm text-xs font-semibold py-2.5"

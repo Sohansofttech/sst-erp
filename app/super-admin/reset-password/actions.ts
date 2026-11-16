@@ -14,5 +14,5 @@ export async function updatePassword(_previous: PasswordState, formData: FormDat
   if (userError || !user) return { error: "Your reset link is invalid or has expired. Request a new one." };
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { error: "Password update failed. Request a new reset link and try again." };
-  redirect("/admin");
+  redirect("/super-admin");
 }

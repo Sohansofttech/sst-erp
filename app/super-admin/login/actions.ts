@@ -38,5 +38,5 @@ export async function signIn(_previousState: LoginState, formData: FormData): Pr
     return { error: "Sign-in could not be recorded. Try again after database access is restored." };
   }
 
-  redirect("/admin");
+  redirect("/super-admin");
 }

@@ -12,7 +12,7 @@ async function audited(actorId: string | null, action: string, entity: string, e
     await change(tx);
     await tx.platformAuditLog.create({ data: { userId: actorId, action, entity, entityId, result: "SUCCESS", requestId: crypto.randomUUID() } });
   });
-  revalidatePath("/admin");
+  revalidatePath("/super-admin");
 }
 
 export async function createPlan(formData: FormData) {
@@ -28,7 +28,7 @@ export async function createPlan(formData: FormData) {
     return created;
   });
   void plan;
-  revalidatePath("/admin/subscription-plans");
+  revalidatePath("/super-admin/subscription-plans");
 }
 
 export async function updatePlan(formData: FormData) {
@@ -46,7 +46,7 @@ export async function updatePlan(formData: FormData) {
     await tx.subscriptionPlan.update({ where: { id: prior.id }, data: { code: input.data.code, name: input.data.name, description: input.data.description || null, price: input.data.price, currency: input.data.currency, billingCycle: input.data.billingCycle, customCycleDays: input.data.billingCycle === "CUSTOM" ? input.data.customCycleDays : null, maxUsers: input.data.maxUsers ?? null, storageLimitMb: input.data.storageLimitMb ? BigInt(input.data.storageLimitMb) : null } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_UPDATED", entity: "SubscriptionPlan", entityId: prior.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/subscription-plans");
+  revalidatePath("/super-admin/subscription-plans");
 }
 
 export async function archivePlan(formData: FormData) {
@@ -57,7 +57,7 @@ export async function archivePlan(formData: FormData) {
     const plan = await tx.subscriptionPlan.update({ where: { id: id.data, archivedAt: null }, data: { isActive: false, archivedAt: new Date() } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_ARCHIVED", entity: "SubscriptionPlan", entityId: plan.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/subscription-plans");
+  revalidatePath("/super-admin/subscription-plans");
 }
 
 export async function setPlanActive(formData: FormData) {
@@ -68,7 +68,7 @@ export async function setPlanActive(formData: FormData) {
     await tx.subscriptionPlan.update({ where: { id: input.data.id, archivedAt: null }, data: { isActive: input.data.active === "true" } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_STATUS_CHANGED", entity: "SubscriptionPlan", entityId: input.data.id, result: "SUCCESS", metadata: { active: input.data.active === "true" } } });
   });
-  revalidatePath("/admin/subscription-plans");
+  revalidatePath("/super-admin/subscription-plans");
 }
 
 export async function createInstitutionSubscription(formData: FormData) {
@@ -86,8 +86,8 @@ export async function createInstitutionSubscription(formData: FormData) {
     await tx.subscriptionEvent.create({ data: { subscriptionId: subscription.id, actorId: actor.id, action: "ASSIGNED", details: { planId: input.data.planId } } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUBSCRIPTION_ASSIGNED", entity: "InstitutionSubscription", entityId: subscription.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/billing");
-  revalidatePath("/admin");
+  revalidatePath("/super-admin/billing");
+  revalidatePath("/super-admin");
 }
 
 export async function createDraftInvoice(formData: FormData) {
@@ -103,7 +103,7 @@ export async function createDraftInvoice(formData: FormData) {
     const invoice = await tx.invoice.create({ data: { invoiceNumber, institutionId: input.data.institutionId, subscriptionId: input.data.subscriptionId || null, currency: input.data.currency, subtotal: input.data.amount, tax: 0, total: input.data.amount, status: "DRAFT" } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: invoice.institutionId, action: "DRAFT_INVOICE_CREATED", entity: "Invoice", entityId: invoice.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/billing");
+  revalidatePath("/super-admin/billing");
 }
 
 export async function saveInstitutionBranding(formData: FormData) {
@@ -114,7 +114,7 @@ export async function saveInstitutionBranding(formData: FormData) {
     await tx.institutionBranding.upsert({ where: { institutionId: input.data.institutionId }, create: { institutionId: input.data.institutionId, displayName: input.data.displayName || null, logoUrl: input.data.logoUrl || null, primaryColor: input.data.primaryColor, secondaryColor: input.data.secondaryColor }, update: { displayName: input.data.displayName || null, logoUrl: input.data.logoUrl || null, primaryColor: input.data.primaryColor, secondaryColor: input.data.secondaryColor } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "INSTITUTION_BRANDING_UPDATED", entity: "InstitutionBranding", entityId: input.data.institutionId, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/branding");
+  revalidatePath("/super-admin/branding");
 }
 
 export async function registerDomain(formData: FormData) {
@@ -126,7 +126,7 @@ export async function registerDomain(formData: FormData) {
     const domain = await tx.institutionDomain.create({ data: { institutionId: input.data.institutionId, domain: input.data.domain, verificationToken: token, status: "PENDING_VERIFICATION" } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "INSTITUTION_DOMAIN_REGISTERED", entity: "InstitutionDomain", entityId: domain.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/domains");
+  revalidatePath("/super-admin/domains");
 }
 
 export async function advanceOnboarding(formData: FormData) {
@@ -157,9 +157,9 @@ export async function advanceOnboarding(formData: FormData) {
     await tx.platformInstitution.update({ where: { id: institution.id }, data: { onboardingStage: input.data.stage, ...(input.data.stage === "COMPLETED" ? { status: "ACTIVE" as const } : {}) } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_ONBOARDING_STAGE_CHANGED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { from: institution.onboardingStage, to: input.data.stage } } });
   });
-  revalidatePath("/admin/onboarding");
-  revalidatePath("/admin/institutions");
-  revalidatePath("/admin");
+  revalidatePath("/super-admin/onboarding");
+  revalidatePath("/super-admin/institutions");
+  revalidatePath("/super-admin");
 }
 
 export async function removeDomain(formData: FormData) {
@@ -170,7 +170,7 @@ export async function removeDomain(formData: FormData) {
     const domain = await tx.institutionDomain.update({ where: { id: id.data }, data: { status: "REMOVED", removedAt: new Date(), activatedAt: null } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: domain.institutionId, action: "INSTITUTION_DOMAIN_REMOVED", entity: "InstitutionDomain", entityId: domain.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/domains");
+  revalidatePath("/super-admin/domains");
 }
 
 export async function verifyDomain(formData: FormData) {
@@ -187,7 +187,7 @@ export async function verifyDomain(formData: FormData) {
     await tx.institutionDomain.update({ where: { id: domain.id }, data: { status: "VERIFIED", verifiedAt: new Date() } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: domain.institutionId, action: "INSTITUTION_DOMAIN_VERIFIED", entity: "InstitutionDomain", entityId: domain.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/domains");
+  revalidatePath("/super-admin/domains");
 }
 
 export async function activateDomain(formData: FormData) {
@@ -198,7 +198,7 @@ export async function activateDomain(formData: FormData) {
     const domain = await tx.institutionDomain.update({ where: { id: id.data, status: "VERIFIED" }, data: { status: "ACTIVE", activatedAt: new Date() } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: domain.institutionId, action: "INSTITUTION_DOMAIN_ACTIVATED", entity: "InstitutionDomain", entityId: domain.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/domains");
+  revalidatePath("/super-admin/domains");
 }
 
 export async function setFeatureAvailability(formData: FormData) {
@@ -207,7 +207,7 @@ export async function setFeatureAvailability(formData: FormData) {
   if (!input.success) throw new Error("Invalid feature change.");
   const enabled = input.data.enabled === "true";
   await audited(actor.id, "PLATFORM_FEATURE_AVAILABILITY_CHANGED", "PlatformFeature", input.data.id, async (tx) => { await tx.platformFeature.update({ where: { id: input.data.id }, data: { isAvailable: enabled } }); });
-  revalidatePath("/admin/modules");
+  revalidatePath("/super-admin/modules");
 }
 
 export async function setPlanFeature(formData: FormData) {
@@ -218,7 +218,7 @@ export async function setPlanFeature(formData: FormData) {
     await tx.planFeature.upsert({ where: { planId_featureId: { planId: input.data.planId, featureId: input.data.featureId } }, create: { planId: input.data.planId, featureId: input.data.featureId, enabled: input.data.enabled === "true", limitValue: input.data.limitValue === "" ? null : input.data.limitValue ?? null }, update: { enabled: input.data.enabled === "true", limitValue: input.data.limitValue === "" ? null : input.data.limitValue ?? null } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "PLAN_FEATURE_CHANGED", entity: "PlanFeature", entityId: `${input.data.planId}:${input.data.featureId}`, result: "SUCCESS", metadata: { enabled: input.data.enabled === "true", limit: input.data.limitValue ?? null } } });
   });
-  revalidatePath("/admin/modules");
+  revalidatePath("/super-admin/modules");
 }
 
 export async function setSubscriptionStatus(formData: FormData) {
@@ -231,8 +231,8 @@ export async function setSubscriptionStatus(formData: FormData) {
     await tx.subscriptionEvent.create({ data: { subscriptionId: input.data.id, actorId: actor.id, action: `STATUS_${input.data.status}`, details: { status: input.data.status } } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: existing.institutionId, action: "SUBSCRIPTION_STATUS_CHANGED", entity: "InstitutionSubscription", entityId: input.data.id, result: "SUCCESS", metadata: { previousStatus: existing.status, status: input.data.status } } });
   });
-  revalidatePath("/admin/billing");
-  revalidatePath("/admin");
+  revalidatePath("/super-admin/billing");
+  revalidatePath("/super-admin");
 }
 
 export async function renewSubscription(formData: FormData) {
@@ -252,8 +252,8 @@ export async function renewSubscription(formData: FormData) {
     await tx.subscriptionEvent.create({ data: { subscriptionId: current.id, actorId: actor.id, action: "RENEWED", details: { previousEnd: current.endsAt?.toISOString() ?? null, nextEnd: nextEnd.toISOString() } } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: current.institutionId, action: "SUBSCRIPTION_RENEWED", entity: "InstitutionSubscription", entityId: current.id, result: "SUCCESS", metadata: { endsAt: nextEnd.toISOString() } } });
   });
-  revalidatePath("/admin/billing");
-  revalidatePath("/admin");
+  revalidatePath("/super-admin/billing");
+  revalidatePath("/super-admin");
 }
 
 export async function updateTicket(formData: FormData) {
@@ -269,7 +269,7 @@ export async function updateTicket(formData: FormData) {
     if (input.data.note) await tx.supportTicketNote.create({ data: { ticketId: ticket.id, authorId: actor.id, body: input.data.note, isInternal: true } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: ticket.institutionId, action: "SUPPORT_TICKET_UPDATED", entity: "SupportTicket", entityId: ticket.id, result: "SUCCESS", metadata: { status: ticket.status, priority: ticket.priority } } });
   });
-  revalidatePath("/admin/support");
+  revalidatePath("/super-admin/support");
 }
 
 export async function updatePlatformUser(formData: FormData) {
@@ -287,7 +287,7 @@ export async function updatePlatformUser(formData: FormData) {
     const user = await tx.platformUser.update({ where: { id: input.data.id }, data: { name: input.data.name, platformRole: input.data.platformRole, status: input.data.status } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "PLATFORM_USER_UPDATED", entity: "User", entityId: user.id, result: "SUCCESS", metadata: { previousRole: current.platformRole, platformRole: user.platformRole, previousStatus: current.status, status: user.status } } });
   }, { isolationLevel: "Serializable" });
-  revalidatePath("/admin/users");
+  revalidatePath("/super-admin/users");
 }
 
 export async function savePlatformSetting(formData: FormData) {
@@ -301,7 +301,7 @@ export async function savePlatformSetting(formData: FormData) {
     await tx.platformSetting.upsert({ where: { key: input.data.key }, create: { key: input.data.key, value: value as never, description: input.data.description || null, updatedById: actor.id }, update: { value: value as never, description: input.data.description || null, updatedById: actor.id } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "PLATFORM_SETTING_CHANGED", entity: "PlatformSetting", entityId: input.data.key, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/settings");
+  revalidatePath("/super-admin/settings");
 }
 
 export async function createAnnouncement(formData: FormData) {
@@ -320,7 +320,7 @@ export async function createAnnouncement(formData: FormData) {
     if (input.data.targetMode === "selected") await tx.platformNotificationTarget.createMany({ data: targetIds.data.map((institutionId) => ({ notificationId: notice.id, institutionId })) });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: publish ? "ANNOUNCEMENT_PUBLISHED" : "ANNOUNCEMENT_DRAFTED", entity: "PlatformNotification", entityId: notice.id, result: "SUCCESS", metadata: { targetMode: input.data.targetMode, targetCount: targetIds.data.length } } });
   });
-  revalidatePath("/admin/notifications");
+  revalidatePath("/super-admin/notifications");
 }
 
 export async function editAnnouncement(formData: FormData) {
@@ -331,7 +331,7 @@ export async function editAnnouncement(formData: FormData) {
     await tx.platformNotification.update({ where: { id: input.data.id }, data: { title: input.data.title, body: input.data.body } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "ANNOUNCEMENT_UPDATED", entity: "PlatformNotification", entityId: input.data.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/notifications");
+  revalidatePath("/super-admin/notifications");
 }
 
 export async function transitionAnnouncement(formData: FormData) {
@@ -342,7 +342,7 @@ export async function transitionAnnouncement(formData: FormData) {
     const notice = await tx.platformNotification.update({ where: { id: input.data.id }, data: { status: input.data.status, publishedAt: input.data.status === "PUBLISHED" ? new Date() : undefined } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: input.data.status === "PUBLISHED" ? "ANNOUNCEMENT_PUBLISHED" : "ANNOUNCEMENT_DEACTIVATED", entity: "PlatformNotification", entityId: notice.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/notifications");
+  revalidatePath("/super-admin/notifications");
 }
 
 export async function issueInvoice(formData: FormData) {
@@ -353,7 +353,7 @@ export async function issueInvoice(formData: FormData) {
     const invoice = await tx.invoice.update({ where: { id: id.data, status: "DRAFT" }, data: { status: "ISSUED", issuedAt: new Date(), dueAt: new Date(Date.now() + 30 * 86400000) } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: invoice.institutionId, action: "INVOICE_ISSUED", entity: "Invoice", entityId: invoice.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/billing");
+  revalidatePath("/super-admin/billing");
 }
 
 export async function requestDeletion(formData: FormData) {
@@ -365,7 +365,7 @@ export async function requestDeletion(formData: FormData) {
     const request = await tx.institutionDeletionRequest.create({ data: { institutionId: input.data.institutionId, requestedById: actor.id, reason: input.data.reason } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "INSTITUTION_DELETION_REQUESTED", entity: "InstitutionDeletionRequest", entityId: request.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/deletion");
+  revalidatePath("/super-admin/deletion");
 }
 
 export async function reviewDeletionRequest(formData: FormData) {
@@ -391,9 +391,9 @@ export async function reviewDeletionRequest(formData: FormData) {
     }
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: request.institutionId, action: `DELETION_${input.data.decision.toUpperCase()}`, entity: "InstitutionDeletionRequest", entityId: request.id, result: "SUCCESS", metadata: { priorStatus: request.status } } });
   });
-  revalidatePath("/admin/deletion");
-  revalidatePath("/admin/institutions");
-  revalidatePath("/admin");
+  revalidatePath("/super-admin/deletion");
+  revalidatePath("/super-admin/institutions");
+  revalidatePath("/super-admin");
 }
 
 export async function requestSupportAccess(formData: FormData) {
@@ -410,7 +410,7 @@ export async function requestSupportAccess(formData: FormData) {
     const session = await tx.supportAccessSession.create({ data: { institutionId: input.data.institutionId, ticketId: input.data.ticketId || null, requestedById: actor.id, reason: input.data.reason, allowedActions: ["READ_SUPPORT_CONTEXT"], expiresAt } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUPPORT_ACCESS_REQUESTED", entity: "SupportAccessSession", entityId: session.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/support-access");
+  revalidatePath("/super-admin/support-access");
 }
 
 export async function approveSupportAccess(formData: FormData) {
@@ -424,7 +424,7 @@ export async function approveSupportAccess(formData: FormData) {
     await tx.supportAccessSession.update({ where: { id: id.data }, data: { status: "APPROVED", approvedById: actor.id } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: session.institutionId, action: "SUPPORT_ACCESS_APPROVED", entity: "SupportAccessSession", entityId: session.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/support-access");
+  revalidatePath("/super-admin/support-access");
 }
 
 export async function closeSupportAccess(formData: FormData) {
@@ -439,5 +439,5 @@ export async function closeSupportAccess(formData: FormData) {
     await tx.supportAccessSession.update({ where: { id: input.data.id }, data: { status: input.data.decision === "deny" ? "DENIED" : "REVOKED", endedAt: new Date() } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: current.institutionId, action: input.data.decision === "deny" ? "SUPPORT_ACCESS_DENIED" : "SUPPORT_ACCESS_REVOKED", entity: "SupportAccessSession", entityId: input.data.id, result: "SUCCESS" } });
   });
-  revalidatePath("/admin/support-access");
+  revalidatePath("/super-admin/support-access");
 }

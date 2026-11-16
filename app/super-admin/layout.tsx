@@ -6,7 +6,7 @@ import { hasSuperAdminRole } from "@/lib/super-admin/authorization";
 import { createClient } from "@/lib/supabase/server";
 import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 import { connection } from "next/server";
-import "../super-admin.css";
+import "./super-admin.css";
 
 export const metadata: Metadata = {
   title: "Super Admin | SST-ERP",
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export const instant = false;
 
-export default async function ProtectedAdminLayout({ children }: LayoutProps<"/admin">) {
+export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   if (isDevelopmentBypassEnabled()) {
     return <SuperAdminShell userEmail="No authenticated user" developmentMode>{children}</SuperAdminShell>;
   }
@@ -25,7 +25,7 @@ export default async function ProtectedAdminLayout({ children }: LayoutProps<"/a
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (error || !user) redirect("/admin/login");
+  if (error || !user) redirect("/super-admin/login");
 
   let isSuperAdmin = false;
   try {
