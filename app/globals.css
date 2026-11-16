@@ -80,82 +80,70 @@
 }
 
 :root {
-  /* Mandatory School ERP Design System Tokens */
-  --brand: #0F2942;
-  --brand-foreground: #ffffff;
-  --primary: #0F2942;
-  --primary-foreground: #ffffff;
+  /* Finalized SST-ERP Design System Tokens */
+  --brand: #123B5A;
+  --brand-foreground: #FFFFFF;
+  --primary: #F5A000;
+  --primary-foreground: #FFFFFF;
   --teal: #14b8a6;
   --teal-foreground: #ffffff;
 
-  --background: #EEF2F6;
-  --foreground: #1E293B;
+  --background: #EEF1F5;
+  --foreground: #202936;
   --card: #FFFFFF;
-  --card-foreground: #1E293B;
+  --card-foreground: #202936;
   --popover: #FFFFFF;
-  --popover-foreground: #1E293B;
+  --popover-foreground: #202936;
 
-  --secondary: #F59E0B;
+  --secondary: #123B5A;
   --secondary-foreground: #FFFFFF;
-  --muted: #E2E8F0;
-  --muted-foreground: #64748B;
-  --accent: #F59E0B;
+  --muted: #E5E9EF;
+  --muted-foreground: #788391;
+  --accent: #F5A000;
   --accent-foreground: #FFFFFF;
 
   --success: #16a34a;
   --success-foreground: #ffffff;
-  --warning: #f59e0b;
+  --warning: #f5a000;
   --warning-foreground: #ffffff;
   --error: #dc2626;
   --error-foreground: #ffffff;
   --destructive: #dc2626;
 
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #f59e0b;
+  --border: #E5E9EF;
+  --input: #E5E9EF;
+  --ring: #F5A000;
   --radius: 0.75rem;
 
-  /* Reference Design Color Palette (Deep Navy + Warm Amber/Orange + Soft Cool Grey) */
-  --erp-brand: #0F2942;
-  --erp-action: #F59E0B;
-  --erp-accent: #F59E0B;
-  --erp-page-bg: #EEF2F6;
+  /* Finalized SST-ERP Reference Palette (Navy #123B5A + Orange #F5A000 + Light Grey #EEF1F5) */
+  --erp-brand: #123B5A;
+  --erp-action: #F5A000;
+  --erp-accent: #F5A000;
+  --erp-page-bg: #EEF1F5;
   --erp-card: #FFFFFF;
-  --erp-text-primary: #1E293B;
-  --erp-text-secondary: #64748B;
-  --erp-border: #E2E8F0;
+  --erp-text-primary: #202936;
+  --erp-text-secondary: #788391;
+  --erp-border: #E5E9EF;
   --erp-success: #16A34A;
-  --erp-warning: #F59E0B;
+  --erp-warning: #F5A000;
   --erp-error: #DC2626;
 
-  /* Team Member 3: Institution Admin Portal Tokens */
-  --primary-navy: #153B66;
-  --primary-blue: #2563EB;
-  --secondary-teal: #14B8A6;
-  --bg-main: #F8FAFC;
-  --card-bg: #FFFFFF;
-  --text-primary: #1E293B;
-  --text-secondary: #64748B;
-  --status-success: #16A34A;
-  --status-warning: #F59E0B;
-  --status-error: #DC2626;
-
   /* Charts */
-  --chart-1: #2563eb;
-  --chart-2: #14b8a6;
-  --chart-3: #153b66;
-  --chart-4: #16a34a;
-  --chart-5: #f59e0b;
+  --chart-1: #16466C;
+  --chart-2: #F5A000;
+  --chart-3: #123B5A;
+  --chart-4: #1B4D70;
+  --chart-5: #F5A000;
 
-  /* Fixed Navy Blue Sidebar */
-  --sidebar: #153b66;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #2563eb;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.12);
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.14);
-  --sidebar-ring: #14b8a6;
+  /* Fixed Navy Blue Sidebar (#123B5A) */
+  --sidebar: #123B5A;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #F5A000;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1B4D70;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1B4D70;
+  --sidebar-ring: #F5A000;
 }
 
 .dark {

@@ -68,7 +68,7 @@ export const ChildSelector: React.FC<ChildSelectorProps> = ({
   const activeChild = children.find((c) => c.student.id === selectedChildId) || children[0];
 
   if (loading) {
-    return <div className="text-xs text-[#64748B]">Loading students...</div>;
+    return <div className="text-xs text-[#788391]">Loading students...</div>;
   }
 
   if (children.length === 0) {
@@ -79,26 +79,26 @@ export const ChildSelector: React.FC<ChildSelectorProps> = ({
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 px-3 py-1.5 bg-white border border-[#E2E8F0] rounded-lg shadow-sm hover:border-[#F59E0B] transition-colors text-left"
+        className="flex items-center gap-2.5 px-3 py-1.5 bg-white border border-[#E5E9EF] rounded-lg shadow-sm hover:border-[#F5A000] transition-colors text-left"
       >
-        <div className="w-7 h-7 rounded-full bg-[#0F2942] text-[#F59E0B] flex items-center justify-center font-bold text-xs">
+        <div className="w-7 h-7 rounded-full bg-[#123B5A] text-[#F5A000] flex items-center justify-center font-bold text-xs">
           {activeChild ? `${activeChild.student.firstName[0]}${activeChild.student.lastName[0]}` : "ST"}
         </div>
         <div className="hidden sm:block">
-          <p className="text-xs font-semibold text-[#1E293B]">
+          <p className="text-xs font-semibold text-[#202936]">
             {activeChild ? `${activeChild.student.firstName} ${activeChild.student.lastName}` : "Select Child"}
           </p>
-          <p className="text-[11px] text-[#64748B]">
+          <p className="text-[11px] text-[#788391]">
             {activeChild ? `Sem ${activeChild.student.currentSemester} • ${activeChild.student.rollNumber}` : ""}
           </p>
         </div>
-        <ChevronDown className="w-4 h-4 text-[#64748B] ml-1" />
+        <ChevronDown className="w-4 h-4 text-[#788391] ml-1" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-white border border-[#E2E8F0] rounded-xl shadow-xl z-50 overflow-hidden py-1">
-          <div className="px-3 py-2 border-b border-[#E2E8F0] bg-[#EEF2F6]">
-            <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
+        <div className="absolute right-0 mt-2 w-64 bg-white border border-[#E5E9EF] rounded-xl shadow-xl z-50 overflow-hidden py-1">
+          <div className="px-3 py-2 border-b border-[#E5E9EF] bg-[#EEF1F5]">
+            <p className="text-xs font-semibold text-[#788391] uppercase tracking-wider">
               Linked Children ({children.length})
             </p>
           </div>
@@ -118,19 +118,19 @@ export const ChildSelector: React.FC<ChildSelectorProps> = ({
                   onSelectChild(item.student.id);
                   setIsOpen(false);
                 }}
-                className={`w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#EEF2F6] transition-colors ${
+                className={`w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-[#EEF1F5] transition-colors ${
                   isSelected ? "bg-[#FFFBEB]" : ""
                 }`}
               >
                 <div>
-                  <p className="text-xs font-semibold text-[#1E293B]">
+                  <p className="text-xs font-semibold text-[#202936]">
                     {item.student.firstName} {item.student.lastName}
                   </p>
-                  <p className="text-[11px] text-[#64748B]">
+                  <p className="text-[11px] text-[#788391]">
                     {item.student.courseName} • Sem {item.student.currentSemester} ({item.student.rollNumber})
                   </p>
                 </div>
-                {isSelected && <Check className="w-4 h-4 text-[#F59E0B]" />}
+                {isSelected && <Check className="w-4 h-4 text-[#F5A000]" />}
               </button>
             );
           })}

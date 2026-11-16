@@ -61,6 +61,10 @@ export default function DashboardPage() {
           const sess = json.data.session;
           setSession(sess);
 
+          if (json.data.student) {
+            setData((prev: any) => (prev ? { ...prev, student: prev.student || json.data.student } : { student: json.data.student }));
+          }
+
           if (sess.role === "PARENT") {
             const stored = typeof window !== "undefined" ? localStorage.getItem("erp_active_child_id") : null;
             const initialChildId = stored || sess.activeChildId || "";
@@ -166,6 +170,13 @@ export default function DashboardPage() {
     cgpa,
   } = data || {};
 
+  const studentName = student?.firstName
+    ? `${student.firstName} ${student.lastName || ""}`.trim()
+    : (student?.fullName || "").trim();
+  const displayName = studentName || (session?.fullName || "").trim() || "Student";
+  const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
+  const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
+
   return (
     <PortalLayout
       portalType="STUDENT"
@@ -179,28 +190,28 @@ export default function DashboardPage() {
       }}
     >
       {/* Welcome Banner */}
-      <div className="mb-6 bg-[#0F2942] border border-[#183B5E] rounded-2xl p-6 text-white shadow-md">
+      <div className="mb-6 bg-[#123B5A] border border-[#1B4D70] rounded-2xl p-6 text-white shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="bg-[#183B5E] text-[#F59E0B] border border-[#183B5E] text-xs font-bold px-2 py-0.5 rounded">
+              <span className="bg-[#1B4D70] text-[#F5A000] border border-[#1B4D70] text-xs font-bold px-2 py-0.5 rounded">
                 {student?.academicYear || "2025-2026"}
               </span>
-              <span className="text-xs text-[#8FA6B9]">
+              <span className="text-xs text-white/70">
                 Semester {student?.currentSemester || 5} • Section {student?.currentSection || "A"}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold mt-2 text-white">
-              Welcome back, {student?.firstName ? `${student.firstName} ${student.lastName || ""}`.trim() : (session?.fullName || "Student")}!
+              Welcome back, {displayName}!
             </h1>
-            <p className="text-sm text-[#8FA6B9] mt-1">
-              Roll No: <span className="font-semibold text-white">{student?.rollNumber || "23CS089"}</span> | Admission ID:{" "}
-              <span className="font-semibold text-white">{student?.admissionNumber || "ADM-2023-CS089"}</span> | {student?.course || "B.Tech in Computer Science and Engineering"}
+            <p className="text-sm text-white/70 mt-1">
+              Roll No: <span className="font-semibold text-white">{displayRollNo}</span> | Admission ID:{" "}
+              <span className="font-semibold text-white">{displayAdmissionId}</span> | {student?.course || "B.Tech in Computer Science and Engineering"}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/student/profile">
-              <Button variant="primary" size="sm" className="bg-[#F59E0B] hover:bg-[#D97706] text-white shadow-sm font-semibold">
+              <Button variant="primary" size="sm" className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-sm font-semibold">
                 View Student Profile
               </Button>
             </Link>
@@ -209,13 +220,13 @@ export default function DashboardPage() {
       </div>
 
       {loadingData ? (
-        <div className="py-20 text-center text-sm text-[#64748B]">
-          <div className="w-8 h-8 border-3 border-[#0F2942] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+        <div className="py-20 text-center text-sm text-[#788391]">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
           Loading academic records...
         </div>
       ) : (
         <>
-          {/* 4 Metric Summary Cards - First is Solid Midnight Navy like the Reference Design */}
+          {/* 4 Metric Summary Cards - First is Solid Dark Navy like the Reference Design */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <StatCard
               title="Attendance"
@@ -230,7 +241,7 @@ export default function DashboardPage() {
               title="Today's Schedule"
               value={`${todaySchedule?.length ?? 0} Classes`}
               subtitle="Timetable for today"
-              icon={<Calendar className="w-5 h-5 text-[#F59E0B]" />}
+              icon={<Calendar className="w-5 h-5 text-[#F5A000]" />}
             />
             <StatCard
               title="Fee Status"
@@ -238,7 +249,7 @@ export default function DashboardPage() {
               subtitle={feeSummary?.totalOutstanding > 0 ? "Pending Balance Due" : "No Pending Dues"}
               badgeText={feeSummary?.totalOutstanding > 0 ? "Due Dec 15" : "Paid"}
               badgeVariant={feeSummary?.totalOutstanding > 0 ? "warning" : "success"}
-              icon={<CreditCard className="w-5 h-5 text-[#F59E0B]" />}
+              icon={<CreditCard className="w-5 h-5 text-[#F5A000]" />}
             />
             <StatCard
               title="Upcoming Exams"
@@ -246,7 +257,7 @@ export default function DashboardPage() {
               subtitle="Semester Finals"
               badgeText={upcomingExams?.[0]?.hasHallTicket ? "Hall Ticket Ready" : "Schedule Released"}
               badgeVariant="info"
-              icon={<Award className="w-5 h-5 text-[#F59E0B]" />}
+              icon={<Award className="w-5 h-5 text-[#F5A000]" />}
             />
           </div>
 
@@ -266,20 +277,20 @@ export default function DashboardPage() {
                 }
               >
                 {todaySchedule?.length === 0 ? (
-                  <p className="text-sm text-[#64748B]">No classes scheduled for today.</p>
+                  <p className="text-sm text-[#788391]">No classes scheduled for today.</p>
                 ) : (
                   <div className="space-y-3">
                     {todaySchedule?.map((slot: any) => (
                       <div
                         key={slot.id}
-                        className="p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#F59E0B] bg-[#EEF2F6]/50 flex items-center justify-between transition-colors"
+                        className="p-3.5 rounded-xl border border-[#E5E9EF] hover:border-[#F5A000] bg-[#EEF1F5]/50 flex items-center justify-between transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E2E8F0] text-center min-w-[75px]">
-                            <span className="text-xs font-bold text-[#0F2942] block">
+                          <div className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E5E9EF] text-center min-w-[75px]">
+                            <span className="text-xs font-bold text-[#123B5A] block">
                               {slot.startTime}
                             </span>
-                            <span className="text-[10px] text-[#64748B] block">
+                            <span className="text-[10px] text-[#788391] block">
                               {slot.endTime}
                             </span>
                           </div>
@@ -288,17 +299,17 @@ export default function DashboardPage() {
                               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                                 {slot.subjectCode}
                               </span>
-                              <h3 className="text-sm font-semibold text-[#1E293B]">
+                              <h3 className="text-sm font-semibold text-[#202936]">
                                 {slot.subjectName}
                               </h3>
                             </div>
-                            <p className="text-xs text-[#64748B] mt-0.5">
+                            <p className="text-xs text-[#788391] mt-0.5">
                               Faculty: {slot.teacherName}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-[#64748B] bg-white px-2.5 py-1 rounded-md border border-[#E2E8F0]">
-                          <MapPin className="w-3.5 h-3.5 text-[#F59E0B]" />
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-[#788391] bg-white px-2.5 py-1 rounded-md border border-[#E5E9EF]">
+                          <MapPin className="w-3.5 h-3.5 text-[#F5A000]" />
                           <span>{slot.roomNumber}</span>
                         </div>
                       </div>
@@ -323,22 +334,22 @@ export default function DashboardPage() {
                   {assignments?.map((item: any) => (
                     <div
                       key={item.id}
-                      className="p-3.5 rounded-xl border border-[#E2E8F0] flex items-center justify-between bg-white"
+                      className="p-3.5 rounded-xl border border-[#E5E9EF] flex items-center justify-between bg-white"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
                           <BookOpen className="w-4 h-4" />
                         </div>
                         <div>
-                          <h4 className="text-sm font-semibold text-[#1E293B]">{item.title}</h4>
-                          <p className="text-xs text-[#64748B]">{item.subjectName}</p>
+                          <h4 className="text-sm font-semibold text-[#202936]">{item.title}</h4>
+                          <p className="text-xs text-[#788391]">{item.subjectName}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
                           {item.isSubmitted ? "Submitted" : "Pending"}
                         </Badge>
-                        <div className="flex items-center gap-1 text-[11px] text-[#64748B] mt-1">
+                        <div className="flex items-center gap-1 text-[11px] text-[#788391] mt-1">
                           <Clock className="w-3 h-3" />
                           <span>Due {new Date(item.dueDate).toLocaleDateString()}</span>
                         </div>
@@ -348,7 +359,6 @@ export default function DashboardPage() {
                 </div>
               </Card>
 
-              {/* Recent Academic Results & Academic Performance */}
               {/* Recent Academic Results & Grades */}
               <Card
                 title="Recent Academic Results & Grades"
@@ -362,25 +372,25 @@ export default function DashboardPage() {
                 }
               >
                 {recentResults?.length === 0 ? (
-                  <p className="text-xs text-[#64748B]">No recent published exam results.</p>
+                  <p className="text-xs text-[#788391]">No recent published exam results.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {recentResults?.map((res: any) => (
                       <div
                         key={res.id}
-                        className="p-3 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex items-center justify-between"
+                        className="p-3 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 flex items-center justify-between"
                       >
                         <div>
                           <span className="text-[11px] font-bold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded">
                             {res.subjectCode}
                           </span>
-                          <h5 className="text-xs font-semibold text-[#1E293B] mt-1 line-clamp-1">
+                          <h5 className="text-xs font-semibold text-[#202936] mt-1 line-clamp-1">
                             {res.subjectName}
                           </h5>
-                          <span className="text-[11px] text-[#64748B]">Score: {res.totalMarks}/100</span>
+                          <span className="text-[11px] text-[#788391]">Score: {res.totalMarks}/100</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-base font-extrabold text-[#0F2942] block">
+                          <span className="text-base font-extrabold text-[#123B5A] block">
                             {res.grade}
                           </span>
                           <Badge variant={res.isPassed ? "success" : "error"} size="sm">
@@ -409,22 +419,22 @@ export default function DashboardPage() {
                 }
               >
                 {upcomingExams?.length === 0 ? (
-                  <p className="text-xs text-[#64748B]">No upcoming exams scheduled.</p>
+                  <p className="text-xs text-[#788391]">No upcoming exams scheduled.</p>
                 ) : (
                   <div className="space-y-3">
                     {upcomingExams?.map((exam: any) => (
-                      <div key={exam.id} className="p-3 rounded-lg border border-[#E2E8F0] bg-[#EEF2F6]/50">
+                      <div key={exam.id} className="p-3 rounded-lg border border-[#E5E9EF] bg-[#EEF1F5]/50">
                         <div className="flex items-center justify-between mb-1">
                           <Badge variant="error" size="sm">{exam.examType}</Badge>
-                          <span className="text-xs text-[#64748B]">{exam.slotsCount} papers</span>
+                          <span className="text-xs text-[#788391]">{exam.slotsCount} papers</span>
                         </div>
-                        <h4 className="text-xs font-semibold text-[#1E293B] mt-1">{exam.title}</h4>
-                        <p className="text-[11px] text-[#64748B] mt-0.5">
+                        <h4 className="text-xs font-semibold text-[#202936] mt-1">{exam.title}</h4>
+                        <p className="text-[11px] text-[#788391] mt-0.5">
                           Starts: {new Date(exam.startDate).toLocaleDateString()}
                         </p>
                         {exam.hasHallTicket && (
                           <Link href="/student/examinations">
-                            <Button variant="secondary" size="sm" className="w-full mt-2 text-xs py-1 bg-[#0F2942] hover:bg-[#183B5E] text-white">
+                            <Button variant="secondary" size="sm" className="w-full mt-2 text-xs py-1 bg-[#123B5A] hover:bg-[#1B4D70] text-white">
                               Download Admit Card
                             </Button>
                           </Link>
@@ -437,16 +447,16 @@ export default function DashboardPage() {
 
               {/* Quick Institutional Fee Alert */}
               {feeSummary?.totalOutstanding > 0 && (
-                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900">
+                <div className="p-4 rounded-xl border border-[#F5A000]/30 bg-[#FFFBEB] text-[#92400E]">
                   <div className="flex items-start gap-2.5">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <AlertTriangle className="w-5 h-5 text-[#F5A000] shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-xs font-bold uppercase tracking-wider">Fee Reminder</h4>
                       <p className="text-xs mt-1 leading-relaxed">
                         Outstanding tuition fee balance of <span className="font-bold">₹{feeSummary.totalOutstanding.toLocaleString()}</span>.
                       </p>
                       <Link href="/student/fees">
-                        <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F59E0B] hover:bg-[#D97706] text-white">
+                        <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white">
                           Pay Online Now
                         </Button>
                       </Link>
@@ -459,33 +469,33 @@ export default function DashboardPage() {
               <Card
                 title={
                   <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-[#F59E0B]" />
+                    <Bell className="w-4 h-4 text-[#F5A000]" />
                     <span>Announcements & Circulars</span>
                   </div>
                 }
                 subtitle="Campus notices & academic updates"
               >
                 {notifications?.length === 0 ? (
-                  <p className="text-xs text-[#64748B]">No recent announcements.</p>
+                  <p className="text-xs text-[#788391]">No recent announcements.</p>
                 ) : (
                   <div className="space-y-2.5">
                     {notifications?.slice(0, 3).map((item: any) => (
                       <div
                         key={item.id}
-                        className="p-2.5 rounded-lg border border-[#E2E8F0] bg-[#EEF2F6]/50 hover:border-[#F59E0B] transition-colors"
+                        className="p-2.5 rounded-lg border border-[#E5E9EF] bg-[#EEF1F5]/50 hover:border-[#F5A000] transition-colors"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
                             {item.category}
                           </span>
-                          <span className="text-[10px] text-[#64748B]">
+                          <span className="text-[10px] text-[#788391]">
                             {new Date(item.createdAt).toLocaleDateString()}
                           </span>
                         </div>
-                        <h5 className="text-xs font-semibold text-[#1E293B] line-clamp-1">
+                        <h5 className="text-xs font-semibold text-[#202936] line-clamp-1">
                           {item.title}
                         </h5>
-                        <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-2">
+                        <p className="text-[11px] text-[#788391] mt-0.5 line-clamp-2">
                           {item.message}
                         </p>
                       </div>
@@ -497,21 +507,21 @@ export default function DashboardPage() {
               {/* Quick Nav Links */}
               <Card title="Quick Services">
                 <div className="grid grid-cols-2 gap-2">
-                  <Link href="/student/attendance" className="p-2.5 rounded-lg border border-[#E2E8F0] hover:bg-[#EEF2F6] text-center block transition-colors">
+                  <Link href="/student/attendance" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
                     <CheckCircle2 className="w-5 h-5 text-[#16A34A] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#1E293B]">Attendance</span>
+                    <span className="text-xs font-medium text-[#202936]">Attendance</span>
                   </Link>
-                  <Link href="/student/fees" className="p-2.5 rounded-lg border border-[#E2E8F0] hover:bg-[#EEF2F6] text-center block transition-colors">
-                    <CreditCard className="w-5 h-5 text-[#F59E0B] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#1E293B]">Pay Fees</span>
+                  <Link href="/student/fees" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
+                    <CreditCard className="w-5 h-5 text-[#F5A000] mx-auto mb-1" />
+                    <span className="text-xs font-medium text-[#202936]">Pay Fees</span>
                   </Link>
-                  <Link href="/student/campus-services" className="p-2.5 rounded-lg border border-[#E2E8F0] hover:bg-[#EEF2F6] text-center block transition-colors">
-                    <Building2 className="w-5 h-5 text-[#0F2942] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#1E293B]">Campus Services</span>
+                  <Link href="/student/campus-services" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
+                    <Building2 className="w-5 h-5 text-[#123B5A] mx-auto mb-1" />
+                    <span className="text-xs font-medium text-[#202936]">Campus Services</span>
                   </Link>
-                  <Link href="/student/feedback" className="p-2.5 rounded-lg border border-[#E2E8F0] hover:bg-[#EEF2F6] text-center block transition-colors">
-                    <MessageSquare className="w-5 h-5 text-[#F59E0B] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#1E293B]">Feedback</span>
+                  <Link href="/student/feedback" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
+                    <MessageSquare className="w-5 h-5 text-[#F5A000] mx-auto mb-1" />
+                    <span className="text-xs font-medium text-[#202936]">Feedback</span>
                   </Link>
                 </div>
               </Card>

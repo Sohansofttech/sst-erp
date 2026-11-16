@@ -90,12 +90,12 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-[#EEF2F6] flex flex-col justify-center py-4 sm:py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#EEF1F5] flex flex-col justify-center py-4 sm:py-6 sm:px-6 lg:px-8">
       {/* Back to Home Link */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0 mb-2">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F2942] hover:text-[#F59E0B] transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#123B5A] hover:text-[#F5A000] transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Sohan Soft Tech ERP Home</span>
@@ -104,23 +104,23 @@ function LoginForm() {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-[#0F2942] text-white flex items-center justify-center shadow-md border-2 border-white">
-            <GraduationCap className="w-7 h-7 text-[#F59E0B]" />
+          <div className="w-12 h-12 rounded-2xl bg-[#123B5A] text-white flex items-center justify-center shadow-md border-2 border-white">
+            <GraduationCap className="w-7 h-7 text-[#F5A000]" />
           </div>
         </div>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#0F2942]">
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#123B5A]">
           Student Portal
         </h1>
-        <p className="mt-0.5 text-xs font-medium text-[#64748B]">
+        <p className="mt-0.5 text-xs font-medium text-[#788391]">
           Sign in to access your student academic records, timetable, and coursework
         </p>
       </div>
 
       <div className="mt-4 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-6 px-6 shadow-xl border border-[#E2E8F0] sm:rounded-2xl sm:px-8">
+        <div className="bg-white py-6 px-6 shadow-xl border border-[#E5E9EF] sm:rounded-2xl sm:px-8">
           {/* Authentication Method Switcher: Password vs OTP */}
           <div className="mb-4">
-            <div className="flex bg-[#EEF2F6] p-1 rounded-xl border border-[#E2E8F0]">
+            <div className="flex bg-[#EEF1F5] p-1 rounded-xl border border-[#E5E9EF]">
               <button
                 type="button"
                 onClick={() => {
@@ -130,8 +130,8 @@ function LoginForm() {
                 }}
                 className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
                   authMethod === "PASSWORD"
-                    ? "bg-white text-[#0F2942] shadow-sm border border-[#E2E8F0]"
-                    : "text-[#64748B] hover:text-[#1E293B]"
+                    ? "bg-white text-[#123B5A] shadow-sm border border-[#E5E9EF]"
+                    : "text-[#788391] hover:text-[#202936]"
                 }`}
               >
                 <KeyRound className="w-3.5 h-3.5" />
@@ -146,8 +146,8 @@ function LoginForm() {
                 }}
                 className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
                   authMethod === "OTP"
-                    ? "bg-white text-[#0F2942] shadow-sm border border-[#E2E8F0]"
-                    : "text-[#64748B] hover:text-[#1E293B]"
+                    ? "bg-white text-[#123B5A] shadow-sm border border-[#E5E9EF]"
+                    : "text-[#788391] hover:text-[#202936]"
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5" />
@@ -261,8 +261,8 @@ function LoginForm() {
 
             <Button
               type="submit"
-              variant="secondary"
-              className="w-full mt-2 font-semibold shadow-md py-2.5 text-sm"
+              variant="primary"
+              className="w-full mt-2 font-semibold shadow-md py-2.5 text-sm bg-[#F5A000] hover:bg-[#DE9100] text-white"
               isLoading={loading}
             >
               Sign In to Student Portal
@@ -270,8 +270,8 @@ function LoginForm() {
           </form>
 
           {/* Quick Fill Credentials helpers */}
-          <div className="mt-6 pt-4 border-t border-[#E2E8F0] text-center space-y-3">
-            <div className="flex items-center justify-center gap-2 text-xs text-[#64748B]">
+          <div className="mt-6 pt-4 border-t border-[#E5E9EF] text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-xs text-[#788391]">
               <span className="font-semibold text-slate-700">Quick Fill:</span>
               <button
                 type="button"
@@ -288,8 +288,8 @@ function LoginForm() {
               </button>
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#64748B]">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#F59E0B]" />
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#788391]">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#F5A000]" />
               <span>Secure Student Portal • Sohan Soft Tech ERP</span>
             </div>
           </div>
@@ -303,10 +303,10 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
+        <div className="min-h-screen bg-[#EEF1F5] flex items-center justify-center">
           <div className="text-center">
-            <div className="w-8 h-8 border-3 border-[#0F2942] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-xs text-[#64748B] font-medium">Loading Student Portal...</p>
+            <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-xs text-[#788391] font-medium">Loading Student Portal...</p>
           </div>
         </div>
       }

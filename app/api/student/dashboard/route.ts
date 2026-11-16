@@ -7,8 +7,19 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
     const url = new URL(req.url);
-    const requestedStudentId =
+    let requestedStudentId =
       url.searchParams.get("studentId") || session.studentId || session.activeChildId;
+
+    if (!requestedStudentId && session.role === "STUDENT") {
+      const studentRec = await db.student.findFirst({
+        where: { userId: session.userId },
+        select: { id: true },
+      });
+      if (studentRec) {
+        requestedStudentId = studentRec.id;
+        session.studentId = studentRec.id;
+      }
+    }
 
     if (!requestedStudentId) {
       return NextResponse.json(

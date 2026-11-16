@@ -21,11 +21,11 @@ export const Button: React.FC<ButtonProps> = ({
     "inline-flex items-center justify-center font-semibold rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed text-[14px]";
 
   const variantClasses = {
-    primary: "bg-[#F59E0B] hover:bg-[#D97706] text-white focus:ring-[#F59E0B] shadow-sm",
-    secondary: "bg-[#0F2942] hover:bg-[#16385C] text-white focus:ring-[#0F2942] shadow-sm",
-    outline: "border border-[#E2E8F0] bg-white text-[#0F2942] hover:bg-[#EEF2F6] focus:ring-[#F59E0B]",
+    primary: "bg-[#F5A000] hover:bg-[#DE9100] text-white focus:ring-[#F5A000] shadow-sm",
+    secondary: "bg-[#123B5A] hover:bg-[#1B4D70] text-white focus:ring-[#123B5A] shadow-sm",
+    outline: "border border-[#E5E9EF] bg-white text-[#123B5A] hover:bg-[#EEF1F5] focus:ring-[#F5A000]",
     danger: "bg-[#DC2626] hover:bg-[#B91C1C] text-white focus:ring-[#DC2626] shadow-sm",
-    ghost: "text-[#64748B] hover:text-[#0F2942] hover:bg-[#EEF2F6] focus:ring-[#64748B]",
+    ghost: "text-[#788391] hover:text-[#123B5A] hover:bg-[#EEF1F5] focus:ring-[#788391]",
   };
 
   const sizeClasses = {

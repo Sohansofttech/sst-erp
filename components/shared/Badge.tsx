@@ -18,8 +18,8 @@ export const Badge: React.FC<BadgeProps> = ({
     warning: "bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]",
     error: "bg-[#FEE2E2] text-[#DC2626] border-[#FECACA]",
     info: "bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]",
-    brand: "bg-[#0F2942] text-white border-[#0F2942]",
-    neutral: "bg-[#EEF2F6] text-[#64748B] border-[#E2E8F0]",
+    brand: "bg-[#123B5A] text-white border-[#123B5A]",
+    neutral: "bg-[#EEF1F5] text-[#788391] border-[#E5E9EF]",
   };
 
   const sizeStyles = {

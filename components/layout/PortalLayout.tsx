@@ -97,7 +97,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#EEF2F6]">
+    <div className="min-h-screen bg-[#EEF1F5]">
       {/* Shared Responsive Sidebar */}
       <Sidebar
         portalType={effectiveRole}
@@ -123,7 +123,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {pageTitle && (
             <div className="mb-6">
-              <h1 className="text-2xl sm:text-[28px] font-bold text-[#1E293B]">
+              <h1 className="text-2xl sm:text-[28px] font-bold text-[#202936]">
                 {pageTitle}
               </h1>
             </div>

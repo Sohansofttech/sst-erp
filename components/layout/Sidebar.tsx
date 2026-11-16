@@ -121,49 +121,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-[#0F2942]/60 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-[#123B5A]/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 w-64 bg-[#0F2942] text-white flex flex-col z-50 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 left-0 bottom-0 w-64 bg-[#123B5A] text-white flex flex-col z-50 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Institutional Brand Header */}
-        <div className="h-16 px-6 flex items-center justify-between border-b border-[#183B5E]">
+        <div className="h-16 px-6 flex items-center justify-between border-b border-[#1B4D70]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#F59E0B] flex items-center justify-center font-bold text-white shadow-md">
+            <div className="w-9 h-9 rounded-xl bg-[#F5A000] flex items-center justify-center font-bold text-white shadow-md">
               <GraduationCap className="w-5 h-5 text-white" />
             </div>
             <div>
               <span className="font-bold text-[15px] tracking-tight text-white block leading-tight">
                 Sohan Soft Tech
               </span>
-              <span className="text-[11px] text-[#F59E0B] font-semibold tracking-wide uppercase">
+              <span className="text-[11px] text-[#F5A000] font-semibold tracking-wide uppercase">
                 Student Portal
               </span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-[#8FA6B9] hover:text-white lg:hidden rounded-lg"
+            className="p-1 text-white/70 hover:text-white lg:hidden rounded-lg"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* User Profile Header (Matching Reference Design) */}
-        <div className="pt-6 pb-4 px-6 border-b border-[#183B5E] text-center">
-          <div className="relative mx-auto w-14 h-14 rounded-full bg-[#183B5E] border-2 border-white/20 flex items-center justify-center text-white mb-2 shadow-inner">
-            <User className="w-7 h-7 text-[#F59E0B]" />
+        <div className="pt-6 pb-4 px-6 border-b border-[#1B4D70] text-center">
+          <div className="relative mx-auto w-14 h-14 rounded-full bg-[#1B4D70] border-2 border-white/20 flex items-center justify-center text-white mb-2 shadow-inner">
+            <User className="w-7 h-7 text-[#F5A000]" />
           </div>
           <h2 className="text-sm font-bold text-white tracking-wider uppercase truncate">
             {userInfo.fullName}
           </h2>
-          <p className="text-[11px] text-[#8FA6B9] truncate mt-0.5">
+          <p className="text-[11px] text-white/70 truncate mt-0.5">
             {userInfo.email}
           </p>
         </div>
@@ -186,13 +186,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] font-medium transition-all group ${
                   isActive
-                    ? "bg-[#F59E0B] text-white shadow-md font-semibold"
-                    : "text-[#8FA6B9] hover:text-white hover:bg-[#183B5E]/60"
+                    ? "bg-[#F5A000] text-white shadow-md font-semibold"
+                    : "text-white/80 hover:text-white hover:bg-[#1B4D70]"
                 }`}
               >
                 <Icon
                   className={`w-4 h-4 shrink-0 transition-colors ${
-                    isActive ? "text-white" : "text-[#8FA6B9] group-hover:text-white"
+                    isActive ? "text-white" : "text-white/70 group-hover:text-white"
                   }`}
                 />
                 <span className="truncate">{item.label}</span>
@@ -202,12 +202,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Sidebar Footer with Session Sign Out */}
-        <div className="p-4 border-t border-[#183B5E]">
+        <div className="p-4 border-t border-[#1B4D70]">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-2 text-[13px] font-medium text-[#8FA6B9] hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-colors"
+            className="w-full flex items-center gap-3 px-3.5 py-2 text-[13px] font-medium text-white/70 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-colors"
           >
-            <LogOut className="w-4 h-4 text-[#8FA6B9] group-hover:text-red-300" />
+            <LogOut className="w-4 h-4 text-white/70 group-hover:text-red-300" />
             <span>Sign Out Session</span>
           </button>
         </div>

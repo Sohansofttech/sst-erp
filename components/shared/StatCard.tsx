@@ -72,9 +72,9 @@ export function StatCard({
       className={cn(
         "gap-0 py-5 shadow-xs transition-all hover:shadow-md",
         isDark
-          ? "bg-[#0F2942] text-white border border-[#183B5E] shadow-md"
-          : "bg-white border border-[#E2E8F0]",
-        onClick && (isDark ? "cursor-pointer hover:border-[#F59E0B]" : "cursor-pointer hover:border-primary"),
+          ? "bg-[#123B5A] text-white border border-[#1B4D70] shadow-md"
+          : "bg-white border border-[#E5E9EF]",
+        onClick && (isDark ? "cursor-pointer hover:border-[#F5A000]" : "cursor-pointer hover:border-[#F5A000]"),
         className
       )}
     >
@@ -83,7 +83,7 @@ export function StatCard({
           <p
             className={cn(
               "truncate text-[13px] font-semibold uppercase tracking-wider",
-              isDark ? "text-[#8FA6B9]" : "text-muted-foreground"
+              isDark ? "text-white/70" : "text-[#788391]"
             )}
           >
             {displayTitle}
@@ -92,7 +92,7 @@ export function StatCard({
             <p
               className={cn(
                 "text-2xl font-bold tracking-tight sm:text-[26px]",
-                isDark ? "text-white" : "text-foreground"
+                isDark ? "text-white" : "text-[#202936]"
               )}
             >
               {value}
@@ -124,7 +124,7 @@ export function StatCard({
                 <span
                   className={cn(
                     "text-[13px]",
-                    isDark ? "text-[#8FA6B9]" : "text-muted-foreground"
+                    isDark ? "text-white/70" : "text-[#788391]"
                   )}
                 >
                   {trend?.label ?? displaySubtitle}

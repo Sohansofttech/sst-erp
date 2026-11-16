@@ -257,16 +257,17 @@ export async function getTeacherSession(
         ],
       },
       include: {
-        teachers: true,
+        teacherProfile: true,
       },
     })
 
-    if (user && user.teachers && (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "FACULTY")) {
-      const profile = mapDbTeacherToProfile(user.teachers, user)
+    const teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
+    if (user && teacherObj && (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "FACULTY")) {
+      const profile = mapDbTeacherToProfile(teacherObj, user)
       return {
         institution,
         user,
-        teacher: user.teachers,
+        teacher: teacherObj,
         academicYears: dbYears,
         currentAcademicYear,
         profile,
@@ -286,15 +287,16 @@ export async function getTeacherSession(
     // Find the first active teacher for this institution (e.g. seeded Dr. Ananya Sharma)
     const demoTeacher = await prisma.teachers.findFirst({
       where: { institutionId: institution.id },
-      include: { users: true },
+      include: { user: true },
       orderBy: { createdAt: "asc" },
     })
 
-    if (demoTeacher && demoTeacher.users && demoTeacher.users.isActive) {
-      const profile = mapDbTeacherToProfile(demoTeacher, demoTeacher.users)
+    const teacherUser = (demoTeacher as any)?.user || (demoTeacher as any)?.users
+    if (demoTeacher && teacherUser && teacherUser.isActive) {
+      const profile = mapDbTeacherToProfile(demoTeacher, teacherUser)
       return {
         institution,
-        user: demoTeacher.users,
+        user: teacherUser,
         teacher: demoTeacher,
         academicYears: dbYears,
         currentAcademicYear,
