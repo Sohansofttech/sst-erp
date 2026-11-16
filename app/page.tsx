@@ -269,41 +269,35 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Card 5: Super Admin Login (Placeholder - In Development) */}
-          <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-6 shadow-xs flex flex-col justify-between relative">
+          {/* Card 5: Super Admin Platform Login */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group">
             <div>
               <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center group-hover:scale-105 transition-transform">
                   <ShieldCheck className="w-6 h-6" />
                 </div>
-                <span className="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                  Coming Soon
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Active
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-slate-700">
+              <h2 className="text-lg font-bold text-slate-800 group-hover:text-sky-700 transition-colors">
                 Super Admin Login
               </h2>
               <p className="text-xs text-[#64748B] mt-2 leading-relaxed">
                 Platform-wide governance console for multi-tenant institution onboarding, system telemetry, and security.
               </p>
-              <div className="mt-4 pt-3 border-t border-slate-100">
-                <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-600 font-medium">
-                  <Clock className="w-3 h-3" />
-                  In Development
-                </span>
-              </div>
             </div>
 
-            <div className="pt-6 mt-6 border-t border-slate-100">
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                className="w-full py-2.5 px-4 text-xs font-semibold rounded-xl bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed flex items-center justify-center gap-1.5"
-              >
-                <Lock className="w-3.5 h-3.5 text-slate-400" />
-                <span>In Development</span>
-              </button>
+            <div className="pt-6 mt-6 border-t border-slate-100 flex flex-col gap-2">
+              <Link href="/admin/login?role=super-admin" className="block">
+                <Button
+                  variant="primary"
+                  className="w-full justify-center bg-slate-900 hover:bg-slate-800 shadow-sm text-xs font-semibold py-2.5"
+                  icon={<ArrowRight className="w-3.5 h-3.5" />}
+                >
+                  Platform Login
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
