@@ -173,7 +173,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
           <div className="flex items-center gap-2 mb-1">
             <Link
               href="/admin"
-              className="text-xs font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
+              className="text-xs font-semibold text-[#F5A000] hover:underline flex items-center gap-1"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
             </Link>
@@ -255,7 +255,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
       <Alert
         variant="info"
         title="Module Status: Scheduled for Upcoming Release"
-        icon={<Compass className="w-5 h-5 text-[#2563EB]" />}
+        icon={<Compass className="w-5 h-5 text-[#F5A000]" />}
       >
         This module is part of the extended SST ERP institutional suite. The foundational academic architecture (Academic Years, Courses, Departments, Classes, Sections, Subjects, and Roles & Permissions) is currently active and can be configured below.
       </Alert>
@@ -264,8 +264,8 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <div className="p-6 space-y-4">
-            <div className="flex items-center gap-2 text-[#153B66] font-semibold text-base">
-              <Calendar className="w-5 h-5 text-[#2563EB]" />
+            <div className="flex items-center gap-2 text-[#123B5A] font-semibold text-base">
+              <Calendar className="w-5 h-5 text-[#F5A000]" />
               <h4>Planned Capabilities & Scope</h4>
             </div>
             <p className="text-sm text-[#64748B] leading-relaxed">
@@ -290,8 +290,8 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
 
         <Card>
           <div className="p-6 space-y-4">
-            <div className="flex items-center gap-2 text-[#153B66] font-semibold text-base">
-              <Layers className="w-5 h-5 text-[#2563EB]" />
+            <div className="flex items-center gap-2 text-[#123B5A] font-semibold text-base">
+              <Layers className="w-5 h-5 text-[#F5A000]" />
               <h4>Active System Integrations</h4>
             </div>
             <p className="text-sm text-[#64748B] leading-relaxed">
@@ -313,7 +313,7 @@ async function PlaceholderContent({ params }: { params: Promise<{ slug: string }
             </ul>
 
             <div className="p-3 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] text-xs text-[#1E3A8A] flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
+              <ShieldCheck className="w-4 h-4 text-[#F5A000] shrink-0 mt-0.5" />
               <span>
                 Tenant isolation and role authorization boundaries are maintained across all institutional modules.
               </span>

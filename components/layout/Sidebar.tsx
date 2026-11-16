@@ -78,21 +78,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-[#153B66]/60 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-[#123B5A]/60 backdrop-blur-sm z-40 lg:hidden"
           onClick={onClose}
         />
       )}
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 w-64 bg-[#153B66] text-white flex flex-col z-50 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 left-0 bottom-0 w-64 bg-[#123B5A] text-white flex flex-col z-50 transform transition-transform duration-200 ease-in-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Institutional Brand Header */}
-        <div className="h-16 px-6 flex items-center justify-between border-b border-[#1E4F8A]">
+        <div className="h-16 px-6 flex items-center justify-between border-b border-[#16466C]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#2563EB] flex items-center justify-center font-bold text-white shadow-md">
+            <div className="w-9 h-9 rounded-lg bg-[#F5A000] flex items-center justify-center font-bold text-white shadow-md">
               <ShieldCheck className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -127,8 +127,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-[14px] font-medium transition-all group ${
                   isActive
-                    ? "bg-[#2563EB] text-white shadow-sm font-semibold"
-                    : "text-slate-300 hover:text-white hover:bg-[#1E4F8A]/60"
+                    ? "bg-[#F5A000] text-white shadow-sm font-semibold"
+                    : "text-slate-300 hover:text-white hover:bg-[#16466C]/60"
                 }`}
               >
                 <Icon
@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer Info & Sign out */}
-        <div className="p-4 border-t border-[#1E4F8A] bg-[#0F2A4A]/50 space-y-2">
+        <div className="p-4 border-t border-[#16466C] bg-[#0D2B42]/50 space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-300">
             <span>Apex Tech v1.0</span>
             <span className="text-[#14B8A6] font-semibold">Ay 2025-26</span>

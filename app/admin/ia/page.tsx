@@ -689,27 +689,11 @@ export default function InternalAssessmentsPage() {
       {/* Top Breadcrumb & Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link
-              href="/admin"
-              className="text-xs font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-            </Link>
-            <span className="text-[#CBD5E1]">/</span>
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Operations & Assessments
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Phase 4A
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Internal Assessment (IA) Management
+            Internal Assessments
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Define continuous internal assessments (CIA), unit tests, multi-component rubrics, and weightage distribution across academic terms.
+            Define continuous internal assessments, unit tests, and multi-component rubrics.
           </p>
         </div>
 
@@ -729,7 +713,7 @@ export default function InternalAssessmentsPage() {
             variant="outline"
             size="sm"
             onClick={handleExportCSV}
-            leftIcon={<Download className="w-4 h-4 text-[#2563EB]" />}
+            leftIcon={<Download className="w-4 h-4 text-[#F5A000]" />}
           >
             Export Schedule
           </Button>
@@ -759,9 +743,9 @@ export default function InternalAssessmentsPage() {
         <Card className="p-3.5 border-[#E2E8F0] shadow-xs">
           <div className="flex items-center justify-between text-[#64748B] mb-1">
             <span className="text-xs font-medium uppercase tracking-wider">Total</span>
-            <Award className="w-4 h-4 text-[#153B66]" />
+            <Award className="w-4 h-4 text-[#123B5A]" />
           </div>
-          <div className="text-2xl font-black text-[#153B66]">{metrics.totalAssessments}</div>
+          <div className="text-2xl font-black text-[#123B5A]">{metrics.totalAssessments}</div>
           <div className="text-[11px] text-[#64748B] mt-0.5">All IA cycles</div>
         </Card>
 
@@ -777,10 +761,10 @@ export default function InternalAssessmentsPage() {
         <Card className="p-3.5 border-[#E2E8F0] shadow-xs">
           <div className="flex items-center justify-between text-[#64748B] mb-1">
             <span className="text-xs font-medium uppercase tracking-wider">Scheduled</span>
-            <Calendar className="w-4 h-4 text-[#2563EB]" />
+            <Calendar className="w-4 h-4 text-[#F5A000]" />
           </div>
-          <div className="text-2xl font-black text-[#2563EB]">{metrics.scheduledAssessments}</div>
-          <div className="text-[11px] text-[#2563EB] mt-0.5">On timetable</div>
+          <div className="text-2xl font-black text-[#F5A000]">{metrics.scheduledAssessments}</div>
+          <div className="text-[11px] text-[#F5A000] mt-0.5">On timetable</div>
         </Card>
 
         <Card className="p-3.5 border-[#E2E8F0] shadow-xs">
@@ -817,7 +801,7 @@ export default function InternalAssessmentsPage() {
           onClick={() => setActiveTab("dashboard")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeTab === "dashboard"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -828,7 +812,7 @@ export default function InternalAssessmentsPage() {
           onClick={() => setActiveTab("assessments")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeTab === "assessments"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -839,7 +823,7 @@ export default function InternalAssessmentsPage() {
           onClick={() => setActiveTab("components")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeTab === "components"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -850,7 +834,7 @@ export default function InternalAssessmentsPage() {
           onClick={() => setActiveTab("matrix")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeTab === "matrix"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -861,7 +845,7 @@ export default function InternalAssessmentsPage() {
           onClick={() => setActiveTab("history")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeTab === "history"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -875,7 +859,7 @@ export default function InternalAssessmentsPage() {
       {activeTab === "dashboard" && (
         <div className="space-y-6">
           {/* Institutional Alert / Info Banner */}
-          <div className="p-4 rounded-xl bg-gradient-to-r from-[#153B66] to-[#1E4D82] text-white shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-4 rounded-xl bg-gradient-to-r from-[#123B5A] to-[#1E4D82] text-white shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#14B8A6] bg-[#14B8A6]/20 px-2.5 py-0.5 rounded border border-[#14B8A6]/30">
@@ -897,7 +881,7 @@ export default function InternalAssessmentsPage() {
                 variant="primary"
                 size="sm"
                 onClick={handleOpenCreateModal}
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
+                className="bg-[#F5A000] hover:bg-[#F5A000] text-white"
                 leftIcon={<Plus className="w-4 h-4" />}
               >
                 New Assessment
@@ -911,7 +895,7 @@ export default function InternalAssessmentsPage() {
             <div className="lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-[#1E293B] uppercase tracking-wider flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4 text-[#2563EB]" /> Upcoming Assessment Schedule
+                  <CalendarDays className="w-4 h-4 text-[#F5A000]" /> Upcoming Assessment Schedule
                 </h3>
                 <span className="text-xs text-[#64748B]">
                   {iaAssessments.filter((a) => a.status === "Scheduled" || a.status === "Ongoing").length} active cycles
@@ -948,11 +932,11 @@ export default function InternalAssessmentsPage() {
                               <Badge variant={STATUS_VARIANTS[assessment.status].variant} size="sm">
                                 {assessment.status}
                               </Badge>
-                              <span className="text-xs font-bold text-[#153B66] bg-[#F1F5F9] px-2 py-0.5 rounded font-mono">
+                              <span className="text-xs font-bold text-[#123B5A] bg-[#F1F5F9] px-2 py-0.5 rounded font-mono">
                                 {assessment.assessmentCode}
                               </span>
                               <span className="text-xs text-[#64748B]">•</span>
-                              <span className="text-xs font-semibold text-[#2563EB]">
+                              <span className="text-xs font-semibold text-[#F5A000]">
                                 {assessment.type}
                               </span>
                             </div>
@@ -972,7 +956,7 @@ export default function InternalAssessmentsPage() {
 
                           <div className="text-right sm:border-l sm:pl-4 sm:border-[#E2E8F0] shrink-0 space-y-1">
                             <div className="text-xs font-bold text-[#1E293B] flex items-center sm:justify-end gap-1">
-                              <Calendar className="w-3.5 h-3.5 text-[#2563EB]" />
+                              <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
                               {assessment.startDate} to {assessment.endDate}
                             </div>
                             <div className="text-[11px] text-[#64748B]">
@@ -1010,7 +994,7 @@ export default function InternalAssessmentsPage() {
                                 className="text-[11px] bg-[#F8FAFC] border border-[#E2E8F0] text-[#334155] px-2 py-0.5 rounded-md flex items-center gap-1.5"
                               >
                                 <span className="font-semibold">{c.name}</span>
-                                <span className="text-[#2563EB] font-bold">({c.weightagePercentage}%)</span>
+                                <span className="text-[#F5A000] font-bold">({c.weightagePercentage}%)</span>
                               </span>
                             ))}
                           </div>
@@ -1031,7 +1015,7 @@ export default function InternalAssessmentsPage() {
                 <div>
                   <div className="flex justify-between text-xs font-semibold mb-1">
                     <span className="text-[#64748B]">Multi-Component Ratio</span>
-                    <span className="text-[#153B66] font-bold">
+                    <span className="text-[#123B5A] font-bold">
                       {Math.round(
                         (iaAssessments.filter((a) => a.hasMultipleComponents).length /
                           (iaAssessments.length || 1)) *
@@ -1042,7 +1026,7 @@ export default function InternalAssessmentsPage() {
                   </div>
                   <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
                     <div
-                      className="bg-[#2563EB] h-full rounded-full"
+                      className="bg-[#F5A000] h-full rounded-full"
                       style={{
                         width: `${Math.round(
                           (iaAssessments.filter((a) => a.hasMultipleComponents).length /
@@ -1095,7 +1079,7 @@ export default function InternalAssessmentsPage() {
               {/* Assessment Guidelines Card */}
               <Card className="p-4 bg-[#F8FAFC] border-[#E2E8F0] space-y-2 text-xs">
                 <div className="font-bold text-[#1E293B] flex items-center gap-1.5">
-                  <HelpCircle className="w-4 h-4 text-[#2563EB]" /> Institutional CIA Policy
+                  <HelpCircle className="w-4 h-4 text-[#F5A000]" /> Institutional CIA Policy
                 </div>
                 <ul className="list-disc list-inside text-[#64748B] space-y-1 text-[11px] leading-relaxed">
                   <li>Continuous Internal Assessments (CIA) require at least 2 distinct components.</li>
@@ -1134,7 +1118,7 @@ export default function InternalAssessmentsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full h-10 px-3 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                  className="w-full h-10 px-3 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#F5A000]"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="Draft">Draft</option>
@@ -1150,7 +1134,7 @@ export default function InternalAssessmentsPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="w-full h-10 px-3 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                  className="w-full h-10 px-3 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#F5A000]"
                 >
                   <option value="ALL">All Assessment Types</option>
                   {ASSESSMENT_TYPES.map((t) => (
@@ -1268,7 +1252,7 @@ export default function InternalAssessmentsPage() {
                     setTypeFilter("ALL");
                     setStatusFilter("ALL");
                   }}
-                  className="text-xs text-[#2563EB] hover:underline font-semibold cursor-pointer"
+                  className="text-xs text-[#F5A000] hover:underline font-semibold cursor-pointer"
                 >
                   Reset all filters
                 </button>
@@ -1300,7 +1284,7 @@ export default function InternalAssessmentsPage() {
                     {/* Code & Name */}
                     <TableCell>
                       <div className="font-bold text-[#1E293B]">{assessment.name}</div>
-                      <div className="text-[11px] font-mono text-[#2563EB] font-semibold">
+                      <div className="text-[11px] font-mono text-[#F5A000] font-semibold">
                         {assessment.assessmentCode}
                       </div>
                     </TableCell>
@@ -1318,7 +1302,7 @@ export default function InternalAssessmentsPage() {
 
                     {/* Subject & Faculty */}
                     <TableCell>
-                      <div className="font-semibold text-xs text-[#153B66]">
+                      <div className="font-semibold text-xs text-[#123B5A]">
                         {assessment.subjectCode} - {assessment.subjectName}
                       </div>
                       <div className="text-[11px] text-[#64748B]">
@@ -1347,7 +1331,7 @@ export default function InternalAssessmentsPage() {
                     {/* Components */}
                     <TableCell>
                       {assessment.hasMultipleComponents ? (
-                        <span className="text-xs font-bold text-[#2563EB] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                        <span className="text-xs font-bold text-[#F5A000] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
                           {assessment.components?.length || 0} Components
                         </span>
                       ) : (
@@ -1397,7 +1381,7 @@ export default function InternalAssessmentsPage() {
                           onClick={() => handleOpenStatusModal(assessment)}
                           title="Change Status"
                         >
-                          <TrendingUp className="w-4 h-4 text-[#2563EB]" />
+                          <TrendingUp className="w-4 h-4 text-[#F5A000]" />
                         </Button>
 
                         <Button
@@ -1406,7 +1390,7 @@ export default function InternalAssessmentsPage() {
                           onClick={() => handleOpenEditModal(assessment)}
                           title="Edit Assessment"
                         >
-                          <Edit2 className="w-4 h-4 text-[#153B66]" />
+                          <Edit2 className="w-4 h-4 text-[#123B5A]" />
                         </Button>
 
                         <Button
@@ -1475,7 +1459,7 @@ export default function InternalAssessmentsPage() {
                   <Badge variant={STATUS_VARIANTS[assessment.status].variant} size="sm">
                     {assessment.status}
                   </Badge>
-                  <span className="text-xs font-mono font-bold text-[#2563EB]">
+                  <span className="text-xs font-mono font-bold text-[#F5A000]">
                     {assessment.assessmentCode}
                   </span>
                 </div>
@@ -1498,7 +1482,7 @@ export default function InternalAssessmentsPage() {
                       <div key={c.id} className="p-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-xs space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-[#1E293B]">{c.name}</span>
-                          <span className="font-bold text-[#2563EB]">{c.weightagePercentage}%</span>
+                          <span className="font-bold text-[#F5A000]">{c.weightagePercentage}%</span>
                         </div>
                         <div className="flex items-center justify-between text-[11px] text-[#64748B]">
                           <span>{c.type}</span>
@@ -1541,7 +1525,7 @@ export default function InternalAssessmentsPage() {
               variant="outline"
               size="sm"
               onClick={handleExportCSV}
-              leftIcon={<Download className="w-4 h-4 text-[#2563EB]" />}
+              leftIcon={<Download className="w-4 h-4 text-[#F5A000]" />}
             >
               Export Matrix Report
             </Button>
@@ -1567,7 +1551,7 @@ export default function InternalAssessmentsPage() {
                     <TableCell className="font-semibold text-xs text-[#1E293B]">
                       {subj.className || "3rd Year Computer Science"}
                     </TableCell>
-                    <TableCell className="font-mono text-xs font-bold text-[#2563EB]">
+                    <TableCell className="font-mono text-xs font-bold text-[#F5A000]">
                       {subj.code}
                     </TableCell>
                     <TableCell className="text-xs font-medium text-[#1E293B]">
@@ -1588,7 +1572,7 @@ export default function InternalAssessmentsPage() {
                           matchedAssessments.map((a) => (
                             <span
                               key={a.id}
-                              className="text-xs bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE] px-2 py-0.5 rounded-md font-medium"
+                              className="text-xs bg-[#EFF6FF] text-[#F5A000] border border-[#BFDBFE] px-2 py-0.5 rounded-md font-medium"
                             >
                               {a.assessmentCode}
                             </span>
@@ -1682,7 +1666,7 @@ export default function InternalAssessmentsPage() {
                             {log.status}
                           </Badge>
                           <span className="font-bold text-[#1E293B]">{log.assessmentName}</span>
-                          <span className="font-mono text-[#2563EB]">({log.assessmentCode})</span>
+                          <span className="font-mono text-[#F5A000]">({log.assessmentCode})</span>
                         </div>
                         <p className="text-[#64748B] text-[11px]">
                           Remarks: {log.remarks || `Status transitioned to ${log.status}`}
@@ -1732,7 +1716,7 @@ export default function InternalAssessmentsPage() {
           {/* Section: Basic Information */}
           <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] space-y-3">
             <div className="font-bold text-[#1E293B] text-xs flex items-center gap-1.5 uppercase tracking-wider">
-              <Award className="w-3.5 h-3.5 text-[#2563EB]" /> Assessment Information
+              <Award className="w-3.5 h-3.5 text-[#F5A000]" /> Assessment Information
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1807,7 +1791,7 @@ export default function InternalAssessmentsPage() {
                 placeholder="Specify assessment coverage, student guidelines, closed-book rules, etc."
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
-                className="w-full p-2.5 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                className="w-full p-2.5 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#F5A000]"
               />
             </div>
           </div>
@@ -1925,7 +1909,7 @@ export default function InternalAssessmentsPage() {
           {/* Section: Timeline & Marks */}
           <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] space-y-3">
             <div className="font-bold text-[#1E293B] text-xs flex items-center gap-1.5 uppercase tracking-wider">
-              <Calendar className="w-3.5 h-3.5 text-[#2563EB]" /> Schedule & Total Marks
+              <Calendar className="w-3.5 h-3.5 text-[#F5A000]" /> Schedule & Total Marks
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2005,12 +1989,12 @@ export default function InternalAssessmentsPage() {
               <div className="font-bold text-[#1E293B] text-xs flex items-center gap-1.5 uppercase tracking-wider">
                 <Sliders className="w-3.5 h-3.5 text-[#14B8A6]" /> Multi-Component Rubrics & Weightages
               </div>
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#153B66]">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#123B5A]">
                 <input
                   type="checkbox"
                   checked={hasMultipleComponents}
                   onChange={(e) => setHasMultipleComponents(e.target.checked)}
-                  className="rounded text-[#2563EB] focus:ring-[#2563EB] w-4 h-4 cursor-pointer"
+                  className="rounded text-[#F5A000] focus:ring-[#F5A000] w-4 h-4 cursor-pointer"
                 />
                 <span>Enable Multi-Component Rubrics</span>
               </label>
@@ -2140,7 +2124,7 @@ export default function InternalAssessmentsPage() {
                                 Number(e.target.value)
                               )
                             }
-                            className="h-8 text-xs font-bold text-[#2563EB]"
+                            className="h-8 text-xs font-bold text-[#F5A000]"
                           />
                         </div>
 
@@ -2187,7 +2171,7 @@ export default function InternalAssessmentsPage() {
                     size="sm"
                     onClick={handleAddComponent}
                     className="w-full border-dashed"
-                    leftIcon={<Plus className="w-4 h-4 text-[#2563EB]" />}
+                    leftIcon={<Plus className="w-4 h-4 text-[#F5A000]" />}
                   >
                     Add Component
                   </Button>
@@ -2259,7 +2243,7 @@ export default function InternalAssessmentsPage() {
               </div>
               <div className="text-right">
                 <span className="text-[10px] uppercase font-bold text-[#64748B]">Assessment Type</span>
-                <div className="font-bold text-[#153B66] text-xs">{selectedAssessment.type}</div>
+                <div className="font-bold text-[#123B5A] text-xs">{selectedAssessment.type}</div>
               </div>
             </div>
 
@@ -2324,7 +2308,7 @@ export default function InternalAssessmentsPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-[#2563EB]">{c.weightagePercentage}% weightage</div>
+                      <div className="font-bold text-[#F5A000]">{c.weightagePercentage}% weightage</div>
                       <div className="text-[11px] text-[#64748B]">
                         Max: {c.maxMarks} M | Pass: {c.passingMarks} M
                       </div>

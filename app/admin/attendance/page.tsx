@@ -25,8 +25,6 @@ import {
   Download,
   Filter,
   Search,
-  ArrowLeft,
-  Sparkles,
   Save,
   CheckCheck,
   RotateCcw,
@@ -451,24 +449,11 @@ export default function AttendancePage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link
-              href="/admin"
-              className="text-xs font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-            </Link>
-            <span className="text-[#CBD5E1]">/</span>
-            <span className="text-xs font-semibold text-[#14B8A6] uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" /> Academic Operations
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Attendance Management
+            Attendance
           </h1>
           <p className="text-sm text-[#64748B] mt-0.5">
-            Institutional attendance registers, daily/period marking, low-attendance alerts, and auditable correction records for{" "}
-            <strong className="text-[#153B66]">{profile.name}</strong>.
+            Institutional attendance registers, daily/period marking, low-attendance alerts, and auditable correction records.
           </p>
         </div>
 
@@ -477,7 +462,7 @@ export default function AttendancePage() {
             variant="outline"
             size="sm"
             onClick={handleExportCSV}
-            leftIcon={<Download className="w-4 h-4 text-[#2563EB]" />}
+            leftIcon={<Download className="w-4 h-4 text-[#F5A000]" />}
           >
             Export Register
           </Button>
@@ -497,7 +482,7 @@ export default function AttendancePage() {
         <Alert
           variant={feedback.type === "success" ? "success" : feedback.type === "error" ? "error" : "info"}
           title={feedback.type === "success" ? "Operation Successful" : feedback.type === "error" ? "Action Required" : "System Notice"}
-          icon={feedback.type === "success" ? <CheckCircle2 className="w-5 h-5 text-[#16A34A]" /> : feedback.type === "error" ? <AlertTriangle className="w-5 h-5 text-[#DC2626]" /> : <Calendar className="w-5 h-5 text-[#2563EB]" />}
+          icon={feedback.type === "success" ? <CheckCircle2 className="w-5 h-5 text-[#16A34A]" /> : feedback.type === "error" ? <AlertTriangle className="w-5 h-5 text-[#DC2626]" /> : <Calendar className="w-5 h-5 text-[#F5A000]" />}
         >
           <div className="flex items-center justify-between">
             <span>{feedback.message}</span>
@@ -517,7 +502,7 @@ export default function AttendancePage() {
           onClick={() => setActiveTab("dashboard")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer shrink-0 ${
             activeTab === "dashboard"
-              ? "bg-white border-t-2 border-t-[#2563EB] border-x border-[#CBD5E1] text-[#2563EB] shadow-xs"
+              ? "bg-white border-t-2 border-t-[#F5A000] border-x border-[#CBD5E1] text-[#F5A000] shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -529,7 +514,7 @@ export default function AttendancePage() {
           onClick={() => setActiveTab("mark")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer shrink-0 ${
             activeTab === "mark"
-              ? "bg-white border-t-2 border-t-[#2563EB] border-x border-[#CBD5E1] text-[#2563EB] shadow-xs"
+              ? "bg-white border-t-2 border-t-[#F5A000] border-x border-[#CBD5E1] text-[#F5A000] shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -541,7 +526,7 @@ export default function AttendancePage() {
           onClick={() => setActiveTab("history")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer shrink-0 ${
             activeTab === "history"
-              ? "bg-white border-t-2 border-t-[#2563EB] border-x border-[#CBD5E1] text-[#2563EB] shadow-xs"
+              ? "bg-white border-t-2 border-t-[#F5A000] border-x border-[#CBD5E1] text-[#F5A000] shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -553,7 +538,7 @@ export default function AttendancePage() {
           onClick={() => setActiveTab("reports")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer shrink-0 ${
             activeTab === "reports"
-              ? "bg-white border-t-2 border-t-[#2563EB] border-x border-[#CBD5E1] text-[#2563EB] shadow-xs"
+              ? "bg-white border-t-2 border-t-[#F5A000] border-x border-[#CBD5E1] text-[#F5A000] shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -565,7 +550,7 @@ export default function AttendancePage() {
           onClick={() => setActiveTab("alerts")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer shrink-0 ${
             activeTab === "alerts"
-              ? "bg-white border-t-2 border-t-[#2563EB] border-x border-[#CBD5E1] text-[#2563EB] shadow-xs"
+              ? "bg-white border-t-2 border-t-[#F5A000] border-x border-[#CBD5E1] text-[#F5A000] shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -582,7 +567,7 @@ export default function AttendancePage() {
           onClick={() => setActiveTab("audits")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-lg transition-colors cursor-pointer shrink-0 ${
             activeTab === "audits"
-              ? "bg-white border-t-2 border-t-[#2563EB] border-x border-[#CBD5E1] text-[#2563EB] shadow-xs"
+              ? "bg-white border-t-2 border-t-[#F5A000] border-x border-[#CBD5E1] text-[#F5A000] shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -604,7 +589,7 @@ export default function AttendancePage() {
           {/* Institutional KPI Cards Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
             {/* 1. Total Enrolled */}
-            <Card className="border-l-4 border-l-[#2563EB]">
+            <Card className="border-l-4 border-l-[#F5A000]">
               <CardContent className="p-4">
                 <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block">
                   Total Enrolled
@@ -612,7 +597,7 @@ export default function AttendancePage() {
                 <p className="text-2xl font-black text-[#1E293B] mt-1">
                   {students.filter((s) => s.status === "Active").length}
                 </p>
-                <span className="text-[10px] text-[#2563EB] font-semibold mt-1 flex items-center gap-1">
+                <span className="text-[10px] text-[#F5A000] font-semibold mt-1 flex items-center gap-1">
                   <Users className="w-3 h-3" /> All Cohorts
                 </span>
               </CardContent>
@@ -679,12 +664,12 @@ export default function AttendancePage() {
             </Card>
 
             {/* 6. Overall Percentage */}
-            <Card className="border-l-4 border-l-[#153B66]">
+            <Card className="border-l-4 border-l-[#123B5A]">
               <CardContent className="p-4">
-                <span className="text-[11px] font-bold text-[#153B66] uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-[#123B5A] uppercase tracking-wider block">
                   Attendance Rate
                 </span>
-                <p className="text-2xl font-black text-[#153B66] mt-1">
+                <p className="text-2xl font-black text-[#123B5A] mt-1">
                   {overallMetrics.percentage}%
                 </p>
                 <div className="w-full bg-[#E2E8F0] h-1.5 rounded-full mt-2 overflow-hidden">
@@ -733,7 +718,7 @@ export default function AttendancePage() {
                           <span className="text-[11px] text-[#DC2626] font-bold">{row.absent} Absent</span>
                           {row.late > 0 && <span className="text-[11px] text-[#D97706] font-bold">{row.late} Late</span>}
                           {row.leave > 0 && <span className="text-[11px] text-[#0284C7] font-bold">{row.leave} Leave</span>}
-                          <span className="text-xs font-black text-[#153B66] ml-2">{row.pct}%</span>
+                          <span className="text-xs font-black text-[#123B5A] ml-2">{row.pct}%</span>
                         </div>
                       </div>
                       <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden flex">
@@ -813,7 +798,7 @@ export default function AttendancePage() {
                         <span className="text-[10px] text-[#64748B]">{cls.totalEnrolled} Enrolled • {cls.totalSessions} Sessions</span>
                       </div>
                       <div className="text-right">
-                        <span className="font-black text-[#153B66] text-sm block">{cls.averagePercentage}%</span>
+                        <span className="font-black text-[#123B5A] text-sm block">{cls.averagePercentage}%</span>
                         {cls.lowAttendanceCount > 0 ? (
                           <span className="text-[10px] text-[#DC2626] font-bold">{cls.lowAttendanceCount} Defaulters</span>
                         ) : (
@@ -1056,14 +1041,14 @@ export default function AttendancePage() {
                           <tr key={s.id} className="hover:bg-[#F8FAFC] transition-colors">
                             {/* Student ID & Roll No */}
                             <td className="py-3 px-4">
-                              <span className="font-extrabold text-[#153B66] block">{s.rollNumber}</span>
+                              <span className="font-extrabold text-[#123B5A] block">{s.rollNumber}</span>
                               <span className="text-[10px] text-[#64748B]">{s.studentId}</span>
                             </td>
 
                             {/* Name & Avatar */}
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full bg-[#153B66]/10 text-[#153B66] flex items-center justify-center font-bold text-xs shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-[#123B5A]/10 text-[#123B5A] flex items-center justify-center font-bold text-xs shrink-0">
                                   {s.firstName[0]}
                                   {s.lastName[0]}
                                 </div>
@@ -1142,7 +1127,7 @@ export default function AttendancePage() {
                                 placeholder="Optional remark (e.g. medical, transport)"
                                 value={currentRemarks}
                                 onChange={(e) => handleSetStudentRemarks(s.id, e.target.value)}
-                                className="w-full text-xs border border-[#CBD5E1] rounded px-2.5 py-1.5 bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full text-xs border border-[#CBD5E1] rounded px-2.5 py-1.5 bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                               />
                             </td>
 
@@ -1330,7 +1315,7 @@ export default function AttendancePage() {
 
                           {/* Student */}
                           <td className="py-3 px-4">
-                            <span className="font-bold text-[#153B66] block">{r.studentName}</span>
+                            <span className="font-bold text-[#123B5A] block">{r.studentName}</span>
                             <span className="text-[10px] text-[#64748B]">Roll: {r.rollNumber}</span>
                           </td>
 
@@ -1357,7 +1342,7 @@ export default function AttendancePage() {
                               {r.status}
                             </Badge>
                             {r.isCorrected && (
-                              <span className="text-[9px] bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE] px-1 py-0.2 rounded ml-1 font-semibold">
+                              <span className="text-[9px] bg-[#EFF6FF] text-[#F5A000] border border-[#BFDBFE] px-1 py-0.2 rounded ml-1 font-semibold">
                                 Corrected
                               </span>
                             )}
@@ -1375,7 +1360,7 @@ export default function AttendancePage() {
                               variant="outline"
                               size="sm"
                               onClick={() => openCorrectionModal(r)}
-                              leftIcon={<RotateCcw className="w-3.5 h-3.5 text-[#2563EB]" />}
+                              leftIcon={<RotateCcw className="w-3.5 h-3.5 text-[#F5A000]" />}
                             >
                               Correct Record
                             </Button>
@@ -1410,7 +1395,7 @@ export default function AttendancePage() {
                   variant="outline"
                   size="sm"
                   onClick={handleExportCSV}
-                  leftIcon={<Download className="w-4 h-4 text-[#2563EB]" />}
+                  leftIcon={<Download className="w-4 h-4 text-[#F5A000]" />}
                 >
                   Download CSV
                 </Button>
@@ -1446,7 +1431,7 @@ export default function AttendancePage() {
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-[#64748B] justify-end">
-                  <Filter className="w-4 h-4 text-[#2563EB]" />
+                  <Filter className="w-4 h-4 text-[#F5A000]" />
                   <span>Showing {studentSummaries.length} Students</span>
                 </div>
               </div>
@@ -1471,7 +1456,7 @@ export default function AttendancePage() {
                   <tbody className="divide-y divide-[#F1F5F9]">
                     {studentSummaries.map((s) => (
                       <tr key={s.studentId} className="hover:bg-[#F8FAFC] transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-[#153B66]">
+                        <td className="py-3 px-4 font-mono font-bold text-[#123B5A]">
                           {s.rollNumber}
                         </td>
                         <td className="py-3 px-4">
@@ -1499,7 +1484,7 @@ export default function AttendancePage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex flex-col items-end">
-                            <span className="font-black text-[#153B66] text-sm">{s.percentage}%</span>
+                            <span className="font-black text-[#123B5A] text-sm">{s.percentage}%</span>
                             <div className="w-16 bg-[#E2E8F0] h-1.5 rounded-full overflow-hidden mt-1">
                               <div
                                 className={`h-full rounded-full ${
@@ -1545,12 +1530,12 @@ export default function AttendancePage() {
       {activeTab === "alerts" && (
         <div className="space-y-6">
           {/* Threshold Configuration Card */}
-          <Card className="border-l-4 border-l-[#2563EB]">
+          <Card className="border-l-4 border-l-[#F5A000]">
             <CardHeader className="pb-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="flex items-center gap-2">
-                    <Sliders className="w-5 h-5 text-[#2563EB]" />
+                    <Sliders className="w-5 h-5 text-[#F5A000]" />
                     Institutional Minimum Attendance Threshold
                   </CardTitle>
                   <p className="text-xs text-[#64748B] mt-0.5">
@@ -1568,7 +1553,7 @@ export default function AttendancePage() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-[#1E293B]">
-                    Minimum Attendance Required: <span className="text-[#2563EB] text-sm">{customMinThreshold}%</span>
+                    Minimum Attendance Required: <span className="text-[#F5A000] text-sm">{customMinThreshold}%</span>
                   </label>
                   <p className="text-[11px] text-[#64748B]">
                     University/VTU standard policy requires 75% attendance for examination hall ticket generation.
@@ -1583,9 +1568,9 @@ export default function AttendancePage() {
                     step="1"
                     value={customMinThreshold}
                     onChange={(e) => setCustomMinThreshold(Number(e.target.value))}
-                    className="w-48 accent-[#2563EB]"
+                    className="w-48 accent-[#F5A000]"
                   />
-                  <span className="text-sm font-extrabold text-[#153B66] w-12 text-center">
+                  <span className="text-sm font-extrabold text-[#123B5A] w-12 text-center">
                     {customMinThreshold}%
                   </span>
                   <Button
@@ -1747,7 +1732,7 @@ export default function AttendancePage() {
             <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-[#E2E8F0]">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <History className="w-5 h-5 text-[#2563EB]" />
+                  <History className="w-5 h-5 text-[#F5A000]" />
                   Attendance Correction Audit Trail
                 </CardTitle>
                 <p className="text-xs text-[#64748B] mt-0.5">
@@ -1797,7 +1782,7 @@ export default function AttendancePage() {
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="font-bold text-[#153B66] block">{a.studentName}</span>
+                            <span className="font-bold text-[#123B5A] block">{a.studentName}</span>
                             <span className="text-[10px] text-[#64748B]">Roll: {a.rollNumber}</span>
                           </td>
                           <td className="py-3 px-4">
@@ -1815,7 +1800,7 @@ export default function AttendancePage() {
                             <p className="text-[#1E293B] font-medium leading-relaxed">{a.reason}</p>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="font-semibold text-[#153B66] block">{a.correctedBy}</span>
+                            <span className="font-semibold text-[#123B5A] block">{a.correctedBy}</span>
                             <span className="text-[10px] text-[#14B8A6] font-bold">Verified Audit Record</span>
                           </td>
                         </tr>
@@ -1894,7 +1879,7 @@ export default function AttendancePage() {
                     onClick={() => setCorrectionNewStatus(st)}
                     className={`p-2 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                       correctionNewStatus === st
-                        ? "bg-[#2563EB] text-white border-[#2563EB] shadow-xs"
+                        ? "bg-[#F5A000] text-white border-[#F5A000] shadow-xs"
                         : "bg-white text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                     }`}
                   >
@@ -1913,7 +1898,7 @@ export default function AttendancePage() {
                 placeholder="State the verifiable reason (e.g., medical slip submitted to HOD office, transport bus breakdown)..."
                 value={correctionReason}
                 onChange={(e) => setCorrectionReason(e.target.value)}
-                className="w-full text-xs border border-[#CBD5E1] rounded-lg p-2.5 bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                className="w-full text-xs border border-[#CBD5E1] rounded-lg p-2.5 bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
               />
             </div>
 
@@ -2006,7 +1991,7 @@ export default function AttendancePage() {
                     onClick={() => setAlertChannel(ch)}
                     className={`p-2.5 rounded-lg font-bold border transition-all cursor-pointer uppercase ${
                       alertChannel === ch
-                        ? "bg-[#153B66] text-white border-[#153B66] shadow-xs"
+                        ? "bg-[#123B5A] text-white border-[#123B5A] shadow-xs"
                         : "bg-white text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                     }`}
                   >
@@ -2019,7 +2004,7 @@ export default function AttendancePage() {
             <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-[#64748B]">
               <p className="font-bold text-[#1E293B] mb-1">Standard Institutional Notice Text:</p>
               <p className="italic">
-                &ldquo;Dear Guardian, this is an official advisory from {profile.name}. Your ward {alertTargetStudent.studentName} has recorded {alertTargetStudent.percentage}% attendance, which is below the mandatory {attendanceThreshold.minimumPercentage}% institutional threshold. Please contact the department mentor immediately.&rdquo;
+                &ldquo;Dear Guardian, this is an official institutional advisory. Your ward {alertTargetStudent.studentName} has recorded {alertTargetStudent.percentage}% attendance, which is below the mandatory {attendanceThreshold.minimumPercentage}% institutional threshold. Please contact the department mentor immediately.&rdquo;
               </p>
             </div>
 

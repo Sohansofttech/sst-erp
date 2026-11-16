@@ -157,20 +157,11 @@ export default function AcademicYearsPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Academics Architecture
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <Badge variant="teal" size="sm">
-              Calendar & Terms
-            </Badge>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Academic Year Management
+            Academic Years
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Configure institutional calendar cycles, active academic years, and semester/term boundaries.
+            Manage academic years, session cycles, and term boundaries.
           </p>
         </div>
         <Button
@@ -194,7 +185,7 @@ export default function AcademicYearsPage() {
               <span className="text-xs uppercase font-bold text-[#16A34A] tracking-wider block">
                 Current System Active Year
               </span>
-              <h4 className="text-lg font-bold text-[#153B66]">
+              <h4 className="text-lg font-bold text-[#123B5A]">
                 AY {activeAcademicYear?.name || "None Selected"}
               </h4>
               <p className="text-xs text-[#64748B]">
@@ -213,7 +204,7 @@ export default function AcademicYearsPage() {
         <CardHeader>
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-[#2563EB]" />
+              <CalendarDays className="w-5 h-5 text-[#F5A000]" />
               <CardTitle>Configured Academic Years</CardTitle>
             </div>
             <span className="text-xs text-[#64748B]">
@@ -236,9 +227,9 @@ export default function AcademicYearsPage() {
             <TableBody>
               {academicYears.map((ay) => (
                 <TableRow key={ay.id}>
-                  <TableCell className="font-bold text-[#153B66]">
+                  <TableCell className="font-bold text-[#123B5A]">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-[#2563EB]" />
+                      <Calendar className="w-4 h-4 text-[#F5A000]" />
                       <span>AY {ay.name}</span>
                     </div>
                   </TableCell>
@@ -251,7 +242,7 @@ export default function AcademicYearsPage() {
                           key={term.id}
                           className={`text-[11px] px-2 py-0.5 rounded font-medium border ${
                             term.isCurrent
-                              ? "bg-[#EFF6FF] text-[#2563EB] border-[#BFDBFE]"
+                              ? "bg-[#EFF6FF] text-[#F5A000] border-[#BFDBFE]"
                               : "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]"
                           }`}
                         >
@@ -277,7 +268,7 @@ export default function AcademicYearsPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => setActiveAcademicYear(ay.id)}
-                        className="text-[#2563EB] border-[#2563EB]/30 hover:bg-[#EFF6FF]"
+                        className="text-[#F5A000] border-[#F5A000]/30 hover:bg-[#EFF6FF]"
                       >
                         Set as Active
                       </Button>
@@ -288,7 +279,7 @@ export default function AcademicYearsPage() {
                       onClick={() => handleOpenEditModal(ay)}
                       title="Edit Year"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                      <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
                     </Button>
                     {!ay.isActive && (
                       <Button
@@ -376,7 +367,7 @@ export default function AcademicYearsPage() {
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB] w-4 h-4 cursor-pointer"
+                className="rounded border-[#CBD5E1] text-[#F5A000] focus:ring-[#F5A000] w-4 h-4 cursor-pointer"
               />
               <span className="text-xs font-semibold text-[#1E293B]">
                 Set this as the Active Academic Year immediately upon saving
@@ -421,7 +412,7 @@ export default function AcademicYearsPage() {
                       placeholder="Term Name (e.g. Odd Semester)"
                       value={t.name}
                       onChange={(e) => handleTermChange(idx, "name", e.target.value)}
-                      className="text-xs font-bold text-[#153B66] bg-white border border-[#CBD5E1] rounded px-2 py-1 flex-1"
+                      className="text-xs font-bold text-[#123B5A] bg-white border border-[#CBD5E1] rounded px-2 py-1 flex-1"
                     />
                     <label className="flex items-center gap-1.5 text-[11px] text-[#64748B] cursor-pointer">
                       <input

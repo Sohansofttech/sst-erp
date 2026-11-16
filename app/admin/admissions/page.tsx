@@ -425,20 +425,11 @@ export default function AdmissionsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Student Lifecycle
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider">
-              Admissions Desk
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Admission Management
+            Admissions
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Process candidate applications, track verification checklists, manage statuses, and register approved applicants as students.
+            Process candidate applications, track verification checklists, and register approved applicants.
           </p>
         </div>
         <Button
@@ -453,7 +444,7 @@ export default function AdmissionsPage() {
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-        <Card className="border-l-4 border-l-[#2563EB]">
+        <Card className="border-l-4 border-l-[#F5A000]">
           <CardContent className="p-4">
             <span className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
               Total Applications
@@ -518,7 +509,7 @@ export default function AdmissionsPage() {
                 placeholder="Search by applicant name, Application ID, email, or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-[#E2E8F0] focus:border-[#2563EB] focus:outline-none"
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-[#E2E8F0] focus:border-[#F5A000] focus:outline-none"
               />
             </div>
 
@@ -527,7 +518,7 @@ export default function AdmissionsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="Submitted">Submitted</option>
@@ -540,7 +531,7 @@ export default function AdmissionsPage() {
               <select
                 value={deptFilter}
                 onChange={(e) => setDeptFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none max-w-[160px] truncate"
+                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none max-w-[160px] truncate"
               >
                 <option value="ALL">All Departments</option>
                 {departments.map((d) => (
@@ -553,7 +544,7 @@ export default function AdmissionsPage() {
               <select
                 value={courseFilter}
                 onChange={(e) => setCourseFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none max-w-[160px] truncate"
+                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none max-w-[160px] truncate"
               >
                 <option value="ALL">All Programs</option>
                 {courses.map((c) => (
@@ -614,7 +605,7 @@ export default function AdmissionsPage() {
                     <TableRow key={app.id}>
                       {/* Application ID */}
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-[#153B66] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
                           {app.applicationNumber}
                         </span>
                         <span className="block text-[10px] text-[#94A3B8] mt-0.5">
@@ -625,7 +616,7 @@ export default function AdmissionsPage() {
                       {/* Applicant */}
                       <TableCell>
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-[#153B66] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#123B5A] text-white flex items-center justify-center font-bold text-xs shrink-0">
                             {app.applicantFirstName[0]}
                             {app.applicantLastName[0]}
                           </div>
@@ -652,7 +643,7 @@ export default function AdmissionsPage() {
 
                       {/* Prior Score */}
                       <TableCell>
-                        <span className="font-bold text-[#153B66] text-xs">
+                        <span className="font-bold text-[#123B5A] text-xs">
                           {app.previousScorePercentage}%
                         </span>
                         <span className="block text-[10px] text-[#64748B] truncate max-w-[130px]">
@@ -705,7 +696,7 @@ export default function AdmissionsPage() {
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleOpenDetails(app)}
-                            className="p-1.5 rounded text-[#64748B] hover:text-[#2563EB] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
+                            className="p-1.5 rounded text-[#64748B] hover:text-[#F5A000] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
                             title="View Full Application"
                           >
                             <Eye className="w-4 h-4" />
@@ -798,7 +789,7 @@ export default function AdmissionsPage() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">
                   Target Degree Program
                 </span>
-                <h4 className="text-base font-bold text-[#153B66]">{selectedApp.courseName}</h4>
+                <h4 className="text-base font-bold text-[#123B5A]">{selectedApp.courseName}</h4>
                 <p className="text-xs text-[#64748B]">
                   {selectedApp.departmentName} • Academic Year {selectedApp.academicYearName}
                 </p>
@@ -817,8 +808,8 @@ export default function AdmissionsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Applicant Card */}
               <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
-                <h5 className="text-xs font-bold text-[#153B66] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
-                  <UserCheck className="w-4 h-4 text-[#2563EB]" />
+                <h5 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
+                  <UserCheck className="w-4 h-4 text-[#F5A000]" />
                   <span>Applicant Personal Details</span>
                 </h5>
                 <div className="text-xs space-y-1.5 text-[#1E293B]">
@@ -832,7 +823,7 @@ export default function AdmissionsPage() {
 
               {/* Guardian Card */}
               <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
-                <h5 className="text-xs font-bold text-[#153B66] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
+                <h5 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
                   <ShieldCheck className="w-4 h-4 text-[#14B8A6]" />
                   <span>Parent / Guardian Information</span>
                 </h5>
@@ -849,21 +840,21 @@ export default function AdmissionsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Prior Qualification */}
               <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
-                <h5 className="text-xs font-bold text-[#153B66] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
-                  <GraduationCap className="w-4 h-4 text-[#2563EB]" />
+                <h5 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
+                  <GraduationCap className="w-4 h-4 text-[#F5A000]" />
                   <span>Prior Academic Record</span>
                 </h5>
                 <div className="text-xs space-y-1.5 text-[#1E293B]">
                   <p><span className="text-[#64748B] font-medium">Institution:</span> {selectedApp.previousSchoolOrCollege || "N/A"}</p>
                   <p><span className="text-[#64748B] font-medium">Board / Exam:</span> {selectedApp.previousBoardOrUniversity}</p>
-                  <p><span className="text-[#64748B] font-medium">Score / CGPA:</span> <strong className="text-[#153B66] text-sm">{selectedApp.previousScorePercentage}%</strong></p>
+                  <p><span className="text-[#64748B] font-medium">Score / CGPA:</span> <strong className="text-[#123B5A] text-sm">{selectedApp.previousScorePercentage}%</strong></p>
                   <p><span className="text-[#64748B] font-medium">Passing Year:</span> {selectedApp.passingYear}</p>
                 </div>
               </div>
 
               {/* Document Checklist */}
               <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
-                <h5 className="text-xs font-bold text-[#153B66] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
+                <h5 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
                   <FileText className="w-4 h-4 text-[#14B8A6]" />
                   <span>Submitted Certificates</span>
                 </h5>
@@ -891,14 +882,14 @@ export default function AdmissionsPage() {
 
             {/* Audit & Status History */}
             <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
-              <h5 className="text-xs font-bold text-[#153B66] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
-                <History className="w-4 h-4 text-[#2563EB]" />
+              <h5 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#F1F5F9] pb-2">
+                <History className="w-4 h-4 text-[#F5A000]" />
                 <span>Application Timeline & Review Log</span>
               </h5>
               <div className="space-y-2">
                 {selectedApp.statusHistory?.map((h, idx) => (
                   <div key={idx} className="flex items-start gap-2.5 text-xs">
-                    <div className="w-2 h-2 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />
+                    <div className="w-2 h-2 rounded-full bg-[#F5A000] mt-1.5 shrink-0" />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-[#1E293B]">
@@ -946,7 +937,7 @@ export default function AdmissionsPage() {
             <select
               value={statusToUpdate}
               onChange={(e) => setStatusToUpdate(e.target.value as AdmissionStatus)}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+              className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
             >
               <option value="Submitted">Submitted (Under Initial Review)</option>
               <option value="Under Review">Under Review (Document Verification)</option>
@@ -965,7 +956,7 @@ export default function AdmissionsPage() {
               value={statusRemarks}
               onChange={(e) => setStatusRemarks(e.target.value)}
               placeholder="e.g. Approved merit quota seat; document verification complete."
-              className="w-full p-2.5 text-xs rounded-lg border border-[#E2E8F0] focus:border-[#2563EB] focus:outline-none"
+              className="w-full p-2.5 text-xs rounded-lg border border-[#E2E8F0] focus:border-[#F5A000] focus:outline-none"
             />
           </div>
         </div>
@@ -1017,7 +1008,7 @@ export default function AdmissionsPage() {
               <>
                 {/* Candidate Summary */}
                 <div className="p-3.5 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] text-xs space-y-1">
-                  <p className="font-bold text-[#153B66]">Candidate Summary:</p>
+                  <p className="font-bold text-[#123B5A]">Candidate Summary:</p>
                   <p className="text-[#1E3A8A]">
                     <strong>{selectedApp.applicantFullName}</strong> • Application ID: {selectedApp.applicationNumber}
                   </p>
@@ -1038,7 +1029,7 @@ export default function AdmissionsPage() {
                     <select
                       value={selectedClassId}
                       onChange={(e) => setSelectedClassId(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                     >
                       {classes
                         .filter((c) => c.courseId === selectedApp.courseId)
@@ -1057,7 +1048,7 @@ export default function AdmissionsPage() {
                     <select
                       value={selectedSectionId}
                       onChange={(e) => setSelectedSectionId(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                     >
                       {sections
                         .filter((s) => s.classId === selectedClassId)
@@ -1121,7 +1112,7 @@ export default function AdmissionsPage() {
 
           {/* Section 1: Applicant Details */}
           <div>
-            <h4 className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
+            <h4 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
               1. Applicant Personal & Contact Information
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1150,7 +1141,7 @@ export default function AdmissionsPage() {
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value as "Male" | "Female" | "Other")}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -1193,7 +1184,7 @@ export default function AdmissionsPage() {
 
           {/* Section 2: Parent / Guardian Details */}
           <div>
-            <h4 className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
+            <h4 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
               2. Parent or Guardian Information
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1210,7 +1201,7 @@ export default function AdmissionsPage() {
                 <select
                   value={guardianRelation}
                   onChange={(e) => setGuardianRelation(e.target.value as "Father" | "Mother" | "Local Guardian" | "Legal Guardian")}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   <option value="Father">Father</option>
                   <option value="Mother">Mother</option>
@@ -1244,7 +1235,7 @@ export default function AdmissionsPage() {
 
           {/* Section 3: Desired Program */}
           <div>
-            <h4 className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
+            <h4 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
               3. Desired Program & Academic Department
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1255,7 +1246,7 @@ export default function AdmissionsPage() {
                 <select
                   value={selectedDeptId}
                   onChange={(e) => setSelectedDeptId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -1272,7 +1263,7 @@ export default function AdmissionsPage() {
                 <select
                   value={selectedCourseId}
                   onChange={(e) => setSelectedCourseId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -1289,7 +1280,7 @@ export default function AdmissionsPage() {
                 <select
                   value={selectedAYId}
                   onChange={(e) => setSelectedAYId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {academicYears.map((ay) => (
                     <option key={ay.id} value={ay.id}>
@@ -1303,7 +1294,7 @@ export default function AdmissionsPage() {
 
           {/* Section 4: Prior Qualification */}
           <div>
-            <h4 className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
+            <h4 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
               4. Prior Academic Qualifications
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1336,7 +1327,7 @@ export default function AdmissionsPage() {
 
           {/* Section 5: Documents Checklist */}
           <div>
-            <h4 className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
+            <h4 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
               5. Document Submission Status
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1350,7 +1341,7 @@ export default function AdmissionsPage() {
                     type="checkbox"
                     checked={doc.isSubmitted}
                     onChange={() => handleToggleDocument(idx)}
-                    className="w-4 h-4 rounded text-[#2563EB] border-[#CBD5E1] focus:ring-[#2563EB]"
+                    className="w-4 h-4 rounded text-[#F5A000] border-[#CBD5E1] focus:ring-[#F5A000]"
                   />
                 </label>
               ))}

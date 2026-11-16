@@ -25,9 +25,9 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <InstitutionProvider>
-      <div className="flex h-screen overflow-hidden bg-[#F8FAFC]">
+      <div className="flex h-screen overflow-hidden bg-[#EEF1F5]">
         {/* Responsive Fixed/Sticky Left Sidebar with Independent Scrolling */}
-        <Suspense fallback={<aside className="w-64 bg-[#153B66] shrink-0 h-screen hidden lg:block" />}>
+        <Suspense fallback={<aside className="w-64 bg-[#123B5A] shrink-0 h-screen hidden lg:block" />}>
           <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         </Suspense>
 

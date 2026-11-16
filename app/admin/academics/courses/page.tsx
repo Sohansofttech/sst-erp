@@ -133,20 +133,11 @@ export default function CoursesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Academics Architecture
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <Badge variant="teal" size="sm">
-              Programs & Degrees
-            </Badge>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Courses & Programs Management
+            Courses & Programs
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Define academic degrees, program codes, department associations, duration, and credit rules.
+            Manage academic degrees, program codes, department associations, and credit rules.
           </p>
         </div>
         <Button
@@ -165,14 +156,14 @@ export default function CoursesPage() {
           <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
             Total Degree Programs
           </span>
-          <h4 className="text-2xl font-bold text-[#153B66] mt-1">{courses.length}</h4>
+          <h4 className="text-2xl font-bold text-[#123B5A] mt-1">{courses.length}</h4>
           <span className="text-[11px] text-[#16A34A] font-medium">All active and approved</span>
         </Card>
         <Card className="p-4 bg-white">
           <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
             Undergraduate Programs
           </span>
-          <h4 className="text-2xl font-bold text-[#2563EB] mt-1">
+          <h4 className="text-2xl font-bold text-[#F5A000] mt-1">
             {courses.filter((c) => c.degreeType === "Undergraduate").length}
           </h4>
           <span className="text-[11px] text-[#64748B]">B.Tech / Bachelor streams</span>
@@ -181,7 +172,7 @@ export default function CoursesPage() {
           <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
             Postgraduate Programs
           </span>
-          <h4 className="text-2xl font-bold text-[#14B8A6] mt-1">
+          <h4 className="text-2xl font-bold text-[#F5A000] mt-1">
             {courses.filter((c) => c.degreeType === "Postgraduate").length}
           </h4>
           <span className="text-[11px] text-[#64748B]">M.Tech / MBA streams</span>
@@ -193,7 +184,7 @@ export default function CoursesPage() {
         <CardHeader>
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-[#2563EB]" />
+              <BookOpen className="w-5 h-5 text-[#F5A000]" />
               <CardTitle>Configured Academic Programs</CardTitle>
             </div>
             <span className="text-xs text-[#64748B]">
@@ -218,7 +209,7 @@ export default function CoursesPage() {
               {courses.map((course) => (
                 <TableRow key={course.id}>
                   <TableCell>
-                    <span className="font-mono text-xs font-bold bg-[#153B66] text-white px-2 py-1 rounded">
+                    <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-1 rounded">
                       {course.code}
                     </span>
                   </TableCell>
@@ -241,7 +232,7 @@ export default function CoursesPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
-                      <Building className="w-3.5 h-3.5 text-[#2563EB]" />
+                      <Building className="w-3.5 h-3.5 text-[#F5A000]" />
                       <span>{course.departmentName || "General"}</span>
                     </div>
                   </TableCell>
@@ -251,7 +242,7 @@ export default function CoursesPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs font-bold text-[#153B66]">
+                    <span className="text-xs font-bold text-[#123B5A]">
                       {course.totalCredits} Credits
                     </span>
                   </TableCell>
@@ -262,7 +253,7 @@ export default function CoursesPage() {
                       onClick={() => handleOpenEditModal(course)}
                       title="Edit Course"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                      <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -385,7 +376,7 @@ export default function CoursesPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Summary of course objectives, career prospects, and industry accreditation"
-                className="w-full rounded-lg border border-[#CBD5E1] p-2.5 text-xs text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                className="w-full rounded-lg border border-[#CBD5E1] p-2.5 text-xs text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
               />
             </div>
           </div>

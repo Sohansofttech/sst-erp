@@ -168,20 +168,11 @@ export default function SubjectsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Academics Architecture
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider">
-              Curriculum Catalog
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Subject Master & Allocation
+            Subjects
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Configure curriculum subjects, credits, syllabus types, and designate primary teaching faculty.
+            Configure curriculum subjects, credits, syllabus types, and faculty allocations.
           </p>
         </div>
         <Button
@@ -235,7 +226,7 @@ export default function SubjectsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <BookMarked className="w-5 h-5 text-[#2563EB]" />
+            <BookMarked className="w-5 h-5 text-[#F5A000]" />
             <CardTitle>Subject Master Register</CardTitle>
           </div>
         </CardHeader>
@@ -256,7 +247,7 @@ export default function SubjectsPage() {
               {filteredSubjects.map((subj) => (
                 <TableRow key={subj.id}>
                   <TableCell>
-                    <span className="font-mono text-xs font-bold bg-[#153B66] text-white px-2 py-0.5 rounded">
+                    <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded">
                       {subj.code}
                     </span>
                   </TableCell>
@@ -278,13 +269,13 @@ export default function SubjectsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs font-semibold text-[#153B66]">
+                    <span className="text-xs font-semibold text-[#123B5A]">
                       {subj.credits} Credits ({subj.hoursPerWeek} hrs/wk)
                     </span>
                   </TableCell>
                   <TableCell>
                     <div className="text-xs space-y-0.5">
-                      <span className="font-medium text-[#2563EB] block">
+                      <span className="font-medium text-[#F5A000] block">
                         {subj.courseName || "General"}
                       </span>
                       <span className="text-[11px] text-[#64748B]">
@@ -309,7 +300,7 @@ export default function SubjectsPage() {
                       onClick={() => handleOpenEditModal(subj)}
                       title="Edit Subject"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                      <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
                     </Button>
                     <Button
                       variant="ghost"

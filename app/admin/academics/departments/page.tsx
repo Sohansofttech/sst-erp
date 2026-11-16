@@ -121,20 +121,11 @@ export default function DepartmentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Academics Architecture
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider">
-              Academic Units
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Department Management
+            Departments
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Configure academic branches, designated Heads of Department (HOD), faculty allocations, and contact channels.
+            Manage academic departments, department heads, and faculty allocations.
           </p>
         </div>
         <Button
@@ -152,10 +143,10 @@ export default function DepartmentsPage() {
         {departments.map((dept) => {
           const linkedCourses = courses.filter((c) => c.departmentId === dept.id);
           return (
-            <Card key={dept.id} className="border-t-4 border-t-[#153B66]">
+            <Card key={dept.id} className="border-t-4 border-t-[#123B5A]">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between w-full">
-                  <span className="font-mono text-xs font-bold bg-[#153B66] text-white px-2 py-0.5 rounded">
+                  <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded">
                     {dept.code}
                   </span>
                   <div className="flex items-center gap-1">
@@ -165,7 +156,7 @@ export default function DepartmentsPage() {
                       onClick={() => handleOpenEditModal(dept)}
                       title="Edit Department"
                     >
-                      <Edit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                      <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -185,7 +176,7 @@ export default function DepartmentsPage() {
 
                 <div className="p-2.5 rounded-lg bg-[#F8FAFC] border border-[#F1F5F9] space-y-1.5 text-xs">
                   <div className="flex items-center gap-2 text-[#1E293B]">
-                    <UserCheck className="w-4 h-4 text-[#2563EB] shrink-0" />
+                    <UserCheck className="w-4 h-4 text-[#F5A000] shrink-0" />
                     <span className="font-semibold">{dept.headOfDepartment}</span>
                   </div>
                   <div className="flex items-center gap-2 text-[#64748B]">
@@ -200,8 +191,8 @@ export default function DepartmentsPage() {
 
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-[#F1F5F9]">
                   <span className="text-[#64748B]">Faculty: <strong className="text-[#1E293B]">{dept.facultyCount}</strong></span>
-                  <span className="text-[#64748B]">Capacity: <strong className="text-[#153B66]">{dept.studentCapacity}</strong></span>
-                  <span className="font-semibold text-[#2563EB]">{linkedCourses.length} Programs</span>
+                  <span className="text-[#64748B]">Capacity: <strong className="text-[#123B5A]">{dept.studentCapacity}</strong></span>
+                  <span className="font-semibold text-[#F5A000]">{linkedCourses.length} Programs</span>
                 </div>
               </CardContent>
             </Card>
@@ -309,7 +300,7 @@ export default function DepartmentsPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Summary of research laboratories, specialization areas, and objectives"
-                className="w-full rounded-lg border border-[#CBD5E1] p-2.5 text-xs text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                className="w-full rounded-lg border border-[#CBD5E1] p-2.5 text-xs text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
               />
             </div>
           </div>

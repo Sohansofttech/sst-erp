@@ -520,25 +520,11 @@ function PromotionsContent() {
       {/* Top Breadcrumb & Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link
-              href="/admin"
-              className="text-xs font-semibold text-[#64748B] hover:text-[#153B66] flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-            </Link>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-semibold text-[#14B8A6] uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" /> Phase 4D Academic Progression
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-semibold text-[#64748B]">Promotions & Standing</span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Promotions & Academic Standing
+            Promotions
           </h1>
           <p className="text-xs md:text-sm text-[#64748B] mt-1">
-            Manage cohort progression across academic years based on published exam results, earned credits, backlog carry-forward policies, and detention rules.
+            Manage cohort progression across academic years based on exam results, earned credits, and detention rules.
           </p>
         </div>
 
@@ -547,7 +533,7 @@ function PromotionsContent() {
             variant="outline"
             size="sm"
             onClick={() => setActiveTab("policies")}
-            leftIcon={<Sliders className="w-4 h-4 text-[#2563EB]" />}
+            leftIcon={<Sliders className="w-4 h-4 text-[#F5A000]" />}
           >
             Progression Rules
           </Button>
@@ -582,7 +568,7 @@ function PromotionsContent() {
 
       {/* KPI Metrics Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="border-l-4 border-l-[#153B66]">
+        <Card className="border-l-4 border-l-[#123B5A]">
           <div className="p-3.5">
             <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
               Total Evaluated
@@ -591,7 +577,7 @@ function PromotionsContent() {
               <span className="text-xl font-black text-[#1E293B]">
                 {metrics.totalEligibleStudents}
               </span>
-              <Users className="w-4 h-4 text-[#153B66]/60" />
+              <Users className="w-4 h-4 text-[#123B5A]/60" />
             </div>
             <span className="text-[10px] text-[#64748B] mt-1 block">Active undergraduates</span>
           </div>
@@ -642,16 +628,16 @@ function PromotionsContent() {
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-[#2563EB]">
+        <Card className="border-l-4 border-l-[#F5A000]">
           <div className="p-3.5">
             <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
               Already Promoted
             </span>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-xl font-black text-[#2563EB]">
+              <span className="text-xl font-black text-[#F5A000]">
                 {metrics.studentsAlreadyPromoted}
               </span>
-              <CheckCircle2 className="w-4 h-4 text-[#2563EB]/60" />
+              <CheckCircle2 className="w-4 h-4 text-[#F5A000]/60" />
             </div>
             <span className="text-[10px] text-[#64748B] mt-1 block">In executed batches</span>
           </div>
@@ -679,7 +665,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("overview")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "overview"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -694,7 +680,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("checker")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "checker"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -706,7 +692,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("batch_execution")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "batch_execution"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -718,7 +704,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("detention")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "detention"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -733,7 +719,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("backlogs")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "backlogs"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -745,7 +731,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("reallocation")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "reallocation"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -757,7 +743,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("policies")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "policies"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -769,7 +755,7 @@ function PromotionsContent() {
           onClick={() => setActiveTab("history")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "history"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -844,8 +830,8 @@ function PromotionsContent() {
                               <span className="font-semibold text-[#1E293B]">
                                 {batch.sourceClassName}
                               </span>
-                              <ArrowRight className="w-3.5 h-3.5 text-[#2563EB]" />
-                              <span className="font-extrabold text-[#2563EB]">
+                              <ArrowRight className="w-3.5 h-3.5 text-[#F5A000]" />
+                              <span className="font-extrabold text-[#F5A000]">
                                 {batch.destinationClassName} ({batch.destinationSectionName})
                               </span>
                             </div>
@@ -855,7 +841,7 @@ function PromotionsContent() {
                           </TableCell>
 
                           <TableCell>
-                            <span className="text-[11px] text-[#153B66] bg-[#F1F5F9] px-2 py-0.5 rounded border border-[#E2E8F0]">
+                            <span className="text-[11px] text-[#123B5A] bg-[#F1F5F9] px-2 py-0.5 rounded border border-[#E2E8F0]">
                               {batch.policyName}
                             </span>
                           </TableCell>
@@ -994,7 +980,7 @@ function PromotionsContent() {
                   <select
                     value={selectedAcademicYearId}
                     onChange={(e) => setSelectedAcademicYearId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {academicYears.map((ay) => (
                       <option key={ay.id} value={ay.id}>
@@ -1011,7 +997,7 @@ function PromotionsContent() {
                   <select
                     value={selectedCourseId}
                     onChange={(e) => setSelectedCourseId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="ALL">All Degree Courses</option>
                     {courses.map((crs) => (
@@ -1029,7 +1015,7 @@ function PromotionsContent() {
                   <select
                     value={selectedClassId}
                     onChange={(e) => setSelectedClassId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.id}>
@@ -1046,7 +1032,7 @@ function PromotionsContent() {
                   <select
                     value={selectedSectionId}
                     onChange={(e) => setSelectedSectionId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="ALL">All Sections</option>
                     {sections.map((sec) => (
@@ -1064,7 +1050,7 @@ function PromotionsContent() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="ALL">All Eligibility Statuses</option>
                     <option value="Eligible">Eligible</option>
@@ -1150,11 +1136,11 @@ function PromotionsContent() {
                             {stu.totalCreditsEarned} / {stu.totalCreditsRegistered}
                           </TableCell>
 
-                          <TableCell className="text-center font-bold text-xs text-[#2563EB]">
+                          <TableCell className="text-center font-bold text-xs text-[#F5A000]">
                             {stu.sgpa > 0 ? stu.sgpa.toFixed(2) : "N/A"}
                           </TableCell>
 
-                          <TableCell className="text-center font-bold text-xs text-[#153B66]">
+                          <TableCell className="text-center font-bold text-xs text-[#123B5A]">
                             {stu.cgpa > 0 ? stu.cgpa.toFixed(2) : "N/A"}
                           </TableCell>
 
@@ -1212,7 +1198,7 @@ function PromotionsContent() {
                                   setReallocReason("");
                                   setReallocError("");
                                 }}
-                                className="h-7 text-[11px] px-2 text-[#2563EB]"
+                                className="h-7 text-[11px] px-2 text-[#F5A000]"
                                 title="Reallocate Section"
                               >
                                 <Layers className="w-3.5 h-3.5" />
@@ -1238,7 +1224,7 @@ function PromotionsContent() {
           <Card>
             <div className="p-5 border-b border-[#E2E8F0]">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-bold text-[#2563EB] uppercase tracking-wider">
+                <span className="text-xs font-bold text-[#F5A000] uppercase tracking-wider">
                   Progression Engine
                 </span>
                 <span className="text-[#CBD5E1]">•</span>
@@ -1262,7 +1248,7 @@ function PromotionsContent() {
                   <select
                     value={execSourceAYId}
                     onChange={(e) => setExecSourceAYId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {academicYears.map((ay) => (
                       <option key={ay.id} value={ay.id}>
@@ -1280,7 +1266,7 @@ function PromotionsContent() {
                   <select
                     value={execDestAYId}
                     onChange={(e) => setExecDestAYId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {academicYears.map((ay) => (
                       <option key={ay.id} value={ay.id}>
@@ -1298,7 +1284,7 @@ function PromotionsContent() {
                   <select
                     value={execSourceClassId}
                     onChange={(e) => setExecSourceClassId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.id}>
@@ -1316,7 +1302,7 @@ function PromotionsContent() {
                   <select
                     value={execSourceSectionId}
                     onChange={(e) => setExecSourceSectionId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="ALL">All Sections (Cohort Consolidated)</option>
                     {sections.map((sec) => (
@@ -1337,7 +1323,7 @@ function PromotionsContent() {
                   <select
                     value={execCourseId}
                     onChange={(e) => setExecCourseId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {courses.map((crs) => (
                       <option key={crs.id} value={crs.id}>
@@ -1355,7 +1341,7 @@ function PromotionsContent() {
                   <select
                     value={execDestClassId}
                     onChange={(e) => setExecDestClassId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.id}>
@@ -1385,7 +1371,7 @@ function PromotionsContent() {
                   <select
                     value={execDestSectionId}
                     onChange={(e) => setExecDestSectionId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {sections.map((sec) => (
                       <option key={sec.id} value={sec.id}>
@@ -1410,9 +1396,9 @@ function PromotionsContent() {
               </div>
 
               {/* Policy Criteria Banner */}
-              <div className="p-3.5 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-between text-xs text-[#1E40AF]">
+              <div className="p-3.5 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-between text-xs text-[#D98E00]">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#2563EB]" />
+                  <ShieldCheck className="w-4 h-4 text-[#F5A000]" />
                   <span>
                     Applicable Policy: <strong>{activePolicy.name}</strong> • Min CGPA:{" "}
                     <strong>{activePolicy.minCgpa.toFixed(1)}</strong> • Min Credits:{" "}
@@ -1422,7 +1408,7 @@ function PromotionsContent() {
                 </div>
                 <button
                   onClick={() => setActiveTab("policies")}
-                  className="text-xs font-bold underline hover:text-[#153B66]"
+                  className="text-xs font-bold underline hover:text-[#123B5A]"
                 >
                   Configure Rules
                 </button>
@@ -1478,7 +1464,7 @@ function PromotionsContent() {
                             setSelectedStudentIdsForExec([]);
                           }
                         }}
-                        className="rounded border-[#CBD5E1] text-[#2563EB]"
+                        className="rounded border-[#CBD5E1] text-[#F5A000]"
                       />
                     </TableHead>
                     <TableHead>Roll No & Name</TableHead>
@@ -1507,7 +1493,7 @@ function PromotionsContent() {
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleToggleStudentSelection(stu.studentId)}
-                              className="rounded border-[#CBD5E1] text-[#2563EB]"
+                              className="rounded border-[#CBD5E1] text-[#F5A000]"
                             />
                           </TableCell>
 
@@ -1526,11 +1512,11 @@ function PromotionsContent() {
                             {stu.totalCreditsEarned} / {stu.totalCreditsRegistered}
                           </TableCell>
 
-                          <TableCell className="text-center font-bold text-xs text-[#2563EB]">
+                          <TableCell className="text-center font-bold text-xs text-[#F5A000]">
                             {stu.sgpa > 0 ? stu.sgpa.toFixed(2) : "N/A"}
                           </TableCell>
 
-                          <TableCell className="text-center font-bold text-xs text-[#153B66]">
+                          <TableCell className="text-center font-bold text-xs text-[#123B5A]">
                             {stu.cgpa > 0 ? stu.cgpa.toFixed(2) : "N/A"}
                           </TableCell>
 
@@ -1966,7 +1952,7 @@ function PromotionsContent() {
                         allowBacklogPromotion: e.target.value === "YES",
                       })
                     }
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="YES">Yes - Allow Carry-Forward of Pending Subjects</option>
                     <option value="NO">No - Strict Zero-Backlog Clearance Required</option>
@@ -1985,7 +1971,7 @@ function PromotionsContent() {
                         allowAdministrativeOverride: e.target.value === "YES",
                       })
                     }
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="YES">Yes - Dean May Grant Overrides With Reason</option>
                     <option value="NO">No - System Enforced Strictly</option>
@@ -2047,7 +2033,7 @@ function PromotionsContent() {
                           {hist.previousAcademicYearName}
                         </TableCell>
 
-                        <TableCell className="text-xs font-bold text-[#2563EB]">
+                        <TableCell className="text-xs font-bold text-[#F5A000]">
                           {hist.newClassName} ({hist.newSectionName}) • {hist.newAcademicYearName}
                         </TableCell>
 
@@ -2069,7 +2055,7 @@ function PromotionsContent() {
                           </span>
                         </TableCell>
 
-                        <TableCell className="text-xs font-semibold text-[#153B66]">
+                        <TableCell className="text-xs font-semibold text-[#123B5A]">
                           {hist.authorizedBy}
                         </TableCell>
                       </TableRow>
@@ -2173,7 +2159,7 @@ function PromotionsContent() {
                 value={overrideReasonInput}
                 onChange={(e) => setOverrideReasonInput(e.target.value)}
                 placeholder="e.g. Academic Council authorized medical exception based on hospitalization certificates."
-                className="w-full p-2.5 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] focus:outline-hidden focus:border-[#2563EB]"
+                className="w-full p-2.5 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] focus:outline-hidden focus:border-[#F5A000]"
               />
             </div>
 
@@ -2220,7 +2206,7 @@ function PromotionsContent() {
               <select
                 value={reallocDestSectionId}
                 onChange={(e) => setReallocDestSectionId(e.target.value)}
-                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
               >
                 <option value="">-- Choose Section --</option>
                 {sections.map((sec) => (
@@ -2268,7 +2254,7 @@ export default function PromotionsPage() {
     <Suspense
       fallback={
         <div className="p-8 text-center text-[#64748B]">
-          <TrendingUp className="w-8 h-8 animate-bounce mx-auto text-[#2563EB] mb-2" />
+          <TrendingUp className="w-8 h-8 animate-bounce mx-auto text-[#F5A000] mb-2" />
           <p className="font-semibold text-sm">Loading Promotions & Academic Standing Console...</p>
         </div>
       }

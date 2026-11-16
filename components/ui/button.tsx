@@ -8,11 +8,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
-        primary: "bg-[#153B66] text-white hover:bg-[#0f2c4d] shadow-sm",
-        accent: "bg-[#2563EB] text-white hover:bg-[#1d4ed8] shadow-sm",
-        teal: "bg-[#14B8A6] text-white hover:bg-[#0d9488] shadow-sm",
-        danger: "bg-[#DC2626] text-white hover:bg-[#b91c1c] shadow-sm",
+        default: "bg-[#F5A000] text-white hover:bg-[#D98E00]",
+        primary: "bg-[#F5A000] text-white hover:bg-[#D98E00] shadow-xs",
+        accent: "bg-[#F5A000] text-white hover:bg-[#D98E00] shadow-xs",
+        navy: "bg-[#123B5A] text-white hover:bg-[#0D2B42] shadow-xs",
+        teal: "bg-[#14B8A6] text-white hover:bg-[#0d9488] shadow-xs",
+        danger: "bg-[#DC2626] text-white hover:bg-[#b91c1c] shadow-xs",
         outline:
           "border-border bg-background shadow-xs hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

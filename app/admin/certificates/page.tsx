@@ -565,23 +565,11 @@ function CertificatesContent() {
       {/* Top Banner & Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#14B8A6] uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" /> Institution Admin Portal
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-semibold text-[#64748B]">Phase 4E</span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-[10px] bg-[#14B8A6] text-white px-2 py-0.5 rounded-full font-bold">
-              Active Module
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Certificate & Degree Management
+            Certificates
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            End-to-end institutional workflow for certificate requests, eligibility verification,
-            formal issuance, cryptographic validation, and audit tracking.
+            Manage certificate requests, eligibility verification, formal issuance, and cryptographic validation.
           </p>
         </div>
 
@@ -591,12 +579,12 @@ function CertificatesContent() {
             href="/admin/certificates/verify"
             className="h-9 px-3.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-bold text-[#1E293B] flex items-center gap-2 shadow-2xs transition-colors"
           >
-            <ShieldCheck className="w-4 h-4 text-[#2563EB]" /> Public Registry Desk
+            <ShieldCheck className="w-4 h-4 text-[#F5A000]" /> Public Registry Desk
           </Link>
           <button
             type="button"
             onClick={() => setShowNewAppModal(true)}
-            className="h-9 px-4 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+            className="h-9 px-4 rounded-lg bg-[#F5A000] hover:bg-[#F5A000] text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" /> New Certificate Request
           </button>
@@ -611,7 +599,7 @@ function CertificatesContent() {
               ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]"
               : actionAlert.type === "error"
               ? "bg-[#FEF2F2] border-[#FECACA] text-[#991B1B]"
-              : "bg-[#EFF6FF] border-[#BFDBFE] text-[#1E40AF]"
+              : "bg-[#EFF6FF] border-[#BFDBFE] text-[#D98E00]"
           }`}
         >
           <div className="flex items-start gap-2.5">
@@ -639,7 +627,7 @@ function CertificatesContent() {
           onClick={() => setActiveTab("overview")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "overview"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -650,12 +638,12 @@ function CertificatesContent() {
           onClick={() => setActiveTab("applications")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "applications"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
           <FileText className="w-3.5 h-3.5" /> Applications
-          <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 text-[#2563EB]">
+          <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 text-[#F5A000]">
             {certificateApplications.length}
           </span>
         </button>
@@ -664,7 +652,7 @@ function CertificatesContent() {
           onClick={() => setActiveTab("issued")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "issued"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -678,7 +666,7 @@ function CertificatesContent() {
           onClick={() => setActiveTab("verify")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "verify"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -689,7 +677,7 @@ function CertificatesContent() {
           onClick={() => setActiveTab("templates")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "templates"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -700,7 +688,7 @@ function CertificatesContent() {
           onClick={() => setActiveTab("numbering")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "numbering"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -711,7 +699,7 @@ function CertificatesContent() {
           onClick={() => setActiveTab("reports")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "reports"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -722,7 +710,7 @@ function CertificatesContent() {
           onClick={() => setActiveTab("history")}
           className={`pb-3 px-3 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === "history"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -748,13 +736,13 @@ function CertificatesContent() {
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-blue-200 bg-blue-50/20 shadow-2xs">
-              <span className="text-[10px] font-bold text-[#2563EB] uppercase tracking-wider block">
+              <span className="text-[10px] font-bold text-[#F5A000] uppercase tracking-wider block">
                 Submitted
               </span>
-              <p className="text-xl font-extrabold text-[#2563EB] mt-1">
+              <p className="text-xl font-extrabold text-[#F5A000] mt-1">
                 {metrics.pendingApplications}
               </p>
-              <span className="text-[10px] text-[#2563EB] mt-0.5 block">Awaiting review</span>
+              <span className="text-[10px] text-[#F5A000] mt-0.5 block">Awaiting review</span>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-indigo-200 bg-indigo-50/20 shadow-2xs">
@@ -812,18 +800,13 @@ function CertificatesContent() {
           <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-xs p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center shrink-0">
+                <div className="w-11 h-11 rounded-xl bg-[#EFF6FF] text-[#F5A000] flex items-center justify-center shrink-0">
                   <Building className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#1E293B]">{profile.name}</h3>
-                  <p className="text-xs text-[#64748B]">
-                    Code: <span className="font-mono font-semibold text-[#1E293B]">{profile.code}</span> •{" "}
-                    {profile.affiliation} • {profile.accreditation}
-                  </p>
-                  <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                    Official Certificates are issued under the institutional seal with automatic
-                    cryptographic verification hash and tamper-evident history.
+                  <h3 className="text-sm font-bold text-[#1E293B]">Issuing Authority & Security Registry</h3>
+                  <p className="text-xs text-[#64748B] mt-0.5">
+                    Official certificates are issued under institutional authority with automatic cryptographic verification hash and tamper-evident history.
                   </p>
                 </div>
               </div>
@@ -838,7 +821,7 @@ function CertificatesContent() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("numbering")}
-                  className="px-3 py-1.5 rounded-lg bg-[#2563EB] text-white text-xs font-bold hover:bg-[#1D4ED8] transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-[#F5A000] text-white text-xs font-bold hover:bg-[#F5A000] transition-colors cursor-pointer"
                 >
                   Manage Numbering ({certificateNumberConfig.prefix} / *)
                 </button>
@@ -859,7 +842,7 @@ function CertificatesContent() {
                 </div>
                 <button
                   onClick={() => setActiveTab("applications")}
-                  className="text-xs font-bold text-[#2563EB] hover:underline"
+                  className="text-xs font-bold text-[#F5A000] hover:underline"
                 >
                   View All ({certificateApplications.length})
                 </button>
@@ -896,7 +879,7 @@ function CertificatesContent() {
                       <button
                         type="button"
                         onClick={() => setSelectedAppForDetail(app)}
-                        className="px-3 py-1.5 rounded-lg border border-[#CBD5E1] text-xs font-bold text-[#1E293B] hover:bg-[#EFF6FF] hover:border-[#2563EB] hover:text-[#2563EB] transition-colors cursor-pointer shrink-0"
+                        className="px-3 py-1.5 rounded-lg border border-[#CBD5E1] text-xs font-bold text-[#1E293B] hover:bg-[#EFF6FF] hover:border-[#F5A000] hover:text-[#F5A000] transition-colors cursor-pointer shrink-0"
                       >
                         Process
                       </button>
@@ -941,7 +924,7 @@ function CertificatesContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab("templates")}
-                className="w-full py-2 rounded-lg border border-[#CBD5E1] text-xs font-bold text-[#2563EB] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
+                className="w-full py-2 rounded-lg border border-[#CBD5E1] text-xs font-bold text-[#F5A000] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
               >
                 View All Templates ({certificateTemplates.length})
               </button>
@@ -965,7 +948,7 @@ function CertificatesContent() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search by student, roll no, app number..."
-                  className="w-full h-9 pl-9 pr-3 text-xs border border-[#CBD5E1] rounded-lg bg-white text-[#1E293B] focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 pl-9 pr-3 text-xs border border-[#CBD5E1] rounded-lg bg-white text-[#1E293B] focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
 
@@ -973,7 +956,7 @@ function CertificatesContent() {
                 <button
                   type="button"
                   onClick={() => setShowNewAppModal(true)}
-                  className="h-9 px-3.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  className="h-9 px-3.5 rounded-lg bg-[#F5A000] hover:bg-[#F5A000] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" /> New Application
                 </button>
@@ -982,7 +965,7 @@ function CertificatesContent() {
                   onClick={exportApplicationsCSV}
                   className="h-9 px-3 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-bold text-[#1E293B] flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5 text-[#2563EB]" /> Export CSV
+                  <Download className="w-3.5 h-3.5 text-[#F5A000]" /> Export CSV
                 </button>
               </div>
             </div>
@@ -1139,7 +1122,7 @@ function CertificatesContent() {
                           <button
                             type="button"
                             onClick={() => setSelectedAppForDetail(app)}
-                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#2563EB] text-white hover:bg-[#1D4ED8] transition-colors cursor-pointer shadow-2xs"
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#F5A000] text-white hover:bg-[#F5A000] transition-colors cursor-pointer shadow-2xs"
                           >
                             View & Process
                           </button>
@@ -1167,7 +1150,7 @@ function CertificatesContent() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search certificate number, student, verification code..."
-                className="w-full h-9 pl-9 pr-3 text-xs border border-[#CBD5E1] rounded-lg bg-white text-[#1E293B] focus:outline-hidden focus:border-[#2563EB]"
+                className="w-full h-9 pl-9 pr-3 text-xs border border-[#CBD5E1] rounded-lg bg-white text-[#1E293B] focus:outline-hidden focus:border-[#F5A000]"
               />
             </div>
 
@@ -1177,7 +1160,7 @@ function CertificatesContent() {
                 onClick={exportIssuedCertificatesCSV}
                 className="h-9 px-3.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-xs font-bold text-[#1E293B] flex items-center gap-1.5 shadow-2xs cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5 text-[#2563EB]" /> Export Issued Register CSV
+                <Download className="w-3.5 h-3.5 text-[#F5A000]" /> Export Issued Register CSV
               </button>
             </div>
           </div>
@@ -1206,7 +1189,7 @@ function CertificatesContent() {
                         {cert.certificateNumber}
                       </TableCell>
 
-                      <TableCell className="font-mono text-[11px] font-bold text-[#2563EB]">
+                      <TableCell className="font-mono text-[11px] font-bold text-[#F5A000]">
                         {cert.verificationCode}
                       </TableCell>
 
@@ -1249,9 +1232,9 @@ function CertificatesContent() {
                           <button
                             type="button"
                             onClick={() => setSelectedCertForPreview(cert)}
-                            className="px-2 py-1 text-xs font-bold rounded-lg border border-[#CBD5E1] text-[#1E293B] hover:bg-[#EFF6FF] hover:border-[#2563EB] hover:text-[#2563EB] transition-colors cursor-pointer flex items-center gap-1"
+                            className="px-2 py-1 text-xs font-bold rounded-lg border border-[#CBD5E1] text-[#1E293B] hover:bg-[#EFF6FF] hover:border-[#F5A000] hover:text-[#F5A000] transition-colors cursor-pointer flex items-center gap-1"
                           >
-                            <Printer className="w-3 h-3 text-[#2563EB]" /> View / Print
+                            <Printer className="w-3 h-3 text-[#F5A000]" /> View / Print
                           </button>
 
                           {cert.status === "Active" && (
@@ -1297,7 +1280,7 @@ function CertificatesContent() {
       {activeTab === "verify" && (
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xs p-6 text-center space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-xl bg-[#EFF6FF] text-[#F5A000] flex items-center justify-center mx-auto">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <h2 className="text-lg font-bold text-[#1E293B]">Administrative Document Verification</h2>
@@ -1314,12 +1297,12 @@ function CertificatesContent() {
                   value={verifySearchQuery}
                   onChange={(e) => setVerifySearchQuery(e.target.value)}
                   placeholder="e.g. SST/BC/2026/0001 or SST-VER-89E41B"
-                  className="w-full h-10 pl-9 pr-3 text-xs border border-[#CBD5E1] rounded-xl bg-white text-[#1E293B] focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-10 pl-9 pr-3 text-xs border border-[#CBD5E1] rounded-xl bg-white text-[#1E293B] focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
               <button
                 type="submit"
-                className="h-10 px-4 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                className="h-10 px-4 rounded-xl bg-[#F5A000] hover:bg-[#F5A000] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
               >
                 Verify
               </button>
@@ -1444,7 +1427,7 @@ function CertificatesContent() {
                 <div>
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#F5A000] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
                         {tpl.category} • Prefix: {tpl.prefix}
                       </span>
                       <h3 className="text-sm font-bold text-[#1E293B] mt-1.5">{tpl.type}</h3>
@@ -1500,7 +1483,7 @@ function CertificatesContent() {
                   <button
                     type="button"
                     onClick={() => setSelectedTemplateForEdit(tpl)}
-                    className="px-2.5 py-1 rounded-lg border border-[#CBD5E1] text-[#2563EB] font-bold hover:bg-[#EFF6FF] cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg border border-[#CBD5E1] text-[#F5A000] font-bold hover:bg-[#EFF6FF] cursor-pointer"
                   >
                     Configure
                   </button>
@@ -1535,7 +1518,7 @@ function CertificatesContent() {
                 type="text"
                 value={tempNumberPrefix}
                 onChange={(e) => setTempNumberPrefix(e.target.value)}
-                className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs font-mono font-bold uppercase focus:outline-hidden focus:border-[#2563EB]"
+                className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs font-mono font-bold uppercase focus:outline-hidden focus:border-[#F5A000]"
               />
               <span className="text-[11px] text-[#64748B] mt-0.5 block">
                 Standard institution code, e.g. &ldquo;SST&rdquo;
@@ -1551,7 +1534,7 @@ function CertificatesContent() {
                   type="text"
                   value={tempSeparator}
                   onChange={(e) => setTempSeparator(e.target.value)}
-                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs font-mono font-bold focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs font-mono font-bold focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
 
@@ -1562,7 +1545,7 @@ function CertificatesContent() {
                 <select
                   value={tempPadding}
                   onChange={(e) => setTempPadding(Number(e.target.value))}
-                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#F5A000]"
                 >
                   <option value={3}>3 Digits (001)</option>
                   <option value={4}>4 Digits (0001)</option>
@@ -1577,7 +1560,7 @@ function CertificatesContent() {
                 id="useAYCheckbox"
                 checked={tempUseAY}
                 onChange={(e) => setTempUseAY(e.target.checked)}
-                className="rounded border-[#CBD5E1] text-[#2563EB] focus:ring-0"
+                className="rounded border-[#CBD5E1] text-[#F5A000] focus:ring-0"
               />
               <label htmlFor="useAYCheckbox" className="text-xs font-semibold text-[#1E293B] cursor-pointer">
                 Use Academic Year in Number (e.g. 2026-27 instead of calendar year 2026)
@@ -1589,7 +1572,7 @@ function CertificatesContent() {
               <span className="text-[10px] font-bold text-[#64748B] uppercase">
                 Generated Number Format Sample
               </span>
-              <p className="font-mono text-sm font-extrabold text-[#2563EB]">
+              <p className="font-mono text-sm font-extrabold text-[#F5A000]">
                 {tempNumberPrefix}
                 {tempSeparator}BC{tempSeparator}
                 {tempUseAY ? "2026-27" : new Date().getFullYear()}
@@ -1600,7 +1583,7 @@ function CertificatesContent() {
 
             <button
               type="submit"
-              className="w-full py-2.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+              className="w-full py-2.5 rounded-lg bg-[#F5A000] hover:bg-[#F5A000] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
             >
               Save Numbering Configuration
             </button>
@@ -1623,7 +1606,7 @@ function CertificatesContent() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-xl border border-[#E2E8F0] shadow-xs space-y-3 flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#2563EB]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#F5A000]">
                   Application Register
                 </span>
                 <h3 className="text-sm font-bold text-[#1E293B] mt-1">Certificate Applications CSV</h3>
@@ -1635,7 +1618,7 @@ function CertificatesContent() {
               <button
                 type="button"
                 onClick={exportApplicationsCSV}
-                className="w-full py-2 rounded-lg bg-[#2563EB] text-white text-xs font-bold hover:bg-[#1D4ED8] flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                className="w-full py-2 rounded-lg bg-[#F5A000] text-white text-xs font-bold hover:bg-[#F5A000] flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" /> Download Register ({certificateApplications.length})
               </button>
@@ -1699,7 +1682,7 @@ function CertificatesContent() {
             <button
               type="button"
               onClick={exportAuditTrailCSV}
-              className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-[#F5A000] hover:underline flex items-center gap-1"
             >
               <Download className="w-3 h-3" /> Export Audit CSV
             </button>
@@ -1716,7 +1699,7 @@ function CertificatesContent() {
                           ? "bg-emerald-100 text-emerald-800"
                           : log.action.includes("REVOKED") || log.action.includes("REJECTED")
                           ? "bg-red-100 text-red-800"
-                          : "bg-blue-100 text-[#2563EB]"
+                          : "bg-blue-100 text-[#F5A000]"
                       }`}
                     >
                       {log.action}
@@ -1756,7 +1739,7 @@ function CertificatesContent() {
           <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-[#E2E8F0] shadow-xl p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#F5A000] flex items-center justify-center">
                   <Award className="w-4 h-4" />
                 </div>
                 <h3 className="text-sm font-bold text-[#1E293B]">New Certificate Request</h3>
@@ -1779,7 +1762,7 @@ function CertificatesContent() {
                 <select
                   value={newAppStudentId}
                   onChange={(e) => setNewAppStudentId(e.target.value)}
-                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs bg-white text-[#1E293B] focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs bg-white text-[#1E293B] focus:outline-hidden focus:border-[#F5A000]"
                 >
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -1797,7 +1780,7 @@ function CertificatesContent() {
                 <select
                   value={newAppCertType}
                   onChange={(e) => setNewAppCertType(e.target.value as CertificateType)}
-                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs bg-white text-[#1E293B] focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs bg-white text-[#1E293B] focus:outline-hidden focus:border-[#F5A000]"
                 >
                   {certificateTemplates
                     .filter((t) => t.isEnabled)
@@ -1820,7 +1803,7 @@ function CertificatesContent() {
                       onClick={() => setNewAppPriority(p)}
                       className={`py-1.5 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
                         newAppPriority === p
-                          ? "bg-[#2563EB] text-white border-[#2563EB]"
+                          ? "bg-[#F5A000] text-white border-[#F5A000]"
                           : "border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]"
                       }`}
                     >
@@ -1840,7 +1823,7 @@ function CertificatesContent() {
                   value={newAppPurpose}
                   onChange={(e) => setNewAppPurpose(e.target.value)}
                   placeholder="e.g. Higher Education Passport Application, Bank Education Loan"
-                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#F5A000]"
                   required
                 />
               </div>
@@ -1855,7 +1838,7 @@ function CertificatesContent() {
                   onChange={(e) => setNewAppRemarks(e.target.value)}
                   placeholder="Any supporting document references or student notes..."
                   rows={2}
-                  className="w-full p-2 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full p-2 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
 
@@ -1892,7 +1875,7 @@ function CertificatesContent() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-[#F5A000] hover:bg-[#F5A000] text-white text-xs font-bold shadow-xs cursor-pointer"
                 >
                   Submit Application
                 </button>
@@ -1912,7 +1895,7 @@ function CertificatesContent() {
             <div className="flex items-start justify-between pb-3 border-b border-[#E2E8F0]">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-[#2563EB] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  <span className="font-mono text-xs font-bold text-[#F5A000] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                     {selectedAppForDetail.applicationNumber}
                   </span>
                   <span
@@ -1977,7 +1960,7 @@ function CertificatesContent() {
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-[#1E293B] flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-[#2563EB]" /> Prerequisites & Clearance
+                  <ShieldCheck className="w-4 h-4 text-[#F5A000]" /> Prerequisites & Clearance
                   Verification Checklist
                 </h4>
                 <span
@@ -2036,7 +2019,7 @@ function CertificatesContent() {
                             setOverrideCheckId(chk.checkId);
                             setShowOverridePrompt(true);
                           }}
-                          className="px-2 py-1 text-[11px] font-bold text-[#2563EB] border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-md shrink-0 cursor-pointer"
+                          className="px-2 py-1 text-[11px] font-bold text-[#F5A000] border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-md shrink-0 cursor-pointer"
                         >
                           Authorize Override
                         </button>
@@ -2118,7 +2101,7 @@ function CertificatesContent() {
                   <button
                     type="button"
                     onClick={() => handleGenerateCertificate(selectedAppForDetail)}
-                    className="px-4 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2 bg-[#F5A000] hover:bg-[#F5A000] text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
                     <Award className="w-4 h-4" /> Generate Official Certificate
                   </button>
@@ -2167,7 +2150,7 @@ function CertificatesContent() {
                 <span className="text-xs font-extrabold text-[#1E293B]">
                   Official Printable Certificate Preview
                 </span>
-                <span className="text-[10px] font-mono bg-blue-100 text-[#2563EB] px-2 py-0.5 rounded font-bold">
+                <span className="text-[10px] font-mono bg-blue-100 text-[#F5A000] px-2 py-0.5 rounded font-bold">
                   {selectedCertForPreview.certificateNumber}
                 </span>
                 <span
@@ -2185,7 +2168,7 @@ function CertificatesContent() {
                 <button
                   type="button"
                   onClick={handlePrintCertificate}
-                  className="px-3 py-1.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-[#F5A000] hover:bg-[#F5A000] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" /> Print / Save PDF
                 </button>
@@ -2214,14 +2197,14 @@ function CertificatesContent() {
             <div className="p-8 sm:p-12 bg-slate-100 overflow-x-auto flex justify-center">
               <div
                 id="printable-certificate-area"
-                className="w-full max-w-[800px] bg-white border-8 border-double border-[#153B66] p-10 sm:p-14 shadow-lg relative text-[#1E293B] space-y-8"
+                className="w-full max-w-[800px] bg-white border-8 border-double border-[#123B5A] p-10 sm:p-14 shadow-lg relative text-[#1E293B] space-y-8"
               >
                 {/* Institutional Header */}
-                <div className="text-center space-y-1.5 border-b-2 border-[#153B66] pb-6">
-                  <div className="w-12 h-12 rounded-full border-2 border-[#153B66] mx-auto flex items-center justify-center font-black text-[#153B66] text-sm tracking-wider mb-2">
+                <div className="text-center space-y-1.5 border-b-2 border-[#123B5A] pb-6">
+                  <div className="w-12 h-12 rounded-full border-2 border-[#123B5A] mx-auto flex items-center justify-center font-black text-[#123B5A] text-sm tracking-wider mb-2">
                     SST
                   </div>
-                  <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-[#153B66]">
+                  <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-[#123B5A]">
                     {selectedCertForPreview.institutionName}
                   </h1>
                   <p className="text-xs font-bold text-[#64748B]">
@@ -2246,7 +2229,7 @@ function CertificatesContent() {
 
                 {/* Document Title */}
                 <div className="text-center py-2">
-                  <h2 className="text-lg sm:text-xl font-extrabold uppercase tracking-widest text-[#153B66] underline underline-offset-8 decoration-2">
+                  <h2 className="text-lg sm:text-xl font-extrabold uppercase tracking-widest text-[#123B5A] underline underline-offset-8 decoration-2">
                     {selectedCertForPreview.title}
                   </h2>
                 </div>
@@ -2270,15 +2253,15 @@ function CertificatesContent() {
                   {/* Left: Verification Seal & QR */}
                   <div className="flex items-center gap-3">
                     <div className="w-20 h-20 border-2 border-dashed border-[#CBD5E1] rounded-xl flex flex-col items-center justify-center p-1 bg-[#F8FAFC]">
-                      <QrCode className="w-10 h-10 text-[#153B66]" />
+                      <QrCode className="w-10 h-10 text-[#123B5A]" />
                       <span className="text-[8px] font-mono text-[#64748B] mt-0.5">
                         {selectedCertForPreview.verificationCode}
                       </span>
                     </div>
                     <div className="text-left text-[10px] text-[#64748B] space-y-0.5">
-                      <p className="font-bold text-[#153B66]">Official Digital Seal</p>
+                      <p className="font-bold text-[#123B5A]">Official Digital Seal</p>
                       <p>Scan QR to verify authenticity</p>
-                      <p className="font-mono text-[#2563EB]">
+                      <p className="font-mono text-[#F5A000]">
                         sst.edu.in/verify?code={selectedCertForPreview.verificationCode}
                       </p>
                     </div>
@@ -2286,7 +2269,7 @@ function CertificatesContent() {
 
                   {/* Right: Signature Line */}
                   <div className="text-center space-y-1">
-                    <div className="w-40 border-b border-[#1E293B] pb-1 mx-auto font-serif italic text-sm text-[#153B66]">
+                    <div className="w-40 border-b border-[#1E293B] pb-1 mx-auto font-serif italic text-sm text-[#123B5A]">
                       {selectedCertForPreview.signatoryName}
                     </div>
                     <p className="text-xs font-bold text-[#1E293B]">
@@ -2323,7 +2306,7 @@ function CertificatesContent() {
               onChange={(e) => setOverrideReasonInput(e.target.value)}
               placeholder="e.g. Offline Accounts clearance slip verified by Finance Dept under voucher #8841."
               rows={3}
-              className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#2563EB]"
+              className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#F5A000]"
             />
 
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -2340,7 +2323,7 @@ function CertificatesContent() {
               <button
                 type="button"
                 onClick={handleExecuteOverride}
-                className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg text-xs font-bold shadow-xs"
+                className="px-3.5 py-1.5 bg-[#F5A000] hover:bg-[#F5A000] text-white rounded-lg text-xs font-bold shadow-xs"
               >
                 Confirm Authorization
               </button>
@@ -2461,7 +2444,7 @@ function CertificatesContent() {
       {selectedCertForReissue && (
         <div className="fixed inset-0 z-50 bg-[#0F172A]/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full border border-[#E2E8F0] shadow-xl p-6 space-y-4">
-            <div className="flex items-center gap-2 text-[#2563EB]">
+            <div className="flex items-center gap-2 text-[#F5A000]">
               <RotateCcw className="w-5 h-5 shrink-0" />
               <h3 className="text-sm font-bold text-[#1E293B]">Reissue Certificate</h3>
             </div>
@@ -2480,7 +2463,7 @@ function CertificatesContent() {
                   value={reissueReasonInput}
                   onChange={(e) => setReissueReasonInput(e.target.value)}
                   placeholder="e.g. Original damaged in transit / Correction of name spelling"
-                  className="w-full h-8 px-2.5 text-xs border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-8 px-2.5 text-xs border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:border-[#F5A000]"
                   required
                 />
               </div>
@@ -2493,7 +2476,7 @@ function CertificatesContent() {
                   type="text"
                   value={reissueCorrectedName}
                   onChange={(e) => setReissueCorrectedName(e.target.value)}
-                  className="w-full h-8 px-2.5 text-xs border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-8 px-2.5 text-xs border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
 
@@ -2505,7 +2488,7 @@ function CertificatesContent() {
                   type="text"
                   value={reissueCorrectedFather}
                   onChange={(e) => setReissueCorrectedFather(e.target.value)}
-                  className="w-full h-8 px-2.5 text-xs border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-8 px-2.5 text-xs border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
             </div>
@@ -2521,7 +2504,7 @@ function CertificatesContent() {
               <button
                 type="button"
                 onClick={handleExecuteReissue}
-                className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#F5A000] hover:bg-[#F5A000] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
               >
                 Generate Replacement
               </button>
@@ -2622,7 +2605,7 @@ function CertificatesContent() {
                       authorizedSignatoryTitle: e.target.value,
                     })
                   }
-                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#CBD5E1] rounded-lg text-xs focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
 
@@ -2639,7 +2622,7 @@ function CertificatesContent() {
                     })
                   }
                   rows={4}
-                  className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs font-serif leading-relaxed focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full p-2.5 border border-[#CBD5E1] rounded-lg text-xs font-serif leading-relaxed focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
 
@@ -2655,7 +2638,7 @@ function CertificatesContent() {
                         requiresFeeClearance: e.target.checked,
                       })
                     }
-                    className="rounded border-[#CBD5E1] text-[#2563EB]"
+                    className="rounded border-[#CBD5E1] text-[#F5A000]"
                   />
                   Require Institutional Fee Clearance
                 </label>
@@ -2670,7 +2653,7 @@ function CertificatesContent() {
                         requiresHostelClearance: e.target.checked,
                       })
                     }
-                    className="rounded border-[#CBD5E1] text-[#2563EB]"
+                    className="rounded border-[#CBD5E1] text-[#F5A000]"
                   />
                   Require Hostel & Mess Clearance
                 </label>
@@ -2685,7 +2668,7 @@ function CertificatesContent() {
                         requiresAcademicPass: e.target.checked,
                       })
                     }
-                    className="rounded border-[#CBD5E1] text-[#2563EB]"
+                    className="rounded border-[#CBD5E1] text-[#F5A000]"
                   />
                   Require Published Academic Pass Record
                 </label>
@@ -2700,7 +2683,7 @@ function CertificatesContent() {
                         requiresFinalSemester: e.target.checked,
                       })
                     }
-                    className="rounded border-[#CBD5E1] text-[#2563EB]"
+                    className="rounded border-[#CBD5E1] text-[#F5A000]"
                   />
                   Require Final Semester Cohort Completion
                 </label>
@@ -2715,7 +2698,7 @@ function CertificatesContent() {
                         requiresZeroBacklogs: e.target.checked,
                       })
                     }
-                    className="rounded border-[#CBD5E1] text-[#2563EB]"
+                    className="rounded border-[#CBD5E1] text-[#F5A000]"
                   />
                   Require Zero Outstanding Backlogs
                 </label>
@@ -2730,7 +2713,7 @@ function CertificatesContent() {
                         isEnabled: e.target.checked,
                       })
                     }
-                    className="rounded border-[#CBD5E1] text-[#2563EB]"
+                    className="rounded border-[#CBD5E1] text-[#F5A000]"
                   />
                   Enable Certificate Type for Institutional Issuance
                 </label>
@@ -2746,7 +2729,7 @@ function CertificatesContent() {
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                  className="px-3.5 py-1.5 bg-[#F5A000] hover:bg-[#F5A000] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
                 >
                   Save Changes
                 </button>

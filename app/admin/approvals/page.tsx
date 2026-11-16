@@ -5,12 +5,25 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
-import { CheckSquare, CheckCircle, XCircle, Clock, User, Filter } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { Input } from "@/components/ui/input";
+import { CheckCircle, XCircle, Clock, User, ShieldCheck } from "lucide-react";
 
 export default function ApprovalsPage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [decisionModal, setDecisionModal] = useState<{
+    isOpen: boolean;
+    id: string;
+    status: "APPROVED" | "REJECTED";
+    remarks: string;
+  }>({
+    isOpen: false,
+    id: "",
+    status: "APPROVED",
+    remarks: "",
+  });
 
   const fetchRequests = async () => {
     try {
@@ -31,8 +44,7 @@ export default function ApprovalsPage() {
     fetchRequests();
   }, []);
 
-  const handleDecision = async (id: string, status: "APPROVED" | "REJECTED") => {
-    const remarks = prompt(`Enter optional administrator remarks for ${status.toLowerCase()}:`);
+  const handleDecision = async (id: string, status: "APPROVED" | "REJECTED", remarks?: string) => {
     try {
       const res = await fetch("/api/admin/approvals", {
         method: "PUT",
@@ -41,6 +53,7 @@ export default function ApprovalsPage() {
       });
       const data = await res.json();
       if (data.success) {
+        setDecisionModal({ isOpen: false, id: "", status: "APPROVED", remarks: "" });
         fetchRequests();
       } else {
         alert(data.error || "Decision processing failed.");
@@ -58,15 +71,8 @@ export default function ApprovalsPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#14B8A6] uppercase tracking-wider flex items-center gap-1">
-              <CheckSquare className="w-3.5 h-3.5" /> Administrative Workflows
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-semibold text-[#64748B]">Approval Engine</span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Requests & Approvals Governance
+            Approvals
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
             Review and adjudicate profile correction requests, elective course selections, and campus leave permissions.
@@ -80,7 +86,7 @@ export default function ApprovalsPage() {
               onClick={() => setStatusFilter(st)}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
                 statusFilter === st
-                  ? "bg-[#2563EB] text-white"
+                  ? "bg-[#F5A000] text-white"
                   : "bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]"
               }`}
             >
@@ -88,6 +94,67 @@ export default function ApprovalsPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Approvals KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-[#E2E8F0]">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-[#64748B] uppercase">Pending Decisions</p>
+              <h3 className="text-2xl font-bold text-[#F5A000] mt-1">
+                {requests.filter((r) => r.status === "PENDING").length} Pending
+              </h3>
+              <p className="text-[11px] text-[#F5A000] mt-0.5 font-medium">Awaiting Adjudication</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-[#FEF3C7] flex items-center justify-center text-[#F5A000]">
+              <Clock className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#E2E8F0]">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-[#64748B] uppercase">Approved Requests</p>
+              <h3 className="text-2xl font-bold text-[#16A34A] mt-1">
+                {requests.filter((r) => r.status === "APPROVED").length} Granted
+              </h3>
+              <p className="text-[11px] text-[#16A34A] mt-0.5 font-medium">Clearance Granted</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-[#16A34A]/10 flex items-center justify-center text-[#16A34A]">
+              <CheckCircle className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#E2E8F0]">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-[#64748B] uppercase">Rejected Requests</p>
+              <h3 className="text-2xl font-bold text-[#DC2626] mt-1">
+                {requests.filter((r) => r.status === "REJECTED").length} Denied
+              </h3>
+              <p className="text-[11px] text-[#DC2626] mt-0.5 font-medium">Adjudicated & Closed</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-[#DC2626]/10 flex items-center justify-center text-[#DC2626]">
+              <XCircle className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#E2E8F0]">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-[#64748B] uppercase">SLA Compliance</p>
+              <h3 className="text-2xl font-bold text-[#123B5A] mt-1">100%</h3>
+              <p className="text-[11px] text-[#123B5A] mt-0.5 font-medium">Timely Processing</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-[#123B5A]/10 flex items-center justify-center text-[#123B5A]">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="border-[#E2E8F0]">
@@ -122,7 +189,7 @@ export default function ApprovalsPage() {
                   <TableRow key={req.id} className="hover:bg-[#F8FAFC]">
                     <TableCell className="text-xs font-semibold text-[#1E293B]">
                       <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-[#2563EB]" />
+                        <User className="w-3.5 h-3.5 text-[#F5A000]" />
                         <span>{req.user?.fullName || req.user?.name || req.user?.email}</span>
                       </div>
                       <span className="text-[10px] text-[#64748B] block uppercase">{req.user?.role}</span>
@@ -131,10 +198,10 @@ export default function ApprovalsPage() {
                       <Badge variant="navy">{req.requestType}</Badge>
                     </TableCell>
                     <TableCell className="text-xs text-[#64748B] max-w-xs">
-                      <span className="font-semibold text-[#1E293B] block">{req.title}</span>
+                      <span className="font-semibold text-[#1E293B] block">{req.description || req.title}</span>
                       {req.adminRemarks && (
                         <span className="text-[11px] text-[#14B8A6] block mt-0.5">
-                          Admin: {req.adminRemarks}
+                          Remarks: {req.adminRemarks}
                         </span>
                       )}
                     </TableCell>
@@ -161,7 +228,14 @@ export default function ApprovalsPage() {
                             variant="primary"
                             size="sm"
                             className="text-xs"
-                            onClick={() => handleDecision(req.id, "APPROVED")}
+                            onClick={() =>
+                              setDecisionModal({
+                                isOpen: true,
+                                id: req.id,
+                                status: "APPROVED",
+                                remarks: "Approved by administration as per policy.",
+                              })
+                            }
                           >
                             Approve
                           </Button>
@@ -169,7 +243,14 @@ export default function ApprovalsPage() {
                             variant="outline"
                             size="sm"
                             className="text-xs text-[#DC2626] border-[#DC2626]/30"
-                            onClick={() => handleDecision(req.id, "REJECTED")}
+                            onClick={() =>
+                              setDecisionModal({
+                                isOpen: true,
+                                id: req.id,
+                                status: "REJECTED",
+                                remarks: "Documentation incomplete / criteria not met.",
+                              })
+                            }
                           >
                             Reject
                           </Button>
@@ -185,6 +266,51 @@ export default function ApprovalsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Decision Remarks Modal */}
+      <Modal
+        isOpen={decisionModal.isOpen}
+        onClose={() => setDecisionModal({ ...decisionModal, isOpen: false })}
+        title={`${decisionModal.status === "APPROVED" ? "Approve" : "Reject"} Workflow Request`}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-[#64748B]">
+            You are about to record a formal decision of{" "}
+            <strong className={decisionModal.status === "APPROVED" ? "text-[#16A34A]" : "text-[#DC2626]"}>
+              {decisionModal.status}
+            </strong>{" "}
+            for this request. Provide administrator remarks below:
+          </p>
+
+          <div>
+            <label className="text-xs font-semibold text-[#1E293B] block mb-1">
+              Administrator Remarks / Decision Notes
+            </label>
+            <Input
+              value={decisionModal.remarks}
+              onChange={(e) => setDecisionModal({ ...decisionModal, remarks: e.target.value })}
+              placeholder="e.g. Approved as per academic council guidelines."
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setDecisionModal({ ...decisionModal, isOpen: false })}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={decisionModal.status === "APPROVED" ? "primary" : "destructive"}
+              onClick={() =>
+                handleDecision(decisionModal.id, decisionModal.status, decisionModal.remarks)
+              }
+            >
+              Confirm {decisionModal.status}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

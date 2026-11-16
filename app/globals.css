@@ -66,12 +66,14 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Team Member 3: Institution Admin Portal Design Tokens */
-  --color-primary-navy: #153B66;
-  --color-primary-blue: #2563EB;
-  --color-secondary-teal: #14B8A6;
-  --color-bg-main: #F8FAFC;
+  /* Reference Image Design Tokens (SST-ERP Institution Admin Theme - PDF Spec) */
+  --color-primary-navy: #123B5A;
+  --color-primary-blue: #F5A000;
+  --color-accent-orange: #F5A000;
+  --color-accent-yellow: #F5A000;
+  --color-bg-main: #EEF1F5;
   --color-card-bg: #FFFFFF;
+  --color-card-border: #E2E8F0;
   --color-text-primary: #1E293B;
   --color-text-secondary: #64748B;
   --color-status-success: #16A34A;
@@ -127,11 +129,12 @@
   --erp-warning: #F59E0B;
   --erp-error: #DC2626;
 
-  /* Team Member 3: Institution Admin Portal Tokens */
-  --primary-navy: #153B66;
-  --primary-blue: #2563EB;
-  --secondary-teal: #14B8A6;
-  --bg-main: #F8FAFC;
+  /* Reference Design System Tokens (PDF Spec Final Theme) */
+  --primary-navy: #123B5A;
+  --primary-blue: #F5A000;
+  --accent-orange: #F5A000;
+  --accent-yellow: #F5A000;
+  --bg-main: #EEF1F5;
   --card-bg: #FFFFFF;
   --text-primary: #1E293B;
   --text-secondary: #64748B;
@@ -140,21 +143,21 @@
   --status-error: #DC2626;
 
   /* Charts */
-  --chart-1: #2563eb;
-  --chart-2: #14b8a6;
-  --chart-3: #153b66;
-  --chart-4: #16a34a;
-  --chart-5: #f59e0b;
+  --chart-1: #16466C;
+  --chart-2: #F5A000;
+  --chart-3: #16466C;
+  --chart-4: #F5A000;
+  --chart-5: #64748B;
 
   /* Fixed Navy Blue Sidebar */
-  --sidebar: #153b66;
+  --sidebar: #123B5A;
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #2563eb;
+  --sidebar-primary: #F5A000;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.12);
+  --sidebar-accent: #16466C;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.14);
-  --sidebar-ring: #14b8a6;
+  --sidebar-border: #16466C;
+  --sidebar-ring: #F5A000;
 }
 
 .dark {

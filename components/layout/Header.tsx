@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#64748B] font-medium">
-            <School className="w-4 h-4 text-[#153B66]" />
+            <School className="w-4 h-4 text-[#123B5A]" />
             <span className="font-semibold text-[#1E293B]">{institutionName}</span>
           </div>
           <Badge variant="brand" size="sm" className="hidden md:inline-flex">
@@ -70,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="h-6 w-px bg-[#E2E8F0]" />
 
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-[#153B66] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-[#123B5A] text-white flex items-center justify-center font-bold text-xs shadow-sm">
             {userFullName
               .split(" ")
               .map((n) => n[0])

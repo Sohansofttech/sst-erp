@@ -355,20 +355,11 @@ export default function StudentsPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Student Lifecycle
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider">
-              Master Registry
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Student Directory & Management
+            Students
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Maintain comprehensive student profiles, class cohort allocations, academic histories, and parent/guardian linkages.
+            Maintain student profiles, class cohort allocations, and academic histories.
           </p>
         </div>
         <Button
@@ -383,7 +374,7 @@ export default function StudentsPage() {
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <Card className="border-l-4 border-l-[#2563EB]">
+        <Card className="border-l-4 border-l-[#F5A000]">
           <CardContent className="p-4">
             <span className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
               Total Enrolled Students
@@ -436,7 +427,7 @@ export default function StudentsPage() {
                 placeholder="Search by student name, Student ID, Admission No, Roll No, or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-[#E2E8F0] focus:border-[#2563EB] focus:outline-none"
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-[#E2E8F0] focus:border-[#F5A000] focus:outline-none"
               />
             </div>
 
@@ -445,7 +436,7 @@ export default function StudentsPage() {
               <select
                 value={deptFilter}
                 onChange={(e) => setDeptFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none max-w-[150px] truncate"
+                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none max-w-[150px] truncate"
               >
                 <option value="ALL">All Departments</option>
                 {departments.map((d) => (
@@ -458,7 +449,7 @@ export default function StudentsPage() {
               <select
                 value={courseFilter}
                 onChange={(e) => setCourseFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none max-w-[150px] truncate"
+                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none max-w-[150px] truncate"
               >
                 <option value="ALL">All Courses</option>
                 {courses.map((c) => (
@@ -471,7 +462,7 @@ export default function StudentsPage() {
               <select
                 value={classFilter}
                 onChange={(e) => setClassFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none max-w-[150px] truncate"
+                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none max-w-[150px] truncate"
               >
                 <option value="ALL">All Classes</option>
                 {classes.map((cls) => (
@@ -484,7 +475,7 @@ export default function StudentsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                className="px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
               >
                 <option value="ALL">All Statuses</option>
                 <option value="Active">Active</option>
@@ -498,7 +489,7 @@ export default function StudentsPage() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as "name" | "roll" | "date")}
-                  className="px-2.5 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="px-2.5 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   <option value="name">Sort: Name (A-Z)</option>
                   <option value="roll">Sort: Roll No</option>
@@ -558,7 +549,7 @@ export default function StudentsPage() {
                     <TableRow key={stu.id}>
                       {/* ID / Roll */}
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-[#153B66] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
                           {stu.studentId}
                         </span>
                         <span className="block text-[11px] font-semibold text-[#64748B] mt-0.5">
@@ -569,7 +560,7 @@ export default function StudentsPage() {
                       {/* Name & Contact */}
                       <TableCell>
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-[#153B66] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[#123B5A] text-white flex items-center justify-center font-bold text-xs shrink-0">
                             {stu.firstName[0]}
                             {stu.lastName[0]}
                           </div>
@@ -631,7 +622,7 @@ export default function StudentsPage() {
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleOpenProfile(stu)}
-                            className="p-1.5 rounded text-[#64748B] hover:text-[#2563EB] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
+                            className="p-1.5 rounded text-[#64748B] hover:text-[#F5A000] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
                             title="View Full Profile"
                           >
                             <Eye className="w-4 h-4" />
@@ -725,9 +716,9 @@ export default function StudentsPage() {
         {selectedStudent && (
           <div className="space-y-5">
             {/* Top Identity Banner */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-[#153B66] to-[#1E4D82] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-[#123B5A] to-[#1E4D82] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-[#2563EB] text-white font-black text-lg flex items-center justify-center shadow-xs">
+                <div className="w-12 h-12 rounded-xl bg-[#F5A000] text-white font-black text-lg flex items-center justify-center shadow-xs">
                   {selectedStudent.firstName[0]}
                   {selectedStudent.lastName[0]}
                 </div>
@@ -749,7 +740,7 @@ export default function StudentsPage() {
                 onClick={() => setActiveTab("overview")}
                 className={`pb-2.5 transition-colors cursor-pointer border-b-2 ${
                   activeTab === "overview"
-                    ? "border-[#2563EB] text-[#2563EB]"
+                    ? "border-[#F5A000] text-[#F5A000]"
                     : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
@@ -759,7 +750,7 @@ export default function StudentsPage() {
                 onClick={() => setActiveTab("academics")}
                 className={`pb-2.5 transition-colors cursor-pointer border-b-2 ${
                   activeTab === "academics"
-                    ? "border-[#2563EB] text-[#2563EB]"
+                    ? "border-[#F5A000] text-[#F5A000]"
                     : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
@@ -769,7 +760,7 @@ export default function StudentsPage() {
                 onClick={() => setActiveTab("guardians")}
                 className={`pb-2.5 transition-colors cursor-pointer border-b-2 ${
                   activeTab === "guardians"
-                    ? "border-[#2563EB] text-[#2563EB]"
+                    ? "border-[#F5A000] text-[#F5A000]"
                     : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
@@ -779,7 +770,7 @@ export default function StudentsPage() {
                 onClick={() => setActiveTab("history")}
                 className={`pb-2.5 transition-colors cursor-pointer border-b-2 ${
                   activeTab === "history"
-                    ? "border-[#2563EB] text-[#2563EB]"
+                    ? "border-[#F5A000] text-[#F5A000]"
                     : "border-transparent text-[#64748B] hover:text-[#1E293B]"
                 }`}
               >
@@ -791,7 +782,7 @@ export default function StudentsPage() {
             {activeTab === "overview" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2">
-                  <h5 className="font-bold text-[#153B66] uppercase tracking-wider pb-1.5 border-b border-[#F1F5F9]">
+                  <h5 className="font-bold text-[#123B5A] uppercase tracking-wider pb-1.5 border-b border-[#F1F5F9]">
                     Personal Information
                   </h5>
                   <p><span className="text-[#64748B] font-medium">Full Name:</span> {selectedStudent.fullName}</p>
@@ -802,11 +793,11 @@ export default function StudentsPage() {
                 </div>
 
                 <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2">
-                  <h5 className="font-bold text-[#153B66] uppercase tracking-wider pb-1.5 border-b border-[#F1F5F9]">
+                  <h5 className="font-bold text-[#123B5A] uppercase tracking-wider pb-1.5 border-b border-[#F1F5F9]">
                     Contact & Address
                   </h5>
                   <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-[#64748B]" /> <span className="text-[#64748B]">Personal:</span> {selectedStudent.email}</p>
-                  <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-[#2563EB]" /> <span className="text-[#64748B]">Institutional:</span> {selectedStudent.institutionalEmail}</p>
+                  <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-[#F5A000]" /> <span className="text-[#64748B]">Institutional:</span> {selectedStudent.institutionalEmail}</p>
                   <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-[#64748B]" /> <span className="text-[#64748B]">Phone:</span> {selectedStudent.phone}</p>
                   <p className="flex items-start gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#64748B] shrink-0 mt-0.5" /> <span className="text-[#64748B]">Address:</span> {selectedStudent.addressLine}, {selectedStudent.city}, {selectedStudent.state} - {selectedStudent.postalCode}</p>
                 </div>
@@ -827,7 +818,7 @@ export default function StudentsPage() {
                   </div>
                   <div>
                     <span className="text-[11px] text-[#64748B] block">Course / Program</span>
-                    <strong className="text-[#153B66]">{selectedStudent.courseName}</strong>
+                    <strong className="text-[#123B5A]">{selectedStudent.courseName}</strong>
                   </div>
                   <div>
                     <span className="text-[11px] text-[#64748B] block">Class & Cohort</span>
@@ -919,14 +910,14 @@ export default function StudentsPage() {
             {activeTab === "history" && (
               <div className="space-y-3">
                 <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-2.5">
-                  <h5 className="text-xs font-bold text-[#153B66] uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-[#F1F5F9]">
-                    <History className="w-4 h-4 text-[#2563EB]" />
+                  <h5 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-[#F1F5F9]">
+                    <History className="w-4 h-4 text-[#F5A000]" />
                     <span>Academic Progression Log</span>
                   </h5>
                   <div className="space-y-2 text-xs">
                     {selectedStudent.enrollmentHistory?.map((h) => (
                       <div key={h.id} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-[#F8FAFC]">
-                        <div className="w-2 h-2 rounded-full bg-[#2563EB] mt-1.5 shrink-0" />
+                        <div className="w-2 h-2 rounded-full bg-[#F5A000] mt-1.5 shrink-0" />
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-[#1E293B]">
@@ -938,7 +929,7 @@ export default function StudentsPage() {
                             Academic Year: {h.academicYearName} • Status: {h.status}
                           </p>
                           {h.remarks && (
-                            <p className="text-[11px] text-[#153B66] italic mt-0.5">
+                            <p className="text-[11px] text-[#123B5A] italic mt-0.5">
                               Note: {h.remarks}
                             </p>
                           )}
@@ -986,7 +977,7 @@ export default function StudentsPage() {
             <select
               value={selectedGuardianToLink}
               onChange={(e) => setSelectedGuardianToLink(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+              className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
             >
               <option value="">-- Choose Guardian --</option>
               {guardians
@@ -1033,7 +1024,7 @@ export default function StudentsPage() {
 
           {/* Section 1: Demographics */}
           <div>
-            <h4 className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
+            <h4 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
               1. Personal & Contact Details
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1062,7 +1053,7 @@ export default function StudentsPage() {
                 <select
                   value={gender}
                   onChange={(e) => setGender(e.target.value as "Male" | "Female" | "Other")}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -1076,7 +1067,7 @@ export default function StudentsPage() {
                 <select
                   value={bloodGroup}
                   onChange={(e) => setBloodGroup(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   <option value="A+">A+</option>
                   <option value="A-">A-</option>
@@ -1130,7 +1121,7 @@ export default function StudentsPage() {
 
           {/* Section 2: Academic Placement */}
           <div>
-            <h4 className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
+            <h4 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[#F1F5F9]">
               2. Academic Placement & Cohort
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1141,7 +1132,7 @@ export default function StudentsPage() {
                 <select
                   value={selectedAYId}
                   onChange={(e) => setSelectedAYId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {academicYears.map((ay) => (
                     <option key={ay.id} value={ay.id}>
@@ -1158,7 +1149,7 @@ export default function StudentsPage() {
                 <select
                   value={selectedDeptId}
                   onChange={(e) => setSelectedDeptId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -1175,7 +1166,7 @@ export default function StudentsPage() {
                 <select
                   value={selectedCourseId}
                   onChange={(e) => setSelectedCourseId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {courses.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -1192,7 +1183,7 @@ export default function StudentsPage() {
                 <select
                   value={selectedClassId}
                   onChange={(e) => setSelectedClassId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>
@@ -1209,7 +1200,7 @@ export default function StudentsPage() {
                 <select
                   value={selectedSectionId}
                   onChange={(e) => setSelectedSectionId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   {sections
                     .filter((s) => !selectedClassId || s.classId === selectedClassId)
@@ -1256,7 +1247,7 @@ export default function StudentsPage() {
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as StudentStatus)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>

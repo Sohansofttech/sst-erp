@@ -846,33 +846,18 @@ export default function ExaminationsPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Top Header & Breadcrumbs */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link
-              href="/admin"
-              className="text-xs font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-            </Link>
-            <span className="text-[#CBD5E1]">/</span>
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Operations & Assessments
-            </span>
-          </div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1E293B] flex items-center gap-2.5">
-              <FileSpreadsheet className="w-7 h-7 text-[#2563EB]" />
-              Examination Management
+              <FileSpreadsheet className="w-7 h-7 text-[#123B5A]" />
+              Examinations
             </h1>
-            <Badge variant="teal" size="md">
-              Phase 3 Live
-            </Badge>
-            <Badge variant="navy" size="md">
-              {profile.name}
-            </Badge>
           </div>
+          <p className="text-sm text-[#64748B] mt-1">
+            Configure exam schedules, seating allocations, hall tickets, and invigilation duties.
+          </p>
         </div>
 
         {/* Global Action Buttons */}
@@ -883,7 +868,7 @@ export default function ExaminationsPage() {
             onClick={openCreateHallModal}
             className="text-xs font-medium border-[#CBD5E1]"
           >
-            <DoorOpen className="w-3.5 h-3.5 mr-1 text-[#2563EB]" />
+            <DoorOpen className="w-3.5 h-3.5 mr-1 text-[#F5A000]" />
             Add Hall
           </Button>
           <Button
@@ -930,7 +915,7 @@ export default function ExaminationsPage() {
             ) : feedback.type === "error" ? (
               <AlertTriangle className="w-5 h-5 text-[#DC2626]" />
             ) : (
-              <Sparkles className="w-5 h-5 text-[#2563EB]" />
+              <Sparkles className="w-5 h-5 text-[#F5A000]" />
             )
           }
         >
@@ -957,7 +942,7 @@ export default function ExaminationsPage() {
               onClick={() => setActiveTab(tab.id as ActiveTab)}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                 isActive
-                  ? "bg-[#2563EB] text-white shadow-xs"
+                  ? "bg-[#F5A000] text-white shadow-xs"
                   : "text-[#475569] hover:bg-[#F1F5F9] hover:text-[#1E293B]"
               }`}
             >
@@ -966,7 +951,7 @@ export default function ExaminationsPage() {
               {tab.id === "scheduling" && selectedExam && (
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isActive ? "bg-white/20 text-white" : "bg-[#EFF6FF] text-[#2563EB]"
+                    isActive ? "bg-white/20 text-white" : "bg-[#EFF6FF] text-[#F5A000]"
                   }`}
                 >
                   {selectedExam.slots.length}
@@ -984,13 +969,13 @@ export default function ExaminationsPage() {
         <div className="space-y-6">
           {/* KPI Cards Row */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-            <Card className="border-l-4 border-l-[#2563EB]">
+            <Card className="border-l-4 border-l-[#F5A000]">
               <CardContent className="p-4">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
                   Total Exams
                 </span>
                 <p className="text-2xl font-black text-[#1E293B] mt-1">{metrics.totalExams}</p>
-                <span className="text-[10px] text-[#2563EB] font-medium">Configured Cycles</span>
+                <span className="text-[10px] text-[#F5A000] font-medium">Configured Cycles</span>
               </CardContent>
             </Card>
 
@@ -1069,7 +1054,7 @@ export default function ExaminationsPage() {
                     onClick={() => setActiveTab("examinations")}
                     className="text-xs"
                   >
-                    <BookOpen className="w-3.5 h-3.5 mr-1.5 text-[#2563EB]" />
+                    <BookOpen className="w-3.5 h-3.5 mr-1.5 text-[#F5A000]" />
                     View All Cycles
                   </Button>
                   <Button
@@ -1108,7 +1093,7 @@ export default function ExaminationsPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#2563EB]" />
+                <Calendar className="w-4 h-4 text-[#F5A000]" />
                 Active & Upcoming Examinations
               </h3>
               <span className="text-xs text-[#64748B]">
@@ -1124,7 +1109,7 @@ export default function ExaminationsPage() {
                     exam.status === "Ongoing"
                       ? "border-t-[#F59E0B]"
                       : exam.status === "Scheduled"
-                      ? "border-t-[#2563EB]"
+                      ? "border-t-[#F5A000]"
                       : exam.status === "Completed"
                       ? "border-t-[#10B981]"
                       : "border-t-[#94A3B8]"
@@ -1136,7 +1121,7 @@ export default function ExaminationsPage() {
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE]">
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#F5A000] border border-[#BFDBFE]">
                           {exam.code}
                         </span>
                         <h4 className="text-sm font-bold text-[#1E293B] mt-1 line-clamp-1">
@@ -1180,7 +1165,7 @@ export default function ExaminationsPage() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Scheduled Papers:</span>
-                        <span className="font-bold text-[#2563EB]">
+                        <span className="font-bold text-[#F5A000]">
                           {exam.slots.length} Papers
                         </span>
                       </div>
@@ -1197,7 +1182,7 @@ export default function ExaminationsPage() {
                         }}
                         className="text-[11px]"
                       >
-                        <Clock className="w-3 h-3 mr-1 text-[#2563EB]" />
+                        <Clock className="w-3 h-3 mr-1 text-[#F5A000]" />
                         Schedule ({exam.slots.length})
                       </Button>
                       <Button
@@ -1223,14 +1208,14 @@ export default function ExaminationsPage() {
           <Card>
             <CardHeader className="py-3 px-4 border-b border-[#E2E8F0] flex flex-row items-center justify-between">
               <CardTitle className="text-xs font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-2">
-                <History className="w-4 h-4 text-[#2563EB]" />
+                <History className="w-4 h-4 text-[#F5A000]" />
                 Recent Examination Activity Logs
               </CardTitle>
               <Button
                 variant="ghost"
                 size="xs"
                 onClick={() => setActiveTab("reports")}
-                className="text-xs text-[#2563EB]"
+                className="text-xs text-[#F5A000]"
               >
                 View Full Audit
               </Button>
@@ -1239,7 +1224,7 @@ export default function ExaminationsPage() {
               {examAudits.slice(0, 5).map((log) => (
                 <div key={log.id} className="p-3.5 flex items-center justify-between gap-4 text-xs">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#F5A000] flex items-center justify-center shrink-0">
                       <FileSpreadsheet className="w-4 h-4" />
                     </div>
                     <div>
@@ -1328,7 +1313,7 @@ export default function ExaminationsPage() {
                   placeholder="Search exam name, code..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="text-xs pl-8 pr-3 py-1.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-md text-[#1E293B] w-56 focus:outline-none focus:ring-1 focus:ring-[#2563EB]"
+                  className="text-xs pl-8 pr-3 py-1.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-md text-[#1E293B] w-56 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
                 />
               </div>
             </CardContent>
@@ -1360,7 +1345,7 @@ export default function ExaminationsPage() {
                     filteredExaminations.map((exam) => (
                       <tr key={exam.id} className="hover:bg-[#F8FAFC] transition-colors">
                         <td className="px-4 py-3 font-medium text-[#1E293B]">
-                          <span className="font-mono text-[11px] font-bold text-[#2563EB] bg-[#EFF6FF] px-1.5 py-0.5 rounded border border-[#BFDBFE] mr-1.5">
+                          <span className="font-mono text-[11px] font-bold text-[#F5A000] bg-[#EFF6FF] px-1.5 py-0.5 rounded border border-[#BFDBFE] mr-1.5">
                             {exam.code}
                           </span>
                           <span className="font-bold">{exam.name}</span>
@@ -1385,7 +1370,7 @@ export default function ExaminationsPage() {
                           <div className="text-[11px] text-[#64748B]">to {exam.endDate}</div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="font-bold text-[#2563EB]">
+                          <span className="font-bold text-[#F5A000]">
                             {exam.slots.length} Papers
                           </span>
                         </td>
@@ -1415,7 +1400,7 @@ export default function ExaminationsPage() {
                             }}
                             className="text-[11px]"
                           >
-                            <Clock className="w-3 h-3 mr-1 text-[#2563EB]" />
+                            <Clock className="w-3 h-3 mr-1 text-[#F5A000]" />
                             Timetable
                           </Button>
                           <Button
@@ -1517,7 +1502,7 @@ export default function ExaminationsPage() {
           <Card>
             <CardHeader className="py-3 px-4 border-b border-[#E2E8F0] flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#2563EB]" />
+                <Clock className="w-4 h-4 text-[#F5A000]" />
                 Scheduled Examination Papers ({selectedExam ? selectedExam.slots.length : 0})
               </CardTitle>
               <Badge variant="teal" size="sm">
@@ -1554,7 +1539,7 @@ export default function ExaminationsPage() {
                       <tr key={slot.id} className="hover:bg-[#F8FAFC] transition-colors">
                         <td className="px-4 py-3 font-medium text-[#1E293B]">
                           <div className="flex items-center gap-1.5 font-bold">
-                            <Calendar className="w-3.5 h-3.5 text-[#2563EB]" />
+                            <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
                             {slot.examDate}
                           </div>
                           <Badge
@@ -1639,7 +1624,7 @@ export default function ExaminationsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
-                <DoorOpen className="w-4 h-4 text-[#2563EB]" />
+                <DoorOpen className="w-4 h-4 text-[#F5A000]" />
                 Examination Halls & Seating Infrastructure
               </h3>
               <p className="text-xs text-[#64748B]">
@@ -1674,7 +1659,7 @@ export default function ExaminationsPage() {
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE]">
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#F5A000] border border-[#BFDBFE]">
                         {hall.code}
                       </span>
                       <h4 className="text-sm font-bold text-[#1E293B] mt-1">{hall.name}</h4>
@@ -1704,7 +1689,7 @@ export default function ExaminationsPage() {
                     </div>
                     <div className="w-full h-2 bg-[#F1F5F9] rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-[#2563EB] rounded-full"
+                        className="h-full bg-[#F5A000] rounded-full"
                         style={{
                           width: `${Math.min(100, (hall.capacity / 150) * 100)}%`,
                         }}
@@ -1906,7 +1891,7 @@ export default function ExaminationsPage() {
               </div>
 
               {/* Threshold Note */}
-              <div className="p-3 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg flex items-center justify-between text-xs text-[#1E40AF]">
+              <div className="p-3 bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg flex items-center justify-between text-xs text-[#D98E00]">
                 <span>
                   Institutional Attendance Rule: Minimum{" "}
                   <strong>{attendanceThreshold.minimumPercentage}%</strong> attendance is mandatory
@@ -2052,7 +2037,7 @@ export default function ExaminationsPage() {
                             onClick={() => openOverrideModal(item)}
                             className="text-[11px]"
                           >
-                            <ShieldAlert className="w-3 h-3 mr-1 text-[#2563EB]" />
+                            <ShieldAlert className="w-3 h-3 mr-1 text-[#F5A000]" />
                             {item.hasOverride ? "Edit Override" : "Override"}
                           </Button>
                         </td>
@@ -2074,7 +2059,7 @@ export default function ExaminationsPage() {
           <Card>
             <CardHeader className="py-3 px-4 border-b border-[#E2E8F0]">
               <CardTitle className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
-                <Download className="w-4 h-4 text-[#2563EB]" />
+                <Download className="w-4 h-4 text-[#F5A000]" />
                 Institutional Examination Reports & Export Center
               </CardTitle>
             </CardHeader>
@@ -2157,7 +2142,7 @@ export default function ExaminationsPage() {
           <Card>
             <CardHeader className="py-3 px-4 border-b border-[#E2E8F0]">
               <CardTitle className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
-                <History className="w-4 h-4 text-[#2563EB]" />
+                <History className="w-4 h-4 text-[#F5A000]" />
                 Complete Examination Audit Trail
               </CardTitle>
             </CardHeader>

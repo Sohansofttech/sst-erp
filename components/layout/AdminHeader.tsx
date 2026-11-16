@@ -41,7 +41,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
         </button>
 
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#153B66] text-white font-bold shadow-xs">
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#123B5A] text-white font-bold shadow-xs">
             {profile.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={profile.logoUrl} alt="Logo" className="w-9 h-9 rounded-lg object-cover" />
@@ -79,16 +79,16 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#F1F5F9] text-[#1E293B] transition-colors cursor-pointer"
             title="Switch Active Academic Year"
           >
-            <Calendar className="w-4 h-4 text-[#2563EB]" />
+            <Calendar className="w-4 h-4 text-[#F5A000]" />
             <div className="text-left hidden md:block">
               <span className="text-[10px] uppercase font-semibold text-[#64748B] block leading-none">
                 Academic Year
               </span>
-              <span className="text-xs font-bold text-[#153B66] leading-none">
+              <span className="text-xs font-bold text-[#123B5A] leading-none">
                 {activeAcademicYear?.name || "Not Set"}
               </span>
             </div>
-            <span className="text-xs font-bold text-[#153B66] md:hidden">
+            <span className="text-xs font-bold text-[#123B5A] md:hidden">
               {activeAcademicYear?.name}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
@@ -109,13 +109,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors cursor-pointer ${
                       ay.isActive
-                        ? "bg-[#EFF6FF] text-[#2563EB] font-bold"
+                        ? "bg-[#FEF3C7] text-[#D97706] font-bold"
                         : "text-[#1E293B] hover:bg-[#F8FAFC]"
                     }`}
                   >
                     <span>{ay.name}</span>
                     {ay.isActive && (
-                      <span className="text-[10px] font-semibold bg-[#2563EB] text-white px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] font-semibold bg-[#F5A000] text-white px-1.5 py-0.5 rounded">
                         Active
                       </span>
                     )}
@@ -134,22 +134,22 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#2563EB] ring-2 ring-white" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#F5A000] ring-2 ring-white" />
           </button>
 
           {showNotifications && (
             <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-[#E2E8F0] p-3 z-40 animate-in fade-in">
               <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
                 <h4 className="text-xs font-bold text-[#1E293B]">Notifications</h4>
-                <span className="text-[10px] text-[#2563EB] font-medium">3 unread</span>
+                <span className="text-[10px] text-[#F5A000] font-medium">3 unread</span>
               </div>
               <div className="py-2 space-y-2 text-xs">
-                <div className="p-2 rounded-lg bg-[#EFF6FF] text-[#1E293B]">
-                  <p className="font-semibold text-[#153B66]">Academic Year Activated</p>
+                <div className="p-2 rounded-lg bg-[#FEF3C7] text-[#1E293B]">
+                  <p className="font-semibold text-[#123B5A]">Academic Year Activated</p>
                   <p className="text-[11px] text-[#64748B]">AY 2026-2027 is now the system active calendar.</p>
                 </div>
                 <div className="p-2 rounded-lg bg-[#F8FAFC] text-[#1E293B]">
-                  <p className="font-semibold text-[#153B66]">Staff Registration</p>
+                  <p className="font-semibold text-[#123B5A]">Staff Registration</p>
                   <p className="text-[11px] text-[#64748B]">New faculty added in CSE department.</p>
                 </div>
               </div>
@@ -163,12 +163,12 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-[#F1F5F9] transition-colors cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-full bg-[#153B66] text-white flex items-center justify-center font-bold text-xs ring-2 ring-[#2563EB]/20">
+            <div className="w-8 h-8 rounded-full bg-[#123B5A] text-white flex items-center justify-center font-bold text-xs ring-2 ring-[#F5A000]/20">
               AD
             </div>
             <div className="hidden lg:block text-left leading-none">
               <span className="text-xs font-bold text-[#1E293B] block">Administrator</span>
-              <span className="text-[11px] text-[#14B8A6] font-semibold">Institution Admin</span>
+              <span className="text-[11px] text-[#F5A000] font-semibold">Institution Admin</span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-[#64748B] hidden lg:block" />
           </button>
@@ -195,7 +195,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg text-[#1E293B] hover:bg-[#F8FAFC]"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-[#2563EB]" /> Roles & Access
+                  <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" /> Roles & Access
                 </Link>
                 <button
                   onClick={() => {

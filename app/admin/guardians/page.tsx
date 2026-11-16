@@ -299,19 +299,12 @@ export default function GuardiansPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-teal-600 bg-teal-50 px-2 py-0.5 rounded">
-              Student Lifecycle
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-xs text-slate-500">Parent & Guardian Registry</span>
-          </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1 flex items-center gap-2.5">
-            <HeartHandshake className="h-6 w-6 text-[#153B66]" />
-            Guardian Management
+            <HeartHandshake className="h-6 w-6 text-[#123B5A]" />
+            Guardians & Parents
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Maintain verified parent, emergency contact, and legal guardian relationships with multi-student linking.
+            Maintain verified parent, emergency contact, and legal guardian relationships.
           </p>
         </div>
 
@@ -324,7 +317,7 @@ export default function GuardiansPage() {
           </Link>
           <Button
             onClick={openAddModal}
-            className="gap-2 bg-[#153B66] hover:bg-[#153B66]/90 text-white shadow-sm"
+            className="gap-2 bg-[#F5A000] hover:bg-[#F5A000]/90 text-white shadow-sm"
           >
             <Plus className="h-4 w-4" />
             Register Guardian
@@ -421,7 +414,7 @@ export default function GuardiansPage() {
               <select
                 value={relationshipFilter}
                 onChange={(e) => setRelationshipFilter(e.target.value)}
-                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="ALL">All Relationships</option>
                 <option value="Father">Father</option>
@@ -433,7 +426,7 @@ export default function GuardiansPage() {
               <select
                 value={emergencyFilter}
                 onChange={(e) => setEmergencyFilter(e.target.value)}
-                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="ALL">All Emergency Roles</option>
                 <option value="YES">Emergency Contact (Yes)</option>
@@ -443,7 +436,7 @@ export default function GuardiansPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#153B66] col-span-2 sm:col-span-1"
+                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#F5A000] col-span-2 sm:col-span-1"
               >
                 <option value="ALL">All Status</option>
                 <option value="Active">Active Only</option>
@@ -516,14 +509,14 @@ export default function GuardiansPage() {
                   return (
                     <TableRow key={g.id} className="hover:bg-slate-50/60 transition-colors">
                       {/* ID */}
-                      <TableCell className="font-mono text-xs font-semibold text-[#153B66]">
+                      <TableCell className="font-mono text-xs font-semibold text-[#123B5A]">
                         {g.guardianId}
                       </TableCell>
 
                       {/* Name & Initials */}
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-slate-100 text-[#153B66] font-bold text-xs flex items-center justify-center border border-slate-200 shrink-0">
+                          <div className="h-9 w-9 rounded-full bg-slate-100 text-[#123B5A] font-bold text-xs flex items-center justify-center border border-slate-200 shrink-0">
                             {g.fullName
                               .split(" ")
                               .map((n) => n[0])
@@ -727,7 +720,7 @@ export default function GuardiansPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, relationship: e.target.value as GuardianRelationship })
                 }
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 <option value="Father">Father</option>
                 <option value="Mother">Mother</option>
@@ -867,7 +860,7 @@ export default function GuardiansPage() {
               <select
                 value={formData.initialStudentId}
                 onChange={(e) => setFormData({ ...formData, initialStudentId: e.target.value })}
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 <option value="">-- Do not link right now (link later) --</option>
                 {students.map((st) => (
@@ -891,7 +884,7 @@ export default function GuardiansPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, isEmergencyContact: e.target.checked })
                 }
-                className="rounded border-slate-300 text-[#153B66] focus:ring-[#153B66] h-4 w-4"
+                className="rounded border-slate-300 text-[#123B5A] focus:ring-[#F5A000] h-4 w-4"
               />
               <span className="text-xs font-semibold text-slate-800">
                 Designate as Primary Emergency Contact for automated notifications & campus alerts
@@ -929,7 +922,7 @@ export default function GuardiansPage() {
             </Button>
             <Button
               type="submit"
-              className="bg-[#153B66] hover:bg-[#153B66]/90 text-white"
+              className="bg-[#F5A000] hover:bg-[#F5A000]/90 text-white"
             >
               {editingGuardian ? "Update Guardian" : "Register Guardian"}
             </Button>
@@ -951,7 +944,7 @@ export default function GuardiansPage() {
             {/* Header Card */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-[#153B66] text-white font-bold text-base flex items-center justify-center shrink-0">
+                <div className="h-12 w-12 rounded-xl bg-[#123B5A] text-white font-bold text-base flex items-center justify-center shrink-0">
                   {viewingGuardian.fullName
                     .split(" ")
                     .map((n) => n[0])
@@ -962,7 +955,7 @@ export default function GuardiansPage() {
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">{viewingGuardian.fullName}</h3>
                   <div className="flex items-center gap-2 text-xs text-slate-600 mt-0.5">
-                    <span className="font-mono text-[#153B66] font-semibold">
+                    <span className="font-mono text-[#123B5A] font-semibold">
                       {viewingGuardian.guardianId}
                     </span>
                     <span>•</span>
@@ -988,7 +981,7 @@ export default function GuardiansPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               {/* Contact Information */}
               <div className="border border-slate-200 rounded-lg p-4 space-y-3 bg-white">
-                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#153B66] flex items-center gap-1.5">
+                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
                   <Phone className="h-3.5 w-3.5" />
                   Contact Information
                 </h4>
@@ -1018,7 +1011,7 @@ export default function GuardiansPage() {
 
               {/* Professional & Registry Info */}
               <div className="border border-slate-200 rounded-lg p-4 space-y-3 bg-white">
-                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#153B66] flex items-center gap-1.5">
+                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
                   <Briefcase className="h-3.5 w-3.5" />
                   Professional Profile
                 </h4>
@@ -1052,7 +1045,7 @@ export default function GuardiansPage() {
             {/* Linked Students Section */}
             <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#153B66] flex items-center gap-1.5">
+                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
                   <GraduationCap className="h-3.5 w-3.5" />
                   Linked Students & Wards ({viewingGuardian.studentIds.length})
                 </h4>
@@ -1088,7 +1081,7 @@ export default function GuardiansPage() {
                       >
                         <div>
                           <div className="flex items-center justify-between">
-                            <span className="font-mono text-xs font-bold text-[#153B66]">
+                            <span className="font-mono text-xs font-bold text-[#123B5A]">
                               {child.rollNumber}
                             </span>
                             <Badge variant={child.status === "Active" ? "success" : "neutral"}>
@@ -1176,7 +1169,7 @@ export default function GuardiansPage() {
               <select
                 value={selectedStudentToLink}
                 onChange={(e) => setSelectedStudentToLink(e.target.value)}
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 <option value="">-- Choose student from active directory --</option>
                 {students
@@ -1213,7 +1206,7 @@ export default function GuardiansPage() {
               <Button
                 onClick={handleConfirmLinkStudent}
                 disabled={!selectedStudentToLink}
-                className="bg-[#153B66] hover:bg-[#153B66]/90 text-white"
+                className="bg-[#F5A000] hover:bg-[#F5A000]/90 text-white"
               >
                 Confirm Link
               </Button>

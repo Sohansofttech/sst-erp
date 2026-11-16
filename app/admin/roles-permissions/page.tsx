@@ -80,20 +80,11 @@ export default function RolesPermissionsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Governance & Security
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider">
-              Access Control
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Roles & Permissions (RBAC)
+            Roles & Permissions
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Configure institutional security roles, granular permission matrices, and departmental access grants.
+            Configure institutional roles, access permissions, and security boundaries.
           </p>
         </div>
         <Button
@@ -110,7 +101,7 @@ export default function RolesPermissionsPage() {
       <Alert
         variant="info"
         title="Role-Based Access Control (RBAC) Governance"
-        icon={<ShieldAlert className="w-5 h-5 text-[#2563EB]" />}
+        icon={<ShieldAlert className="w-5 h-5 text-[#F5A000]" />}
       >
         <p className="text-xs leading-relaxed text-[#1E293B]">
           Institutional roles establish granular permission boundaries across academic management, student operations, and administrative functions. Updates made to role permissions take effect across assigned staff and faculty members upon their next active session.
@@ -142,8 +133,8 @@ export default function RolesPermissionsPage() {
                   onClick={() => setSelectedRoleId(role.id)}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? "bg-[#153B66] text-white border-[#153B66] shadow-md ring-2 ring-[#2563EB]/40"
-                      : "bg-white text-[#1E293B] border-[#E2E8F0] hover:border-[#2563EB]/40 hover:bg-[#F8FAFC]"
+                      ? "bg-[#123B5A] text-white border-[#123B5A] shadow-md ring-2 ring-[#F5A000]/40"
+                      : "bg-white text-[#1E293B] border-[#E2E8F0] hover:border-[#F5A000]/40 hover:bg-[#F8FAFC]"
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -187,7 +178,7 @@ export default function RolesPermissionsPage() {
               <div className="flex items-center justify-between w-full">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-[#2563EB]" />
+                    <Shield className="w-5 h-5 text-[#F5A000]" />
                     <CardTitle>Permissions Granted to {selectedRole.name}</CardTitle>
                   </div>
                   <p className="text-xs text-[#64748B] mt-0.5">
@@ -214,7 +205,7 @@ export default function RolesPermissionsPage() {
                   >
                     <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-2">
                       <div>
-                        <h4 className="text-sm font-bold text-[#153B66]">{cat.name}</h4>
+                        <h4 className="text-sm font-bold text-[#123B5A]">{cat.name}</h4>
                         <p className="text-xs text-[#64748B]">{cat.description}</p>
                       </div>
                       <Button
@@ -222,7 +213,7 @@ export default function RolesPermissionsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleToggleCategory(cat.permissions)}
-                        className="text-xs text-[#2563EB]"
+                        className="text-xs text-[#F5A000]"
                       >
                         {allSelected ? "Deselect All" : "Select Category"}
                       </Button>
@@ -237,13 +228,13 @@ export default function RolesPermissionsPage() {
                             onClick={() => handleTogglePermission(perm.id)}
                             className={`p-2.5 rounded-lg border transition-all cursor-pointer flex items-start gap-2.5 ${
                               isGranted
-                                ? "bg-[#EFF6FF] border-[#BFDBFE] text-[#1E40AF]"
+                                ? "bg-[#EFF6FF] border-[#BFDBFE] text-[#F5A000]"
                                 : "bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B] hover:bg-[#F1F5F9]"
                             }`}
                           >
                             <div className="mt-0.5">
                               {isGranted ? (
-                                <CheckSquare className="w-4 h-4 text-[#2563EB] shrink-0" />
+                                <CheckSquare className="w-4 h-4 text-[#F5A000] shrink-0" />
                               ) : (
                                 <Square className="w-4 h-4 text-[#CBD5E1] shrink-0" />
                               )}
@@ -318,7 +309,7 @@ export default function RolesPermissionsPage() {
               value={newRoleDesc}
               onChange={(e) => setNewRoleDesc(e.target.value)}
               placeholder="Scope of authority, assigned duties, and security boundaries"
-              className="w-full rounded-lg border border-[#CBD5E1] p-2.5 text-xs text-[#1E293B] focus:border-[#2563EB] focus:outline-none"
+              className="w-full rounded-lg border border-[#CBD5E1] p-2.5 text-xs text-[#1E293B] focus:border-[#F5A000] focus:outline-none"
             />
           </div>
         </div>

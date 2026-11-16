@@ -125,7 +125,7 @@ export default function InstitutionSettingsPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-[#2563EB]" />
+                <Building2 className="w-5 h-5 text-[#F5A000]" />
                 <CardTitle>Institutional Identity</CardTitle>
               </div>
             </CardHeader>
@@ -329,7 +329,7 @@ export default function InstitutionSettingsPage() {
                   </div>
                 ) : (
                   <div className="text-center space-y-2">
-                    <div className="w-16 h-16 rounded-full bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mx-auto">
+                    <div className="w-16 h-16 rounded-full bg-[#EFF6FF] text-[#F5A000] flex items-center justify-center mx-auto">
                       <ImageIcon className="w-8 h-8" />
                     </div>
                     <div className="text-xs text-[#1E293B] font-semibold">
@@ -379,7 +379,7 @@ export default function InstitutionSettingsPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Palette className="w-5 h-5 text-[#14B8A6]" />
+                <Palette className="w-5 h-5 text-[#F5A000]" />
                 <CardTitle>Design System Tokens</CardTitle>
               </div>
             </CardHeader>
@@ -387,34 +387,34 @@ export default function InstitutionSettingsPage() {
               <div className="space-y-3">
                 <div>
                   <label className="text-[13px] font-medium text-[#1E293B] block mb-1">
-                    Primary Navy
+                    Deep Navy
                   </label>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[#153B66] border border-[#CBD5E1] shadow-xs" />
-                    <span className="text-xs font-mono font-semibold text-[#1E293B]">#153B66</span>
-                    <span className="text-[11px] text-[#64748B] ml-auto">Fixed Brand Standard</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#123B5A] border border-[#CBD5E1] shadow-xs" />
+                    <span className="text-xs font-mono font-semibold text-[#1E293B]">#123B5A</span>
+                    <span className="text-[11px] text-[#64748B] ml-auto">Sidebar Standard</span>
                   </div>
                 </div>
 
                 <div>
                   <label className="text-[13px] font-medium text-[#1E293B] block mb-1">
-                    Primary Blue
+                    Royal Blue
                   </label>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[#2563EB] border border-[#CBD5E1] shadow-xs" />
-                    <span className="text-xs font-mono font-semibold text-[#1E293B]">#2563EB</span>
-                    <span className="text-[11px] text-[#64748B] ml-auto">Action Standard</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#F5A000] border border-[#CBD5E1] shadow-xs" />
+                    <span className="text-xs font-mono font-semibold text-[#1E293B]">#F5A000</span>
+                    <span className="text-[11px] text-[#64748B] ml-auto">Primary Action</span>
                   </div>
                 </div>
 
                 <div>
                   <label className="text-[13px] font-medium text-[#1E293B] block mb-1">
-                    Secondary Teal
+                    Action Orange
                   </label>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[#14B8A6] border border-[#CBD5E1] shadow-xs" />
-                    <span className="text-xs font-mono font-semibold text-[#1E293B]">#14B8A6</span>
-                    <span className="text-[11px] text-[#64748B] ml-auto">Accent Standard</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#F5A000] border border-[#CBD5E1] shadow-xs" />
+                    <span className="text-xs font-mono font-semibold text-[#1E293B]">#F5A000</span>
+                    <span className="text-[11px] text-[#64748B] ml-auto">Highlight Standard</span>
                   </div>
                 </div>
 

@@ -148,24 +148,16 @@ function MarksEntryContent() {
           <div className="flex items-center gap-2 mb-1">
             <Link
               href="/admin/ia"
-              className="text-xs font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
+              className="text-xs font-semibold text-[#F5A000] hover:underline flex items-center gap-1"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Internal Assessments
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to Assessments
             </Link>
-            <span className="text-[#CBD5E1]">/</span>
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Evaluation & Grading
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Phase 4B
-            </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Student Marks Entry & Assessment Processing
+            Marks Entry
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Capture component-level scores, manage attendance exemptions, perform verified moderation with grace marks audit, and lock assessment sheets.
+            Capture component scores, perform verified moderation, and lock assessment sheets.
           </p>
         </div>
       </div>
@@ -184,14 +176,14 @@ function MarksEntryContent() {
       <Card className="p-4 border-[#E2E8F0] shadow-xs space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
           <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-[#2563EB]" />
-            <span className="text-xs font-bold uppercase tracking-wider text-[#153B66]">
+            <Award className="w-4 h-4 text-[#F5A000]" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#123B5A]">
               Target Assessment Selection
             </span>
           </div>
           {currentAssessment && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="font-mono text-[#2563EB] font-bold">
+              <span className="font-mono text-[#F5A000] font-bold">
                 {currentAssessment.assessmentCode}
               </span>
               <span className="text-[#CBD5E1]">•</span>
@@ -211,7 +203,7 @@ function MarksEntryContent() {
             <select
               value={selectedAssessmentId}
               onChange={(e) => handleSelectAssessment(e.target.value)}
-              className="w-full h-9 px-2.5 bg-white border border-[#CBD5E1] rounded-md font-semibold text-[#1E293B] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+              className="w-full h-9 px-2.5 bg-white border border-[#CBD5E1] rounded-md font-semibold text-[#1E293B] focus:outline-hidden focus:ring-2 focus:ring-[#F5A000]"
             >
               {iaAssessments.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -286,7 +278,7 @@ function MarksEntryContent() {
             {currentAssessment.components.map((comp) => (
               <span
                 key={comp.id}
-                className="px-2 py-0.5 rounded-md bg-[#EFF6FF] border border-[#BFDBFE] text-[#1D4ED8] font-medium text-[11px] flex items-center gap-1.5"
+                className="px-2 py-0.5 rounded-md bg-[#EFF6FF] border border-[#BFDBFE] text-[#F5A000] font-medium text-[11px] flex items-center gap-1.5"
               >
                 <span>{comp.name}</span>
                 <span className="font-bold">({comp.maxMarks}M • {comp.weightagePercentage}%)</span>
@@ -302,7 +294,7 @@ function MarksEntryContent() {
           onClick={() => setActiveSubTab("entry")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeSubTab === "entry"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -313,7 +305,7 @@ function MarksEntryContent() {
           onClick={() => setActiveSubTab("review")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeSubTab === "review"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -324,7 +316,7 @@ function MarksEntryContent() {
           onClick={() => setActiveSubTab("audit")}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors cursor-pointer border-b-2 whitespace-nowrap ${
             activeSubTab === "audit"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -745,7 +737,7 @@ function MarksSheetGrid({
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <Card className="p-3 border-[#E2E8F0] shadow-xs">
           <span className="text-[11px] font-semibold text-[#64748B] uppercase">Enrolled</span>
-          <div className="text-xl font-black text-[#153B66]">{enrolledStudents.length}</div>
+          <div className="text-xl font-black text-[#123B5A]">{enrolledStudents.length}</div>
           <span className="text-[10px] text-[#64748B]">Class Cohort</span>
         </Card>
 
@@ -769,8 +761,8 @@ function MarksSheetGrid({
 
         <Card className="p-3 border-[#E2E8F0] shadow-xs">
           <span className="text-[11px] font-semibold text-[#64748B] uppercase">Class Avg</span>
-          <div className="text-xl font-black text-[#2563EB]">{reviewStats.avg} M</div>
-          <span className="text-[10px] text-[#2563EB]">Mean Score</span>
+          <div className="text-xl font-black text-[#F5A000]">{reviewStats.avg} M</div>
+          <span className="text-[10px] text-[#F5A000]">Mean Score</span>
         </Card>
 
         <Card className="p-3 border-[#E2E8F0] shadow-xs">
@@ -859,7 +851,7 @@ function MarksSheetGrid({
                 variant="outline"
                 size="sm"
                 onClick={handleExportCSV}
-                leftIcon={<Download className="w-4 h-4 text-[#2563EB]" />}
+                leftIcon={<Download className="w-4 h-4 text-[#F5A000]" />}
               >
                 Export CSV
               </Button>
@@ -926,7 +918,7 @@ function MarksSheetGrid({
                 {(assessment.components || []).map((comp) => (
                   <TableHead key={comp.id} className="min-w-36 text-center">
                     <div>{comp.name}</div>
-                    <div className="text-[10px] text-[#2563EB] font-normal">
+                    <div className="text-[10px] text-[#F5A000] font-normal">
                       Max: {comp.maxMarks}M ({comp.weightagePercentage}%)
                     </div>
                   </TableHead>
@@ -951,7 +943,7 @@ function MarksSheetGrid({
                 gridRecords.map((rec) => (
                   <TableRow key={rec.studentId} className="hover:bg-[#F8FAFC]">
                     {/* Roll Number */}
-                    <TableCell className="font-mono text-xs font-bold text-[#153B66]">
+                    <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
                       {rec.rollNumber}
                     </TableCell>
 
@@ -1036,7 +1028,7 @@ function MarksSheetGrid({
                           <span
                             className={
                               rec.totalMarksObtained >= (assessment.totalPassingMarks || 40)
-                                ? "text-[#153B66]"
+                                ? "text-[#123B5A]"
                                 : "text-[#DC2626]"
                             }
                           >
@@ -1104,7 +1096,7 @@ function MarksSheetGrid({
                 variant="outline"
                 size="sm"
                 onClick={handleExportCSV}
-                leftIcon={<Download className="w-4 h-4 text-[#2563EB]" />}
+                leftIcon={<Download className="w-4 h-4 text-[#F5A000]" />}
               >
                 Export Moderation List
               </Button>
@@ -1133,7 +1125,7 @@ function MarksSheetGrid({
             <Card className="p-4 border-[#E2E8F0] shadow-xs space-y-2">
               <div className="flex items-center justify-between text-xs font-semibold text-[#64748B]">
                 <span>Score Extremes</span>
-                <span className="text-[#2563EB] font-bold">Class Avg: {reviewStats.avg} M</span>
+                <span className="text-[#F5A000] font-bold">Class Avg: {reviewStats.avg} M</span>
               </div>
               <div className="flex items-center justify-between text-xs pt-1">
                 <div>
@@ -1183,7 +1175,7 @@ function MarksSheetGrid({
             <TableBody>
               {gridRecords.map((rec) => (
                 <TableRow key={rec.studentId} className="hover:bg-[#F8FAFC]">
-                  <TableCell className="font-mono text-xs font-bold text-[#153B66]">
+                  <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
                     {rec.rollNumber}
                   </TableCell>
                   <TableCell className="font-bold text-xs text-[#1E293B]">
@@ -1209,7 +1201,7 @@ function MarksSheetGrid({
                   <TableCell className="text-xs font-bold text-[#D97706]">
                     {rec.graceMarks && rec.graceMarks > 0 ? `+${rec.graceMarks} M` : "—"}
                   </TableCell>
-                  <TableCell className="text-xs font-black text-[#153B66]">
+                  <TableCell className="text-xs font-black text-[#123B5A]">
                     {rec.totalMarksObtained} M
                   </TableCell>
                   <TableCell>
@@ -1302,7 +1294,7 @@ function MarksSheetGrid({
                             {log.assessmentName}
                           </span>
                           {log.studentName && (
-                            <span className="text-[#2563EB] font-semibold">
+                            <span className="text-[#F5A000] font-semibold">
                               — {log.studentName}
                             </span>
                           )}
@@ -1369,7 +1361,7 @@ function MarksSheetGrid({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[#64748B]">Benchmark Passing Score:</span>
-                <span className="font-bold text-[#2563EB]">
+                <span className="font-bold text-[#F5A000]">
                   {assessment.totalPassingMarks} M
                 </span>
               </div>
@@ -1419,7 +1411,7 @@ function MarksSheetGrid({
                 placeholder="State formal basis for adjustment (e.g. Academic Council medical concession, re-evaluation adjustment, etc.)."
                 value={moderationReasonInput}
                 onChange={(e) => setModerationReasonInput(e.target.value)}
-                className="w-full p-2.5 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                className="w-full p-2.5 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#F5A000]"
                 required
               />
             </div>
@@ -1509,7 +1501,7 @@ function MarksSheetGrid({
               placeholder="e.g. Scrutiny committee identified evaluation discrepancy; reopening for re-entry."
               value={unlockReasonInput}
               onChange={(e) => setUnlockReasonInput(e.target.value)}
-              className="w-full p-2.5 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+              className="w-full p-2.5 text-xs bg-white border border-[#CBD5E1] rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#F5A000]"
               required
             />
           </div>

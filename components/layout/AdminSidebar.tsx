@@ -54,6 +54,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { href: "/admin/hostel", label: "Hostel", icon: Home },
     { href: "/admin/transport", label: "Transport", icon: Bus },
     { href: "/admin/events", label: "Events & Resources", icon: CalendarDays },
+    { href: "/admin/gate-management", label: "Gate Management", icon: Shield },
     { href: "/admin/communication", label: "Communication", icon: MessageSquare },
     { href: "/admin/approvals", label: "Approvals", icon: CheckSquare },
     { href: "/admin/audit-logs", label: "Audit Logs", icon: History },
@@ -64,43 +65,45 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#0F172A]/50 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-[#0D2B42]/60 backdrop-blur-xs lg:hidden"
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar Panel - Fixed/Sticky on Desktop, Scrollable Independently */}
+      {/* Sidebar Panel - Fixed Deep Navy Blue Vertical Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#153B66] text-white flex flex-col transition-transform duration-300 ease-in-out shadow-xl",
+          "fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#123B5A] text-white flex flex-col transition-transform duration-300 ease-in-out shadow-xl",
           "lg:static lg:h-full lg:shrink-0 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Brand / Logo Area (Fixed Top) */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-[#1E4D82] bg-[#0E2847] shrink-0">
+        <div className="flex items-center justify-between h-16 px-5 border-b border-[#16466C] bg-[#0D2B42] shrink-0">
           <Link href="/admin" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center font-black text-white text-base shadow-xs">
+            <div className="w-8 h-8 rounded-lg bg-[#F5A000] flex items-center justify-center font-black text-white text-base shadow-xs">
               SST
             </div>
             <div>
               <span className="text-sm font-extrabold tracking-wide text-white block leading-tight">
                 SST ERP
               </span>
-              <span className="text-[10px] uppercase font-bold text-[#14B8A6] tracking-wider block">
+              <span className="text-[10px] uppercase font-bold text-[#8EA4C2] tracking-wider block">
                 Institution Admin
               </span>
             </div>
           </Link>
-          <span className="text-[10px] font-semibold bg-[#14B8A6]/20 text-[#14B8A6] border border-[#14B8A6]/40 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-semibold bg-[#F5A000]/30 text-white border border-[#F5A000]/60 px-1.5 py-0.5 rounded">
             Admin
           </span>
         </div>
 
-        {/* Navigation Items (Scrollable independently from main content) */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        
+
+        {/* Navigation Items (Scrollable independently with white icons and text) */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
           {/* Section: Main Administration */}
-          <div className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
+          <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
             Main Administration
           </div>
 
@@ -111,15 +114,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname === "/admin"
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <LayoutDashboard className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <LayoutDashboard className="w-4 h-4 shrink-0 text-white" />
             <span>Dashboard</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
           {/* 2. Institution Settings */}
@@ -129,15 +129,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname === "/admin/settings"
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Settings className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <Settings className="w-4 h-4 shrink-0 text-white" />
             <span>Institution Settings</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
           {/* 3. Academics Collapsible Group */}
@@ -147,35 +144,35 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               className={cn(
                 "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
                 isAcademicsActive
-                  ? "bg-[#1E4D82] text-white"
-                  : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                  ? "bg-[#16466C] text-white"
+                  : "text-white hover:bg-[#16466C] hover:text-white"
               )}
             >
               <div className="flex items-center gap-3">
-                <GraduationCap className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+                <GraduationCap className="w-4 h-4 shrink-0 text-white" />
                 <span>Academics</span>
               </div>
               <ChevronDown
                 className={cn(
-                  "w-3.5 h-3.5 text-[#93C5FD] transition-transform duration-200",
+                  "w-3.5 h-3.5 text-white transition-transform duration-200",
                   academicsOpen && "rotate-180"
                 )}
               />
             </button>
 
             {academicsOpen && (
-              <div className="mt-1 ml-4 pl-3 border-l border-[#1E4D82] space-y-1">
+              <div className="mt-1 ml-4 pl-3 border-l border-[#16466C] space-y-1">
                 <Link
                   href="/admin/academics/academic-years"
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     pathname === "/admin/academics/academic-years"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <Calendar className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <Calendar className="w-3.5 h-3.5 text-white" />
                   <span>Academic Years</span>
                 </Link>
 
@@ -185,11 +182,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     pathname === "/admin/academics/courses"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <BookOpen className="w-3.5 h-3.5 text-white" />
                   <span>Courses & Programs</span>
                 </Link>
 
@@ -199,11 +196,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     pathname === "/admin/academics/departments"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <Building className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <Building className="w-3.5 h-3.5 text-white" />
                   <span>Departments</span>
                 </Link>
 
@@ -213,11 +210,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     pathname === "/admin/academics/classes"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <Layers className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <Layers className="w-3.5 h-3.5 text-white" />
                   <span>Classes & Sections</span>
                 </Link>
 
@@ -227,11 +224,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
                     pathname === "/admin/academics/subjects"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <BookMarked className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <BookMarked className="w-3.5 h-3.5 text-white" />
                   <span>Subjects</span>
                 </Link>
               </div>
@@ -245,227 +242,191 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname === "/admin/roles-permissions"
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <ShieldAlert className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <ShieldAlert className="w-4 h-4 shrink-0 text-white" />
             <span>Roles & Permissions</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* Section: People & Governance */}
-          <div className="pt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
-            People & Governance
+          {/* Section: Stakeholders */}
+          <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
+            Stakeholder Directory
           </div>
 
-          {/* 5. Admissions */}
+          {/* 5. Admissions Pipeline */}
           <Link
             href="/admin/admissions"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/admissions")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/admissions"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <UserPlus className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <UserPlus className="w-4 h-4 shrink-0 text-white" />
             <span>Admissions</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* 6. Students */}
+          {/* 6. Students Directory */}
           <Link
             href="/admin/students"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/students")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/students"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Users className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <Users className="w-4 h-4 shrink-0 text-white" />
             <span>Students</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* 7. Guardians */}
+          {/* 7. Guardians Directory */}
           <Link
             href="/admin/guardians"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/guardians")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/guardians"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <HeartHandshake className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Guardians</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <HeartHandshake className="w-4 h-4 shrink-0 text-white" />
+            <span>Guardians & Parents</span>
           </Link>
 
-          {/* 8. Staff Management */}
+          {/* 8. Staff / Faculty Directory */}
           <Link
             href="/admin/staff"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/staff")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/staff"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Briefcase className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Staff Management</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <Briefcase className="w-4 h-4 shrink-0 text-white" />
+            <span>Staff & Faculty</span>
           </Link>
 
-          {/* Section: Operations & Assessments */}
-          <div className="pt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
-            Operations & Assessments
+          {/* Section: Academic Operations */}
+          <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
+            Academic Operations
           </div>
 
-          {/* Timetable Management */}
+          {/* 9. Timetable & Scheduling */}
           <Link
             href="/admin/timetable"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/timetable")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/timetable"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Clock className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <Clock className="w-4 h-4 shrink-0 text-white" />
             <span>Timetable</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* Attendance Management */}
+          {/* 10. Attendance Management */}
           <Link
             href="/admin/attendance"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/attendance")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/attendance"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <CalendarCheck className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Attendance</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <CalendarCheck className="w-4 h-4 shrink-0 text-white" />
+            <span>Daily Attendance</span>
           </Link>
 
-          {/* Examinations Management */}
+          {/* 11. Examinations Suite */}
           <Link
             href="/admin/examinations"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/examinations")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/examinations"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <FileSpreadsheet className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
             <span>Examinations</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* Internal Assessments (Phase 4A) */}
+          {/* 12. Internal Assessments */}
           <Link
             href="/admin/ia"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/ia")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Award className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <Award className="w-4 h-4 shrink-0 text-white" />
             <span>Internal Assessments</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* Results & Grade Cards (Phase 4C) */}
+          {/* 13. Results & Grade Cards */}
           <Link
             href="/admin/results"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/results")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <GraduationCap className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Results & Grade Cards</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <GraduationCap className="w-4 h-4 shrink-0 text-white" />
+            <span>Results & Grades</span>
           </Link>
 
-          {/* Promotions & Academic Standing (Phase 4D) */}
+          {/* 14. Promotions & Standing */}
           <Link
             href="/admin/promotions"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/promotions")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <TrendingUp className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Promotions & Standing</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <TrendingUp className="w-4 h-4 shrink-0 text-white" />
+            <span>Promotions</span>
           </Link>
 
-          {/* Certificates & Degrees (Phase 4E) */}
+          {/* 15. Certificates & Degrees */}
           <Link
             href="/admin/certificates"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/certificates")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <FileText className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Certificates & Degrees</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <FileText className="w-4 h-4 shrink-0 text-white" />
+            <span>Certificates</span>
           </Link>
 
           {/* Section: Campus Services & Finance */}
-          <div className="pt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
+          <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
             Campus Services & Finance
           </div>
 
@@ -478,31 +439,28 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
+                  "flex items-center px-3 py-2 rounded-lg text-xs transition-colors",
                   isActive
-                    ? "bg-[#2563EB] text-white font-semibold shadow-xs"
-                    : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                    ? "bg-[#F5A000] text-white font-semibold shadow-xs"
+                    : "text-white hover:bg-[#16466C] hover:text-white"
                 )}
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <Icon className="w-3.5 h-3.5 text-white" />
                   <span>{item.label}</span>
                 </div>
-                <span className="text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-                  Active
-                </span>
               </Link>
             );
           })}
         </div>
 
         {/* Footer info (Fixed Bottom) */}
-        <div className="p-3 border-t border-[#1E4D82] bg-[#0E2847]/80 text-[11px] text-[#93C5FD] shrink-0">
+        <div className="p-3 border-t border-[#16466C] bg-[#0D2B42] text-[11px] text-[#8EA4C2] shrink-0">
           <div className="flex items-center gap-1.5 font-semibold text-white">
-            <Sparkles className="w-3.5 h-3.5 text-[#14B8A6]" />
+            <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" />
             <span>Institution Portal</span>
           </div>
-          <p className="text-[10px] text-[#94A3B8] mt-0.5">
+          <p className="text-[10px] text-[#8EA4C2] mt-0.5">
             SST ERP • Administration Suite
           </p>
         </div>

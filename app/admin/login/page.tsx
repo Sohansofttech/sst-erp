@@ -148,12 +148,12 @@ function LoginContent() {
       {/* Top Navbar */}
       <header className="w-full bg-white border-b border-[#E2E8F0] px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 text-[#153B66] hover:opacity-90 transition-opacity">
-            <div className="w-8 h-8 rounded-lg bg-[#153B66] text-white flex items-center justify-center font-black text-sm shadow-xs">
+          <Link href="/" className="flex items-center gap-2.5 text-[#123B5A] hover:opacity-90 transition-opacity">
+            <div className="w-8 h-8 rounded-lg bg-[#123B5A] text-white flex items-center justify-center font-black text-sm shadow-xs">
               SST
             </div>
             <div>
-              <span className="text-sm font-extrabold tracking-tight text-[#153B66] block leading-tight">
+              <span className="text-sm font-extrabold tracking-tight text-[#123B5A] block leading-tight">
                 SST ERP
               </span>
               <span className="text-[10px] uppercase font-bold text-[#14B8A6] tracking-wider block">
@@ -164,7 +164,7 @@ function LoginContent() {
 
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-xs font-semibold text-[#64748B] hover:text-[#153B66] transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold text-[#64748B] hover:text-[#123B5A] transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Main Portal</span>
@@ -182,7 +182,7 @@ function LoginContent() {
               onClick={() => setActiveTab("institution")}
               className={`flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 activeTab === "institution"
-                  ? "bg-white text-[#153B66] shadow-sm"
+                  ? "bg-white text-[#123B5A] shadow-sm"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -194,7 +194,7 @@ function LoginContent() {
               onClick={() => setActiveTab("super-admin")}
               className={`flex items-center gap-2 px-5 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 activeTab === "super-admin"
-                  ? "bg-[#153B66] text-white shadow-sm"
+                  ? "bg-[#123B5A] text-white shadow-sm"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -208,7 +208,7 @@ function LoginContent() {
           /* Institution Admin Login */
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-[#E2E8F0] shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12">
             {/* Left Hero Branded Banner (5 Cols) */}
-            <div className="lg:col-span-5 bg-gradient-to-br from-[#153B66] via-[#1A4578] to-[#0E2847] text-white p-6 sm:p-8 flex flex-col justify-between">
+            <div className="lg:col-span-5 bg-gradient-to-br from-[#123B5A] via-[#1A4578] to-[#0E2847] text-white p-6 sm:p-8 flex flex-col justify-between">
               <div className="space-y-6">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#14B8A6]/20 border border-[#14B8A6]/40 text-[#14B8A6] text-xs font-bold">
                   <Sparkles className="w-3.5 h-3.5" />
@@ -227,7 +227,7 @@ function LoginContent() {
                 {/* Institutional Capabilities List */}
                 <div className="space-y-3.5 pt-2">
                   <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-[#2563EB]/40 border border-[#2563EB] flex items-center justify-center shrink-0 mt-0.5 text-white">
+                    <div className="w-7 h-7 rounded-lg bg-[#F5A000]/40 border border-[#F5A000] flex items-center justify-center shrink-0 mt-0.5 text-white">
                       <School className="w-4 h-4 text-[#93C5FD]" />
                     </div>
                     <div>
@@ -247,7 +247,7 @@ function LoginContent() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-[#2563EB]/40 border border-[#2563EB] flex items-center justify-center shrink-0 mt-0.5 text-white">
+                    <div className="w-7 h-7 rounded-lg bg-[#F5A000]/40 border border-[#F5A000] flex items-center justify-center shrink-0 mt-0.5 text-white">
                       <Users className="w-4 h-4 text-[#93C5FD]" />
                     </div>
                     <div>
@@ -279,7 +279,7 @@ function LoginContent() {
                     <h2 className="text-xl sm:text-2xl font-black text-[#1E293B] tracking-tight">
                       Institution Sign In
                     </h2>
-                    <span className="text-[11px] font-bold text-[#2563EB] bg-[#EFF6FF] px-2.5 py-1 rounded-full border border-[#DBEAFE]">
+                    <span className="text-[11px] font-bold text-[#F5A000] bg-[#EFF6FF] px-2.5 py-1 rounded-full border border-[#DBEAFE]">
                       Campus Access
                     </span>
                   </div>
@@ -290,12 +290,12 @@ function LoginContent() {
 
                 {/* Demo Mode Notice */}
                 <div className="p-3.5 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] text-xs text-[#1E3A8A] flex items-start gap-2.5">
-                  <Sparkles className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
+                  <Sparkles className="w-4 h-4 text-[#F5A000] shrink-0 mt-0.5" />
                   <div className="space-y-1">
                     <p className="font-bold text-[#1E3A8A]">
                       Prototype Demo Session Mode
                     </p>
-                    <p className="text-[11px] text-[#1E40AF] leading-relaxed">
+                    <p className="text-[11px] text-[#D98E00] leading-relaxed">
                       This portal currently operates in local demo mode until shared backend authentication is integrated. Default test credentials have been pre-filled for your review.
                     </p>
                   </div>
@@ -390,7 +390,7 @@ function LoginContent() {
                         className={`w-full pl-9 pr-10 py-2.5 rounded-lg border text-sm transition-all focus:outline-none focus:ring-2 bg-white text-[#1E293B] ${
                           fieldErrors.password
                             ? "border-[#DC2626] focus:ring-[#DC2626]/20"
-                            : "border-[#E2E8F0] focus:border-[#2563EB] focus:ring-[#2563EB]/20"
+                            : "border-[#E2E8F0] focus:border-[#F5A000] focus:ring-[#F5A000]/20"
                         }`}
                       />
                       <button
@@ -415,7 +415,7 @@ function LoginContent() {
                         type="checkbox"
                         checked={rememberMe}
                         onChange={(e) => setRememberMe(e.target.checked)}
-                        className="w-4 h-4 rounded text-[#2563EB] border-[#CBD5E1] focus:ring-[#2563EB]"
+                        className="w-4 h-4 rounded text-[#F5A000] border-[#CBD5E1] focus:ring-[#F5A000]"
                       />
                       <span className="text-xs font-medium text-[#64748B]">
                         Remember this institution
@@ -429,7 +429,7 @@ function LoginContent() {
                         setForgotError("");
                         setIsForgotModalOpen(true);
                       }}
-                      className="text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] hover:underline cursor-pointer"
+                      className="text-xs font-semibold text-[#F5A000] hover:text-[#F5A000] hover:underline cursor-pointer"
                     >
                       Forgot Password?
                     </button>

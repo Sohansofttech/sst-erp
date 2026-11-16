@@ -204,20 +204,11 @@ export default function ClassesSectionsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-              Academics Architecture
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-bold text-[#14B8A6] uppercase tracking-wider">
-              Cohorts & Batches
-            </span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B]">
-            Classes & Sections Management
+            Classes & Sections
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Configure class hierarchies, streams, section batches, room allocations, and designated class mentors.
+            Manage classes, academic streams, and section allocations.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -246,7 +237,7 @@ export default function ClassesSectionsPage() {
           onClick={() => setActiveTab("classes")}
           className={`px-5 py-2.5 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
             activeTab === "classes"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -256,7 +247,7 @@ export default function ClassesSectionsPage() {
           onClick={() => setActiveTab("sections")}
           className={`px-5 py-2.5 text-sm font-bold border-b-2 transition-colors cursor-pointer ${
             activeTab === "sections"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
@@ -269,7 +260,7 @@ export default function ClassesSectionsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-[#2563EB]" />
+              <Layers className="w-5 h-5 text-[#F5A000]" />
               <CardTitle>Configured Classes</CardTitle>
             </div>
           </CardHeader>
@@ -292,7 +283,7 @@ export default function ClassesSectionsPage() {
                   return (
                     <TableRow key={cls.id}>
                       <TableCell>
-                        <span className="font-mono text-xs font-bold bg-[#153B66] text-white px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded">
                           {cls.code}
                         </span>
                       </TableCell>
@@ -305,7 +296,7 @@ export default function ClassesSectionsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs text-[#2563EB] font-medium">
+                        <span className="text-xs text-[#F5A000] font-medium">
                           {cls.courseName || "General"}
                         </span>
                       </TableCell>
@@ -315,7 +306,7 @@ export default function ClassesSectionsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs font-semibold text-[#153B66]">
+                        <span className="text-xs font-semibold text-[#123B5A]">
                           Sem {cls.semester}
                         </span>
                       </TableCell>
@@ -331,7 +322,7 @@ export default function ClassesSectionsPage() {
                           onClick={() => handleOpenAddSection(cls.id)}
                           title="Add Section to this class"
                         >
-                          <Plus className="w-3.5 h-3.5 text-[#14B8A6]" />
+                          <Plus className="w-3.5 h-3.5 text-[#F5A000]" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -339,7 +330,7 @@ export default function ClassesSectionsPage() {
                           onClick={() => handleOpenEditClass(cls)}
                           title="Edit Class"
                         >
-                          <Edit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -371,7 +362,7 @@ export default function ClassesSectionsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#14B8A6]" />
+              <Users className="w-5 h-5 text-[#123B5A]" />
               <CardTitle>Section Batches & Rooms</CardTitle>
             </div>
           </CardHeader>
@@ -394,12 +385,12 @@ export default function ClassesSectionsPage() {
                   return (
                     <TableRow key={sec.id}>
                       <TableCell>
-                        <span className="font-semibold text-xs text-[#153B66]">
+                        <span className="font-semibold text-xs text-[#123B5A]">
                           {parentClass?.name || "Unassigned"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-bold text-xs bg-[#EFF6FF] text-[#2563EB] px-2 py-1 rounded border border-[#BFDBFE]">
+                        <span className="font-bold text-xs bg-[#EFF6FF] text-[#F5A000] px-2 py-1 rounded border border-[#BFDBFE]">
                           {sec.name}
                         </span>
                       </TableCell>
@@ -418,7 +409,7 @@ export default function ClassesSectionsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs font-semibold text-[#153B66]">
+                        <span className="text-xs font-semibold text-[#123B5A]">
                           {sec.currentEnrollment} / {sec.maxCapacity} Seats
                         </span>
                       </TableCell>
@@ -429,7 +420,7 @@ export default function ClassesSectionsPage() {
                           onClick={() => handleOpenEditSection(sec)}
                           title="Edit Section"
                         >
-                          <Edit2 className="w-3.5 h-3.5 text-[#2563EB]" />
+                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
                         </Button>
                         <Button
                           variant="ghost"

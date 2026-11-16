@@ -272,24 +272,17 @@ export default function StaffPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-teal-600 bg-teal-50 px-2 py-0.5 rounded">
-              People & Governance
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-xs text-slate-500">Academic & Administrative Staff</span>
-          </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1 flex items-center gap-2.5">
-            <Briefcase className="h-6 w-6 text-[#153B66]" />
-            Staff Management
+            <Briefcase className="h-6 w-6 text-[#123B5A]" />
+            Staff & Faculty
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Maintain institutional faculty directory, department chairs, employment designations, and access roles.
+            Maintain institutional faculty directory, department appointments, and employee records.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <Link href="/admin/roles">
+          <Link href="/admin/roles-permissions">
             <Button variant="outline" size="sm" className="gap-2">
               <ShieldCheck className="h-4 w-4 text-slate-600" />
               Roles & Permissions
@@ -297,7 +290,7 @@ export default function StaffPage() {
           </Link>
           <Button
             onClick={openAddModal}
-            className="gap-2 bg-[#153B66] hover:bg-[#153B66]/90 text-white shadow-sm"
+            className="gap-2 bg-[#F5A000] hover:bg-[#F5A000]/90 text-white shadow-sm"
           >
             <Plus className="h-4 w-4" />
             Add Staff Member
@@ -397,7 +390,7 @@ export default function StaffPage() {
               <select
                 value={deptFilter}
                 onChange={(e) => setDeptFilter(e.target.value)}
-                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="ALL">All Departments</option>
                 {departments.map((d) => (
@@ -411,7 +404,7 @@ export default function StaffPage() {
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="ALL">All Employment Types</option>
                 <option value="Full-Time">Full-Time</option>
@@ -424,7 +417,7 @@ export default function StaffPage() {
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="ALL">All Access Roles</option>
                 {roles.map((r) => (
@@ -438,7 +431,7 @@ export default function StaffPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-medium bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="ALL">All Status</option>
                 <option value="Active">Active Only</option>
@@ -509,14 +502,14 @@ export default function StaffPage() {
                 filteredStaff.map((st) => (
                   <TableRow key={st.id} className="hover:bg-slate-50/60 transition-colors">
                     {/* ID */}
-                    <TableCell className="font-mono text-xs font-semibold text-[#153B66]">
+                    <TableCell className="font-mono text-xs font-semibold text-[#123B5A]">
                       {st.employeeId}
                     </TableCell>
 
                     {/* Name & Initials */}
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-[#153B66]/10 text-[#153B66] font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200">
+                        <div className="h-9 w-9 rounded-full bg-[#123B5A]/10 text-[#123B5A] font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200">
                           {st.firstName[0]}
                           {st.lastName[0]}
                         </div>
@@ -567,7 +560,7 @@ export default function StaffPage() {
                     {/* Assigned Role */}
                     <TableCell>
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200">
-                        <ShieldCheck className="h-3 w-3 text-[#153B66]" />
+                        <ShieldCheck className="h-3 w-3 text-[#123B5A]" />
                         {st.assignedRoleName}
                       </span>
                     </TableCell>
@@ -724,7 +717,7 @@ export default function StaffPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, gender: e.target.value as "Male" | "Female" | "Other" })
                 }
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
@@ -798,7 +791,7 @@ export default function StaffPage() {
               <select
                 value={formData.departmentId}
                 onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -837,7 +830,7 @@ export default function StaffPage() {
                     employmentType: e.target.value as StaffEmploymentType,
                   })
                 }
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 <option value="Full-Time">Full-Time</option>
                 <option value="Part-Time">Part-Time</option>
@@ -853,7 +846,7 @@ export default function StaffPage() {
               <select
                 value={formData.assignedRoleId}
                 onChange={(e) => setFormData({ ...formData, assignedRoleId: e.target.value })}
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 {roles.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -872,7 +865,7 @@ export default function StaffPage() {
                 onChange={(e) =>
                   setFormData({ ...formData, status: e.target.value as StaffStatus })
                 }
-                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#153B66]"
+                className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#F5A000]"
               >
                 <option value="Active">Active</option>
                 <option value="On Leave">On Leave</option>
@@ -930,7 +923,7 @@ export default function StaffPage() {
             </Button>
             <Button
               type="submit"
-              className="bg-[#153B66] hover:bg-[#153B66]/90 text-white"
+              className="bg-[#F5A000] hover:bg-[#F5A000]/90 text-white"
             >
               {editingStaff ? "Save Changes" : "Register Staff Member"}
             </Button>
@@ -952,14 +945,14 @@ export default function StaffPage() {
             {/* Header Banner */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-[#153B66] text-white font-bold text-base flex items-center justify-center shrink-0">
+                <div className="h-12 w-12 rounded-xl bg-[#123B5A] text-white font-bold text-base flex items-center justify-center shrink-0">
                   {viewingStaff.firstName[0]}
                   {viewingStaff.lastName[0]}
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">{viewingStaff.fullName}</h3>
                   <div className="flex items-center gap-2 text-xs text-slate-600 mt-0.5">
-                    <span className="font-mono text-[#153B66] font-semibold">
+                    <span className="font-mono text-[#123B5A] font-semibold">
                       {viewingStaff.employeeId}
                     </span>
                     <span>•</span>
@@ -1031,7 +1024,7 @@ export default function StaffPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               {/* Academic Placement */}
               <div className="border border-slate-200 rounded-lg p-4 space-y-3 bg-white">
-                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#153B66] flex items-center gap-1.5">
+                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
                   <Building className="h-3.5 w-3.5" />
                   Academic & Institutional Placement
                 </h4>
@@ -1067,7 +1060,7 @@ export default function StaffPage() {
 
               {/* Qualifications & Specialization */}
               <div className="border border-slate-200 rounded-lg p-4 space-y-3 bg-white">
-                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#153B66] flex items-center gap-1.5">
+                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
                   <GraduationCap className="h-3.5 w-3.5" />
                   Qualifications & Domain Expertise
                 </h4>
@@ -1100,7 +1093,7 @@ export default function StaffPage() {
 
             {/* Contact Details */}
             <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-3 text-xs">
-              <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#153B66] flex items-center gap-1.5">
+              <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
                 <Mail className="h-3.5 w-3.5" />
                 Contact & Address
               </h4>

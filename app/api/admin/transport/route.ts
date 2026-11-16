@@ -3,6 +3,7 @@ import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-a
 import {
   getTransportAllocations,
   createTransportAllocation,
+  deleteTransportAllocation,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 
@@ -63,7 +64,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Allocation ID required." }, { status: 400 });
     }
 
-    await db.transportAllocation.delete({ where: { id } });
+    await deleteTransportAllocation(institutionId, id);
     return NextResponse.json({ success: true, message: "Transport allocation revoked." });
   } catch (error) {
     return handleAdminApiError(error);

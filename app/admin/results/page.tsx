@@ -348,25 +348,11 @@ function ResultsManagementContent() {
       {/* Top Breadcrumb & Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link
-              href="/admin"
-              className="text-xs font-semibold text-[#64748B] hover:text-[#153B66] flex items-center gap-1"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-            </Link>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-semibold text-[#14B8A6] uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" /> Phase 4C Assessment Engine
-            </span>
-            <span className="text-[#CBD5E1]">•</span>
-            <span className="text-xs font-semibold text-[#64748B]">Results & Grade Cards</span>
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Result Processing & Grade Cards
+            Results
           </h1>
           <p className="text-xs md:text-sm text-[#64748B] mt-1">
-            Multi-component score aggregation, credit-weighted SGPA/CGPA evaluation, formal publication approval, and official transcript generation.
+            Multi-component score aggregation, credit-weighted SGPA/CGPA evaluation, and grade card publication.
           </p>
         </div>
 
@@ -375,7 +361,7 @@ function ResultsManagementContent() {
             variant="outline"
             size="sm"
             onClick={() => setActiveTab("config")}
-            leftIcon={<Sliders className="w-4 h-4 text-[#2563EB]" />}
+            leftIcon={<Sliders className="w-4 h-4 text-[#F5A000]" />}
           >
             Grading Rules
           </Button>
@@ -410,14 +396,14 @@ function ResultsManagementContent() {
 
       {/* KPI Metrics Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="border-l-4 border-l-[#153B66]">
+        <Card className="border-l-4 border-l-[#123B5A]">
           <div className="p-3.5">
             <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
               Total Batches
             </span>
             <div className="flex items-center justify-between mt-1">
               <span className="text-xl font-black text-[#1E293B]">{metrics.totalBatches}</span>
-              <BookOpen className="w-4 h-4 text-[#153B66]/60" />
+              <BookOpen className="w-4 h-4 text-[#123B5A]/60" />
             </div>
             <span className="text-[10px] text-[#64748B] mt-1 block">
               {metrics.draftBatches} Draft • {metrics.underReviewBatches} Review
@@ -438,16 +424,16 @@ function ResultsManagementContent() {
           </div>
         </Card>
 
-        <Card className="border-l-4 border-l-[#2563EB]">
+        <Card className="border-l-4 border-l-[#F5A000]">
           <div className="p-3.5">
             <span className="text-[10px] uppercase font-bold text-[#64748B] tracking-wider block">
               Processed
             </span>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-xl font-black text-[#2563EB]">
+              <span className="text-xl font-black text-[#F5A000]">
                 {metrics.totalStudentsProcessed}
               </span>
-              <Users className="w-4 h-4 text-[#2563EB]/60" />
+              <Users className="w-4 h-4 text-[#F5A000]/60" />
             </div>
             <span className="text-[10px] text-[#64748B] mt-1 block">Students evaluated</span>
           </div>
@@ -503,7 +489,7 @@ function ResultsManagementContent() {
           onClick={() => setActiveTab("dashboard")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "dashboard"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -518,7 +504,7 @@ function ResultsManagementContent() {
           onClick={() => setActiveTab("processing")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "processing"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -530,7 +516,7 @@ function ResultsManagementContent() {
           onClick={() => setActiveTab("gradecards")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "gradecards"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -542,7 +528,7 @@ function ResultsManagementContent() {
           onClick={() => setActiveTab("reports")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "reports"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -554,7 +540,7 @@ function ResultsManagementContent() {
           onClick={() => setActiveTab("config")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "config"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -566,7 +552,7 @@ function ResultsManagementContent() {
           onClick={() => setActiveTab("audit")}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
             activeTab === "audit"
-              ? "bg-[#153B66] text-white shadow-xs"
+              ? "bg-[#123B5A] text-white shadow-xs"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9]"
           }`}
         >
@@ -600,7 +586,7 @@ function ResultsManagementContent() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                  className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                 >
                   <option value="ALL">All Publication Statuses</option>
                   <option value="Draft">Draft</option>
@@ -612,7 +598,7 @@ function ResultsManagementContent() {
                 <select
                   value={classFilter}
                   onChange={(e) => setClassFilter(e.target.value)}
-                  className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                  className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                 >
                   <option value="ALL">All Cohort Classes</option>
                   {classes.map((cls) => (
@@ -732,7 +718,7 @@ function ResultsManagementContent() {
                           </TableCell>
 
                           <TableCell className="text-center">
-                            <span className="font-bold text-xs text-[#2563EB]">
+                            <span className="font-bold text-xs text-[#F5A000]">
                               {batch.batchAverageSgpa.toFixed(2)}
                             </span>
                           </TableCell>
@@ -761,7 +747,7 @@ function ResultsManagementContent() {
                                   setGradeCardStudentId(batch.studentResults[0]?.studentId || "");
                                   setActiveTab("gradecards");
                                 }}
-                                className="h-7 text-xs px-2 text-[#2563EB]"
+                                className="h-7 text-xs px-2 text-[#F5A000]"
                               >
                                 <FileText className="w-3.5 h-3.5" />
                               </Button>
@@ -856,7 +842,7 @@ function ResultsManagementContent() {
           <Card>
             <div className="p-5 border-b border-[#E2E8F0]">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-bold text-[#2563EB] uppercase tracking-wider">
+                <span className="text-xs font-bold text-[#F5A000] uppercase tracking-wider">
                   Calculation Engine
                 </span>
                 <span className="text-[#CBD5E1]">•</span>
@@ -879,7 +865,7 @@ function ResultsManagementContent() {
                   <select
                     value={calcAcademicYearId}
                     onChange={(e) => setCalcAcademicYearId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {academicYears.map((ay) => (
                       <option key={ay.id} value={ay.id}>
@@ -896,7 +882,7 @@ function ResultsManagementContent() {
                   <select
                     value={calcCourseId}
                     onChange={(e) => setCalcCourseId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {courses.map((crs) => (
                       <option key={crs.id} value={crs.id}>
@@ -913,7 +899,7 @@ function ResultsManagementContent() {
                   <select
                     value={calcClassId}
                     onChange={(e) => setCalcClassId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.id}>
@@ -930,7 +916,7 @@ function ResultsManagementContent() {
                   <select
                     value={calcSectionId}
                     onChange={(e) => setCalcSectionId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="ALL">All Sections (Cohort Consolidated)</option>
                     {sections.map((sec) => (
@@ -964,7 +950,7 @@ function ResultsManagementContent() {
                   <select
                     value={calcExamId}
                     onChange={(e) => setCalcExamId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     <option value="">-- No Direct Exam Link --</option>
                     {examinations.map((ex) => (
@@ -1049,7 +1035,7 @@ function ResultsManagementContent() {
                 <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-[#153B66]">Batch Review:</span>
+                      <span className="text-xs font-bold text-[#123B5A]">Batch Review:</span>
                       <h3 className="text-base font-extrabold text-[#1E293B]">
                         {currentBatch.batchName}
                       </h3>
@@ -1135,7 +1121,7 @@ function ResultsManagementContent() {
                       Detailed subject scores, letter grades, credit points, and SGPA/CGPA evaluation.
                     </span>
                   </div>
-                  <span className="text-xs font-semibold text-[#153B66] bg-[#EFF6FF] px-2.5 py-1 rounded border border-[#BFDBFE]">
+                  <span className="text-xs font-semibold text-[#123B5A] bg-[#EFF6FF] px-2.5 py-1 rounded border border-[#BFDBFE]">
                     Batch Avg SGPA: {currentBatch.batchAverageSgpa.toFixed(2)}
                   </span>
                 </div>
@@ -1208,13 +1194,13 @@ function ResultsManagementContent() {
                             </TableCell>
 
                             <TableCell className="text-center">
-                              <span className="font-bold text-xs text-[#2563EB]">
+                              <span className="font-bold text-xs text-[#F5A000]">
                                 {stu.sgpa.toFixed(2)}
                               </span>
                             </TableCell>
 
                             <TableCell className="text-center">
-                              <span className="font-bold text-xs text-[#153B66]">
+                              <span className="font-bold text-xs text-[#123B5A]">
                                 {stu.cgpa.toFixed(2)}
                               </span>
                             </TableCell>
@@ -1244,7 +1230,7 @@ function ResultsManagementContent() {
                                   setGradeCardStudentId(stu.studentId);
                                   setActiveTab("gradecards");
                                 }}
-                                className="h-7 text-xs px-2 text-[#2563EB]"
+                                className="h-7 text-xs px-2 text-[#F5A000]"
                                 title="View Grade Card"
                               >
                                 <FileText className="w-3.5 h-3.5" />
@@ -1292,7 +1278,7 @@ function ResultsManagementContent() {
                         setGradeCardStudentId(targetBatch.studentResults[0].studentId);
                       }
                     }}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {resultBatches.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -1309,7 +1295,7 @@ function ResultsManagementContent() {
                   <select
                     value={selectedStudentResult?.studentId || ""}
                     onChange={(e) => setGradeCardStudentId(e.target.value)}
-                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                    className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                   >
                     {currentBatch?.studentResults.map((s) => (
                       <option key={s.studentId} value={s.studentId}>
@@ -1337,13 +1323,13 @@ function ResultsManagementContent() {
           {selectedStudentResult && currentBatch ? (
             <div className="print-container bg-white p-6 md:p-8 rounded-xl border border-[#CBD5E1] shadow-xs max-w-4xl mx-auto space-y-6">
               {/* Institution Official Header */}
-              <div className="border-b-2 border-[#153B66] pb-4 flex items-center justify-between">
+              <div className="border-b-2 border-[#123B5A] pb-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-[#153B66] text-white flex items-center justify-center font-black text-xl shadow-xs">
+                  <div className="w-12 h-12 rounded-xl bg-[#123B5A] text-white flex items-center justify-center font-black text-xl shadow-xs">
                     SST
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-[#153B66] tracking-tight uppercase">
+                    <h2 className="text-xl font-black text-[#123B5A] tracking-tight uppercase">
                       {profile.name}
                     </h2>
                     <p className="text-xs text-[#475569] font-medium">
@@ -1356,7 +1342,7 @@ function ResultsManagementContent() {
                 </div>
 
                 <div className="text-right">
-                  <span className="inline-block text-[11px] uppercase tracking-wider font-extrabold bg-[#153B66] text-white px-2.5 py-1 rounded">
+                  <span className="inline-block text-[11px] uppercase tracking-wider font-extrabold bg-[#123B5A] text-white px-2.5 py-1 rounded">
                     Official Grade Card
                   </span>
                   <span className="text-[11px] text-[#64748B] block mt-1">
@@ -1379,7 +1365,7 @@ function ResultsManagementContent() {
                   <span className="text-[10px] font-bold text-[#64748B] uppercase block">
                     Roll Number
                   </span>
-                  <strong className="text-sm font-extrabold text-[#2563EB]">
+                  <strong className="text-sm font-extrabold text-[#F5A000]">
                     {selectedStudentResult.rollNumber}
                   </strong>
                 </div>
@@ -1434,7 +1420,7 @@ function ResultsManagementContent() {
               {/* Subject Breakdown Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs border border-[#CBD5E1]">
-                  <thead className="bg-[#153B66] text-white">
+                  <thead className="bg-[#123B5A] text-white">
                     <tr>
                       <th className="p-2.5 text-left font-bold">Subject Code & Name</th>
                       <th className="p-2.5 text-center font-bold">Credits</th>
@@ -1468,11 +1454,11 @@ function ResultsManagementContent() {
                         <td className="p-2.5 text-center font-bold text-[#1E293B]">
                           {subj.totalWeightedScore}
                         </td>
-                        <td className="p-2.5 text-center font-extrabold text-[#153B66]">
+                        <td className="p-2.5 text-center font-extrabold text-[#123B5A]">
                           {subj.letterGrade}
                         </td>
                         <td className="p-2.5 text-center font-bold">{subj.gradePoint}</td>
-                        <td className="p-2.5 text-center font-bold text-[#2563EB]">
+                        <td className="p-2.5 text-center font-bold text-[#F5A000]">
                           {subj.creditPoints}
                         </td>
                         <td className="p-2.5 text-center">
@@ -1489,18 +1475,18 @@ function ResultsManagementContent() {
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-[#F8FAFC] font-bold text-xs border-t-2 border-[#153B66]">
+                  <tfoot className="bg-[#F8FAFC] font-bold text-xs border-t-2 border-[#123B5A]">
                     <tr>
-                      <td className="p-2.5 text-left font-black text-[#153B66]">
+                      <td className="p-2.5 text-left font-black text-[#123B5A]">
                         Semester Aggregate
                       </td>
                       <td className="p-2.5 text-center font-black">
                         {selectedStudentResult.totalCreditsRegistered}
                       </td>
-                      <td colSpan={5} className="p-2.5 text-right font-black text-[#153B66]">
+                      <td colSpan={5} className="p-2.5 text-right font-black text-[#123B5A]">
                         Total Credit Points Earned:
                       </td>
-                      <td className="p-2.5 text-center font-black text-[#2563EB]">
+                      <td className="p-2.5 text-center font-black text-[#F5A000]">
                         {selectedStudentResult.totalCreditPoints}
                       </td>
                       <td className="p-2.5 text-center font-black text-[#16A34A]">
@@ -1512,7 +1498,7 @@ function ResultsManagementContent() {
               </div>
 
               {/* Performance Summary Banner */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-gradient-to-r from-[#153B66] to-[#1E4D82] text-white">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-gradient-to-r from-[#123B5A] to-[#1E4D82] text-white">
                 <div>
                   <span className="text-[10px] text-[#93C5FD] uppercase font-bold tracking-wider block">
                     Credits Earned
@@ -1619,7 +1605,7 @@ function ResultsManagementContent() {
 
                   return (
                     <div key={g.grade} className="flex items-center gap-3 text-xs">
-                      <span className="w-8 font-extrabold text-[#153B66]">{g.grade}</span>
+                      <span className="w-8 font-extrabold text-[#123B5A]">{g.grade}</span>
                       <div className="flex-1 h-3.5 bg-[#F1F5F9] rounded-full overflow-hidden">
                         <div
                           className={`h-full ${
@@ -1627,7 +1613,7 @@ function ResultsManagementContent() {
                               ? g.gradePoint >= 9
                                 ? "bg-[#16A34A]"
                                 : g.gradePoint >= 7
-                                ? "bg-[#2563EB]"
+                                ? "bg-[#F5A000]"
                                 : "bg-[#14B8A6]"
                               : "bg-[#DC2626]"
                           }`}
@@ -1773,7 +1759,7 @@ function ResultsManagementContent() {
                                 setGradeCardStudentId(stu.studentId);
                                 setActiveTab("gradecards");
                               }}
-                              className="h-7 text-xs px-2 text-[#2563EB]"
+                              className="h-7 text-xs px-2 text-[#F5A000]"
                             >
                               Inspect Grade Card
                             </Button>
@@ -1834,7 +1820,7 @@ function ResultsManagementContent() {
               {/* Weightage Balancer Section */}
               <div className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#153B66] uppercase tracking-wider">
+                  <span className="text-xs font-bold text-[#123B5A] uppercase tracking-wider">
                     Assessment Weightage Distribution
                   </span>
                   <span
@@ -1925,7 +1911,7 @@ function ResultsManagementContent() {
                     <TableBody>
                       {localGradingConfig.grades.map((gradeItem, idx) => (
                         <TableRow key={gradeItem.grade}>
-                          <TableCell className="font-bold text-xs text-[#153B66]">
+                          <TableCell className="font-bold text-xs text-[#123B5A]">
                             {gradeItem.grade}
                           </TableCell>
 
@@ -2070,7 +2056,7 @@ function ResultsManagementContent() {
                             <div>
                               <span>{audit.studentName}</span>
                               {audit.subjectCode && (
-                                <span className="text-[10px] text-[#2563EB] block">
+                                <span className="text-[10px] text-[#F5A000] block">
                                   Subject: {audit.subjectCode}
                                 </span>
                               )}
@@ -2083,13 +2069,13 @@ function ResultsManagementContent() {
                         <TableCell className="text-xs text-[#475569] max-w-sm">
                           <span>{audit.reason}</span>
                           {audit.previousValue && audit.newValue && (
-                            <span className="text-[10px] text-[#153B66] font-semibold block mt-0.5">
+                            <span className="text-[10px] text-[#123B5A] font-semibold block mt-0.5">
                               {audit.previousValue} → {audit.newValue}
                             </span>
                           )}
                         </TableCell>
 
-                        <TableCell className="text-xs font-semibold text-[#153B66]">
+                        <TableCell className="text-xs font-semibold text-[#123B5A]">
                           {audit.performedBy}
                         </TableCell>
                       </TableRow>
@@ -2183,7 +2169,7 @@ function ResultsManagementContent() {
           maxWidth="md"
         >
           <div className="space-y-4 py-2">
-            <div className="p-3 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] text-xs text-[#1E40AF]">
+            <div className="p-3 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] text-xs text-[#D98E00]">
               Target Batch: <strong>{correctionModalBatch.batchName}</strong> (Status: Published)
             </div>
 
@@ -2212,7 +2198,7 @@ function ResultsManagementContent() {
                     const subj = stu?.subjectResults.find((s) => s.subjectCode === selectedSubjectForCorrection) || stu?.subjectResults[0];
                     if (subj) setNewScoreInput(subj.totalWeightedScore);
                   }}
-                  className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                 >
                   {correctionModalBatch.studentResults.map((stu) => (
                     <option key={stu.studentId} value={stu.studentId}>
@@ -2234,7 +2220,7 @@ function ResultsManagementContent() {
                     const subj = stu?.subjectResults.find((s) => s.subjectCode === e.target.value);
                     if (subj) setNewScoreInput(subj.totalWeightedScore);
                   }}
-                  className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] bg-white focus:outline-hidden focus:border-[#F5A000]"
                 >
                   {correctionModalBatch.studentResults[0]?.subjectResults.map((subj) => (
                     <option key={subj.subjectId} value={subj.subjectCode}>
@@ -2268,7 +2254,7 @@ function ResultsManagementContent() {
                   value={correctionReason}
                   onChange={(e) => setCorrectionReason(e.target.value)}
                   placeholder="e.g. Re-evaluation committee revised query optimization question paper marks (+4)."
-                  className="w-full p-2.5 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] focus:outline-hidden focus:border-[#2563EB]"
+                  className="w-full p-2.5 border border-[#E2E8F0] rounded-lg text-xs text-[#1E293B] focus:outline-hidden focus:border-[#F5A000]"
                 />
               </div>
             </div>
@@ -2322,7 +2308,7 @@ export default function ResultsManagementPage() {
     <Suspense
       fallback={
         <div className="p-8 text-center text-[#64748B]">
-          <GraduationCap className="w-8 h-8 animate-bounce mx-auto text-[#2563EB] mb-2" />
+          <GraduationCap className="w-8 h-8 animate-bounce mx-auto text-[#F5A000] mb-2" />
           <p className="font-semibold text-sm">Loading Results & Grade Management Console...</p>
         </div>
       }

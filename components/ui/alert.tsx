@@ -24,7 +24,7 @@ export const Alert: React.FC<AlertProps> = ({
   };
 
   const defaultIcons = {
-    info: <Info className="w-5 h-5 text-[#2563EB] shrink-0" />,
+    info: <Info className="w-5 h-5 text-[#F5A000] shrink-0" />,
     warning: <AlertTriangle className="w-5 h-5 text-[#F59E0B] shrink-0" />,
     error: <AlertCircle className="w-5 h-5 text-[#DC2626] shrink-0" />,
     success: <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" />,

@@ -457,19 +457,12 @@ export default function TimetablePage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-teal-600 bg-teal-50 px-2 py-0.5 rounded">
-              Academic Operations
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-xs text-slate-500">Master Class Scheduling & Venue Matrix</span>
-          </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1 flex items-center gap-2.5">
-            <Clock className="h-6 w-6 text-[#153B66]" />
-            Timetable & Scheduling Management
+            <Clock className="h-6 w-6 text-[#123B5A]" />
+            Timetable
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Construct weekly cohort timetables, allocate faculty teaching periods, balance subject quotas, and prevent room & teacher overlaps.
+            Construct weekly cohort timetables, allocate faculty teaching periods, and prevent scheduling conflicts.
           </p>
         </div>
 
@@ -498,7 +491,7 @@ export default function TimetablePage() {
           <Button
             onClick={() => handleOpenAddSlot()}
             disabled={!effectiveSectionId}
-            className="gap-2 bg-[#153B66] hover:bg-[#153B66]/90 text-white shadow-sm"
+            className="gap-2 bg-[#F5A000] hover:bg-[#F5A000]/90 text-white shadow-sm"
           >
             <Plus className="h-4 w-4" />
             Schedule Period Slot
@@ -516,7 +509,7 @@ export default function TimetablePage() {
               <select
                 value={selectedAYId}
                 onChange={(e) => setSelectedAYId(e.target.value)}
-                className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 {academicYears.map((ay) => (
                   <option key={ay.id} value={ay.id}>
@@ -532,7 +525,7 @@ export default function TimetablePage() {
               <select
                 value={selectedTermId}
                 onChange={(e) => setSelectedTermId(e.target.value)}
-                className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 {currentAY?.terms.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -549,7 +542,7 @@ export default function TimetablePage() {
               onClick={() => setViewMode("class")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 viewMode === "class"
-                  ? "bg-white text-[#153B66] shadow-xs"
+                  ? "bg-white text-[#123B5A] shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -560,7 +553,7 @@ export default function TimetablePage() {
               onClick={() => setViewMode("teacher")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 viewMode === "teacher"
-                  ? "bg-white text-[#153B66] shadow-xs"
+                  ? "bg-white text-[#123B5A] shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -571,7 +564,7 @@ export default function TimetablePage() {
               onClick={() => setViewMode("day")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 viewMode === "day"
-                  ? "bg-white text-[#153B66] shadow-xs"
+                  ? "bg-white text-[#123B5A] shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -662,7 +655,7 @@ export default function TimetablePage() {
                   <select
                     value={selectedCourseId}
                     onChange={(e) => setSelectedCourseId(e.target.value)}
-                    className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                    className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
                   >
                     {courses.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -680,7 +673,7 @@ export default function TimetablePage() {
                   <select
                     value={selectedClassId}
                     onChange={(e) => setSelectedClassId(e.target.value)}
-                    className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                    className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
                   >
                     {filteredClasses.map((cls) => (
                       <option key={cls.id} value={cls.id}>
@@ -698,7 +691,7 @@ export default function TimetablePage() {
                   <select
                     value={effectiveSectionId}
                     onChange={(e) => setSelectedSectionId(e.target.value)}
-                    className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                    className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
                   >
                     {filteredSections.map((sec) => (
                       <option key={sec.id} value={sec.id}>
@@ -715,12 +708,12 @@ export default function TimetablePage() {
                   <div className="flex flex-wrap items-center gap-3 text-slate-600">
                     <span className="font-semibold text-slate-900 flex items-center gap-1.5">
                       <Building className="h-3.5 w-3.5 text-slate-500" />
-                      Home Room: <span className="text-[#153B66]">{activeSection.roomNumber}</span>
+                      Home Room: <span className="text-[#123B5A]">{activeSection.roomNumber}</span>
                     </span>
                     <span className="text-slate-300">•</span>
                     <span className="font-semibold text-slate-900 flex items-center gap-1.5">
                       <User className="h-3.5 w-3.5 text-slate-500" />
-                      Class Teacher: <span className="text-[#153B66]">{activeSection.classTeacherName}</span>
+                      Class Teacher: <span className="text-[#123B5A]">{activeSection.classTeacherName}</span>
                     </span>
                     <span className="text-slate-300">•</span>
                     <span>Cap: {activeSection.maxCapacity} students</span>
@@ -822,7 +815,7 @@ export default function TimetablePage() {
                       <tr key={day} className="hover:bg-slate-50/40 transition-colors">
                         {/* Day Column */}
                         <td className="p-3 font-bold text-slate-900 text-center bg-slate-50/60 border-r border-slate-200">
-                          <div className="text-sm font-bold text-[#153B66]">{day.slice(0, 3)}</div>
+                          <div className="text-sm font-bold text-[#123B5A]">{day.slice(0, 3)}</div>
                           <div className="text-[10px] font-normal text-slate-500">{day}</div>
                           <span className="inline-block mt-1 text-[10px] text-slate-500 font-mono">
                             {daySlots.length} slots
@@ -859,10 +852,10 @@ export default function TimetablePage() {
                               className="p-1.5 border-r border-slate-200 align-top h-24"
                             >
                               {slot ? (
-                                <div className="h-full rounded-lg border border-slate-200 p-2 bg-white shadow-2xs hover:shadow-sm hover:border-[#153B66] transition-all flex flex-col justify-between group">
+                                <div className="h-full rounded-lg border border-slate-200 p-2 bg-white shadow-2xs hover:shadow-sm hover:border-[#123B5A] transition-all flex flex-col justify-between group">
                                   <div>
                                     <div className="flex items-center justify-between gap-1 mb-1">
-                                      <span className="font-mono font-bold text-[#153B66] text-xs">
+                                      <span className="font-mono font-bold text-[#123B5A] text-xs">
                                         {slot.subjectCode}
                                       </span>
                                       <span
@@ -924,7 +917,7 @@ export default function TimetablePage() {
                                 <button
                                   type="button"
                                   onClick={() => handleOpenAddSlot(day, p)}
-                                  className="w-full h-full min-h-[70px] rounded-lg border border-dashed border-slate-200 hover:border-[#153B66] hover:bg-blue-50/40 text-slate-400 hover:text-[#153B66] flex flex-col items-center justify-center gap-1 transition-all group"
+                                  className="w-full h-full min-h-[70px] rounded-lg border border-dashed border-slate-200 hover:border-[#123B5A] hover:bg-blue-50/40 text-slate-400 hover:text-[#123B5A] flex flex-col items-center justify-center gap-1 transition-all group"
                                   title={`Schedule period for ${day} ${p.label}`}
                                 >
                                   <Plus className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
@@ -975,7 +968,7 @@ export default function TimetablePage() {
                 <select
                   value={selectedTeacherId}
                   onChange={(e) => setSelectedTeacherId(e.target.value)}
-                  className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                  className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-md p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
                 >
                   {staff.map((st) => (
                     <option key={st.id} value={st.id}>
@@ -999,7 +992,7 @@ export default function TimetablePage() {
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[10px] uppercase">Weekly Load</span>
-                    <span className="font-bold text-[#153B66] text-sm">
+                    <span className="font-bold text-[#123B5A] text-sm">
                       {teacherSlots.length} periods ({teacherSlots.length * 0.83 > 0 ? (teacherSlots.length * 0.83).toFixed(1) : 0} hrs)
                     </span>
                   </div>
@@ -1050,7 +1043,7 @@ export default function TimetablePage() {
 
                     return (
                       <tr key={day} className="hover:bg-slate-50/40 transition-colors">
-                        <td className="p-3 font-bold text-[#153B66] text-center bg-slate-50/60 border-r border-slate-200">
+                        <td className="p-3 font-bold text-[#123B5A] text-center bg-slate-50/60 border-r border-slate-200">
                           {day}
                         </td>
 
@@ -1072,7 +1065,7 @@ export default function TimetablePage() {
                                   <div className="h-full rounded-md border border-blue-200 p-2 bg-blue-50/50 flex flex-col justify-between">
                                     <div>
                                       <div className="flex items-center justify-between">
-                                        <span className="font-mono font-bold text-[#153B66]">
+                                        <span className="font-mono font-bold text-[#123B5A]">
                                           {slot.subjectCode}
                                         </span>
                                         <span className="font-semibold text-slate-700 text-[10px]">
@@ -1121,7 +1114,7 @@ export default function TimetablePage() {
                       onClick={() => setSelectedDay(day)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                         selectedDay === day
-                          ? "bg-[#153B66] text-white shadow-xs"
+                          ? "bg-[#123B5A] text-white shadow-xs"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
@@ -1183,7 +1176,7 @@ export default function TimetablePage() {
                         <td className="p-3 bg-slate-50/50 border-r border-slate-200">
                           <div className="font-bold text-slate-900">{secClass?.code} — {sec.name}</div>
                           <div className="text-[10px] text-slate-500">{sec.batchName}</div>
-                          <div className="text-[10px] text-[#153B66] font-mono mt-0.5">{sec.roomNumber}</div>
+                          <div className="text-[10px] text-[#123B5A] font-mono mt-0.5">{sec.roomNumber}</div>
                         </td>
 
                         {periodConfigs
@@ -1202,7 +1195,7 @@ export default function TimetablePage() {
                               >
                                 {slot ? (
                                   <div className="h-full rounded p-1.5 bg-slate-100 border border-slate-200 flex flex-col justify-between">
-                                    <div className="font-mono font-bold text-[#153B66] text-xs">
+                                    <div className="font-mono font-bold text-[#123B5A] text-xs">
                                       {slot.subjectCode}
                                     </div>
                                     <div className="text-[10px] text-slate-600 truncate mt-0.5">
@@ -1259,7 +1252,7 @@ export default function TimetablePage() {
               <select
                 value={slotDay}
                 onChange={(e) => setSlotDay(e.target.value as TimetableDayOfWeek)}
-                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 {DAYS_OF_WEEK.map((d) => (
                   <option key={d} value={d}>
@@ -1277,7 +1270,7 @@ export default function TimetablePage() {
               <select
                 value={slotPeriodConfigId}
                 onChange={(e) => handlePeriodPresetChange(e.target.value)}
-                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 {periodConfigs
                   .filter((p) => !p.isBreak)
@@ -1325,7 +1318,7 @@ export default function TimetablePage() {
             <select
               value={slotSubjectId}
               onChange={(e) => handleSubjectChange(e.target.value)}
-              className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+              className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
             >
               <option value="">-- Choose Subject from Class Syllabus --</option>
               {classSubjects.map((sub) => {
@@ -1354,7 +1347,7 @@ export default function TimetablePage() {
               <select
                 value={slotTeacherId}
                 onChange={(e) => setSlotTeacherId(e.target.value)}
-                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="">-- Select Instructor --</option>
                 {staff.map((st) => (
@@ -1431,7 +1424,7 @@ export default function TimetablePage() {
             <Button
               type="submit"
               disabled={!currentFormConflicts.canProceed}
-              className="bg-[#153B66] hover:bg-[#153B66]/90 text-white"
+              className="bg-[#F5A000] hover:bg-[#F5A000]/90 text-white"
             >
               {editingSlot ? "Update Session" : "Confirm & Schedule"}
             </Button>
@@ -1467,7 +1460,7 @@ export default function TimetablePage() {
               <tbody className="divide-y divide-slate-100">
                 {periodConfigs.map((p) => (
                   <tr key={p.id} className={p.isBreak ? "bg-amber-50/40" : ""}>
-                    <td className="p-2.5 font-mono font-bold text-[#153B66]">
+                    <td className="p-2.5 font-mono font-bold text-[#123B5A]">
                       {p.isBreak ? "Break" : `P-${p.periodNumber}`}
                     </td>
                     <td className="p-2.5 font-medium text-slate-800">{p.label}</td>
@@ -1523,7 +1516,7 @@ export default function TimetablePage() {
               <select
                 value={copySourceDay}
                 onChange={(e) => setCopySourceDay(e.target.value as TimetableDayOfWeek)}
-                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 {DAYS_OF_WEEK.map((d) => (
                   <option key={d} value={d}>
@@ -1540,7 +1533,7 @@ export default function TimetablePage() {
               <select
                 value={copyTargetDay}
                 onChange={(e) => setCopyTargetDay(e.target.value as TimetableDayOfWeek)}
-                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#153B66]"
+                className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 {DAYS_OF_WEEK.map((d) => (
                   <option key={d} value={d}>
@@ -1560,7 +1553,7 @@ export default function TimetablePage() {
             </Button>
             <Button
               onClick={handleExecuteCopy}
-              className="bg-[#153B66] hover:bg-[#153B66]/90 text-white"
+              className="bg-[#F5A000] hover:bg-[#F5A000]/90 text-white"
             >
               Replicate Schedule
             </Button>
