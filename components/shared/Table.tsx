@@ -21,10 +21,10 @@ export function Table<T extends Record<string, any>>({
   className = "",
 }: TableProps<T>) {
   return (
-    <div className={`w-full overflow-x-auto rounded-lg border border-[#E2E8F0] ${className}`}>
+    <div className={`w-full overflow-x-auto rounded-lg border border-[#E5E9EF] ${className}`}>
       <table className="w-full text-left border-collapse text-[13px] md:text-[14px]">
         <thead>
-          <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] font-semibold">
+          <tr className="bg-[#EEF1F5] border-b border-[#E5E9EF] text-[#788391] font-semibold">
             {columns.map((col, idx) => (
               <th key={idx} className={`px-4 py-3 font-semibold ${col.className || ""}`}>
                 {col.header}
@@ -32,12 +32,12 @@ export function Table<T extends Record<string, any>>({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E2E8F0] bg-white text-[#1E293B]">
+        <tbody className="divide-y divide-[#E5E9EF] bg-white text-[#202936]">
           {data.length === 0 ? (
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-4 py-8 text-center text-sm text-[#64748B]"
+                className="px-4 py-8 text-center text-sm text-[#788391]"
               >
                 {emptyMessage}
               </td>
@@ -46,7 +46,7 @@ export function Table<T extends Record<string, any>>({
             data.map((row, rIdx) => (
               <tr
                 key={rIdx}
-                className="hover:bg-[#F8FAFC] transition-colors"
+                className="hover:bg-[#EEF1F5]/60 transition-colors"
               >
                 {columns.map((col, cIdx) => (
                   <td key={cIdx} className={`px-4 py-3.5 align-middle ${col.className || ""}`}>

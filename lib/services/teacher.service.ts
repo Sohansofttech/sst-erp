@@ -99,12 +99,12 @@ async function resolveActiveTeacher(
         ...(institutionId ? { institutionId } : {}),
       },
       include: {
-        users: true,
-        institutions: true,
+        user: true,
+        institution: true,
       },
     })
     if (teacher) {
-      return { teacher, user: teacher.users, institutionId: teacher.institutionId }
+      return { teacher, user: (teacher as any).user || (teacher as any).users, institutionId: teacher.institutionId }
     }
   }
 
@@ -121,11 +121,11 @@ async function resolveActiveTeacher(
   const fallback = await prisma.teachers.findFirst({
     where: {
       ...(institutionId ? { institutionId } : {}),
-      users: { isActive: true },
+      user: { isActive: true },
     },
     include: {
-      users: true,
-      institutions: true,
+      user: true,
+      institution: true,
     },
     orderBy: { createdAt: "asc" },
   })
@@ -134,7 +134,7 @@ async function resolveActiveTeacher(
     throw new Error("No active teacher record found in the database.")
   }
 
-  return { teacher: fallback, user: fallback.users, institutionId: fallback.institutionId }
+  return { teacher: fallback, user: (fallback as any).user || (fallback as any).users, institutionId: fallback.institutionId }
 }
 
 function parseSectionId(sectionId: string): { semester: number; section: string; grade: string } {
@@ -3976,7 +3976,7 @@ export async function getDepartmentFacultyLoad(): Promise<
       department: teacher.department,
     },
     include: {
-      users: true,
+      user: true,
       timetable_slots: true,
     },
   })
@@ -3984,7 +3984,7 @@ export async function getDepartmentFacultyLoad(): Promise<
   if (deptTeachers.length > 0) {
     const liveLoads: DepartmentFacultyLoad[] = deptTeachers.map((t: any) => ({
       teacherId: t.id,
-      fullName: t.users.fullName,
+      fullName: t.user?.fullName || t.users?.fullName || "Faculty Member",
       designation: t.designation || "Senior PGT Faculty",
       subjects: ["Mathematics", "Applied Mathematics"],
       sectionsCount: 2,

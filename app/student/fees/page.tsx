@@ -31,7 +31,7 @@ export default function StudentFeesPage() {
   const fetchFees = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/student/fees");
+      const res = await fetch("/api/student/fees", { credentials: "include" });
       const json = await res.json();
       if (json.success) setData(json.data);
     } catch (e) {
@@ -43,6 +43,13 @@ export default function StudentFeesPage() {
 
   useEffect(() => {
     fetchFees();
+    const handleChildChanged = () => {
+      fetchFees();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handlePayClick = (invoice: any) => {
@@ -60,7 +67,7 @@ export default function StudentFeesPage() {
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Fee Accounts & Receipts">
-        <div className="py-20 text-center text-sm text-[#64748B]">Loading fee ledger...</div>
+        <div className="py-20 text-center text-sm text-[#788391]">Loading fee ledger...</div>
       </PortalLayout>
     );
   }
@@ -84,13 +91,15 @@ export default function StudentFeesPage() {
         </div>
       )}
 
-      {/* Rule 5 Notice */}
-      <div className="mb-6 p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-900 flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-[#2563EB] shrink-0 mt-0.5" />
+      {/* Institutional Finance Security Notice */}
+      <div className="mb-6 p-4 rounded-xl border border-[#E5E9EF] bg-white shadow-sm flex items-start gap-3.5">
+        <div className="w-9 h-9 rounded-lg bg-[#123B5A]/10 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-5 h-5 text-[#123B5A]" />
+        </div>
         <div className="text-xs">
-          <p className="font-bold uppercase tracking-wider">Backend Payment Verification Enforced (Rule 5)</p>
-          <p className="mt-0.5 leading-relaxed">
-            Transactions are verified directly by institutional backend endpoints before updating balances or emitting tamper-proof receipts.
+          <p className="font-semibold text-[#123B5A]">Direct Financial Settlement & Receipting</p>
+          <p className="mt-0.5 text-[#788391] leading-relaxed">
+            All tuition and incidental fee payments are processed securely through certified payment gateways and recorded in your permanent institutional ledger with digitally verified receipts.
           </p>
         </div>
       </div>
@@ -101,7 +110,8 @@ export default function StudentFeesPage() {
           title="Total Institutional Fee"
           value={`₹${summary?.totalFees?.toLocaleString() ?? 0}`}
           subtitle="Annual academic charges"
-          icon={<Building className="w-5 h-5 text-[#153B66]" />}
+          variant="dark"
+          icon={<Building className="w-5 h-5 text-white" />}
         />
         <StatCard
           title="Total Settled"
@@ -117,7 +127,7 @@ export default function StudentFeesPage() {
           subtitle={summary?.totalOutstanding > 0 ? "Due on Dec 15, 2025" : "No dues remaining"}
           badgeText={summary?.totalOutstanding > 0 ? "Action Required" : "Cleared"}
           badgeVariant={summary?.totalOutstanding > 0 ? "warning" : "success"}
-          icon={<AlertTriangle className="w-5 h-5 text-[#F59E0B]" />}
+          icon={<AlertTriangle className="w-5 h-5 text-[#F5A000]" />}
         />
       </div>
 
@@ -128,12 +138,12 @@ export default function StudentFeesPage() {
             {invoices?.map((inv: any) => (
               <div
                 key={inv.id}
-                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-4"
+                className="p-5 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 space-y-4"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E9EF] pb-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#153B66]">{inv.invoiceNumber}</span>
+                      <span className="text-xs font-bold text-[#123B5A]">{inv.invoiceNumber}</span>
                       <Badge
                         variant={
                           inv.status === "PAID"
@@ -146,15 +156,15 @@ export default function StudentFeesPage() {
                         {inv.status}
                       </Badge>
                     </div>
-                    <h3 className="text-base font-bold text-[#1E293B] mt-1">{inv.title}</h3>
-                    <p className="text-xs text-[#64748B]">
+                    <h3 className="text-base font-bold text-[#202936] mt-1">{inv.title}</h3>
+                    <p className="text-xs text-[#788391]">
                       Due Date: {new Date(inv.dueDate).toLocaleDateString()}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <span className="text-xs text-[#64748B] block">Outstanding Balance</span>
+                      <span className="text-xs text-[#788391] block">Outstanding Balance</span>
                       <span className="text-lg font-bold text-[#DC2626]">
                         ₹{inv.outstandingAmount.toLocaleString()}
                       </span>
@@ -175,19 +185,19 @@ export default function StudentFeesPage() {
 
                 {/* Itemized Line Items */}
                 <div>
-                  <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-2">
+                  <p className="text-xs font-semibold text-[#788391] uppercase tracking-wider mb-2">
                     Fee Item Breakdown
                   </p>
-                  <div className="space-y-1.5 text-xs bg-white p-3 rounded-lg border border-[#E2E8F0]">
+                  <div className="space-y-1.5 text-xs bg-white p-3 rounded-lg border border-[#E5E9EF]">
                     {inv.items?.map((item: any) => (
                       <div key={item.id} className="flex justify-between items-center py-1">
-                        <span className="text-[#1E293B]">{item.description}</span>
-                        <span className="font-semibold text-[#153B66]">
+                        <span className="text-[#202936]">{item.description}</span>
+                        <span className="font-semibold text-[#123B5A]">
                           ₹{item.amount.toLocaleString()}
                         </span>
                       </div>
                     ))}
-                    <div className="border-t border-[#E2E8F0] pt-2 flex justify-between font-bold text-sm text-[#1E293B]">
+                    <div className="border-t border-[#E5E9EF] pt-2 flex justify-between font-bold text-sm text-[#202936]">
                       <span>Total Invoice Amount</span>
                       <span>₹{inv.totalAmount.toLocaleString()}</span>
                     </div>
@@ -213,7 +223,7 @@ export default function StudentFeesPage() {
               {
                 header: "Gateway Transaction ID",
                 cell: (p: any) => (
-                  <span className="font-mono text-xs text-[#64748B]">{p.transactionRef}</span>
+                  <span className="font-mono text-xs text-[#788391]">{p.transactionRef}</span>
                 ),
               },
               {
@@ -223,7 +233,7 @@ export default function StudentFeesPage() {
               {
                 header: "Amount Paid",
                 cell: (p: any) => (
-                  <span className="font-bold text-[#1E293B]">₹{p.amount.toLocaleString()}</span>
+                  <span className="font-bold text-[#202936]">₹{p.amount.toLocaleString()}</span>
                 ),
               },
               {
@@ -251,12 +261,12 @@ export default function StudentFeesPage() {
                           invoiceTitle: p.invoiceTitle,
                         })
                       }
-                      icon={<Receipt className="w-3.5 h-3.5 text-[#2563EB]" />}
+                      icon={<Receipt className="w-3.5 h-3.5 text-[#F5A000]" />}
                     >
                       {p.receiptNumber}
                     </Button>
                   ) : (
-                    <span className="text-xs text-[#64748B]">Processing</span>
+                    <span className="text-xs text-[#788391]">Processing</span>
                   ),
               },
             ]}
@@ -293,10 +303,10 @@ export default function StudentFeesPage() {
             </Button>
           }
         >
-          <div className="border border-[#153B66] rounded-xl p-5 bg-white space-y-4 text-xs">
-            <div className="text-center border-b border-[#E2E8F0] pb-3">
-              <h3 className="text-base font-bold text-[#153B66]">APEX INSTITUTE OF TECHNOLOGY</h3>
-              <p className="text-[11px] text-[#64748B]">Finance Office • Tax Invoice & Fee Acknowledgment</p>
+          <div className="border border-[#123B5A] rounded-xl p-5 bg-white space-y-4 text-xs">
+            <div className="text-center border-b border-[#E5E9EF] pb-3">
+              <h3 className="text-base font-bold text-[#123B5A]">APEX INSTITUTE OF TECHNOLOGY</h3>
+              <p className="text-[11px] text-[#788391]">Finance Office • Tax Invoice & Fee Acknowledgment</p>
               <Badge variant="success" size="sm" className="mt-1">
                 Receipt Number: {activeReceipt.receiptNumber}
               </Badge>
@@ -304,28 +314,28 @@ export default function StudentFeesPage() {
 
             <div className="space-y-2 py-2">
               <div className="flex justify-between">
-                <span className="text-[#64748B]">Payment Date:</span>
+                <span className="text-[#788391]">Payment Date:</span>
                 <span className="font-semibold">{new Date(activeReceipt.date).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#64748B]">Description:</span>
+                <span className="text-[#788391]">Description:</span>
                 <span className="font-semibold">{activeReceipt.invoiceTitle}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#64748B]">Payment Mode:</span>
+                <span className="text-[#788391]">Payment Mode:</span>
                 <span className="font-semibold">{activeReceipt.method}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#64748B]">Gateway Reference:</span>
+                <span className="text-[#788391]">Gateway Reference:</span>
                 <span className="font-mono text-[11px]">{activeReceipt.transactionRef}</span>
               </div>
-              <div className="flex justify-between border-t border-[#E2E8F0] pt-2 text-sm font-bold text-[#153B66]">
+              <div className="flex justify-between border-t border-[#E5E9EF] pt-2 text-sm font-bold text-[#123B5A]">
                 <span>Total Amount Paid:</span>
                 <span>₹{activeReceipt.amount.toLocaleString()}</span>
               </div>
             </div>
 
-            <div className="p-2.5 bg-slate-50 border border-[#E2E8F0] rounded text-[10px] text-[#64748B] text-center">
+            <div className="p-2.5 bg-slate-50 border border-[#E5E9EF] rounded text-[10px] text-[#788391] text-center">
               This is a computer-generated institutional fee receipt verified by the backend finance ledger. No signature required.
             </div>
           </div>

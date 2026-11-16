@@ -11,25 +11,34 @@ export default function AcademicHistoryPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchHistory = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/student/academics", { credentials: "include" });
+      const json = await res.json();
+      if (json.success) setData(json.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const res = await fetch("/api/student/academics");
-        const json = await res.json();
-        if (json.success) setData(json.data);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchHistory();
+    const handleChildChanged = () => {
+      fetchHistory();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Academic Progression History">
-        <div className="py-20 text-center text-sm text-[#64748B]">Loading academic history...</div>
+        <div className="py-20 text-center text-sm text-[#788391]">Loading academic history...</div>
       </PortalLayout>
     );
   }
@@ -38,14 +47,16 @@ export default function AcademicHistoryPage() {
 
   return (
     <PortalLayout portalType="STUDENT" pageTitle="Academic History & Progression">
-      {/* Rule 4 Callout */}
-      <div className="mb-6 p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-900 flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-[#2563EB] shrink-0 mt-0.5" />
+      {/* Official Academic Records Notice */}
+      <div className="mb-6 p-4 rounded-xl border border-[#E5E9EF] bg-white shadow-sm flex items-start gap-3.5">
+        <div className="w-9 h-9 rounded-lg bg-[#123B5A]/10 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-5 h-5 text-[#123B5A]" />
+        </div>
         <div className="text-xs">
-          <p className="font-bold uppercase tracking-wider">Historical Preservation Rule 4 Verified</p>
-          <p className="mt-0.5 leading-relaxed">
-            All prior semester enrollments, grades, and promotion timestamps remain immutably preserved in the
-            institutional database as the student advances.
+          <p className="font-semibold text-[#123B5A]">Official Academic Progression Record</p>
+          <p className="mt-0.5 text-[#788391] leading-relaxed">
+            All completed semester enrollments, credits, and promotion timestamps are certified and immutably preserved in the
+            institutional registry as you advance through your program.
           </p>
         </div>
       </div>
@@ -64,8 +75,8 @@ export default function AcademicHistoryPage() {
                   key={enrollment.id}
                   className={`p-4 rounded-xl border transition-all ${
                     isCurrent
-                      ? "bg-blue-50/50 border-[#2563EB] shadow-sm"
-                      : "bg-white border-[#E2E8F0]"
+                      ? "bg-[#FFFBEB] border-[#F5A000] shadow-sm"
+                      : "bg-white border-[#E5E9EF]"
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
@@ -73,17 +84,17 @@ export default function AcademicHistoryPage() {
                       <div
                         className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
                           isCurrent
-                            ? "bg-[#2563EB] text-white"
-                            : "bg-[#F1F5F9] text-[#153B66]"
+                            ? "bg-[#123B5A] text-[#F5A000]"
+                            : "bg-[#EEF1F5] text-[#123B5A]"
                         }`}
                       >
                         S{enrollment.semester}
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-[#1E293B]">
+                        <h3 className="text-sm font-bold text-[#202936]">
                           Semester {enrollment.semester} — Section {enrollment.section}
                         </h3>
-                        <p className="text-xs text-[#64748B]">
+                        <p className="text-xs text-[#788391]">
                           {enrollment.courseName} ({enrollment.courseCode})
                         </p>
                       </div>
@@ -101,28 +112,28 @@ export default function AcademicHistoryPage() {
                       >
                         {enrollment.status}
                       </Badge>
-                      <span className="text-xs font-semibold text-[#153B66] bg-slate-100 px-2 py-0.5 rounded">
+                      <span className="text-xs font-semibold text-[#123B5A] bg-[#EEF1F5] px-2 py-0.5 rounded">
                         AY {enrollment.academicYear}
                       </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 mt-3 border-t border-[#E2E8F0]/70 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 mt-3 border-t border-[#E5E9EF]/70 text-xs">
                     <div>
-                      <span className="text-[#64748B]">Enrolled Date:</span>{" "}
-                      <span className="font-semibold text-[#1E293B]">
+                      <span className="text-[#788391]">Enrolled Date:</span>{" "}
+                      <span className="font-semibold text-[#202936]">
                         {new Date(enrollment.enrolledDate).toLocaleDateString()}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[#64748B]">GPA / Score:</span>{" "}
-                      <span className="font-semibold text-[#1E293B]">
+                      <span className="text-[#788391]">GPA / Score:</span>{" "}
+                      <span className="font-semibold text-[#202936]">
                         {enrollment.gradePointAverage ? `${enrollment.gradePointAverage} / 10.0` : "In Progress"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[#64748B]">Promotion Remarks:</span>{" "}
-                      <span className="font-medium text-[#1E293B]">
+                      <span className="text-[#788391]">Promotion Remarks:</span>{" "}
+                      <span className="font-medium text-[#202936]">
                         {enrollment.promotionRemarks || "Active Semester"}
                       </span>
                     </div>

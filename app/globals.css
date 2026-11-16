@@ -82,51 +82,52 @@
 }
 
 :root {
-  /* Mandatory School ERP Design System Tokens */
-  --brand: #153b66;
-  --brand-foreground: #ffffff;
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
+  /* Finalized SST-ERP Design System Tokens */
+  --brand: #123B5A;
+  --brand-foreground: #FFFFFF;
+  --primary: #F5A000;
+  --primary-foreground: #FFFFFF;
   --teal: #14b8a6;
   --teal-foreground: #ffffff;
 
-  --background: #f8fafc;
-  --foreground: #1e293b;
-  --card: #ffffff;
-  --card-foreground: #1e293b;
-  --popover: #ffffff;
-  --popover-foreground: #1e293b;
+  --background: #EEF1F5;
+  --foreground: #202936;
+  --card: #FFFFFF;
+  --card-foreground: #202936;
+  --popover: #FFFFFF;
+  --popover-foreground: #202936;
 
-  --secondary: #f1f5f9;
-  --secondary-foreground: #1e293b;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #2563eb;
-  --accent-foreground: #ffffff;
+  --secondary: #123B5A;
+  --secondary-foreground: #FFFFFF;
+  --muted: #E5E9EF;
+  --muted-foreground: #788391;
+  --accent: #F5A000;
+  --accent-foreground: #FFFFFF;
 
   --success: #16a34a;
   --success-foreground: #ffffff;
-  --warning: #f59e0b;
+  --warning: #f5a000;
   --warning-foreground: #ffffff;
   --error: #dc2626;
   --error-foreground: #ffffff;
   --destructive: #dc2626;
 
-  --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #2563eb;
-  --radius: 0.625rem;
+  --border: #E5E9EF;
+  --input: #E5E9EF;
+  --ring: #F5A000;
+  --radius: 0.75rem;
 
-  /* Mandated Institutional Design System Palette */
-  --erp-brand: #153B66;
-  --erp-action: #2563EB;
-  --erp-accent: #14B8A6;
-  --erp-page-bg: #F8FAFC;
+  /* Finalized SST-ERP Reference Palette (Navy #123B5A + Orange #F5A000 + Light Grey #EEF1F5) */
+  --erp-brand: #123B5A;
+  --erp-action: #F5A000;
+  --erp-accent: #F5A000;
+  --erp-page-bg: #EEF1F5;
   --erp-card: #FFFFFF;
-  --erp-text-primary: #1E293B;
-  --erp-text-secondary: #64748B;
+  --erp-text-primary: #202936;
+  --erp-text-secondary: #788391;
+  --erp-border: #E5E9EF;
   --erp-success: #16A34A;
-  --erp-warning: #F59E0B;
+  --erp-warning: #F5A000;
   --erp-error: #DC2626;
 
   /* Reference Design System Tokens (PDF Spec Final Theme) */
@@ -145,17 +146,17 @@
   /* Charts */
   --chart-1: #16466C;
   --chart-2: #F5A000;
-  --chart-3: #16466C;
-  --chart-4: #F5A000;
-  --chart-5: #64748B;
+  --chart-3: #123B5A;
+  --chart-4: #1B4D70;
+  --chart-5: #F5A000;
 
-  /* Fixed Navy Blue Sidebar */
+  /* Fixed Navy Blue Sidebar (#123B5A) */
   --sidebar: #123B5A;
-  --sidebar-foreground: #ffffff;
+  --sidebar-foreground: #FFFFFF;
   --sidebar-primary: #F5A000;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #16466C;
-  --sidebar-accent-foreground: #ffffff;
+  --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: #16466C;
   --sidebar-ring: #F5A000;
 }

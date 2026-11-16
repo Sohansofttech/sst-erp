@@ -52,31 +52,30 @@ export default function HomePage() {
 
   const getDashboardHref = () => {
     if (!session) return "/login";
-    if (session.role === "PARENT") return "/parent/dashboard";
-    return "/student/dashboard";
+    return "/dashboard";
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#1E293B] flex flex-col justify-between font-sans selection:bg-[#2563EB] selection:text-white">
+    <div className="min-h-screen bg-[#EEF1F5] text-[#202936] flex flex-col justify-between font-sans selection:bg-[#F5A000] selection:text-white">
       {/* 1. Header Navigation */}
-      <header className="bg-white border-b border-[#E2E8F0] shadow-xs">
+      <header className="bg-white border-b border-[#E5E9EF] shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-18">
             {/* Logo and Platform Name */}
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#153B66] to-[#1E293B] text-white flex items-center justify-center shadow-md">
-                <School className="w-6 h-6 text-[#14B8A6]" />
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#123B5A] to-[#1B4D70] text-white flex items-center justify-center shadow-md">
+                <School className="w-6 h-6 text-[#F5A000]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-xl tracking-tight text-[#153B66]">
+                  <span className="font-extrabold text-xl tracking-tight text-[#123B5A]">
                     Sohan Soft Tech
                   </span>
-                  <span className="bg-[#153B66] text-white text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase">
+                  <span className="bg-[#123B5A] text-white text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase">
                     ERP
                   </span>
                 </div>
-                <p className="text-[11px] font-medium text-[#64748B]">
+                <p className="text-[11px] font-medium text-[#788391]">
                   Smart Campus Management System
                 </p>
               </div>
@@ -84,10 +83,10 @@ export default function HomePage() {
 
             {/* Active Session Indicator */}
             {session && (
-              <div className="flex items-center gap-3 bg-[#F1F5F9] pl-3 pr-1.5 py-1.5 rounded-xl border border-[#E2E8F0]">
+              <div className="flex items-center gap-3 bg-[#EEF1F5] pl-3 pr-1.5 py-1.5 rounded-xl border border-[#E5E9EF]">
                 <div className="text-left text-xs">
-                  <p className="font-bold text-[#1E293B] line-clamp-1">{session.fullName}</p>
-                  <p className="text-[10px] text-[#64748B] font-medium uppercase tracking-wider">
+                  <p className="font-bold text-[#202936] line-clamp-1">{session.fullName}</p>
+                  <p className="text-[10px] text-[#788391] font-medium uppercase tracking-wider">
                     {session.role}
                   </p>
                 </div>
@@ -98,7 +97,7 @@ export default function HomePage() {
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="p-1.5 text-[#64748B] hover:text-red-600 rounded-lg transition-colors"
+                  className="p-1.5 text-[#788391] hover:text-red-600 rounded-lg transition-colors"
                   title="Sign Out"
                 >
                   <LogOut className="w-4 h-4" />
@@ -113,84 +112,52 @@ export default function HomePage() {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16 w-full flex flex-col justify-center">
         {/* Welcome Heading & Instruction */}
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#153B66]/5 border border-[#153B66]/15 text-[#153B66] text-xs font-semibold mb-4">
-            <Sparkles className="w-3.5 h-3.5 text-[#14B8A6]" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#123B5A]/5 border border-[#123B5A]/15 text-[#123B5A] text-xs font-semibold mb-4">
+            <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" />
             <span>Institutional Access Gateway</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0F172A] tracking-tight leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#123B5A] tracking-tight leading-tight">
             Welcome to{" "}
-            <span className="bg-gradient-to-r from-[#153B66] via-[#2563EB] to-[#14B8A6] bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-[#123B5A] via-[#1B4D70] to-[#F5A000] bg-clip-text text-transparent">
               Sohan Soft Tech ERP
             </span>
           </h1>
 
-          <p className="mt-4 text-base sm:text-lg text-[#64748B] font-medium">
+          <p className="mt-4 text-base sm:text-lg text-[#788391] font-medium">
             Select your portal to continue.
           </p>
         </div>
 
-        {/* Five Login Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-          {/* Card 1: Student Login (Active) */}
-          <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 shadow-sm hover:shadow-lg hover:border-[#2563EB] transition-all flex flex-col justify-between group">
+        {/* Four Portal Cards (1 Active Student Portal + 3 Placeholders) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Card 1: Student Portal (Active) */}
+          <div className="bg-white rounded-2xl border border-[#E5E9EF] p-6 shadow-sm hover:shadow-lg hover:border-[#F5A000] transition-all flex flex-col justify-between group">
             <div>
               <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 text-[#2563EB] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="w-12 h-12 rounded-xl bg-[#FFFBEB] text-[#F5A000] flex items-center justify-center border border-[#FDE68A] shadow-xs group-hover:scale-105 transition-transform">
                   <GraduationCap className="w-6 h-6" />
                 </div>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#D97706] border border-[#FDE68A]">
                   Active
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-[#153B66] group-hover:text-[#2563EB] transition-colors">
-                Student Login
+              <h2 className="text-lg font-bold text-[#123B5A] group-hover:text-[#F5A000] transition-colors">
+                Student Portal
               </h2>
-              <p className="text-xs text-[#64748B] mt-2 leading-relaxed">
-                Access lecture timetables, attendance tracking, LMS coursework, examination grades, and fee payments.
+              <p className="text-xs text-[#788391] mt-2 leading-relaxed">
+                Academic portal for students to access course timetables, attendance tracking, grades, fee dues, and campus communications.
               </p>
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-100">
-              <Link href="/login?role=student" className="block">
+              <Link href="/login" className="block">
                 <Button
                   variant="primary"
-                  className="w-full justify-center bg-[#2563EB] hover:bg-[#1D4ED8] shadow-sm text-xs font-semibold py-2.5"
+                  className="w-full justify-center bg-[#F5A000] hover:bg-[#DE9100] shadow-sm text-xs font-semibold py-2.5 text-white"
                   icon={<ArrowRight className="w-3.5 h-3.5" />}
                 >
-                  Student Login
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          {/* Card 2: Parent Login (Active) */}
-          <div className="bg-white rounded-2xl border border-[#E2E8F0] p-6 shadow-sm hover:shadow-lg hover:border-[#0D9488] transition-all flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-teal-50 text-[#0D9488] flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Users className="w-6 h-6" />
-                </div>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                  Active
-                </span>
-              </div>
-              <h2 className="text-lg font-bold text-[#153B66] group-hover:text-[#0D9488] transition-colors">
-                Parent Login
-              </h2>
-              <p className="text-xs text-[#64748B] mt-2 leading-relaxed">
-                Monitor your linked children&apos;s daily presence, academic progress, fee balances, and campus announcements.
-              </p>
-            </div>
-
-            <div className="pt-6 mt-6 border-t border-slate-100">
-              <Link href="/login?role=parent" className="block">
-                <Button
-                  variant="primary"
-                  className="w-full justify-center bg-[#0D9488] hover:bg-[#0F766E] shadow-sm text-xs font-semibold py-2.5"
-                  icon={<ArrowRight className="w-3.5 h-3.5" />}
-                >
-                  Parent Login
+                  Enter Student Portal
                 </Button>
               </Link>
             </div>
@@ -302,7 +269,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <p>© 2026 Sohan Soft Tech ERP. All rights reserved.</p>
           <p className="text-[11px] text-[#94A3B8] mt-1">
-            Enterprise Campus Management System • Multi-Portal Governance
+            Secure Student Campus Management System
           </p>
         </div>
       </footer>

@@ -57,7 +57,7 @@ export default function ParentAttendancePage() {
           title="Classes Attended"
           value={`${summary?.attendedClasses ?? 0} / ${summary?.totalClasses ?? 0}`}
           subtitle="Total semester lectures"
-          icon={<Clock className="w-5 h-5 text-[#2563EB]" />}
+          icon={<Clock className="w-5 h-5 text-[#F59E0B]" />}
         />
         <StatCard
           title="Absences Logged"
@@ -81,10 +81,10 @@ export default function ParentAttendancePage() {
               return (
                 <div
                   key={m.monthYear}
-                  className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]"
+                  className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50"
                 >
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold text-[#153B66]">{m.monthYear}</span>
+                    <span className="text-xs font-bold text-[#0F2942]">{m.monthYear}</span>
                     <Badge variant={isGood ? "success" : "error"} size="sm">
                       {isGood ? "Eligible" : "Shortage"}
                     </Badge>
@@ -107,11 +107,11 @@ export default function ParentAttendancePage() {
             {subjectWise?.map((sub: any) => (
               <div
                 key={sub.subjectId}
-                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#2563EB]">{sub.subjectCode}</span>
+                    <span className="font-bold text-[#D97706]">{sub.subjectCode}</span>
                     <h4 className="font-semibold text-[#1E293B]">{sub.subjectName}</h4>
                   </div>
                   <p className="text-[#64748B] text-[11px] mt-0.5">
@@ -119,7 +119,7 @@ export default function ParentAttendancePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-4 self-end sm:self-center">
-                  <span className="text-base font-bold text-[#153B66]">{sub.percentage}%</span>
+                  <span className="text-base font-bold text-[#0F2942]">{sub.percentage}%</span>
                   <Badge variant={sub.percentage >= 75 ? "success" : "error"} size="sm">
                     {sub.percentage >= 75 ? "Good" : "Low"}
                   </Badge>

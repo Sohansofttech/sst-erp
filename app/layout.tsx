@@ -11,12 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "CampusERP — Multi-Institution ERP",
-    template: "%s | CampusERP",
-  },
-  description:
-    "Unified multi-institution ERP platform for students, parents, faculty, and administrators.",
+  title: "Institutional ERP — Student Portal",
+  description: "Next.js Institutional ERP Student Portal with Multi-Tenant Architecture",
 };
 
 export default function RootLayout({
@@ -27,9 +23,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn("h-full antialiased font-sans", inter.variable)}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body suppressHydrationWarning className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Toaster />
       </body>

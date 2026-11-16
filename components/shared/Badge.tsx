@@ -17,9 +17,9 @@ export const Badge: React.FC<BadgeProps> = ({
     success: "bg-[#DCFCE7] text-[#16A34A] border-[#BBF7D0]",
     warning: "bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]",
     error: "bg-[#FEE2E2] text-[#DC2626] border-[#FECACA]",
-    info: "bg-[#DBEAFE] text-[#2563EB] border-[#BFDBFE]",
-    brand: "bg-[#E0E7FF] text-[#153B66] border-[#C7D2FE]",
-    neutral: "bg-[#F1F5F9] text-[#64748B] border-[#E2E8F0]",
+    info: "bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]",
+    brand: "bg-[#123B5A] text-white border-[#123B5A]",
+    neutral: "bg-[#EEF1F5] text-[#788391] border-[#E5E9EF]",
   };
 
   const sizeStyles = {

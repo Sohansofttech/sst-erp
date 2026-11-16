@@ -40,6 +40,7 @@ export interface StatCardProps {
   trend?: StatCardTrend
   badgeText?: string
   badgeVariant?: "success" | "warning" | "error" | "info" | "brand" | "neutral"
+  variant?: "default" | "dark"
   onClick?: () => void
   className?: string
 }
@@ -56,9 +57,11 @@ export function StatCard({
   trend,
   badgeText,
   badgeVariant = "info",
+  variant = "default",
   onClick,
   className,
 }: StatCardProps) {
+  const isDark = variant === "dark"
   const displayTitle = title ?? label ?? ""
   const displaySubtitle = subtitle ?? description ?? helperText
   const direction = trend?.direction ?? "neutral"
@@ -68,17 +71,30 @@ export function StatCard({
       onClick={onClick}
       className={cn(
         "gap-0 py-5 shadow-xs transition-all hover:shadow-md",
-        onClick && "cursor-pointer hover:border-primary",
+        isDark
+          ? "bg-[#123B5A] text-white border border-[#1B4D70] shadow-md"
+          : "bg-white border border-[#E5E9EF]",
+        onClick && (isDark ? "cursor-pointer hover:border-[#F5A000]" : "cursor-pointer hover:border-[#F5A000]"),
         className
       )}
     >
       <CardContent className="flex items-start justify-between gap-4 px-5">
         <div className="min-w-0 space-y-1.5">
-          <p className="truncate text-[13px] font-medium text-muted-foreground">
+          <p
+            className={cn(
+              "truncate text-[13px] font-semibold uppercase tracking-wider",
+              isDark ? "text-white/70" : "text-[#788391]"
+            )}
+          >
             {displayTitle}
           </p>
           <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold tracking-tight text-foreground sm:text-[26px]">
+            <p
+              className={cn(
+                "text-2xl font-bold tracking-tight sm:text-[26px]",
+                isDark ? "text-white" : "text-[#202936]"
+              )}
+            >
               {value}
             </p>
             {badgeText && (
@@ -105,7 +121,12 @@ export function StatCard({
                 </span>
               )}
               {displaySubtitle && (
-                <span className="text-[13px] text-muted-foreground">
+                <span
+                  className={cn(
+                    "text-[13px]",
+                    isDark ? "text-white/70" : "text-[#788391]"
+                  )}
+                >
                   {trend?.label ?? displaySubtitle}
                 </span>
               )}
@@ -117,7 +138,9 @@ export function StatCard({
           <div
             className={cn(
               "flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5",
-              TONE_CLASSES[tone]
+              isDark
+                ? "bg-white/10 border border-white/10 text-white"
+                : TONE_CLASSES[tone] || "bg-[#FFFBEB] border border-[#FDE68A] text-[#F59E0B]"
             )}
           >
             {icon}

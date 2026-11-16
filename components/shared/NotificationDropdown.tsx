@@ -80,7 +80,7 @@ export const NotificationDropdown: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] rounded-lg transition-colors focus:outline-none"
+        className="relative p-2 text-[#788391] hover:text-[#202936] hover:bg-[#F1F5F9] rounded-lg transition-colors focus:outline-none"
         aria-label="Notifications"
       >
         <Bell className="w-5 h-5" />
@@ -92,42 +92,42 @@ export const NotificationDropdown: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E2E8F0] z-50 overflow-hidden animate-in fade-in-50 duration-150">
-          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
-            <h4 className="text-[14px] font-semibold text-[#1E293B]">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E5E9EF] z-50 overflow-hidden animate-in fade-in-50 duration-150">
+          <div className="px-4 py-3 border-b border-[#E5E9EF] bg-[#EEF1F5] flex items-center justify-between">
+            <h4 className="text-[14px] font-semibold text-[#202936]">
               Notifications
             </h4>
-            <span className="text-xs text-[#64748B]">
+            <span className="text-xs text-[#788391]">
               {unreadCount} unread
             </span>
           </div>
 
-          <div className="max-h-80 overflow-y-auto divide-y divide-[#E2E8F0]">
+          <div className="max-h-80 overflow-y-auto divide-y divide-[#E5E9EF]">
             {loading ? (
-              <div className="p-4 text-center text-xs text-[#64748B]">
+              <div className="p-4 text-center text-xs text-[#788391]">
                 Loading notifications...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-6 text-center text-xs text-[#64748B]">
+              <div className="p-6 text-center text-xs text-[#788391]">
                 No notifications to display.
               </div>
             ) : (
               notifications.map((item) => (
                 <div
                   key={item.id}
-                  className={`p-3.5 hover:bg-[#F8FAFC] transition-colors ${
-                    !item.isRead ? "bg-blue-50/40" : ""
+                  className={`p-3.5 hover:bg-[#EEF1F5] transition-colors ${
+                    !item.isRead ? "bg-[#FFFBEB]/40" : ""
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         {getCategoryBadge(item.category)}
-                        <span className="text-[13px] font-semibold text-[#1E293B]">
+                        <span className="text-[13px] font-semibold text-[#202936]">
                           {item.title}
                         </span>
                       </div>
-                      <p className="text-xs text-[#64748B] leading-relaxed">
+                      <p className="text-xs text-[#788391] leading-relaxed">
                         {item.message}
                       </p>
                       <span className="text-[11px] text-[#94A3B8] mt-1.5 block">
@@ -138,7 +138,7 @@ export const NotificationDropdown: React.FC = () => {
                       <button
                         onClick={() => markRead(item.id)}
                         title="Mark as read"
-                        className="p-1 text-[#64748B] hover:text-[#16A34A] rounded transition-colors"
+                        className="p-1 text-[#788391] hover:text-[#16A34A] rounded transition-colors"
                       >
                         <Check className="w-4 h-4" />
                       </button>

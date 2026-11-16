@@ -28,8 +28,8 @@ export default function StudentMentoringPage() {
     try {
       setLoading(true);
       const [mRes, lRes] = await Promise.all([
-        fetch("/api/student/mentoring").then((r) => r.json()),
-        fetch("/api/student/logbook").then((r) => r.json()),
+        fetch("/api/student/mentoring", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/logbook", { credentials: "include" }).then((r) => r.json()),
       ]);
 
       if (mRes.success) setMentoring(mRes.data);
@@ -43,6 +43,13 @@ export default function StudentMentoringPage() {
 
   useEffect(() => {
     fetchData();
+    const handleChildChanged = () => {
+      fetchData();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handleLogSubmit = async (e: React.FormEvent) => {
@@ -77,7 +84,7 @@ export default function StudentMentoringPage() {
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Mentoring & Academic Log Book">
-        <div className="py-20 text-center text-sm text-[#64748B]">Loading mentoring sessions...</div>
+        <div className="py-20 text-center text-sm text-[#788391]">Loading mentoring sessions...</div>
       </PortalLayout>
     );
   }
@@ -89,7 +96,7 @@ export default function StudentMentoringPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <Users2 className="w-5 h-5 text-[#2563EB]" />
+              <Users2 className="w-5 h-5 text-[#F5A000]" />
               <span>Faculty Mentoring Sessions & Guidance</span>
             </div>
           }
@@ -99,19 +106,19 @@ export default function StudentMentoringPage() {
             {mentoring.map((m) => (
               <div
                 key={m.id}
-                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-3"
+                className="p-5 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 space-y-3"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E9EF] pb-2">
                   <div>
-                    <h3 className="text-sm font-bold text-[#1E293B]">
+                    <h3 className="text-sm font-bold text-[#202936]">
                       Mentor: {m.mentorName} ({m.mentorDesignation})
                     </h3>
-                    <p className="text-xs text-[#64748B]">
+                    <p className="text-xs text-[#788391]">
                       {m.mentorDepartment} • {m.mentorEmail}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[#64748B]">
+                    <span className="text-xs text-[#788391]">
                       Session Date: {new Date(m.sessionDate).toLocaleDateString()}
                     </span>
                     {m.isPrivateNote && (
@@ -122,21 +129,21 @@ export default function StudentMentoringPage() {
 
                 <div className="text-xs space-y-2">
                   <div>
-                    <span className="font-semibold text-[#153B66]">Topics Discussed:</span>
-                    <p className="text-[#1E293B] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
+                    <span className="font-semibold text-[#123B5A]">Topics Discussed:</span>
+                    <p className="text-[#202936] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
                   </div>
 
                   {m.studentActionItems && (
-                    <div className="p-3 bg-white rounded-lg border border-[#E2E8F0]">
+                    <div className="p-3 bg-white rounded-lg border border-[#E5E9EF]">
                       <span className="font-semibold text-emerald-800">Student Action Items:</span>
-                      <p className="text-[#1E293B] mt-0.5">{m.studentActionItems}</p>
+                      <p className="text-[#202936] mt-0.5">{m.studentActionItems}</p>
                     </div>
                   )}
 
                   {m.mentorNotes && (
-                    <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200">
-                      <span className="font-semibold text-blue-900">Mentor Remarks:</span>
-                      <p className="text-blue-950 mt-0.5">{m.mentorNotes}</p>
+                    <div className="p-3 bg-[#FFFBEB] rounded-lg border border-[#FDE68A]">
+                      <span className="font-semibold text-[#92400E]">Mentor Remarks:</span>
+                      <p className="text-[#78350F] mt-0.5">{m.mentorNotes}</p>
                     </div>
                   )}
                 </div>
@@ -149,7 +156,7 @@ export default function StudentMentoringPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-[#14B8A6]" />
+              <BookOpen className="w-5 h-5 text-[#123B5A]" />
               <span>Student Activity Log Book</span>
             </div>
           }
@@ -216,13 +223,13 @@ export default function StudentMentoringPage() {
       >
         <form onSubmit={handleLogSubmit} className="space-y-4">
           <div>
-            <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+            <label className="block text-[13px] font-medium text-[#202936] mb-1">
               Activity Category
             </label>
             <select
               value={activityType}
               onChange={(e) => setActivityType(e.target.value)}
-              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
+              className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg bg-white"
             >
               <option value="PRACTICAL">Lab Practical Experiment</option>
               <option value="PROJECT">Capstone / Course Project</option>
@@ -258,11 +265,11 @@ export default function StudentMentoringPage() {
           </div>
 
           <div>
-            <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+            <label className="block text-[13px] font-medium text-[#202936] mb-1">
               Description of Work Performed
             </label>
             <textarea
-              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg"
+              className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
