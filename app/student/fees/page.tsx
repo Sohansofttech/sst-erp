@@ -91,13 +91,15 @@ export default function StudentFeesPage() {
         </div>
       )}
 
-      {/* Rule 5 Notice */}
-      <div className="mb-6 p-4 rounded-xl border border-[#FDE68A] bg-[#FEF3C7]/60 text-[#92400E] flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
+      {/* Institutional Finance Security Notice */}
+      <div className="mb-6 p-4 rounded-xl border border-[#E2E8F0] bg-white shadow-sm flex items-start gap-3.5">
+        <div className="w-9 h-9 rounded-lg bg-[#0F2942]/10 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-5 h-5 text-[#0F2942]" />
+        </div>
         <div className="text-xs">
-          <p className="font-bold uppercase tracking-wider">Backend Payment Verification Enforced (Rule 5)</p>
-          <p className="mt-0.5 leading-relaxed">
-            Transactions are verified directly by institutional backend endpoints before updating balances or emitting tamper-proof receipts.
+          <p className="font-semibold text-[#0F2942]">Direct Financial Settlement & Receipting</p>
+          <p className="mt-0.5 text-[#64748B] leading-relaxed">
+            All tuition and incidental fee payments are processed securely through certified payment gateways and recorded in your permanent institutional ledger with digitally verified receipts.
           </p>
         </div>
       </div>

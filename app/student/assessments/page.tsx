@@ -47,12 +47,15 @@ export default function InternalAssessmentsPage() {
 
   return (
     <PortalLayout portalType="STUDENT" pageTitle="Internal Assessments & Marks">
-      <div className="mb-6 p-4 rounded-xl border border-[#FDE68A] bg-[#FEF3C7]/60 text-[#92400E] flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
+      {/* Official Continuous Evaluation Notice */}
+      <div className="mb-6 p-4 rounded-xl border border-[#E2E8F0] bg-white shadow-sm flex items-start gap-3.5">
+        <div className="w-9 h-9 rounded-lg bg-[#0F2942]/10 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-5 h-5 text-[#0F2942]" />
+        </div>
         <div className="text-xs">
-          <p className="font-bold uppercase tracking-wider">Internal Marks Protection Verified</p>
-          <p className="mt-0.5 leading-relaxed">
-            All internal assessment scores are protected with backend authorization checks and audit logged under Section 13.
+          <p className="font-semibold text-[#0F2942]">Continuous Assessment & Internal Evaluation</p>
+          <p className="mt-0.5 text-[#64748B] leading-relaxed">
+            All internal assessment scores, assignment grades, and periodic tests are officially recorded and certified by respective course faculty members.
           </p>
         </div>
       </div>

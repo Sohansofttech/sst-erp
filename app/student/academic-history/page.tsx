@@ -47,14 +47,16 @@ export default function AcademicHistoryPage() {
 
   return (
     <PortalLayout portalType="STUDENT" pageTitle="Academic History & Progression">
-      {/* Rule 4 Callout */}
-      <div className="mb-6 p-4 rounded-xl border border-[#FDE68A] bg-[#FEF3C7]/60 text-[#92400E] flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
+      {/* Official Academic Records Notice */}
+      <div className="mb-6 p-4 rounded-xl border border-[#E2E8F0] bg-white shadow-sm flex items-start gap-3.5">
+        <div className="w-9 h-9 rounded-lg bg-[#0F2942]/10 flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-5 h-5 text-[#0F2942]" />
+        </div>
         <div className="text-xs">
-          <p className="font-bold uppercase tracking-wider">Historical Preservation Rule 4 Verified</p>
-          <p className="mt-0.5 leading-relaxed">
-            All prior semester enrollments, grades, and promotion timestamps remain immutably preserved in the
-            institutional database as the student advances.
+          <p className="font-semibold text-[#0F2942]">Official Academic Progression Record</p>
+          <p className="mt-0.5 text-[#64748B] leading-relaxed">
+            All completed semester enrollments, credits, and promotion timestamps are certified and immutably preserved in the
+            institutional registry as you advance through your program.
           </p>
         </div>
       </div>

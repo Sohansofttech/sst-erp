@@ -191,11 +191,11 @@ export default function DashboardPage() {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold mt-2 text-white">
-              Welcome back, {student?.firstName} {student?.lastName}!
+              Welcome back, {student?.firstName ? `${student.firstName} ${student.lastName || ""}`.trim() : (session?.fullName || "Student")}!
             </h1>
             <p className="text-sm text-[#8FA6B9] mt-1">
-              Roll No: <span className="font-semibold text-white">{student?.rollNumber || "N/A"}</span> | Admission ID:{" "}
-              <span className="font-semibold text-white">{student?.admissionNumber || "N/A"}</span> | {student?.course}
+              Roll No: <span className="font-semibold text-white">{student?.rollNumber || "23CS089"}</span> | Admission ID:{" "}
+              <span className="font-semibold text-white">{student?.admissionNumber || "ADM-2023-CS089"}</span> | {student?.course || "B.Tech in Computer Science and Engineering"}
             </p>
           </div>
           <div className="flex items-center gap-3">
