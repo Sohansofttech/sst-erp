@@ -98,7 +98,7 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
           </div>
         )}
 
-        <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
+        <div className="bg-[#EEF2F6] p-4 rounded-xl border border-[#E2E8F0]">
           <div className="flex justify-between items-center text-xs text-[#64748B]">
             <span>Outstanding Balance</span>
             <span className="font-semibold text-[#1E293B]">
@@ -128,8 +128,8 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               onClick={() => setMethod("UPI")}
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "UPI"
-                  ? "border-[#2563EB] bg-blue-50/50 text-[#2563EB] font-semibold"
-                  : "border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B]"
+                  ? "border-[#F59E0B] bg-[#FFFBEB] text-[#D97706] font-semibold"
+                  : "border-[#E2E8F0] hover:bg-[#EEF2F6] text-[#64748B]"
               }`}
             >
               <Smartphone className="w-5 h-5 mx-auto mb-1" />
@@ -140,8 +140,8 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               onClick={() => setMethod("NET_BANKING")}
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "NET_BANKING"
-                  ? "border-[#2563EB] bg-blue-50/50 text-[#2563EB] font-semibold"
-                  : "border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B]"
+                  ? "border-[#F59E0B] bg-[#FFFBEB] text-[#D97706] font-semibold"
+                  : "border-[#E2E8F0] hover:bg-[#EEF2F6] text-[#64748B]"
               }`}
             >
               <Building className="w-5 h-5 mx-auto mb-1" />
@@ -152,8 +152,8 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               onClick={() => setMethod("CREDIT_CARD")}
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "CREDIT_CARD"
-                  ? "border-[#2563EB] bg-blue-50/50 text-[#2563EB] font-semibold"
-                  : "border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B]"
+                  ? "border-[#F59E0B] bg-[#FFFBEB] text-[#D97706] font-semibold"
+                  : "border-[#E2E8F0] hover:bg-[#EEF2F6] text-[#64748B]"
               }`}
             >
               <CreditCard className="w-5 h-5 mx-auto mb-1" />

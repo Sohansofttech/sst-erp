@@ -23,7 +23,7 @@ export default function StudentFeedbackPage() {
   const fetchFeedback = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/student/feedback");
+      const res = await fetch("/api/student/feedback", { credentials: "include" });
       const json = await res.json();
       if (json.success) setFeedbackList(json.data);
     } catch (e) {
@@ -35,6 +35,13 @@ export default function StudentFeedbackPage() {
 
   useEffect(() => {
     fetchFeedback();
+    const handleChildChanged = () => {
+      fetchFeedback();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

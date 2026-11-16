@@ -31,7 +31,7 @@ export default function StudentFeesPage() {
   const fetchFees = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/student/fees");
+      const res = await fetch("/api/student/fees", { credentials: "include" });
       const json = await res.json();
       if (json.success) setData(json.data);
     } catch (e) {
@@ -43,6 +43,13 @@ export default function StudentFeesPage() {
 
   useEffect(() => {
     fetchFees();
+    const handleChildChanged = () => {
+      fetchFees();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handlePayClick = (invoice: any) => {
@@ -85,8 +92,8 @@ export default function StudentFeesPage() {
       )}
 
       {/* Rule 5 Notice */}
-      <div className="mb-6 p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-900 flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-[#2563EB] shrink-0 mt-0.5" />
+      <div className="mb-6 p-4 rounded-xl border border-[#FDE68A] bg-[#FEF3C7]/60 text-[#92400E] flex items-start gap-3">
+        <ShieldCheck className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
         <div className="text-xs">
           <p className="font-bold uppercase tracking-wider">Backend Payment Verification Enforced (Rule 5)</p>
           <p className="mt-0.5 leading-relaxed">
@@ -101,7 +108,8 @@ export default function StudentFeesPage() {
           title="Total Institutional Fee"
           value={`₹${summary?.totalFees?.toLocaleString() ?? 0}`}
           subtitle="Annual academic charges"
-          icon={<Building className="w-5 h-5 text-[#153B66]" />}
+          variant="dark"
+          icon={<Building className="w-5 h-5 text-white" />}
         />
         <StatCard
           title="Total Settled"
@@ -128,12 +136,12 @@ export default function StudentFeesPage() {
             {invoices?.map((inv: any) => (
               <div
                 key={inv.id}
-                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-4"
+                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-4"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#153B66]">{inv.invoiceNumber}</span>
+                      <span className="text-xs font-bold text-[#0F2942]">{inv.invoiceNumber}</span>
                       <Badge
                         variant={
                           inv.status === "PAID"
@@ -182,7 +190,7 @@ export default function StudentFeesPage() {
                     {inv.items?.map((item: any) => (
                       <div key={item.id} className="flex justify-between items-center py-1">
                         <span className="text-[#1E293B]">{item.description}</span>
-                        <span className="font-semibold text-[#153B66]">
+                        <span className="font-semibold text-[#0F2942]">
                           ₹{item.amount.toLocaleString()}
                         </span>
                       </div>
@@ -251,7 +259,7 @@ export default function StudentFeesPage() {
                           invoiceTitle: p.invoiceTitle,
                         })
                       }
-                      icon={<Receipt className="w-3.5 h-3.5 text-[#2563EB]" />}
+                      icon={<Receipt className="w-3.5 h-3.5 text-[#F59E0B]" />}
                     >
                       {p.receiptNumber}
                     </Button>
@@ -293,9 +301,9 @@ export default function StudentFeesPage() {
             </Button>
           }
         >
-          <div className="border border-[#153B66] rounded-xl p-5 bg-white space-y-4 text-xs">
+          <div className="border border-[#0F2942] rounded-xl p-5 bg-white space-y-4 text-xs">
             <div className="text-center border-b border-[#E2E8F0] pb-3">
-              <h3 className="text-base font-bold text-[#153B66]">APEX INSTITUTE OF TECHNOLOGY</h3>
+              <h3 className="text-base font-bold text-[#0F2942]">APEX INSTITUTE OF TECHNOLOGY</h3>
               <p className="text-[11px] text-[#64748B]">Finance Office • Tax Invoice & Fee Acknowledgment</p>
               <Badge variant="success" size="sm" className="mt-1">
                 Receipt Number: {activeReceipt.receiptNumber}
@@ -319,7 +327,7 @@ export default function StudentFeesPage() {
                 <span className="text-[#64748B]">Gateway Reference:</span>
                 <span className="font-mono text-[11px]">{activeReceipt.transactionRef}</span>
               </div>
-              <div className="flex justify-between border-t border-[#E2E8F0] pt-2 text-sm font-bold text-[#153B66]">
+              <div className="flex justify-between border-t border-[#E2E8F0] pt-2 text-sm font-bold text-[#0F2942]">
                 <span>Total Amount Paid:</span>
                 <span>₹{activeReceipt.amount.toLocaleString()}</span>
               </div>

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       gatewaySignature,
     } = body;
 
-    const targetStudentId = reqStudentId || session.studentId;
+    const targetStudentId = reqStudentId || session.studentId || session.activeChildId;
     if (!targetStudentId) {
       return NextResponse.json({ success: false, error: "Missing student ID" }, { status: 400 });
     }

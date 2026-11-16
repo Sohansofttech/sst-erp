@@ -1,25 +1,45 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { Card } from "@/components/shared/Card";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { Modal } from "@/components/shared/Modal";
 import { Table } from "@/components/shared/Table";
-import { Award, Calendar, QrCode, Download, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
+import { Award, Calendar, QrCode, Download, ShieldCheck, CheckCircle2, AlertCircle, ShieldAlert } from "lucide-react";
 
 export default function ExaminationsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isRestricted, setIsRestricted] = useState(false);
   const [isAdmitCardOpen, setIsAdmitCardOpen] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("erp_user");
+        if (stored) {
+          const user = JSON.parse(stored);
+          if (user.role === "PARENT") {
+            setIsRestricted(true);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
+    }
+
     const fetchExams = async () => {
       try {
-        const res = await fetch("/api/student/examinations");
+        const res = await fetch("/api/student/examinations", { credentials: "include" });
         const json = await res.json();
-        if (json.success) setData(json.data);
+        if (json.success) {
+          setData(json.data);
+        } else if (res.status === 403 || json.error?.toLowerCase().includes("access restricted")) {
+          setIsRestricted(true);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -37,30 +57,51 @@ export default function ExaminationsPage() {
     );
   }
 
+  if (isRestricted) {
+    return (
+      <PortalLayout portalType="STUDENT" pageTitle="Examinations & Results">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-8 max-w-xl mx-auto my-12 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <h2 className="text-lg font-bold text-[#1E293B]">Student-Only Access</h2>
+          <p className="text-xs text-[#64748B] mt-2 max-w-md mx-auto leading-relaxed">
+            Examinations & Results are accessible strictly to Student accounts per institutional policy. Parents can monitor child progress via Attendance, Internal Assessments, Timetable, and LMS.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link href="/dashboard">
+              <Button variant="primary" size="sm">Return to Dashboard</Button>
+            </Link>
+          </div>
+        </div>
+      </PortalLayout>
+    );
+  }
+
   const { schedules, admitCard, results, cgpa, supplementaryExams } = data || {};
 
   return (
     <PortalLayout portalType="STUDENT" pageTitle="Examinations, Hall Ticket & Results">
       {/* Top Banner: Hall Ticket Quick Access & CGPA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="md:col-span-2 bg-gradient-to-r from-[#153B66] to-[#1E4F8A] text-white p-6 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="md:col-span-2 bg-[#0F2942] border border-[#183B5E] text-white p-6 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <Badge variant="brand" className="bg-white/20 text-white border-white/30 text-xs">
+            <Badge variant="brand" className="bg-[#183B5E] text-[#F59E0B] border-[#183B5E] text-xs">
               Admit Card Ready
             </Badge>
             <h3 className="text-xl font-bold mt-2 text-white">
               End Semester Examinations (Nov/Dec 2025)
             </h3>
-            <p className="text-xs text-white/80 mt-1">
-              Hall Ticket: <span className="font-semibold text-white">{admitCard?.hallTicketNo || "Generated"}</span> • Status: <span className="text-[#14B8A6] font-semibold">Eligible (Attendance cleared)</span>
+            <p className="text-xs text-[#8FA6B9] mt-1">
+              Hall Ticket: <span className="font-semibold text-white">{admitCard?.hallTicketNo || "Generated"}</span> • Status: <span className="text-[#F59E0B] font-semibold">Eligible (Attendance cleared)</span>
             </p>
           </div>
           {admitCard && (
             <Button
-              variant="secondary"
+              variant="primary"
               onClick={() => setIsAdmitCardOpen(true)}
               icon={<QrCode className="w-4 h-4" />}
-              className="shrink-0"
+              className="shrink-0 bg-[#F59E0B] hover:bg-[#D97706] text-white"
             >
               View Hall Ticket
             </Button>
@@ -72,7 +113,7 @@ export default function ExaminationsPage() {
             Cumulative Grade Point (CGPA)
           </p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-[#153B66]">{cgpa}</span>
+            <span className="text-3xl font-extrabold text-[#0F2942]">{cgpa}</span>
             <span className="text-xs text-[#64748B]">/ 10.00</span>
           </div>
           <Badge variant="success" size="sm" className="mt-2 w-fit">
@@ -227,23 +268,23 @@ export default function ExaminationsPage() {
             </div>
           }
         >
-          <div className="border border-[#153B66] rounded-xl p-5 bg-white space-y-4">
+          <div className="border border-[#0F2942] rounded-xl p-5 bg-white space-y-4">
             {/* Header */}
             <div className="text-center border-b border-[#E2E8F0] pb-3">
-              <h2 className="text-lg font-bold text-[#153B66]">APEX INSTITUTE OF TECHNOLOGY</h2>
+              <h2 className="text-lg font-bold text-[#0F2942]">APEX INSTITUTE OF TECHNOLOGY</h2>
               <p className="text-xs text-[#64748B]">Autonomous Institution • Affiliated to Tech University</p>
               <h3 className="text-sm font-semibold text-[#1E293B] mt-1">{admitCard.examTitle}</h3>
             </div>
 
             {/* Student metadata */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#E2E8F0]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-[#EEF2F6]/50 p-3 rounded-lg border border-[#E2E8F0]">
               <div>
                 <span className="text-[#64748B] block">Candidate Name:</span>
                 <span className="font-bold text-[#1E293B]">{admitCard.student.name}</span>
               </div>
               <div>
                 <span className="text-[#64748B] block">Hall Ticket No:</span>
-                <span className="font-bold text-[#2563EB]">{admitCard.hallTicketNo}</span>
+                <span className="font-bold text-[#D97706]">{admitCard.hallTicketNo}</span>
               </div>
               <div>
                 <span className="text-[#64748B] block">Roll Number:</span>
@@ -257,7 +298,7 @@ export default function ExaminationsPage() {
 
             {/* Exam paper schedule */}
             <div>
-              <p className="text-xs font-bold text-[#153B66] uppercase tracking-wider mb-2">
+              <p className="text-xs font-bold text-[#0F2942] uppercase tracking-wider mb-2">
                 Eligible Examination Schedule
               </p>
               <div className="space-y-1.5 text-xs">
@@ -277,8 +318,8 @@ export default function ExaminationsPage() {
             {/* QR verification code & Instructions */}
             <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between text-xs">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#F1F5F9] rounded border border-[#E2E8F0]">
-                  <QrCode className="w-10 h-10 text-[#153B66]" />
+                <div className="p-2 bg-[#EEF2F6] rounded border border-[#E2E8F0]">
+                  <QrCode className="w-10 h-10 text-[#0F2942]" />
                 </div>
                 <div>
                   <p className="text-[10px] text-[#64748B] font-mono break-all max-w-xs">

@@ -48,7 +48,7 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-[#153B66]/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-[#0F2942]/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
@@ -56,7 +56,7 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white rounded-xl shadow-2xl border border-[#E2E8F0] overflow-hidden transform transition-all z-10 my-8`}
       >
-        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
+        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#EEF2F6]">
           <div>
             <h3 className="text-[18px] font-semibold text-[#1E293B]">{title}</h3>
             {subtitle && <p className="text-xs text-[#64748B] mt-0.5">{subtitle}</p>}
@@ -72,7 +72,7 @@ export const Modal: React.FC<ModalProps> = ({
         <div className="p-6 max-h-[75vh] overflow-y-auto">{children}</div>
 
         {footer && (
-          <div className="px-6 py-3.5 bg-[#F8FAFC] border-t border-[#E2E8F0] flex justify-end gap-3">
+          <div className="px-6 py-3.5 bg-[#EEF2F6] border-t border-[#E2E8F0] flex justify-end gap-3">
             {footer}
           </div>
         )}

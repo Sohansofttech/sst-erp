@@ -37,7 +37,7 @@ export default function StudentLmsPage() {
   const fetchLms = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/student/lms");
+      const res = await fetch("/api/student/lms", { credentials: "include" });
       const json = await res.json();
       if (json.success) setData(json.data);
     } catch (e) {
@@ -49,6 +49,13 @@ export default function StudentLmsPage() {
 
   useEffect(() => {
     fetchLms();
+    const handleChildChanged = () => {
+      fetchLms();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handleAssignmentSubmit = async (e: React.FormEvent) => {
@@ -122,7 +129,7 @@ export default function StudentLmsPage() {
           onClick={() => setTab("MATERIALS")}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
             tab === "MATERIALS"
-              ? "bg-[#153B66] text-white"
+              ? "bg-[#0F2942] text-white shadow-sm"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
@@ -132,7 +139,7 @@ export default function StudentLmsPage() {
           onClick={() => setTab("ASSIGNMENTS")}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
             tab === "ASSIGNMENTS"
-              ? "bg-[#153B66] text-white"
+              ? "bg-[#0F2942] text-white shadow-sm"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
@@ -142,7 +149,7 @@ export default function StudentLmsPage() {
           onClick={() => setTab("QUIZZES")}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
             tab === "QUIZZES"
-              ? "bg-[#153B66] text-white"
+              ? "bg-[#0F2942] text-white shadow-sm"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
@@ -156,15 +163,15 @@ export default function StudentLmsPage() {
             {materials?.map((m: any) => (
               <div
                 key={m.id}
-                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
                 <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-[#2563EB]">
+                  <div className="p-2.5 rounded-lg bg-white border border-[#E2E8F0] text-[#F59E0B]">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#DBEAFE] text-[#2563EB]">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                         {m.subjectCode}
                       </span>
                       <h4 className="text-sm font-bold text-[#1E293B]">{m.title}</h4>
@@ -204,12 +211,12 @@ export default function StudentLmsPage() {
               return (
                 <div
                   key={a.id}
-                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-3"
+                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-3"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[#2563EB]">{a.subjectCode}</span>
+                        <span className="text-xs font-bold text-[#D97706]">{a.subjectCode}</span>
                         <h4 className="text-sm font-bold text-[#1E293B]">{a.title}</h4>
                       </div>
                       <p className="text-xs text-[#64748B] mt-0.5">
@@ -270,11 +277,11 @@ export default function StudentLmsPage() {
             {quizzes?.map((q: any) => (
               <div
                 key={q.id}
-                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-[#2563EB]">{q.subjectCode}</span>
+                    <span className="text-xs font-bold text-[#D97706]">{q.subjectCode}</span>
                     <h4 className="text-sm font-bold text-[#1E293B]">{q.title}</h4>
                   </div>
                   <p className="text-xs text-[#64748B] mt-0.5">
@@ -325,7 +332,7 @@ export default function StudentLmsPage() {
                 Submission Notes & Answers
               </label>
               <textarea
-                className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg focus:border-[#2563EB] focus:outline-none"
+                className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg focus:border-[#F59E0B] focus:outline-none"
                 rows={4}
                 value={textContent}
                 onChange={(e) => setTextContent(e.target.value)}
@@ -334,7 +341,7 @@ export default function StudentLmsPage() {
               />
             </div>
 
-            <div className="p-3 bg-[#F8FAFC] rounded-lg border border-dashed border-[#CBD5E1] text-center text-xs text-[#64748B]">
+            <div className="p-3 bg-[#EEF2F6]/50 rounded-lg border border-dashed border-[#CBD5E1] text-center text-xs text-[#64748B]">
               <Upload className="w-5 h-5 mx-auto text-[#64748B] mb-1" />
               <span>Project Artifact / Code Report (PDF attachment simulation verified)</span>
             </div>
@@ -364,7 +371,7 @@ export default function StudentLmsPage() {
             <div className="text-center py-6 space-y-3">
               <Award className="w-12 h-12 text-[#16A34A] mx-auto" />
               <h3 className="text-lg font-bold text-[#1E293B]">Quiz Submitted Successfully!</h3>
-              <p className="text-2xl font-extrabold text-[#2563EB]">
+              <p className="text-2xl font-extrabold text-[#0F2942]">
                 Your Score: {quizResult.score} / {selectedQuiz.totalPoints}
               </p>
               <Button variant="primary" size="sm" onClick={() => setSelectedQuiz(null)}>
@@ -374,7 +381,7 @@ export default function StudentLmsPage() {
           ) : (
             <form onSubmit={handleQuizSubmit} className="space-y-6">
               {selectedQuiz.questions.map((q: any, idx: number) => (
-                <div key={q.id} className="p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] space-y-2">
+                <div key={q.id} className="p-4 bg-[#EEF2F6]/50 rounded-xl border border-[#E2E8F0] space-y-2">
                   <p className="text-xs font-bold text-[#1E293B]">
                     Q{idx + 1}. {q.questionText} ({q.points} pts)
                   </p>
@@ -387,7 +394,7 @@ export default function StudentLmsPage() {
                           key={opt}
                           className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
                             quizAnswers[q.id] === opt
-                              ? "bg-blue-50 border-[#2563EB] text-[#2563EB] font-semibold"
+                              ? "bg-[#FFFBEB] border-[#F59E0B] text-[#D97706] font-semibold"
                               : "bg-white border-[#E2E8F0] text-[#1E293B] hover:bg-slate-50"
                           }`}
                         >
@@ -399,7 +406,7 @@ export default function StudentLmsPage() {
                             onChange={() =>
                               setQuizAnswers((prev) => ({ ...prev, [q.id]: opt }))
                             }
-                            className="text-[#2563EB]"
+                            className="text-[#F59E0B]"
                             required
                           />
                           <span>

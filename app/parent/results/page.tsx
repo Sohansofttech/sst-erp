@@ -51,7 +51,7 @@ export default function ParentResultsPage() {
             Cumulative Grade Point (CGPA)
           </p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-[#153B66]">{cgpa || "N/A"}</span>
+            <span className="text-3xl font-extrabold text-[#0F2942]">{cgpa || "N/A"}</span>
             <span className="text-xs text-[#64748B]">/ 10.00</span>
           </div>
           <Badge variant="success" size="sm" className="mt-2 w-fit">
@@ -59,7 +59,7 @@ export default function ParentResultsPage() {
           </Badge>
         </div>
 
-        <div className="md:col-span-2 bg-[#F8FAFC] border border-[#E2E8F0] p-6 rounded-2xl flex flex-col justify-center text-xs">
+        <div className="md:col-span-2 bg-[#EEF2F6]/50 border border-[#E2E8F0] p-6 rounded-2xl flex flex-col justify-center text-xs">
           <h3 className="font-bold text-[#1E293B] text-sm">Protected Gradebook Ledger</h3>
           <p className="text-[#64748B] mt-1 leading-relaxed">
             Grades and internal assessment marks are certified by the institutional controller of examinations. Parents may view their linked child's performance records but cannot modify protected academic marks.
@@ -103,14 +103,14 @@ export default function ParentResultsPage() {
         <Card title="Internal Assessment (IA) Progress">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {subjectWise?.map((sub: any, idx: number) => (
-              <div key={idx} className="p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs space-y-2">
+              <div key={idx} className="p-4 bg-[#EEF2F6]/50 border border-[#E2E8F0] rounded-xl text-xs space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-[#1E293B]">{sub.subjectName}</span>
                   <Badge variant="brand" size="sm">{sub.subjectCode}</Badge>
                 </div>
                 <div className="flex justify-between text-[#64748B]">
                   <span>Total IA Score:</span>
-                  <span className="font-bold text-[#153B66]">
+                  <span className="font-bold text-[#0F2942]">
                     {sub.totalMarksScored} / {sub.totalMaxMarks} ({sub.percentage}%)
                   </span>
                 </div>

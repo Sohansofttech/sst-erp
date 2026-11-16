@@ -14,24 +14,32 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"SUBJECT_WISE" | "MONTHLY" | "DAILY_HISTORY" | "IN_OUT">("SUBJECT_WISE");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [attRes, inOutRes] = await Promise.all([
-          fetch("/api/student/attendance").then((r) => r.json()),
-          fetch("/api/student/in-out").then((r) => r.json()),
-        ]);
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [attRes, inOutRes] = await Promise.all([
+        fetch("/api/student/attendance", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/in-out", { credentials: "include" }).then((r) => r.json()),
+      ]);
 
-        if (attRes.success) setData(attRes.data);
-        if (inOutRes.success) setInOutLogs(inOutRes.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      if (attRes.success) setData(attRes.data);
+      if (inOutRes.success) setInOutLogs(inOutRes.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
+    const handleChildChanged = () => {
+      fetchData();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   if (loading) {
@@ -54,13 +62,14 @@ export default function AttendancePage() {
           subtitle="Minimum 75% required"
           badgeText={summary?.overallPercentage >= 75 ? "Eligible" : "Attendance Shortage"}
           badgeVariant={summary?.overallPercentage >= 75 ? "success" : "error"}
-          icon={<CheckCircle2 className="w-5 h-5 text-[#16A34A]" />}
+          variant="dark"
+          icon={<CheckCircle2 className="w-5 h-5 text-white" />}
         />
         <StatCard
           title="Total Sessions"
           value={summary?.totalClasses ?? 0}
           subtitle="Conducted this semester"
-          icon={<Clock className="w-5 h-5 text-[#2563EB]" />}
+          icon={<Clock className="w-5 h-5 text-[#F59E0B]" />}
         />
         <StatCard
           title="Classes Attended"
@@ -68,7 +77,7 @@ export default function AttendancePage() {
           subtitle="Present or excused"
           badgeText="Verified"
           badgeVariant="success"
-          icon={<CheckCircle2 className="w-5 h-5 text-[#14B8A6]" />}
+          icon={<CheckCircle2 className="w-5 h-5 text-[#F59E0B]" />}
         />
         <StatCard
           title="Total Absences"
@@ -86,7 +95,7 @@ export default function AttendancePage() {
           onClick={() => setTab("SUBJECT_WISE")}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
             tab === "SUBJECT_WISE"
-              ? "bg-[#153B66] text-white"
+              ? "bg-[#0F2942] text-white shadow-sm"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
@@ -96,7 +105,7 @@ export default function AttendancePage() {
           onClick={() => setTab("MONTHLY")}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
             tab === "MONTHLY"
-              ? "bg-[#153B66] text-white"
+              ? "bg-[#0F2942] text-white shadow-sm"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
@@ -106,7 +115,7 @@ export default function AttendancePage() {
           onClick={() => setTab("DAILY_HISTORY")}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
             tab === "DAILY_HISTORY"
-              ? "bg-[#153B66] text-white"
+              ? "bg-[#0F2942] text-white shadow-sm"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
@@ -116,7 +125,7 @@ export default function AttendancePage() {
           onClick={() => setTab("IN_OUT")}
           className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
             tab === "IN_OUT"
-              ? "bg-[#153B66] text-white"
+              ? "bg-[#0F2942] text-white shadow-sm"
               : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
@@ -132,11 +141,11 @@ export default function AttendancePage() {
               return (
                 <div
                   key={sub.subjectId}
-                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#DBEAFE] text-[#2563EB]">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                         {sub.subjectCode}
                       </span>
                       <h4 className="text-sm font-semibold text-[#1E293B]">
@@ -187,10 +196,10 @@ export default function AttendancePage() {
               return (
                 <div
                   key={m.monthYear}
-                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]"
+                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-[#153B66]">{m.monthYear}</span>
+                    <span className="text-xs font-bold text-[#0F2942]">{m.monthYear}</span>
                     <Badge variant={isGood ? "success" : "error"} size="sm">
                       {isGood ? "Eligible" : "Shortage"}
                     </Badge>

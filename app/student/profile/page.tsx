@@ -39,8 +39,8 @@ export default function StudentProfilePage() {
     try {
       setLoading(true);
       const [profileRes, requestsRes] = await Promise.all([
-        fetch("/api/student/profile").then((r) => r.json()),
-        fetch("/api/student/profile/requests").then((r) => r.json()),
+        fetch("/api/student/profile", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/profile/requests", { credentials: "include" }).then((r) => r.json()),
       ]);
 
       if (profileRes.success) setStudent(profileRes.data);
@@ -54,6 +54,13 @@ export default function StudentProfilePage() {
 
   useEffect(() => {
     fetchData();
+    const handleChildChanged = () => {
+      fetchData();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handleSubmitCorrection = async (e: React.FormEvent) => {
@@ -115,7 +122,7 @@ export default function StudentProfilePage() {
       {/* Profile Header Bar */}
       <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#153B66] text-white flex items-center justify-center font-bold text-xl shadow-md">
+          <div className="w-16 h-16 rounded-2xl bg-[#0F2942] text-white flex items-center justify-center font-bold text-xl shadow-md">
             {student?.firstName?.[0]}
             {student?.lastName?.[0]}
           </div>
@@ -132,7 +139,7 @@ export default function StudentProfilePage() {
               Roll No: <span className="font-semibold text-[#1E293B]">{student?.rollNumber}</span> • Admission:{" "}
               <span className="font-semibold text-[#1E293B]">{student?.admissionNumber}</span>
             </p>
-            <p className="text-xs text-[#2563EB] font-medium mt-0.5">
+            <p className="text-xs text-[#D97706] font-medium mt-0.5">
               {enrollment?.course?.name} ({enrollment?.course?.code})
             </p>
           </div>
@@ -143,7 +150,7 @@ export default function StudentProfilePage() {
             variant="outline"
             size="sm"
             onClick={() => setIsModalOpen(true)}
-            icon={<Edit3 className="w-4 h-4 text-[#2563EB]" />}
+            icon={<Edit3 className="w-4 h-4 text-[#F59E0B]" />}
           >
             Request Profile Correction
           </Button>
@@ -270,13 +277,13 @@ export default function StudentProfilePage() {
             subtitle="Modifications require institutional registrar approval"
           >
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
+              <div className="p-3 bg-[#EEF2F6]/50 rounded-lg border border-[#E2E8F0]">
                 <p className="text-[#64748B]">Current Academic Year</p>
-                <p className="font-bold text-[#153B66] text-sm">
+                <p className="font-bold text-[#0F2942] text-sm">
                   {enrollment?.academicYear?.name || "N/A"}
                 </p>
               </div>
-              <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
+              <div className="p-3 bg-[#EEF2F6]/50 rounded-lg border border-[#E2E8F0]">
                 <p className="text-[#64748B]">Department & Course</p>
                 <p className="font-bold text-[#1E293B] text-xs">
                   {enrollment?.course?.department}
@@ -286,13 +293,13 @@ export default function StudentProfilePage() {
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
+                <div className="p-3 bg-[#EEF2F6]/50 rounded-lg border border-[#E2E8F0]">
                   <p className="text-[#64748B]">Semester</p>
                   <p className="font-bold text-[#1E293B] text-sm">
                     Sem {student?.currentSemester}
                   </p>
                 </div>
-                <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
+                <div className="p-3 bg-[#EEF2F6]/50 rounded-lg border border-[#E2E8F0]">
                   <p className="text-[#64748B]">Section</p>
                   <p className="font-bold text-[#1E293B] text-sm">
                     Section {student?.currentSection}
@@ -314,18 +321,18 @@ export default function StudentProfilePage() {
                 student?.guardianLinks?.map((link: any) => (
                   <div
                     key={link.id}
-                    className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-2"
+                    className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-2"
                   >
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-xs font-bold text-[#1E293B]">
                           {link.guardianAccount.fullName}
                         </span>
-                        <span className="ml-2 text-[10px] font-semibold text-[#2563EB] bg-[#DBEAFE] px-2 py-0.5 rounded">
+                        <span className="ml-2 text-[10px] font-semibold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded">
                           {link.relationship}
                         </span>
                         {link.isPrimary && (
-                          <span className="ml-1 text-[10px] font-semibold text-[#153B66] bg-slate-200 px-1.5 py-0.5 rounded">
+                          <span className="ml-1 text-[10px] font-semibold text-[#0F2942] bg-[#EEF2F6] px-1.5 py-0.5 rounded">
                             Primary
                           </span>
                         )}
@@ -376,7 +383,7 @@ export default function StudentProfilePage() {
                   className="p-3 rounded-lg border border-[#E2E8F0] bg-white flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-[#2563EB]" />
+                    <FileText className="w-4 h-4 text-[#F59E0B]" />
                     <span className="font-medium text-[#1E293B]">{doc.title}</span>
                   </div>
                   <Badge variant="brand" size="sm">
@@ -397,8 +404,8 @@ export default function StudentProfilePage() {
         subtitle="Requested changes will be reviewed and approved by Institution Admin"
       >
         <form onSubmit={handleSubmitCorrection} className="space-y-4">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
-            <ShieldAlert className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
+          <div className="p-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-lg text-xs text-[#92400E] flex items-start gap-2">
+            <ShieldAlert className="w-4 h-4 text-[#F59E0B] shrink-0 mt-0.5" />
             <span>
               Per Section 7, students may not directly mutate protected identity or academic data.
               Submissions enter the institution admin approval engine.
@@ -424,7 +431,7 @@ export default function StudentProfilePage() {
               Reason for Update <span className="text-[#DC2626]">*</span>
             </label>
             <textarea
-              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg focus:border-[#F59E0B] focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/20"
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
