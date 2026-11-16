@@ -24,6 +24,13 @@ import {
   FileSpreadsheet,
   Award,
   GraduationCap,
+  CreditCard,
+  Home,
+  Bus,
+  CalendarDays,
+  MessageSquare,
+  CheckSquare,
+  History,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -400,6 +407,90 @@ export default function DashboardPage() {
                 Roles & Access
               </span>
               <span className="text-[10px] text-[#64748B] mt-0.5">RBAC Matrix</span>
+            </div>
+          </Link>
+
+          <Link href="/admin/fees">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                <CreditCard className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#2563EB]">
+                Fees & Finance
+              </span>
+              <span className="text-[10px] text-[#64748B] mt-0.5">Billing & Receipts</span>
+            </div>
+          </Link>
+
+          <Link href="/admin/hostel">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-[#CCFBF1] text-[#0D9488] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                <Home className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#2563EB]">
+                Hostel
+              </span>
+              <span className="text-[10px] text-[#64748B] mt-0.5">Rooms & Beds</span>
+            </div>
+          </Link>
+
+          <Link href="/admin/transport">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                <Bus className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#2563EB]">
+                Transport
+              </span>
+              <span className="text-[10px] text-[#64748B] mt-0.5">Fleet & Routes</span>
+            </div>
+          </Link>
+
+          <Link href="/admin/events">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-[#F0FDF4] text-[#16A34A] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                <CalendarDays className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#2563EB]">
+                Events
+              </span>
+              <span className="text-[10px] text-[#64748B] mt-0.5">Campus Venues</span>
+            </div>
+          </Link>
+
+          <Link href="/admin/communication">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#2563EB]">
+                Notices
+              </span>
+              <span className="text-[10px] text-[#64748B] mt-0.5">Circulars Broadcast</span>
+            </div>
+          </Link>
+
+          <Link href="/admin/approvals">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                <CheckSquare className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#2563EB]">
+                Approvals
+              </span>
+              <span className="text-[10px] text-[#64748B] mt-0.5">Requests Queue</span>
+            </div>
+          </Link>
+
+          <Link href="/admin/audit-logs">
+            <div className="p-3.5 rounded-xl bg-white border border-[#E2E8F0] hover:border-[#2563EB] hover:shadow-md transition-all text-center group cursor-pointer h-full flex flex-col items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-[#E0E7FF] text-[#153B66] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                <History className="w-4 h-4" />
+              </div>
+              <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#2563EB]">
+                Audit Logs
+              </span>
+              <span className="text-[10px] text-[#64748B] mt-0.5">Forensic Trail</span>
             </div>
           </Link>
         </div>

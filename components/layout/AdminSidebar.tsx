@@ -49,15 +49,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
   const isAcademicsActive = pathname.startsWith("/admin/academics");
 
-  const placeholderLinks = [
-    { section: "Campus Services & Finance", href: "/admin/placeholder/fees-finance", label: "Fees & Finance", icon: CreditCard },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/hostel", label: "Hostel", icon: Home },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/transport", label: "Transport", icon: Bus },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/events-resources", label: "Events & Resources", icon: CalendarDays },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/gate-management", label: "Gate Management", icon: Shield },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/communication", label: "Communication", icon: MessageSquare },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/approvals", label: "Approvals", icon: CheckSquare },
-    { section: "Campus Services & Finance", href: "/admin/placeholder/audit-logs", label: "Audit Logs", icon: History },
+  const campusServiceLinks = [
+    { href: "/admin/fees", label: "Fees & Finance", icon: CreditCard },
+    { href: "/admin/hostel", label: "Hostel", icon: Home },
+    { href: "/admin/transport", label: "Transport", icon: Bus },
+    { href: "/admin/events", label: "Events & Resources", icon: CalendarDays },
+    { href: "/admin/communication", label: "Communication", icon: MessageSquare },
+    { href: "/admin/approvals", label: "Approvals", icon: CheckSquare },
+    { href: "/admin/audit-logs", label: "Audit Logs", icon: History },
   ];
 
   return (
@@ -465,80 +464,36 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             </span>
           </Link>
 
-          {placeholderLinks
-            .filter((item) => item.section === "Operations & Assessments")
-            .map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
-                    isActive
-                      ? "bg-[#2563EB] text-white font-semibold shadow-xs"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="w-3.5 h-3.5 text-[#93C5FD]" />
-                    <span>{item.label}</span>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                      isActive
-                        ? "bg-white/20 text-white font-bold"
-                        : "text-[#93C5FD]/60 bg-white/5"
-                    )}
-                  >
-                    Soon
-                  </span>
-                </Link>
-              );
-            })}
-
           {/* Section: Campus Services & Finance */}
           <div className="pt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
             Campus Services & Finance
           </div>
 
-          {placeholderLinks
-            .filter((item) => item.section === "Campus Services & Finance")
-            .map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
-                    isActive
-                      ? "bg-[#2563EB] text-white font-semibold shadow-xs"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="w-3.5 h-3.5 text-[#93C5FD]" />
-                    <span>{item.label}</span>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                      isActive
-                        ? "bg-white/20 text-white font-bold"
-                        : "text-[#93C5FD]/60 bg-white/5"
-                    )}
-                  >
-                    Soon
-                  </span>
-                </Link>
-              );
-            })}
+          {campusServiceLinks.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
+                  isActive
+                    ? "bg-[#2563EB] text-white font-semibold shadow-xs"
+                    : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Icon className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <span>{item.label}</span>
+                </div>
+                <span className="text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
+                  Active
+                </span>
+              </Link>
+            );
+          })}
         </div>
 
         {/* Footer info (Fixed Bottom) */}

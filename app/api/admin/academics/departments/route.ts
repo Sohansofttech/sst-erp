@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from "next/server";
+import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { getDepartments, createDepartment } from "@/lib/services/institution-admin.service";
+import db from "@/lib/db";
+
+export async function GET(req: NextRequest) {
+  try {
+    const { institutionId } = await resolveAdminContext(req);
+    const departments = await getDepartments(institutionId);
+
+    return NextResponse.json({
+      success: true,
+      data: departments,
+    });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { institutionId } = await resolveAdminContext(req);
+    const body = await req.json();
+
+    if (!body.name || !body.code) {
+      return NextResponse.json(
+        { success: false, error: "Department name and code are required." },
+        { status: 400 }
+      );
+    }
+
+    const dept = await createDepartment(institutionId, body);
+    return NextResponse.json({
+      success: true,
+      message: "Department created successfully.",
+      data: dept,
+    });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { institutionId } = await resolveAdminContext(req);
+    const id = req.nextUrl.searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Department ID required." }, { status: 400 });
+    }
+
+    await db.department.delete({ where: { id } });
+    return NextResponse.json({ success: true, message: "Department deleted." });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}

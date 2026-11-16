@@ -811,6 +811,16 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("ay", updated);
       return updated;
     });
+
+    try {
+      fetch("/api/admin/academics/academic-years", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).catch(() => {});
+    } catch {
+      // Offline fallback
+    }
   };
 
   const updateAcademicYear = (id: string, data: Partial<AcademicYear>) => {
@@ -1324,6 +1334,23 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         saveState("guardians", updated);
         return updated;
       });
+    }
+
+    try {
+      fetch("/api/admin/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: newStudent.fullName,
+          email: newStudent.institutionalEmail,
+          rollNumber: newStudent.rollNumber,
+          usn: newStudent.rollNumber,
+          phone: newStudent.phone,
+          gender: newStudent.gender,
+        }),
+      }).catch(() => {});
+    } catch {
+      // Offline fallback
     }
 
     return newStudent;
