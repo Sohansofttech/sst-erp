@@ -776,7 +776,7 @@ export default function AdmissionsPage() {
                   </Button>
                 )}
                 {selectedApp.isConvertedToStudent && (
-                  <Link href="/admin/students">
+                  <Link href="/institution-admin/students">
                     <Button variant="outline" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
                       View in Student Directory ({selectedApp.convertedStudentId})
                     </Button>

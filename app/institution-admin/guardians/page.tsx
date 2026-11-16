@@ -316,7 +316,7 @@ export default function GuardiansPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link href="/admin/students">
+          <Link href="/institution-admin/students">
             <Button variant="outline" size="sm" className="gap-2">
               <GraduationCap className="h-4 w-4 text-slate-600" />
               View Students

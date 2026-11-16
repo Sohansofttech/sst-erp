@@ -53,7 +53,7 @@ function VerifyContent() {
         {/* Back Link */}
         <div className="flex items-center justify-between">
           <Link
-            href="/admin/certificates"
+            href="/institution-admin/certificates"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Certificate Console
@@ -321,7 +321,7 @@ function VerifyContent() {
                 <div className="bg-[#F8FAFC] px-6 py-3 border-t border-[#E2E8F0] flex items-center justify-between text-[11px] text-[#94A3B8]">
                   <span>SST ERP Cryptographic Trust Verification Registry</span>
                   <Link
-                    href={`/admin/certificates`}
+                    href={`/institution-admin/certificates`}
                     className="text-[#2563EB] hover:underline font-semibold flex items-center gap-1"
                   >
                     View in Administrative Console <ExternalLink className="w-3 h-3" />

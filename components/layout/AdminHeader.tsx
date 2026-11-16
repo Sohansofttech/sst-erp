@@ -184,14 +184,14 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
               </div>
               <div className="py-1">
                 <Link
-                  href="/admin/settings"
+                  href="/institution-admin/settings"
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg text-[#1E293B] hover:bg-[#F8FAFC]"
                 >
                   <User className="w-3.5 h-3.5 text-[#64748B]" /> Institution Profile
                 </Link>
                 <Link
-                  href="/admin/roles-permissions"
+                  href="/institution-admin/roles-permissions"
                   onClick={() => setShowProfileMenu(false)}
                   className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg text-[#1E293B] hover:bg-[#F8FAFC]"
                 >
@@ -200,7 +200,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 <button
                   onClick={() => {
                     setShowProfileMenu(false);
-                    router.push("/admin/login");
+                    router.push("/institution-admin/login");
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg text-[#DC2626] hover:bg-[#FEE2E2] text-left cursor-pointer"
                 >
