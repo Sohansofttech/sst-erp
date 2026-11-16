@@ -1,9 +1,8 @@
 "use client";
 
 import React from "react";
-import { Menu, School, User as UserIcon, LogOut } from "lucide-react";
+import { Menu, School, LogOut } from "lucide-react";
 import { NotificationDropdown } from "../shared/NotificationDropdown";
-import { ChildSelector } from "../shared/ChildSelector";
 import { Badge } from "../shared/Badge";
 
 interface HeaderProps {
@@ -27,7 +26,11 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/me", { method: "POST" });
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("erp_token");
+        localStorage.removeItem("erp_user");
+      }
+      await fetch("/api/auth/me", { method: "POST", credentials: "include" });
       window.location.href = "/login";
     } catch {
       window.location.href = "/login";
@@ -39,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuToggle}
-          className="p-2 -ml-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#F8FAFC] rounded-lg lg:hidden"
+          className="p-2 -ml-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#EEF2F6] rounded-lg lg:hidden"
           aria-label="Open sidebar"
         >
           <Menu className="w-5 h-5" />
@@ -47,30 +50,23 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#64748B] font-medium">
-            <School className="w-4 h-4 text-[#153B66]" />
+            <School className="w-4 h-4 text-[#0F2942]" />
             <span className="font-semibold text-[#1E293B]">{institutionName}</span>
           </div>
-          <Badge variant="brand" size="sm" className="hidden md:inline-flex">
-            {portalType === "PARENT" ? "Verified Guardian" : "Active Student"}
+          <Badge variant="brand" size="sm" className="hidden md:inline-flex bg-[#0F2942] text-white">
+            Active Student
           </Badge>
         </div>
       </div>
 
-      {/* Right side: Child Selector (for Parent), Notifications, User Profile */}
+      {/* Right side: Notifications, User Profile */}
       <div className="flex items-center gap-3 sm:gap-4">
-        {portalType === "PARENT" && onSelectChild && (
-          <ChildSelector
-            selectedChildId={selectedChildId}
-            onSelectChild={onSelectChild}
-          />
-        )}
-
         <NotificationDropdown />
 
         <div className="h-6 w-px bg-[#E2E8F0]" />
 
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-[#153B66] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-[#0F2942] text-white flex items-center justify-center font-bold text-xs shadow-sm">
             {userFullName
               .split(" ")
               .map((n) => n[0])

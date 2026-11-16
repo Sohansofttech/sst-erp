@@ -6,7 +6,7 @@ import { Header } from "./Header";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  portalType: "STUDENT" | "PARENT";
+  portalType?: "STUDENT" | "PARENT";
   pageTitle?: string;
   selectedChildId?: string;
   onSelectChild?: (childId: string) => void;
@@ -14,24 +14,49 @@ interface PortalLayoutProps {
 
 export const PortalLayout: React.FC<PortalLayoutProps> = ({
   children,
-  portalType,
+  portalType = "STUDENT",
   pageTitle,
   selectedChildId,
   onSelectChild,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [internalChildId, setInternalChildId] = useState<string>("");
   const [user, setUser] = useState<{
     fullName: string;
-    role: string;
+    role: "STUDENT" | "PARENT" | string;
     institutionName: string;
   } | null>(null);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_active_child_id");
+      if (stored) setInternalChildId(stored);
+    }
+    const handleChildChanged = (e: any) => {
+      if (e.detail?.childId) {
+        setInternalChildId(e.detail.childId);
+      }
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
     const fetchMe = async () => {
       try {
-        const res = await fetch("/api/auth/me");
+        const token = typeof window !== "undefined" ? localStorage.getItem("erp_token") : null;
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          headers,
+        });
         const json = await res.json();
-        if (json.success && json.data?.session) {
+        if (isMounted && json.success && json.data?.session) {
           setUser({
             fullName: json.data.session.fullName,
             role: json.data.session.role,
@@ -39,31 +64,41 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
           });
         }
       } catch (err) {
-        console.error(err);
+        console.error("PortalLayout fetch error", err);
       }
     };
     fetchMe();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
+  const effectiveRole = user?.role === "PARENT" ? "PARENT" : "STUDENT";
+  const currentChildId = selectedChildId || internalChildId;
+  const handleSelect = (id: string) => {
+    setInternalChildId(id);
+    if (onSelectChild) onSelectChild(id);
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-[#EEF2F6]">
       {/* Shared Responsive Sidebar */}
       <Sidebar
-        portalType={portalType}
+        portalType={effectiveRole}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        selectedChildId={selectedChildId}
+        selectedChildId={currentChildId}
       />
 
       {/* Main Content Area */}
       <div className="lg:pl-64 flex flex-col min-h-screen">
         <Header
-          portalType={portalType}
-          userFullName={user?.fullName || (portalType === "PARENT" ? "Robert Doe" : "John Doe")}
-          userRole={user?.role || portalType}
+          portalType={effectiveRole}
+          userFullName={user?.fullName || "John Doe"}
+          userRole={effectiveRole}
           institutionName={user?.institutionName || "Apex Institute of Technology"}
-          selectedChildId={selectedChildId}
-          onSelectChild={onSelectChild}
+          selectedChildId={currentChildId}
+          onSelectChild={handleSelect}
           onMenuToggle={() => setSidebarOpen(true)}
         />
 

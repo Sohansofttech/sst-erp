@@ -7,7 +7,8 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
     const url = new URL(req.url);
-    const requestedStudentId = url.searchParams.get("studentId") || session.studentId;
+    const requestedStudentId =
+      url.searchParams.get("studentId") || session.studentId || session.activeChildId;
 
     if (!requestedStudentId) {
       return NextResponse.json(
@@ -123,9 +124,12 @@ export async function GET(req: NextRequest) {
 
     const recentResults = allResults.slice(0, 4);
 
+    const isParent = session.role === "PARENT";
+
     return NextResponse.json({
       success: true,
       data: {
+        isParent,
         student: {
           id: student.id,
           firstName: student.firstName,
@@ -156,15 +160,18 @@ export async function GET(req: NextRequest) {
           totalPaid,
           hasDue: totalOutstanding > 0,
         },
-        upcomingExams: upcomingExams.map((e) => ({
-          id: e.id,
-          title: e.title,
-          examType: e.examType,
-          startDate: e.startDate,
-          endDate: e.endDate,
-          slotsCount: e.slots.length,
-          hasHallTicket: e.admitCards.length > 0,
-        })),
+        // Final examinations are accessible only to students per institutional policy
+        upcomingExams: isParent
+          ? []
+          : upcomingExams.map((e) => ({
+              id: e.id,
+              title: e.title,
+              examType: e.examType,
+              startDate: e.startDate,
+              endDate: e.endDate,
+              slotsCount: e.slots.length,
+              hasHallTicket: e.admitCards.length > 0,
+            })),
         assignments: activeAssignments.map((a) => ({
           id: a.id,
           title: a.title,
@@ -180,15 +187,17 @@ export async function GET(req: NextRequest) {
           category: n.notification.category,
           createdAt: n.notification.createdAt,
         })),
-        recentResults: recentResults.map((r) => ({
-          id: r.id,
-          subjectCode: r.subject.code,
-          subjectName: r.subject.name,
-          grade: r.grade,
-          totalMarks: r.totalMarks,
-          isPassed: r.isPassed,
-        })),
-        cgpa: dynamicCgpa,
+        recentResults: isParent
+          ? []
+          : recentResults.map((r) => ({
+              id: r.id,
+              subjectCode: r.subject.code,
+              subjectName: r.subject.name,
+              grade: r.grade,
+              totalMarks: r.totalMarks,
+              isPassed: r.isPassed,
+            })),
+        cgpa: isParent ? undefined : dynamicCgpa,
       },
     });
   } catch (err: any) {

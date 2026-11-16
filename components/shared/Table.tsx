@@ -24,7 +24,7 @@ export function Table<T extends Record<string, any>>({
     <div className={`w-full overflow-x-auto rounded-lg border border-[#E2E8F0] ${className}`}>
       <table className="w-full text-left border-collapse text-[13px] md:text-[14px]">
         <thead>
-          <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] font-semibold">
+          <tr className="bg-[#EEF2F6] border-b border-[#E2E8F0] text-[#64748B] font-semibold">
             {columns.map((col, idx) => (
               <th key={idx} className={`px-4 py-3 font-semibold ${col.className || ""}`}>
                 {col.header}
@@ -46,7 +46,7 @@ export function Table<T extends Record<string, any>>({
             data.map((row, rIdx) => (
               <tr
                 key={rIdx}
-                className="hover:bg-[#F8FAFC] transition-colors"
+                className="hover:bg-[#EEF2F6]/60 transition-colors"
               >
                 {columns.map((col, cIdx) => (
                   <td key={cIdx} className={`px-4 py-3.5 align-middle ${col.className || ""}`}>

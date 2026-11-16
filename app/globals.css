@@ -81,26 +81,26 @@
 
 :root {
   /* Mandatory School ERP Design System Tokens */
-  --brand: #153b66;
+  --brand: #0F2942;
   --brand-foreground: #ffffff;
-  --primary: #2563eb;
+  --primary: #0F2942;
   --primary-foreground: #ffffff;
   --teal: #14b8a6;
   --teal-foreground: #ffffff;
 
-  --background: #f8fafc;
-  --foreground: #1e293b;
-  --card: #ffffff;
-  --card-foreground: #1e293b;
-  --popover: #ffffff;
-  --popover-foreground: #1e293b;
+  --background: #EEF2F6;
+  --foreground: #1E293B;
+  --card: #FFFFFF;
+  --card-foreground: #1E293B;
+  --popover: #FFFFFF;
+  --popover-foreground: #1E293B;
 
-  --secondary: #f1f5f9;
-  --secondary-foreground: #1e293b;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #2563eb;
-  --accent-foreground: #ffffff;
+  --secondary: #F59E0B;
+  --secondary-foreground: #FFFFFF;
+  --muted: #E2E8F0;
+  --muted-foreground: #64748B;
+  --accent: #F59E0B;
+  --accent-foreground: #FFFFFF;
 
   --success: #16a34a;
   --success-foreground: #ffffff;
@@ -111,18 +111,19 @@
   --destructive: #dc2626;
 
   --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #2563eb;
-  --radius: 0.625rem;
+  --input: #e2e8f0;
+  --ring: #f59e0b;
+  --radius: 0.75rem;
 
-  /* Mandated Institutional Design System Palette */
-  --erp-brand: #153B66;
-  --erp-action: #2563EB;
-  --erp-accent: #14B8A6;
-  --erp-page-bg: #F8FAFC;
+  /* Reference Design Color Palette (Deep Navy + Warm Amber/Orange + Soft Cool Grey) */
+  --erp-brand: #0F2942;
+  --erp-action: #F59E0B;
+  --erp-accent: #F59E0B;
+  --erp-page-bg: #EEF2F6;
   --erp-card: #FFFFFF;
   --erp-text-primary: #1E293B;
   --erp-text-secondary: #64748B;
+  --erp-border: #E2E8F0;
   --erp-success: #16A34A;
   --erp-warning: #F59E0B;
   --erp-error: #DC2626;

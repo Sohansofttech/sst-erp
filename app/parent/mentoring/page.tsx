@@ -35,8 +35,8 @@ export default function ParentMentoringPage() {
       selectedChildId={selectedChildId}
       onSelectChild={(id) => setSelectedChildId(id)}
     >
-      <div className="mb-6 p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-900 flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-[#2563EB] shrink-0 mt-0.5" />
+      <div className="mb-6 p-4 rounded-xl border border-[#FDE68A] bg-[#FEF3C7]/60 text-[#92400E] flex items-start gap-3">
+        <ShieldCheck className="w-5 h-5 text-[#F59E0B] shrink-0 mt-0.5" />
         <div className="text-xs">
           <p className="font-bold uppercase tracking-wider">Parent Privacy Boundary Enforced (Section 22 & 27)</p>
           <p className="mt-0.5 leading-relaxed">
@@ -58,7 +58,7 @@ export default function ParentMentoringPage() {
             {mentoring.map((m) => (
               <div
                 key={m.id}
-                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-3 text-xs"
+                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-3 text-xs"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
                   <div>
@@ -73,7 +73,7 @@ export default function ParentMentoringPage() {
                 </div>
 
                 <div>
-                  <span className="font-bold text-[#153B66]">Academic Review & Discussion:</span>
+                  <span className="font-bold text-[#0F2942]">Academic Review & Discussion:</span>
                   <p className="text-[#1E293B] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
                 </div>
 

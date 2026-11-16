@@ -28,8 +28,8 @@ export default function StudentMentoringPage() {
     try {
       setLoading(true);
       const [mRes, lRes] = await Promise.all([
-        fetch("/api/student/mentoring").then((r) => r.json()),
-        fetch("/api/student/logbook").then((r) => r.json()),
+        fetch("/api/student/mentoring", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/logbook", { credentials: "include" }).then((r) => r.json()),
       ]);
 
       if (mRes.success) setMentoring(mRes.data);
@@ -43,6 +43,13 @@ export default function StudentMentoringPage() {
 
   useEffect(() => {
     fetchData();
+    const handleChildChanged = () => {
+      fetchData();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handleLogSubmit = async (e: React.FormEvent) => {
@@ -89,7 +96,7 @@ export default function StudentMentoringPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <Users2 className="w-5 h-5 text-[#2563EB]" />
+              <Users2 className="w-5 h-5 text-[#F59E0B]" />
               <span>Faculty Mentoring Sessions & Guidance</span>
             </div>
           }
@@ -99,7 +106,7 @@ export default function StudentMentoringPage() {
             {mentoring.map((m) => (
               <div
                 key={m.id}
-                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-3"
+                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-3"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
                   <div>
@@ -122,7 +129,7 @@ export default function StudentMentoringPage() {
 
                 <div className="text-xs space-y-2">
                   <div>
-                    <span className="font-semibold text-[#153B66]">Topics Discussed:</span>
+                    <span className="font-semibold text-[#0F2942]">Topics Discussed:</span>
                     <p className="text-[#1E293B] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
                   </div>
 
@@ -134,9 +141,9 @@ export default function StudentMentoringPage() {
                   )}
 
                   {m.mentorNotes && (
-                    <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200">
-                      <span className="font-semibold text-blue-900">Mentor Remarks:</span>
-                      <p className="text-blue-950 mt-0.5">{m.mentorNotes}</p>
+                    <div className="p-3 bg-[#FFFBEB] rounded-lg border border-[#FDE68A]">
+                      <span className="font-semibold text-[#92400E]">Mentor Remarks:</span>
+                      <p className="text-[#78350F] mt-0.5">{m.mentorNotes}</p>
                     </div>
                   )}
                 </div>
@@ -149,7 +156,7 @@ export default function StudentMentoringPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-[#14B8A6]" />
+              <BookOpen className="w-5 h-5 text-[#0F2942]" />
               <span>Student Activity Log Book</span>
             </div>
           }

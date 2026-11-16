@@ -21,11 +21,11 @@ export const Button: React.FC<ButtonProps> = ({
     "inline-flex items-center justify-center font-semibold rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed text-[14px]";
 
   const variantClasses = {
-    primary: "bg-[#2563EB] hover:bg-[#1D4ED8] text-white focus:ring-[#2563EB] shadow-sm",
-    secondary: "bg-[#14B8A6] hover:bg-[#0D9488] text-white focus:ring-[#14B8A6] shadow-sm",
-    outline: "border border-[#E2E8F0] bg-white text-[#1E293B] hover:bg-[#F8FAFC] focus:ring-[#2563EB]",
+    primary: "bg-[#F59E0B] hover:bg-[#D97706] text-white focus:ring-[#F59E0B] shadow-sm",
+    secondary: "bg-[#0F2942] hover:bg-[#16385C] text-white focus:ring-[#0F2942] shadow-sm",
+    outline: "border border-[#E2E8F0] bg-white text-[#0F2942] hover:bg-[#EEF2F6] focus:ring-[#F59E0B]",
     danger: "bg-[#DC2626] hover:bg-[#B91C1C] text-white focus:ring-[#DC2626] shadow-sm",
-    ghost: "text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] focus:ring-[#64748B]",
+    ghost: "text-[#64748B] hover:text-[#0F2942] hover:bg-[#EEF2F6] focus:ring-[#64748B]",
   };
 
   const sizeClasses = {
@@ -36,6 +36,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
+      suppressHydrationWarning
       className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       disabled={disabled || isLoading}
       {...props}

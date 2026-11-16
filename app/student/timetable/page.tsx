@@ -15,23 +15,32 @@ export default function TimetablePage() {
 
   const days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
-  useEffect(() => {
-    const fetchTimetable = async () => {
-      try {
-        const res = await fetch("/api/student/timetable");
-        const json = await res.json();
-        if (json.success) {
-          setData(json.data);
-          const currentDay = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][new Date().getDay()];
-          setSelectedDay(days.includes(currentDay) ? currentDay : "MONDAY");
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  const fetchTimetable = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/student/timetable", { credentials: "include" });
+      const json = await res.json();
+      if (json.success) {
+        setData(json.data);
+        const currentDay = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][new Date().getDay()];
+        setSelectedDay(days.includes(currentDay) ? currentDay : "MONDAY");
       }
-    };
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTimetable();
+    const handleChildChanged = () => {
+      fetchTimetable();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   if (loading) {
@@ -59,7 +68,7 @@ export default function TimetablePage() {
             onClick={() => setViewMode("DAILY")}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               viewMode === "DAILY"
-                ? "bg-[#2563EB] text-white shadow-sm"
+                ? "bg-[#0F2942] text-white shadow-sm"
                 : "text-[#64748B] hover:text-[#1E293B]"
             }`}
           >
@@ -69,7 +78,7 @@ export default function TimetablePage() {
             onClick={() => setViewMode("WEEKLY")}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               viewMode === "WEEKLY"
-                ? "bg-[#2563EB] text-white shadow-sm"
+                ? "bg-[#0F2942] text-white shadow-sm"
                 : "text-[#64748B] hover:text-[#1E293B]"
             }`}
           >
@@ -88,8 +97,8 @@ export default function TimetablePage() {
                 onClick={() => setSelectedDay(d)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
                   selectedDay === d
-                    ? "bg-[#153B66] text-white border-[#153B66] shadow-sm"
-                    : "bg-white text-[#64748B] border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                    ? "bg-[#0F2942] text-white border-[#0F2942] shadow-sm"
+                    : "bg-white text-[#64748B] border-[#E2E8F0] hover:bg-[#EEF2F6]"
                 }`}
               >
                 {d}
@@ -105,18 +114,18 @@ export default function TimetablePage() {
                 {currentDaySlots.map((slot: any) => (
                   <div
                     key={slot.id}
-                    className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-4">
                       <div className="px-3 py-2 bg-white rounded-lg border border-[#E2E8F0] text-center min-w-[90px]">
-                        <span className="text-xs font-bold text-[#153B66] block">
+                        <span className="text-xs font-bold text-[#0F2942] block">
                           {slot.startTime} - {slot.endTime}
                         </span>
                         <span className="text-[10px] text-[#64748B] block mt-0.5">60 Minutes</span>
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#DBEAFE] text-[#2563EB]">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                             {slot.subjectCode}
                           </span>
                           <h4 className="text-sm font-semibold text-[#1E293B]">
@@ -134,7 +143,7 @@ export default function TimetablePage() {
                     </div>
 
                     <div className="flex items-center gap-1.5 text-xs font-medium text-[#1E293B] bg-white px-3 py-1.5 rounded-lg border border-[#E2E8F0] self-start sm:self-center">
-                      <MapPin className="w-3.5 h-3.5 text-[#2563EB]" />
+                      <MapPin className="w-3.5 h-3.5 text-[#F59E0B]" />
                       <span>{slot.roomNumber}</span>
                     </div>
                   </div>
@@ -151,19 +160,19 @@ export default function TimetablePage() {
               const slots = weeklySchedule?.[day] || [];
               return (
                 <div key={day} className="border-b border-[#E2E8F0] pb-4 last:border-b-0">
-                  <h4 className="text-sm font-bold text-[#153B66] uppercase tracking-wider mb-2">
+                  <h4 className="text-sm font-bold text-[#0F2942] uppercase tracking-wider mb-2">
                     {day}
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                     {slots.map((s: any) => (
-                      <div key={s.id} className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs">
+                      <div key={s.id} className="p-3 bg-[#EEF2F6]/50 border border-[#E2E8F0] rounded-xl text-xs">
                         <div className="flex justify-between items-center text-[#64748B] mb-1">
-                          <span className="font-semibold text-[#153B66]">{s.startTime} - {s.endTime}</span>
+                          <span className="font-semibold text-[#0F2942]">{s.startTime} - {s.endTime}</span>
                           <span className="text-[11px] font-medium">{s.roomNumber}</span>
                         </div>
                         <p className="font-bold text-[#1E293B] truncate">{s.subjectCode}</p>
                         <p className="text-[#64748B] text-[11px] truncate">{s.subjectName}</p>
-                        <p className="text-[11px] text-[#2563EB] mt-1">{s.teacherName}</p>
+                        <p className="text-[11px] text-[#D97706] mt-1">{s.teacherName}</p>
                       </div>
                     ))}
                   </div>

@@ -6,8 +6,21 @@ import db from "@/lib/db";
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
+
+    // CRITICAL REQUIREMENT: Examinations & Results are accessible strictly to Student accounts.
+    // Parents must not see or directly access this page or API.
+    if (session.role === "PARENT") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Access restricted: Examinations & Results are accessible only to student accounts.",
+        },
+        { status: 403 }
+      );
+    }
+
     const url = new URL(req.url);
-    const requestedStudentId = url.searchParams.get("studentId") || session.studentId;
+    const requestedStudentId = url.searchParams.get("studentId") || session.studentId || session.activeChildId;
 
     if (!requestedStudentId) {
       return NextResponse.json({ success: false, error: "Missing student ID" }, { status: 400 });

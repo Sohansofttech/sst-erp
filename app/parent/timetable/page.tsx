@@ -55,7 +55,7 @@ export default function ParentTimetablePage() {
               onClick={() => setSelectedDay(d)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                 selectedDay === d
-                  ? "bg-[#153B66] text-white border-[#153B66]"
+                  ? "bg-[#0F2942] text-white border-[#0F2942]"
                   : "bg-white text-[#64748B] border-[#E2E8F0] hover:bg-slate-50"
               }`}
             >
@@ -73,16 +73,16 @@ export default function ParentTimetablePage() {
             {currentSlots.map((slot: any) => (
               <div
                 key={slot.id}
-                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
               >
                 <div className="flex items-center gap-3">
                   <div className="px-3 py-1.5 bg-white rounded-lg border border-[#E2E8F0] text-center min-w-[80px]">
-                    <span className="font-bold text-[#153B66] block">{slot.startTime}</span>
+                    <span className="font-bold text-[#0F2942] block">{slot.startTime}</span>
                     <span className="text-[10px] text-[#64748B] block">{slot.endTime}</span>
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-[#2563EB]">{slot.subjectCode}</span>
+                      <span className="font-bold text-[#D97706]">{slot.subjectCode}</span>
                       <h4 className="font-semibold text-[#1E293B]">{slot.subjectName}</h4>
                     </div>
                     <p className="text-[#64748B] text-[11px] mt-0.5">Faculty: {slot.teacherName}</p>
@@ -90,7 +90,7 @@ export default function ParentTimetablePage() {
                 </div>
 
                 <div className="flex items-center gap-1.5 font-medium text-[#1E293B] bg-white px-2.5 py-1 rounded border border-[#E2E8F0] self-start sm:self-center">
-                  <MapPin className="w-3.5 h-3.5 text-[#2563EB]" />
+                  <MapPin className="w-3.5 h-3.5 text-[#F59E0B]" />
                   <span>{slot.roomNumber}</span>
                 </div>
               </div>

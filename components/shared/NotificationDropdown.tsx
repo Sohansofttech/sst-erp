@@ -93,7 +93,7 @@ export const NotificationDropdown: React.FC = () => {
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E2E8F0] z-50 overflow-hidden animate-in fade-in-50 duration-150">
-          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#EEF2F6] flex items-center justify-between">
             <h4 className="text-[14px] font-semibold text-[#1E293B]">
               Notifications
             </h4>
@@ -115,8 +115,8 @@ export const NotificationDropdown: React.FC = () => {
               notifications.map((item) => (
                 <div
                   key={item.id}
-                  className={`p-3.5 hover:bg-[#F8FAFC] transition-colors ${
-                    !item.isRead ? "bg-blue-50/40" : ""
+                  className={`p-3.5 hover:bg-[#EEF2F6] transition-colors ${
+                    !item.isRead ? "bg-[#FFFBEB]/40" : ""
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">

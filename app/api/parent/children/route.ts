@@ -6,14 +6,22 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
 
-    if (session.role !== "PARENT") {
-      return NextResponse.json(
-        { success: false, error: "Only parent/guardian accounts may access this endpoint." },
-        { status: 403 }
-      );
+    let guardianAccountId = session.guardianId;
+
+    if (!guardianAccountId && session.role === "STUDENT" && session.studentId) {
+      const link = await db.guardianLink.findFirst({
+        where: {
+          studentId: session.studentId,
+          institutionId: session.institutionId,
+          isVerified: true,
+        },
+      });
+      if (link) {
+        guardianAccountId = link.guardianAccountId;
+      }
     }
 
-    if (!session.guardianId) {
+    if (!guardianAccountId) {
       return NextResponse.json(
         { success: false, error: "No guardian account linked to session." },
         { status: 403 }
@@ -23,7 +31,7 @@ export async function GET(req: NextRequest) {
     // Retrieve only children actively linked and verified to this parent in this institution
     const links = await db.guardianLink.findMany({
       where: {
-        guardianAccountId: session.guardianId,
+        guardianAccountId: guardianAccountId,
         institutionId: session.institutionId,
         isVerified: true,
         canAccessPortal: true,
