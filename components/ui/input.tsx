@@ -1,18 +1,19 @@
-import React from "react";
-import { cn } from "@/lib/utils";
+import * as React from "react"
+import { cn } from "@/lib/utils"
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-  error?: string;
-  helperText?: string;
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
+export interface InputProps extends React.ComponentProps<"input"> {
+  label?: string
+  error?: string
+  helperText?: string
+  leftIcon?: React.ReactNode
+  rightIcon?: React.ReactNode
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
   (
     {
       className,
+      type,
       label,
       error,
       helperText,
@@ -24,49 +25,63 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     },
     ref
   ) => {
-    const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
+    const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined)
+
+    const baseInput = (
+      <input
+        type={type}
+        id={inputId}
+        ref={ref}
+        required={required}
+        data-slot="input"
+        className={cn(
+          "flex h-9 w-full min-w-0 rounded-md border border-input bg-card px-3 py-1 text-sm text-foreground shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+          "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25",
+          "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
+          leftIcon && "pl-10",
+          rightIcon && "pr-10",
+          error && "border-destructive focus-visible:ring-destructive/20",
+          className
+        )}
+        {...props}
+      />
+    )
+
+    if (!label && !error && !helperText && !leftIcon && !rightIcon) {
+      return baseInput
+    }
 
     return (
       <div className="w-full space-y-1.5">
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-[13px] font-medium text-[#1E293B]"
+            className="block text-[13px] font-medium text-foreground"
           >
             {label}
-            {required && <span className="text-[#DC2626] ml-1">*</span>}
+            {required && <span className="text-destructive ml-1">*</span>}
           </label>
         )}
         <div className="relative rounded-lg shadow-xs">
           {leftIcon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#64748B]">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
               {leftIcon}
             </div>
           )}
-          <input
-            id={inputId}
-            ref={ref}
-            required={required}
-            className={cn(
-              "block w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-[14px] text-[#1E293B] placeholder-[#94A3B8] transition-colors focus:border-[#2563EB] focus:outline-none focus:ring-1 focus:ring-[#2563EB] disabled:bg-[#F1F5F9] disabled:cursor-not-allowed",
-              leftIcon && "pl-10",
-              rightIcon && "pr-10",
-              error && "border-[#DC2626] focus:border-[#DC2626] focus:ring-[#DC2626]",
-              className
-            )}
-            {...props}
-          />
+          {baseInput}
           {rightIcon && (
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-[#64748B]">
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-muted-foreground">
               {rightIcon}
             </div>
           )}
         </div>
-        {error && <p className="text-xs text-[#DC2626] font-medium">{error}</p>}
-        {!error && helperText && <p className="text-xs text-[#64748B]">{helperText}</p>}
+        {error && <p className="text-xs text-destructive font-medium">{error}</p>}
+        {!error && helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
       </div>
-    );
+    )
   }
-);
+)
 
-Input.displayName = "Input";
+Input.displayName = "Input"
+
+export { Input }

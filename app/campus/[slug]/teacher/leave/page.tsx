@@ -1,0 +1,739 @@
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm, useWatch } from "react-hook-form"
+import { z } from "zod"
+import {
+  CalendarCheck,
+  CalendarPlus,
+  Check,
+  Clock,
+  Send,
+  UserCheck,
+  X,
+} from "lucide-react"
+import { toast } from "sonner"
+
+import { cn } from "@/lib/utils"
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  StatCard,
+  StatusBadge,
+} from "@/components/shared"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  createTeacherLeaveRequest,
+  getStudentLeaveRequests,
+  getTeacherLeaveRequests,
+  reviewStudentLeaveRequest,
+} from "@/lib/services/teacher.service"
+import type { ApprovalStatus } from "@/types/common"
+import type {
+  StudentLeaveRequest,
+  TeacherLeaveRequest,
+} from "@/types/teacher"
+import { useTeacherRole } from "../teacher-role-context"
+
+const teacherLeaveSchema = z
+  .object({
+    leaveType: z.enum([
+      "Casual Leave",
+      "Sick Leave",
+      "Earned Leave",
+      "On-Duty",
+      "Academic Leave",
+    ]),
+    fromDate: z.string().min(1, "Select start date."),
+    toDate: z.string().min(1, "Select end date."),
+    reason: z
+      .string()
+      .trim()
+      .min(8, "Provide a clear reason (at least 8 characters)."),
+    substituteTeacherName: z.string().optional(),
+    handoverNotes: z.string().optional(),
+  })
+  .refine((v) => v.toDate >= v.fromDate, {
+    message: "End date cannot be earlier than start date.",
+    path: ["toDate"],
+  })
+
+type TeacherLeaveFormValues = z.infer<typeof teacherLeaveSchema>
+
+const SUBSTITUTE_OPTIONS = [
+  "Mr. Arvind Deshpande",
+  "Ms. Nandini Iyer",
+  "Mr. Rohan Kulkarni",
+  "Ms. Deepa Krishnan",
+]
+
+function computeInclusiveDays(from: string, to: string): number {
+  if (!from || !to) return 1
+  const d1 = new Date(from)
+  const d2 = new Date(to)
+  if (Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return 1
+  const diff = Math.round((d2.getTime() - d1.getTime()) / 86_400_000) + 1
+  return Math.max(1, diff)
+}
+
+function mapStatusBadge(status: ApprovalStatus | StudentLeaveRequest["status"]) {
+  if (status === "approved") return "Approved" as const
+  if (status === "rejected" || status === "returned") return "Rejected" as const
+  if (status === "locked") return "Locked" as const
+  if (status === "submitted" || status === "in_review" || status === "pending")
+    return "Pending" as const
+  return "Draft" as const
+}
+
+export default function TeacherLeavePage() {
+  const { role, slug } = useTeacherRole()
+  const [teacherLeaves, setTeacherLeaves] = React.useState<
+    TeacherLeaveRequest[]
+  >([])
+  const [studentLeaves, setStudentLeaves] = React.useState<
+    StudentLeaveRequest[]
+  >([])
+  const [studentFilter, setStudentFilter] = React.useState<string>("all")
+  const [remarksMap, setRemarksMap] = React.useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = React.useState(false)
+  const [reviewingId, setReviewingId] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const form = useForm<TeacherLeaveFormValues>({
+    resolver: zodResolver(teacherLeaveSchema),
+    defaultValues: {
+      leaveType: "Casual Leave",
+      fromDate: "2026-11-20",
+      toDate: "2026-11-20",
+      reason: "",
+      substituteTeacherName: SUBSTITUTE_OPTIONS[0],
+      handoverNotes: "",
+    },
+  })
+
+  const fromDateVal = useWatch({ control: form.control, name: "fromDate" })
+  const toDateVal = useWatch({ control: form.control, name: "toDate" })
+  const leaveTypeVal = useWatch({ control: form.control, name: "leaveType" })
+  const subTeacherVal = useWatch({
+    control: form.control,
+    name: "substituteTeacherName",
+  })
+
+  const calculatedDays = computeInclusiveDays(fromDateVal, toDateVal)
+
+  const loadData = React.useCallback(() => {
+    setLoading(true)
+    setError(null)
+    Promise.all([getTeacherLeaveRequests(), getStudentLeaveRequests()])
+      .then(([tRes, sRes]) => {
+        setTeacherLeaves(tRes)
+        setStudentLeaves(sRes)
+      })
+      .catch((err) => {
+        setError(
+          err instanceof Error ? err.message : "Failed to load leave module."
+        )
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [])
+
+  React.useEffect(() => {
+    let active = true
+    Promise.all([getTeacherLeaveRequests(), getStudentLeaveRequests()])
+      .then(([tRes, sRes]) => {
+        if (!active) return
+        setTeacherLeaves(tRes)
+        setStudentLeaves(sRes)
+      })
+      .catch((err) => {
+        if (!active) return
+        setError(
+          err instanceof Error ? err.message : "Failed to load leave module."
+        )
+      })
+      .finally(() => {
+        if (!active) return
+        setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleApplyLeave = form.handleSubmit(async (values) => {
+    setSubmitting(true)
+    try {
+      const days = computeInclusiveDays(values.fromDate, values.toDate)
+      const created = await createTeacherLeaveRequest({
+        leaveType: values.leaveType,
+        fromDate: values.fromDate,
+        toDate: values.toDate,
+        daysCount: days,
+        reason: values.reason,
+        substituteTeacherName:
+          values.substituteTeacherName === "none"
+            ? undefined
+            : values.substituteTeacherName,
+        handoverNotes: values.handoverNotes?.trim() || undefined,
+      })
+      setTeacherLeaves((prev) => [created, ...prev])
+      form.reset({
+        leaveType: "Casual Leave",
+        fromDate: "2026-11-20",
+        toDate: "2026-11-20",
+        reason: "",
+        substituteTeacherName: SUBSTITUTE_OPTIONS[0],
+        handoverNotes: "",
+      })
+      toast.success("Leave request submitted and routed for HoD / Principal review.")
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to submit leave request."
+      )
+    } finally {
+      setSubmitting(false)
+    }
+  })
+
+  const handleStudentDecision = async (
+    requestId: string,
+    decision: "approved" | "rejected"
+  ) => {
+    setReviewingId(requestId)
+    try {
+      const updated = await reviewStudentLeaveRequest(
+        requestId,
+        decision,
+        remarksMap[requestId]?.trim() || undefined
+      )
+      setStudentLeaves((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r))
+      )
+      toast.success(
+        `Student request ${decision === "approved" ? "approved" : "rejected"} for ${updated.studentName}.`
+      )
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not process student leave."
+      )
+    } finally {
+      setReviewingId(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <LoadingState
+        title="Loading leave & substitution records"
+        description="Fetching your leave applications and Class 10-A student leave requests..."
+      />
+    )
+  }
+
+  if (error) {
+    return (
+      <ErrorState
+        title="Could not load leave workspace"
+        description={error}
+        onRetry={loadData}
+      />
+    )
+  }
+
+  const pendingTeacher = teacherLeaves.filter(
+    (l) => l.status === "submitted" || l.status === "in_review"
+  ).length
+  const approvedDays = teacherLeaves
+    .filter((l) => l.status === "approved")
+    .reduce((sum, l) => sum + l.daysCount, 0)
+  const pendingStudent = studentLeaves.filter(
+    (l) => l.status === "pending"
+  ).length
+
+  const filteredStudentLeaves =
+    studentFilter === "all"
+      ? studentLeaves
+      : studentLeaves.filter((s) => s.status === studentFilter)
+
+  const canApproveStudentLeaves = role === "class_teacher" || role === "hod"
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Leave & Substitution Management"
+        subtitle="Apply for faculty leave with class substitution handover, track approvals, and process Class 10-A student leave or on-duty requests."
+        action={
+          <Button asChild variant="outline">
+            <Link href={`/campus/${slug}/teacher/duties`}>
+              <CalendarCheck className="size-4" />
+              View Campus & Exam Duties
+            </Link>
+          </Button>
+        }
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Casual Leave Balance"
+          value={`${Math.max(0, 12 - approvedDays)} / 12`}
+          icon={<CalendarPlus />}
+          tone="brand"
+          description="Academic Year 2026-27"
+        />
+        <StatCard
+          label="My Pending Requests"
+          value={pendingTeacher}
+          icon={<Clock />}
+          tone="warning"
+          description="Awaiting HoD / Principal action"
+        />
+        <StatCard
+          label="Student Leave Queue"
+          value={pendingStudent}
+          icon={<UserCheck />}
+          tone="teal"
+          description="Class 10-A pending approvals"
+        />
+        <StatCard
+          label="Approved Leave Days"
+          value={approvedDays}
+          icon={<CalendarCheck />}
+          tone="success"
+          description={`${teacherLeaves.length} total applications`}
+        />
+      </div>
+
+      <Tabs defaultValue="my-leave" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="my-leave">
+            Apply & Track My Leave ({teacherLeaves.length})
+          </TabsTrigger>
+          <TabsTrigger value="student-leave">
+            Student Leave / On-Duty Approvals ({pendingStudent} pending)
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="my-leave">
+          <div className="grid gap-6 lg:grid-cols-12">
+            {/* Application Form */}
+            <Card className="bg-white lg:col-span-5">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-foreground">
+                  Apply for Faculty Leave
+                </CardTitle>
+                <CardDescription>
+                  Nominate a substitute colleague and leave lesson handover notes to keep classes uninterrupted.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleApplyLeave} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leaveType">Leave Category</Label>
+                    <Select
+                      value={leaveTypeVal}
+                      onValueChange={(val) =>
+                        form.setValue(
+                          "leaveType",
+                          val as TeacherLeaveFormValues["leaveType"]
+                        )
+                      }
+                    >
+                      <SelectTrigger id="leaveType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Casual Leave">
+                          Casual Leave
+                        </SelectItem>
+                        <SelectItem value="Sick Leave">
+                          Sick / Medical Leave
+                        </SelectItem>
+                        <SelectItem value="Earned Leave">
+                          Earned Leave
+                        </SelectItem>
+                        <SelectItem value="On-Duty">
+                          Official On-Duty (OD)
+                        </SelectItem>
+                        <SelectItem value="Academic Leave">
+                          Academic / Workshop Leave
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="fromDate">From Date</Label>
+                      <Input
+                        id="fromDate"
+                        type="date"
+                        {...form.register("fromDate")}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="toDate">To Date</Label>
+                      <Input
+                        id="toDate"
+                        type="date"
+                        {...form.register("toDate")}
+                      />
+                      {form.formState.errors.toDate && (
+                        <p className="text-xs text-error">
+                          {form.formState.errors.toDate.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                    <span className="text-muted-foreground">
+                      Calculated Duration
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {calculatedDays} day(s)
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="substituteTeacherName">
+                      Suggested Substitute Teacher
+                    </Label>
+                    <Select
+                      value={subTeacherVal ?? "none"}
+                      onValueChange={(val) =>
+                        form.setValue("substituteTeacherName", val)
+                      }
+                    >
+                      <SelectTrigger id="substituteTeacherName">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUBSTITUTE_OPTIONS.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="none">
+                          No substitution needed
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reason">Reason for Leave</Label>
+                    <Textarea
+                      id="reason"
+                      rows={3}
+                      placeholder="Specify purpose of leave or official academic duty..."
+                      {...form.register("reason")}
+                    />
+                    {form.formState.errors.reason && (
+                      <p className="text-xs text-error">
+                        {form.formState.errors.reason.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="handoverNotes">
+                      Lesson / Worksheet Handover Notes (optional)
+                    </Label>
+                    <Textarea
+                      id="handoverNotes"
+                      rows={2}
+                      placeholder="e.g. Share Trigonometry practice sheet stored in Staff Room drawer 2..."
+                      {...form.register("handoverNotes")}
+                    />
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    <Send className="size-4" />
+                    {submitting
+                      ? "Submitting Application..."
+                      : "Submit Leave Request"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Leave Status Timeline */}
+            <Card className="bg-white lg:col-span-7">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-foreground">
+                  My Leave History & Approval Timeline
+                </CardTitle>
+                <CardDescription>
+                  Track progression from submission through HoD / Principal review and substitute confirmation.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {teacherLeaves.length === 0 ? (
+                  <EmptyState
+                    title="No leave applications"
+                    description="Submitted faculty leave applications will appear here."
+                  />
+                ) : (
+                  teacherLeaves.map((leave) => {
+                    const isRejected = leave.status === "rejected"
+                    const stage =
+                      leave.status === "approved" || leave.status === "rejected"
+                        ? 2
+                        : leave.status === "in_review"
+                          ? 1
+                          : 0
+
+                    return (
+                      <div
+                        key={leave.id}
+                        className="rounded-lg border border-slate-200 p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-foreground">
+                                {leave.leaveType}
+                              </span>
+                              <Badge variant="outline">
+                                {leave.daysCount} day(s)
+                              </Badge>
+                              <StatusBadge
+                                status={mapStatusBadge(leave.status)}
+                              />
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {leave.fromDate} to {leave.toDate} • Applied on{" "}
+                              {leave.appliedAt.slice(0, 10)}
+                            </div>
+                          </div>
+                          {leave.substituteTeacherName && (
+                            <Badge
+                              variant="outline"
+                              className="border-teal/30 bg-teal/10 text-teal-700"
+                            >
+                              Sub: {leave.substituteTeacherName}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <p className="mt-2.5 text-sm text-foreground">
+                          {leave.reason}
+                        </p>
+
+                        {leave.handoverNotes && (
+                          <div className="mt-2 rounded-md bg-slate-50 px-3 py-1.5 text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground">
+                              Handover:{" "}
+                            </span>
+                            {leave.handoverNotes}
+                          </div>
+                        )}
+
+                        {/* Approval Timeline */}
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                          {[
+                            "Submitted",
+                            "In Review",
+                            isRejected ? "Rejected" : "Approved",
+                          ].map((label, idx) => {
+                            const reached = idx <= stage
+                            const finalError = idx === 2 && isRejected
+                            return (
+                              <div
+                                key={`${leave.id}-${label}`}
+                                className={cn(
+                                  "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium",
+                                  finalError
+                                    ? "border-error/30 bg-error/10 text-error"
+                                    : reached
+                                      ? "border-success/25 bg-success/10 text-success"
+                                      : "border-slate-200 bg-slate-50 text-muted-foreground"
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "size-2 rounded-full",
+                                    finalError
+                                      ? "bg-error"
+                                      : reached
+                                        ? "bg-success"
+                                        : "bg-slate-300"
+                                  )}
+                                />
+                                {label}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="student-leave" className="space-y-4">
+          {!canApproveStudentLeaves && (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-amber-800">
+              You are viewing in <strong>Subject Teacher</strong> mode. Switch
+              the top header role selector to <strong>Class Teacher</strong> or{" "}
+              <strong>HoD</strong> to approve or reject Class 10-A student leave
+              requests.
+            </div>
+          )}
+
+          <Card className="bg-white">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold text-foreground">
+                  Class 10-A Student Leave & On-Duty Queue
+                </CardTitle>
+                <CardDescription>
+                  Review parent-submitted medical, family, and official school On-Duty (OD) applications.
+                </CardDescription>
+              </div>
+              <div className="w-full sm:w-48">
+                <Select value={studentFilter} onValueChange={setStudentFilter}>
+                  <SelectTrigger aria-label="Filter student requests">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Requests</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {filteredStudentLeaves.length === 0 ? (
+                <EmptyState
+                  title="No student leave requests"
+                  description="No requests match the selected status filter."
+                />
+              ) : (
+                filteredStudentLeaves.map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-lg border border-slate-200 p-4"
+                  >
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-foreground">
+                            {req.studentName}
+                          </span>
+                          <Badge variant="outline">{req.rollNo}</Badge>
+                          <Badge
+                            variant="outline"
+                            className="border-primary/25 bg-primary/8 text-primary"
+                          >
+                            {req.leaveType}
+                          </Badge>
+                          <StatusBadge status={mapStatusBadge(req.status)} />
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {req.className} - {req.section} • {req.fromDate} to{" "}
+                          {req.toDate} ({req.daysCount} day) • Applied:{" "}
+                          {req.appliedAt.slice(0, 10)}
+                        </div>
+                        <p className="pt-1 text-sm text-foreground">
+                          {req.reason}
+                        </p>
+                        {req.reviewerRemarks && (
+                          <div className="text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground">
+                              Decision Remarks:{" "}
+                            </span>
+                            {req.reviewerRemarks}
+                          </div>
+                        )}
+                      </div>
+
+                      {req.status === "pending" && (
+                        <div className="flex w-full flex-col gap-2 sm:w-72">
+                          <Input
+                            placeholder="Optional decision remarks..."
+                            value={remarksMap[req.id] ?? ""}
+                            disabled={!canApproveStudentLeaves}
+                            onChange={(e) =>
+                              setRemarksMap((prev) => ({
+                                ...prev,
+                                [req.id]: e.target.value,
+                              }))
+                            }
+                            className="h-8 text-xs"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1 bg-success hover:bg-success/90"
+                              disabled={
+                                !canApproveStudentLeaves ||
+                                reviewingId === req.id
+                              }
+                              onClick={() =>
+                                handleStudentDecision(req.id, "approved")
+                              }
+                            >
+                              <Check className="size-3.5" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 border-error/30 text-error hover:bg-error/10"
+                              disabled={
+                                !canApproveStudentLeaves ||
+                                reviewingId === req.id
+                              }
+                              onClick={() =>
+                                handleStudentDecision(req.id, "rejected")
+                              }
+                            >
+                              <X className="size-3.5" />
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}

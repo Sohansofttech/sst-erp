@@ -1,104 +1,132 @@
-import React from "react";
-import { cn } from "@/lib/utils";
+"use client"
 
-export const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({
-  className,
-  children,
-  ...props
-}) => {
+import * as React from "react"
+import { cn } from "@/lib/utils"
+
+function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div className="w-full overflow-x-auto rounded-xl border border-[#E2E8F0] bg-white shadow-xs">
+    <div data-slot="table-container" className="relative w-full overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
       <table
-        className={cn("w-full text-left border-collapse text-[13px] text-[#1E293B]", className)}
+        data-slot="table"
+        className={cn("w-full caption-bottom text-[13.5px] text-left border-collapse", className)}
         {...props}
-      >
-        {children}
-      </table>
+      />
     </div>
-  );
-};
+  )
+}
 
-export const TableHeader: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({
-  className,
-  children,
-  ...props
-}) => {
+function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
-      className={cn("bg-[#F8FAFC] border-b border-[#E2E8F0] text-[12px] font-semibold text-[#64748B] uppercase tracking-wider", className)}
+      data-slot="table-header"
+      className={cn("bg-muted/60 border-b border-border text-[12px] font-semibold text-muted-foreground uppercase tracking-wider [&_tr]:border-b", className)}
       {...props}
-    >
-      {children}
-    </thead>
-  );
-};
+    />
+  )
+}
 
-export const TableBody: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({
-  className,
-  children,
-  ...props
-}) => {
+function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
-    <tbody className={cn("divide-y divide-[#F1F5F9] bg-white", className)} {...props}>
-      {children}
-    </tbody>
-  );
-};
+    <tbody
+      data-slot="table-body"
+      className={cn("divide-y divide-border/60 bg-card [&_tr:last-child]:border-0", className)}
+      {...props}
+    />
+  )
+}
 
-export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({
-  className,
-  children,
-  ...props
-}) => {
+function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
-    <tr
+    <tfoot
+      data-slot="table-footer"
       className={cn(
-        "transition-colors hover:bg-[#F8FAFC]/80 group",
+        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
         className
       )}
       {...props}
-    >
-      {children}
-    </tr>
-  );
-};
+    />
+  )
+}
 
-export const TableHead: React.FC<React.ThHTMLAttributes<HTMLTableCellElement>> = ({
-  className,
-  children,
-  ...props
-}) => {
+function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
-    <th className={cn("px-4 py-3 font-semibold text-[#64748B]", className)} {...props}>
-      {children}
-    </th>
-  );
-};
+    <tr
+      data-slot="table-row"
+      className={cn(
+        "border-b transition-colors hover:bg-muted/40 data-[state=selected]:bg-muted group",
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
-export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableCellElement>> = ({
-  className,
-  children,
-  ...props
-}) => {
+function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
-    <td className={cn("px-4 py-3.5 text-[#1E293B] align-middle", className)} {...props}>
-      {children}
-    </td>
-  );
-};
+    <th
+      data-slot="table-head"
+      className={cn(
+        "h-10 px-4 py-3 text-left align-middle text-[12px] font-semibold whitespace-nowrap text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
-export const TableEmpty: React.FC<{ message?: string; colSpan: number }> = ({
+function TableCell({ className, ...props }: React.ComponentProps<"td">) {
+  return (
+    <td
+      data-slot="table-cell"
+      className={cn(
+        "px-4 py-3.5 align-middle text-[13.5px] text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function TableCaption({
+  className,
+  ...props
+}: React.ComponentProps<"caption">) {
+  return (
+    <caption
+      data-slot="table-caption"
+      className={cn("mt-4 text-[13px] text-muted-foreground", className)}
+      {...props}
+    />
+  )
+}
+
+function TableEmpty({
   message = "No records found.",
   colSpan,
-}) => {
+}: {
+  message?: string
+  colSpan: number
+}) {
   return (
     <tr>
       <td
         colSpan={colSpan}
-        className="px-4 py-12 text-center text-sm text-[#64748B] italic bg-[#FAFAFA]"
+        className="px-4 py-12 text-center text-sm text-muted-foreground italic bg-muted/20"
       >
         {message}
       </td>
     </tr>
-  );
-};
+  )
+}
+
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+  TableEmpty,
+}
