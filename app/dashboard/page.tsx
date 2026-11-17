@@ -39,7 +39,7 @@ export default function DashboardPage() {
   } | null>(null);
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"overview" | "enrolment" | "fees" | "attendance" | "passrate">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "coursework" | "marks" | "credits">("overview");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
@@ -181,6 +181,88 @@ export default function DashboardPage() {
   const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
   const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
 
+  // Student Enrolled Courses for Semester 5
+  const enrolledCourses = [
+    {
+      code: "CS301",
+      name: "Database Management Systems",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 4,
+      attendance: 96,
+      marks: 93,
+      grade: "A+",
+      theoryPct: 75,
+      labPct: 15,
+      pendingTasks: 0,
+      status: "On Track",
+    },
+    {
+      code: "CS302",
+      name: "Operating Systems",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 4,
+      attendance: 92,
+      marks: 86,
+      grade: "A",
+      theoryPct: 72,
+      labPct: 16,
+      pendingTasks: 1,
+      status: "On Track",
+    },
+    {
+      code: "CS303",
+      name: "Computer Networks",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 4,
+      attendance: 95,
+      marks: 90,
+      grade: "A",
+      theoryPct: 74,
+      labPct: 14,
+      pendingTasks: 0,
+      status: "On Track",
+    },
+    {
+      code: "CS304",
+      name: "Software Engineering & Architecture",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 3,
+      attendance: 98,
+      marks: 88,
+      grade: "A+",
+      theoryPct: 78,
+      labPct: 12,
+      pendingTasks: 1,
+      status: "On Track",
+    },
+    {
+      code: "CS305",
+      name: "Web Technologies & Cloud Lab",
+      faculty: "Prof. Sunita Verma",
+      credits: 2,
+      attendance: 100,
+      marks: 95,
+      grade: "O",
+      theoryPct: 82,
+      labPct: 12,
+      pendingTasks: 0,
+      status: "Exemplary",
+    },
+    {
+      code: "CS306",
+      name: "Professional Ethics & Values",
+      faculty: "Dr. Arvind Swamy",
+      credits: 2,
+      attendance: 94,
+      marks: 85,
+      grade: "A",
+      theoryPct: 70,
+      labPct: 15,
+      pendingTasks: 0,
+      status: "On Track",
+    },
+  ];
+
   return (
     <PortalLayout
       portalType="STUDENT"
@@ -198,11 +280,11 @@ export default function DashboardPage() {
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-2xl sm:text-[28px] font-extrabold text-[#202936] tracking-tight">
-              Institutional Dashboard
+              Student Dashboard
             </h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Session {student?.academicYear || "2026-2027"}
+              Session {student?.academicYear || "2025-2026"}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#788391]">
@@ -226,7 +308,7 @@ export default function DashboardPage() {
               className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-sm font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-2"
               icon={<ArrowRight className="w-4 h-4" />}
             >
-              Academic Status
+              View Student Profile
             </Button>
           </Link>
         </div>
@@ -239,16 +321,16 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* Row of 6 Horizontal Stat Cards (Matching Reference Screenshot) */}
+          {/* Row of 6 Horizontal Stat Cards (Student-Specific Metrics in Theme) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
             {/* Card 1: Solid Dark Navy Blue */}
             <div className="p-4 rounded-2xl bg-[#123B5A] text-white shadow-md border border-[#1B4D70] flex flex-col justify-between transition-all hover:shadow-lg">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
-                  STUDENTS
+                  ATTENDANCE
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white">
-                  <Users className="w-4 h-4" />
+                  <CheckCircle2 className="w-4 h-4" />
                 </div>
               </div>
               <div className="my-2">
@@ -265,7 +347,7 @@ export default function DashboardPage() {
             <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
-                  ADMISSIONS
+                  TODAY&apos;S CLASSES
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#F5A000]">
                   <Calendar className="w-4 h-4" />
@@ -273,19 +355,19 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
-                  {todaySchedule?.length ?? 14}
+                  {todaySchedule?.length ?? 4}
                 </span>
               </div>
               <span className="text-[11px] text-[#788391] truncate">
-                {todaySchedule && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "Enrolling courses"}
+                {todaySchedule && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "No classes today"}
               </span>
             </div>
 
-            {/* Card 3: Fee Due / Collections */}
+            {/* Card 3: Fee Status */}
             <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
-                  COLLECTIONS
+                  FEE STATUS
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#D97706]">
                   <CreditCard className="w-4 h-4" />
@@ -293,39 +375,39 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[26px] font-extrabold text-[#202936] tracking-tight truncate">
-                  {feeSummary?.totalOutstanding > 0 ? `₹${(feeSummary.totalOutstanding / 1000).toFixed(1)}k` : "₹0.4L"}
+                  {feeSummary?.totalOutstanding > 0 ? `₹${(feeSummary.totalOutstanding / 1000).toFixed(1)}k` : "Settled"}
                 </span>
               </div>
               <span className="text-[11px] text-[#788391] truncate">
-                {feeSummary?.totalOutstanding > 0 ? "Semester 5 balance" : "Tuition settled"}
+                {feeSummary?.totalOutstanding > 0 ? "Semester 5 balance" : "All tuition cleared"}
               </span>
             </div>
 
-            {/* Card 4: Attendance / CGPA */}
+            {/* Card 4: Academic CGPA */}
             <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
-                  ATTENDANCE
+                  CURRENT CGPA
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-                  <CheckCircle2 className="w-4 h-4" />
+                  <Award className="w-4 h-4" />
                 </div>
               </div>
               <div className="my-2 flex items-baseline gap-1.5">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
-                  94.2%
+                  {cgpa !== undefined && cgpa > 0 ? cgpa : "9.5"}
                 </span>
               </div>
               <span className="text-[11px] text-emerald-600 font-semibold truncate">
-                +1.8% this week
+                Grade A+ • Distinction
               </span>
             </div>
 
-            {/* Card 5: Results */}
+            {/* Card 5: Examinations */}
             <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
-                  RESULTS
+                  EXAMINATIONS
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-[#123B5A]">
                   <FileText className="w-4 h-4" />
@@ -333,58 +415,58 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
-                  {recentResults?.length ?? 2}
+                  {upcomingExams?.length ?? 1}
                 </span>
               </div>
               <span className="text-[11px] text-[#788391] truncate">
-                Across 4 departments
+                {upcomingExams?.[0]?.hasHallTicket ? "Hall Ticket Ready" : "Semester Finals"}
               </span>
             </div>
 
-            {/* Card 6: Approvals / Tasks */}
+            {/* Card 6: LMS Tasks */}
             <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
-                  APPROVALS
+                  PENDING TASKS
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#FEF3C7] flex items-center justify-center text-[#D97706]">
-                  <Award className="w-4 h-4" />
+                  <BookOpen className="w-4 h-4" />
                 </div>
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
-                  {assignments?.length ?? 2}
+                  {assignments?.filter((a: any) => !a.isSubmitted).length ?? assignments?.length ?? 2}
                 </span>
               </div>
               <span className="text-[11px] text-[#788391] truncate">
-                Action required
+                Coursework due soon
               </span>
             </div>
           </div>
 
-          {/* Central Analytics & Academic Performance Card (Matching Reference Screenshot) */}
+          {/* Central Student Academic & Course Performance Card */}
           <div className="bg-white rounded-2xl border border-[#E5E9EF] p-5 sm:p-6 shadow-xs mb-6">
             {/* Header with Title & Tab Filter Switcher */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#E5E9EF]">
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-base sm:text-lg font-bold text-[#202936]">
-                    Analytics & Performance
+                    Course Progress & Academic Performance
                   </h2>
                 </div>
                 <p className="text-xs text-[#788391] mt-0.5">
-                  Department-wise course registration & enrolled academic subjects
+                  Semester {student?.currentSemester || 5} • Enrolled subjects, attendance health & syllabus coverage
                 </p>
               </div>
 
-              {/* Interactive Tab Switcher matching Reference */}
+              {/* Interactive Tab Switcher */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
                 {[
                   { id: "overview", label: "Overview" },
-                  { id: "enrolment", label: "Enrolment" },
-                  { id: "fees", label: "Fee Realisation" },
-                  { id: "attendance", label: "Attendance" },
-                  { id: "passrate", label: "Pass Rate" },
+                  { id: "attendance", label: "Attendance Health" },
+                  { id: "coursework", label: "Coursework & Labs" },
+                  { id: "marks", label: "Internal Marks" },
+                  { id: "credits", label: "Credit Distribution" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -401,105 +483,71 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Tab Contents: Course / Department Progress Grid */}
+            {/* Tab Contents: Course Progress Grid */}
             <div className="pt-5">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  {
-                    title: "Computer Science and Engineering",
-                    capacity: 120,
-                    filled: 94,
-                    pct: 78,
-                    deepBlue: 65,
-                    orange: 13,
-                  },
-                  {
-                    title: "Artificial Intelligence & Data Science",
-                    capacity: 90,
-                    filled: 74,
-                    pct: 82,
-                    deepBlue: 68,
-                    orange: 14,
-                  },
-                  {
-                    title: "Electronics & Communication Eng.",
-                    capacity: 100,
-                    filled: 81,
-                    pct: 81,
-                    deepBlue: 60,
-                    orange: 21,
-                  },
-                  {
-                    title: "Mechanical Engineering Systems",
-                    capacity: 80,
-                    filled: 68,
-                    pct: 85,
-                    deepBlue: 70,
-                    orange: 15,
-                  },
-                  {
-                    title: "Department of Management Studies",
-                    capacity: 60,
-                    filled: 46,
-                    pct: 76,
-                    deepBlue: 55,
-                    orange: 21,
-                  },
-                  {
-                    title: "Information Technology Core",
-                    capacity: 110,
-                    filled: 98,
-                    pct: 89,
-                    deepBlue: 74,
-                    orange: 15,
-                  },
-                ].map((dept, idx) => (
+                {enrolledCourses.map((course, idx) => (
                   <div
                     key={idx}
                     className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs space-y-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-xs font-bold text-[#202936] truncate" title={dept.title}>
-                        {dept.title}
-                      </h4>
-                      <span className="text-[11px] font-bold text-[#123B5A] shrink-0">
-                        {dept.pct}% Filled
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase inline-block mb-1">
+                          {course.code}
+                        </span>
+                        <h4 className="text-xs font-bold text-[#202936] truncate" title={course.name}>
+                          {course.name}
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
+                        {activeTab === "attendance"
+                          ? `${course.attendance}% Attended`
+                          : activeTab === "marks"
+                          ? `${course.marks}/100 (${course.grade})`
+                          : activeTab === "coursework"
+                          ? course.pendingTasks > 0
+                            ? "1 Due"
+                            : "Submitted"
+                          : activeTab === "credits"
+                          ? `${course.credits} Credits`
+                          : `${course.attendance}% Attended`}
                       </span>
                     </div>
 
-                    {/* Dual-Color Segmented Progress Bar matching reference image */}
+                    {/* Dual-Color Segmented Progress Bar */}
                     <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
                       <div
-                        style={{ width: `${dept.deepBlue}%` }}
+                        style={{ width: `${course.theoryPct}%` }}
                         className="h-full bg-[#16466C]"
-                        title={`Enrolled Core: ${dept.deepBlue}%`}
+                        title={`Lecture Attendance: ${course.theoryPct}%`}
                       />
                       <div
-                        style={{ width: `${dept.orange}%` }}
+                        style={{ width: `${course.labPct}%` }}
                         className="h-full bg-[#F5A000]"
-                        title={`Elective Buffer: ${dept.orange}%`}
+                        title={`Lab & Practical: ${course.labPct}%`}
                       />
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-[#788391] pt-0.5">
-                      <span>Capacity {dept.capacity}</span>
-                      <span className="font-semibold text-[#202936]">{dept.filled} Enrolled</span>
+                      <span className="truncate">Faculty: {course.faculty}</span>
+                      <span className="font-semibold text-[#202936] shrink-0">{course.credits} Credits</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Bottom Enrolment Summary Strip */}
+            {/* Bottom Summary Strip */}
             <div className="mt-4 pt-3 border-t border-[#E5E9EF] flex flex-wrap items-center justify-between text-xs text-[#788391]">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#16466C]" />
-                <span>Primary Enrolled Cohort</span>
+                <span>Lecture Attendance (Theory)</span>
                 <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
-                <span>Elective / Lateral Intake</span>
+                <span>Practical Labs & Coursework</span>
               </div>
               <span className="font-semibold text-[#202936]">
-                Active Enrolment: 512 Registered Students
+                Semester Load: 6 Enrolled Subjects • 19 Total Credits
               </span>
             </div>
           </div>

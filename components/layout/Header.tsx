@@ -55,7 +55,9 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div>
               <span className="font-bold text-[#202936] block leading-tight">{institutionName}</span>
-              <span className="text-[10px] text-[#788391] block leading-tight">Institutional ERP</span>
+              <span className="text-[10px] text-[#788391] block leading-tight">
+                {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"}
+              </span>
             </div>
           </div>
           <Badge variant="brand" size="sm" className="hidden md:inline-flex bg-[#123B5A] text-white ml-1">
