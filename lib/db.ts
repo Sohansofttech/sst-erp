@@ -10,7 +10,10 @@ const connectionString =
   process.env.DATABASE_URL ||
   "postgresql://postgres:postgres@localhost:5432/postgres";
 
-const adapter = new PrismaPg({ connectionString });
+const adapter = new PrismaPg({
+  connectionString,
+  max: process.env.NODE_ENV === "production" ? 1 : 10,
+});
 
 export const db =
   global.prisma ||
@@ -19,8 +22,6 @@ export const db =
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  global.prisma = db;
-}
+global.prisma = db;
 
 export default db;

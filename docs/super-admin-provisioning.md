@@ -1,8 +1,10 @@
-# Super Admin setup and provisioning
+# Super Admin Setup and Provisioning
 
-## Required configuration
+## Required Configuration
 
-Keep the existing values in the local, ignored `.env` file private. The portal uses:
+Keep the existing values in the local, ignored `.env` file private.
+
+The portal uses:
 
 - `DATABASE_URL` for PostgreSQL/Prisma.
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for the shared Supabase Auth project.
@@ -11,21 +13,35 @@ Keep the existing values in the local, ignored `.env` file private. The portal u
 
 Configure `/admin/auth/callback` as an allowed redirect URL in Supabase Auth. Configure Supabase password sign-in and email delivery before expecting reset emails. SMTP/email delivery has not been verified by this code change.
 
-## Provision the first Super Admin
+## Provision the First Super Admin
 
 1. A trusted project administrator creates or invites the person's account in the existing Supabase Auth project and verifies the email address.
 2. Obtain that Auth user's UUID from the trusted Supabase dashboard.
 3. After the shared initial database migration is reviewed and applied, a trusted database administrator creates the matching `User` profile with the same UUID, the verified email/name, `status = ACTIVE`, and `platformRole = SUPER_ADMIN`.
 4. The person signs in at `/super-admin/login` with the password set through Supabase. The server checks the Supabase session and matching active Prisma role before opening `/super-admin`.
 
-Do not place passwords, Supabase service-role keys or database credentials in source code, browser storage, or this document. Do not grant the role to an account based only on an email submitted in the UI. There is no service-role key or agreed user-invitation endpoint configured here, so this portal does not create Auth users or grant roles itself.
+Do not place passwords, Supabase service-role keys or database credentials in source code, browser storage, or this document.
 
-## Database migration coordination
+Do not grant the role to an account based only on an email submitted in the UI.
 
-The feature branch contains an additive migration for the Super Admin data models. The repository's earlier migration status showed `0_init` as pending. Review the shared baseline and this additive migration with the team before applying anything to the shared database; do not run migrations against production from this portal setup process. Existing portals must coordinate on the shared model names and feature entitlement helper before integration.
+There is no service-role key or agreed user-invitation endpoint configured here, so this portal does not create Auth users or grant roles itself.
 
-## Local development and authentication
+## Database Migration Coordination
 
-For normal local authentication, keep `SUPER_ADMIN_DEV_AUTH_BYPASS=false`, run `npm run dev`, and visit `http://localhost:3000/super-admin/login`. `/super-admin` requires a real Supabase-authenticated user whose database profile is active and assigned `SUPER_ADMIN`.
+The feature branch contains an additive migration for the Super Admin data models. The repository's earlier migration status showed `0_init` as pending.
 
-For isolated local UI development only, set `SUPER_ADMIN_DEV_AUTH_BYPASS=true` before starting `npm run dev`. This skips Super Admin authentication for local development requests; do not expose that development server to untrusted users. The setting cannot enable bypass in production, even if configured there.
+Review the shared baseline and this additive migration with the team before applying anything to the shared database. Do not run migrations against production from this portal setup process.
+
+Existing portals must coordinate on the shared model names and feature entitlement helper before integration.
+
+## Local Development and Authentication
+
+For normal local authentication, keep `SUPER_ADMIN_DEV_AUTH_BYPASS=false`, run `npm run dev`, and visit `http://localhost:3000/super-admin/login`.
+
+`/super-admin` requires a real Supabase-authenticated user whose database profile is active and assigned `SUPER_ADMIN`.
+
+For isolated local UI development only, set `SUPER_ADMIN_DEV_AUTH_BYPASS=true` before starting `npm run dev`.
+
+This skips Super Admin authentication for local development requests. Do not expose that development server to untrusted users.
+
+The setting cannot enable bypass in production, even if configured there.
