@@ -137,7 +137,8 @@ export default function TeacherDutiesPage() {
           label="Active Campus Duties"
           value={activeCampusCount}
           icon={<Shield />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Weekly standing assignments"
         />
         <StatCard
@@ -158,22 +159,22 @@ export default function TeacherDutiesPage() {
           label="Total Duty Roles"
           value={campusDuties.length + examDuties.length}
           icon={<Briefcase />}
-          tone="teal"
+          tone="primary"
           description="Campus + Exam Cell"
         />
       </div>
 
       {/* Campus Duties */}
-      <Card className="bg-white">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold text-foreground">
+      <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+        <CardHeader className="border-b border-[#E5E9EF] pb-4">
+          <CardTitle className="text-lg font-bold text-[#202936]">
             Campus Supervision & Co-Curricular Duties
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-[#788391]">
             Assigned floor supervision, morning assembly, lab oversight, and student club coordination.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-5">
           {campusDuties.length === 0 ? (
             <EmptyState
               title="No campus duties assigned"
@@ -184,13 +185,13 @@ export default function TeacherDutiesPage() {
               {campusDuties.map((duty) => (
                 <div
                   key={duty.id}
-                  className="flex flex-col justify-between rounded-lg border border-slate-200 p-4"
+                  className="flex flex-col justify-between rounded-xl border border-[#E5E9EF] bg-white p-4 shadow-xs"
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <Badge
                         variant="outline"
-                        className="border-primary/25 bg-primary/8 text-primary"
+                        className="rounded-full border-[#123B5A]/20 bg-[#123B5A]/10 text-[#123B5A] font-bold"
                       >
                         {duty.category}
                       </Badge>
@@ -225,13 +226,13 @@ export default function TeacherDutiesPage() {
       </Card>
 
       {/* Exam Duties Summary */}
-      <Card className="bg-white">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-[#E5E9EF] pb-4">
           <div>
-            <CardTitle className="text-lg font-semibold text-foreground">
+            <CardTitle className="text-lg font-bold text-[#202936]">
               Examination Invigilation Roster
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-[#788391]">
               Use the Examination Management workspace to submit hall attendance or malpractice reports.
             </CardDescription>
           </div>

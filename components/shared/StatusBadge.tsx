@@ -23,53 +23,53 @@ interface StatusStyle {
 const STATUS_STYLES: Record<StatusType, StatusStyle> = {
   Present: {
     label: "Present",
-    badgeClass: "border-success/25 bg-success/10 text-success",
-    dotClass: "bg-success",
+    badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold",
+    dotClass: "bg-emerald-600",
   },
   Absent: {
     label: "Absent",
-    badgeClass: "border-error/25 bg-error/10 text-error",
-    dotClass: "bg-error",
+    badgeClass: "border-rose-200 bg-rose-50 text-rose-700 font-semibold",
+    dotClass: "bg-rose-600",
   },
   Late: {
     label: "Late",
-    badgeClass: "border-warning/30 bg-warning/12 text-amber-700",
-    dotClass: "bg-warning",
+    badgeClass: "border-amber-200 bg-amber-50 text-amber-700 font-semibold",
+    dotClass: "bg-[#F5A000]",
   },
   "On-Duty": {
     label: "On-Duty",
-    badgeClass: "border-teal/30 bg-teal/12 text-teal-700",
-    dotClass: "bg-teal",
+    badgeClass: "border-blue-200 bg-blue-50 text-[#123B5A] font-semibold",
+    dotClass: "bg-[#123B5A]",
   },
   Pending: {
     label: "Pending",
-    badgeClass: "border-warning/30 bg-warning/12 text-amber-700",
-    dotClass: "bg-warning",
+    badgeClass: "border-amber-200 bg-amber-50 text-amber-700 font-semibold",
+    dotClass: "bg-[#F5A000]",
   },
   Approved: {
     label: "Approved",
-    badgeClass: "border-success/25 bg-success/10 text-success",
-    dotClass: "bg-success",
+    badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold",
+    dotClass: "bg-emerald-600",
   },
   Rejected: {
     label: "Rejected",
-    badgeClass: "border-error/25 bg-error/10 text-error",
-    dotClass: "bg-error",
+    badgeClass: "border-rose-200 bg-rose-50 text-rose-700 font-semibold",
+    dotClass: "bg-rose-600",
   },
   Draft: {
     label: "Draft",
-    badgeClass: "border-slate-300 bg-slate-100 text-muted-foreground",
-    dotClass: "bg-muted-foreground",
+    badgeClass: "border-[#E5E9EF] bg-[#EEF1F5] text-[#788391] font-semibold",
+    dotClass: "bg-[#788391]",
   },
   Published: {
     label: "Published",
-    badgeClass: "border-primary/25 bg-primary/10 text-primary",
-    dotClass: "bg-primary",
+    badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold",
+    dotClass: "bg-emerald-600",
   },
   Locked: {
     label: "Locked",
-    badgeClass: "border-brand/25 bg-brand/10 text-brand",
-    dotClass: "bg-brand",
+    badgeClass: "border-[#123B5A]/20 bg-[#123B5A]/10 text-[#123B5A] font-semibold",
+    dotClass: "bg-[#123B5A]",
   },
 }
 

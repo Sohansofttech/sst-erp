@@ -19,13 +19,13 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   return (
     <div
-      className={`bg-white rounded-xl border border-[#E5E9EF] shadow-sm overflow-hidden ${className}`}
+      className={`bg-white rounded-2xl border border-[#E5E9EF] shadow-xs overflow-hidden ${className}`}
     >
       {(title || action) && (
         <div className="px-6 py-4 border-b border-[#E5E9EF] flex items-center justify-between">
           <div>
             {title && (
-              <h2 className="text-[18px] font-semibold text-[#202936] leading-tight">
+              <h2 className="text-[18px] font-bold text-[#202936] leading-tight">
                 {title}
               </h2>
             )}

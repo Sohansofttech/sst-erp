@@ -289,7 +289,7 @@ export default function TeacherLeavePage() {
         title="Leave & Substitution Management"
         subtitle="Apply for faculty leave with class substitution handover, track approvals, and process Class 10-A student leave or on-duty requests."
         action={
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/duties`}>
               <CalendarCheck className="size-4" />
               View Campus & Exam Duties
@@ -303,7 +303,8 @@ export default function TeacherLeavePage() {
           label="Casual Leave Balance"
           value={`${Math.max(0, 12 - approvedDays)} / 12`}
           icon={<CalendarPlus />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Academic Year 2026-27"
         />
         <StatCard
@@ -330,11 +331,11 @@ export default function TeacherLeavePage() {
       </div>
 
       <Tabs defaultValue="my-leave" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="my-leave">
+        <TabsList className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
+          <TabsTrigger value="my-leave" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
             Apply & Track My Leave ({teacherLeaves.length})
           </TabsTrigger>
-          <TabsTrigger value="student-leave">
+          <TabsTrigger value="student-leave" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
             Student Leave / On-Duty Approvals ({pendingStudent} pending)
           </TabsTrigger>
         </TabsList>
@@ -342,19 +343,19 @@ export default function TeacherLeavePage() {
         <TabsContent value="my-leave">
           <div className="grid gap-6 lg:grid-cols-12">
             {/* Application Form */}
-            <Card className="bg-white lg:col-span-5">
+            <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs lg:col-span-5">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold text-foreground">
+                <CardTitle className="text-lg font-bold text-[#202936]">
                   Apply for Faculty Leave
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm text-[#788391]">
                   Nominate a substitute colleague and leave lesson handover notes to keep classes uninterrupted.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleApplyLeave} className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="leaveType">Leave Category</Label>
+                    <Label htmlFor="leaveType" className="text-xs font-semibold text-[#202936]">Leave Category</Label>
                     <Select
                       value={leaveTypeVal}
                       onValueChange={(val) =>
@@ -364,10 +365,10 @@ export default function TeacherLeavePage() {
                         )
                       }
                     >
-                      <SelectTrigger id="leaveType">
+                      <SelectTrigger id="leaveType" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl border-[#E5E9EF]">
                         <SelectItem value="Casual Leave">
                           Casual Leave
                         </SelectItem>
@@ -389,39 +390,41 @@ export default function TeacherLeavePage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="fromDate">From Date</Label>
+                      <Label htmlFor="fromDate" className="text-xs font-semibold text-[#202936]">From Date</Label>
                       <Input
                         id="fromDate"
                         type="date"
+                        className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                         {...form.register("fromDate")}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="toDate">To Date</Label>
+                      <Label htmlFor="toDate" className="text-xs font-semibold text-[#202936]">To Date</Label>
                       <Input
                         id="toDate"
                         type="date"
+                        className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                         {...form.register("toDate")}
                       />
                       {form.formState.errors.toDate && (
-                        <p className="text-xs text-error">
+                        <p className="text-xs text-rose-600">
                           {form.formState.errors.toDate.message}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                    <span className="text-muted-foreground">
+                  <div className="flex items-center justify-between rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 px-3 py-2 text-xs">
+                    <span className="text-[#788391]">
                       Calculated Duration
                     </span>
-                    <span className="font-semibold text-foreground">
+                    <span className="font-bold text-[#202936]">
                       {calculatedDays} day(s)
                     </span>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="substituteTeacherName">
+                    <Label htmlFor="substituteTeacherName" className="text-xs font-semibold text-[#202936]">
                       Suggested Substitute Teacher
                     </Label>
                     <Select
@@ -430,10 +433,10 @@ export default function TeacherLeavePage() {
                         form.setValue("substituteTeacherName", val)
                       }
                     >
-                      <SelectTrigger id="substituteTeacherName">
+                      <SelectTrigger id="substituteTeacherName" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-xl border-[#E5E9EF]">
                         {SUBSTITUTE_OPTIONS.map((name) => (
                           <SelectItem key={name} value={name}>
                             {name}
@@ -447,33 +450,35 @@ export default function TeacherLeavePage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="reason">Reason for Leave</Label>
+                    <Label htmlFor="reason" className="text-xs font-semibold text-[#202936]">Reason for Leave</Label>
                     <Textarea
                       id="reason"
                       rows={3}
                       placeholder="Specify purpose of leave or official academic duty..."
+                      className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                       {...form.register("reason")}
                     />
                     {form.formState.errors.reason && (
-                      <p className="text-xs text-error">
+                      <p className="text-xs text-rose-600">
                         {form.formState.errors.reason.message}
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="handoverNotes">
+                    <Label htmlFor="handoverNotes" className="text-xs font-semibold text-[#202936]">
                       Lesson / Worksheet Handover Notes (optional)
                     </Label>
                     <Textarea
                       id="handoverNotes"
                       rows={2}
                       placeholder="e.g. Share Trigonometry practice sheet stored in Staff Room drawer 2..."
+                      className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                       {...form.register("handoverNotes")}
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={submitting}>
+                  <Button type="submit" className="w-full rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]" disabled={submitting}>
                     <Send className="size-4" />
                     {submitting
                       ? "Submitting Application..."
@@ -484,12 +489,12 @@ export default function TeacherLeavePage() {
             </Card>
 
             {/* Leave Status Timeline */}
-            <Card className="bg-white lg:col-span-7">
+            <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs lg:col-span-7">
               <CardHeader>
-                <CardTitle className="text-lg font-semibold text-foreground">
+                <CardTitle className="text-lg font-bold text-[#202936]">
                   My Leave History & Approval Timeline
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm text-[#788391]">
                   Track progression from submission through HoD / Principal review and substitute confirmation.
                 </CardDescription>
               </CardHeader>
@@ -512,22 +517,22 @@ export default function TeacherLeavePage() {
                     return (
                       <div
                         key={leave.id}
-                        className="rounded-lg border border-slate-200 p-4"
+                        className="rounded-xl border border-[#E5E9EF] p-4 bg-white hover:border-[#123B5A]/30 transition-all"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-semibold text-foreground">
+                              <span className="font-bold text-[#202936]">
                                 {leave.leaveType}
                               </span>
-                              <Badge variant="outline">
+                              <Badge variant="outline" className="border-[#E5E9EF] bg-[#EEF1F5] text-[#202936] font-semibold">
                                 {leave.daysCount} day(s)
                               </Badge>
                               <StatusBadge
                                 status={mapStatusBadge(leave.status)}
                               />
                             </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
+                            <div className="mt-1 text-xs text-[#788391]">
                               {leave.fromDate} to {leave.toDate} • Applied on{" "}
                               {leave.appliedAt.slice(0, 10)}
                             </div>
@@ -535,20 +540,20 @@ export default function TeacherLeavePage() {
                           {leave.substituteTeacherName && (
                             <Badge
                               variant="outline"
-                              className="border-teal/30 bg-teal/10 text-teal-700"
+                              className="border-[#123B5A]/25 bg-[#123B5A]/8 text-[#123B5A] font-semibold"
                             >
                               Sub: {leave.substituteTeacherName}
                             </Badge>
                           )}
                         </div>
 
-                        <p className="mt-2.5 text-sm text-foreground">
+                        <p className="mt-2.5 text-sm text-[#202936]">
                           {leave.reason}
                         </p>
 
                         {leave.handoverNotes && (
-                          <div className="mt-2 rounded-md bg-slate-50 px-3 py-1.5 text-xs text-muted-foreground">
-                            <span className="font-semibold text-foreground">
+                          <div className="mt-2 rounded-xl bg-[#EEF1F5]/60 border border-[#E5E9EF] px-3 py-1.5 text-xs text-[#788391]">
+                            <span className="font-bold text-[#202936]">
                               Handover:{" "}
                             </span>
                             {leave.handoverNotes}
@@ -568,21 +573,21 @@ export default function TeacherLeavePage() {
                               <div
                                 key={`${leave.id}-${label}`}
                                 className={cn(
-                                  "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium",
+                                  "flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold",
                                   finalError
-                                    ? "border-error/30 bg-error/10 text-error"
+                                    ? "border-rose-200 bg-rose-50 text-rose-700"
                                     : reached
-                                      ? "border-success/25 bg-success/10 text-success"
-                                      : "border-slate-200 bg-slate-50 text-muted-foreground"
+                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                      : "border-[#E5E9EF] bg-[#EEF1F5] text-[#788391]"
                                 )}
                               >
                                 <span
                                   className={cn(
                                     "size-2 rounded-full",
                                     finalError
-                                      ? "bg-error"
+                                      ? "bg-rose-500"
                                       : reached
-                                        ? "bg-success"
+                                        ? "bg-emerald-500"
                                         : "bg-slate-300"
                                   )}
                                 />
@@ -602,7 +607,7 @@ export default function TeacherLeavePage() {
 
         <TabsContent value="student-leave" className="space-y-4">
           {!canApproveStudentLeaves && (
-            <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-amber-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               You are viewing in <strong>Subject Teacher</strong> mode. Switch
               the top header role selector to <strong>Class Teacher</strong> or{" "}
               <strong>HoD</strong> to approve or reject Class 10-A student leave
@@ -610,22 +615,22 @@ export default function TeacherLeavePage() {
             </div>
           )}
 
-          <Card className="bg-white">
+          <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold text-foreground">
+                <CardTitle className="text-lg font-bold text-[#202936]">
                   Class 10-A Student Leave & On-Duty Queue
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm text-[#788391]">
                   Review parent-submitted medical, family, and official school On-Duty (OD) applications.
                 </CardDescription>
               </div>
               <div className="w-full sm:w-48">
                 <Select value={studentFilter} onValueChange={setStudentFilter}>
-                  <SelectTrigger aria-label="Filter student requests">
+                  <SelectTrigger className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]" aria-label="Filter student requests">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-[#E5E9EF]">
                     <SelectItem value="all">All Requests</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
@@ -644,34 +649,34 @@ export default function TeacherLeavePage() {
                 filteredStudentLeaves.map((req) => (
                   <div
                     key={req.id}
-                    className="rounded-lg border border-slate-200 p-4"
+                    className="rounded-xl border border-[#E5E9EF] p-4 bg-white"
                   >
                     <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-foreground">
+                          <span className="font-bold text-[#202936]">
                             {req.studentName}
                           </span>
-                          <Badge variant="outline">{req.rollNo}</Badge>
+                          <Badge variant="outline" className="border-[#E5E9EF] bg-[#EEF1F5] text-[#202936] font-semibold">{req.rollNo}</Badge>
                           <Badge
                             variant="outline"
-                            className="border-primary/25 bg-primary/8 text-primary"
+                            className="border-amber-200 bg-amber-50 text-amber-700 font-semibold"
                           >
                             {req.leaveType}
                           </Badge>
                           <StatusBadge status={mapStatusBadge(req.status)} />
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-[#788391]">
                           {req.className} - {req.section} • {req.fromDate} to{" "}
                           {req.toDate} ({req.daysCount} day) • Applied:{" "}
                           {req.appliedAt.slice(0, 10)}
                         </div>
-                        <p className="pt-1 text-sm text-foreground">
+                        <p className="pt-1 text-sm text-[#202936]">
                           {req.reason}
                         </p>
                         {req.reviewerRemarks && (
-                          <div className="text-xs text-muted-foreground">
-                            <span className="font-semibold text-foreground">
+                          <div className="text-xs text-[#788391]">
+                            <span className="font-bold text-[#202936]">
                               Decision Remarks:{" "}
                             </span>
                             {req.reviewerRemarks}
@@ -691,12 +696,12 @@ export default function TeacherLeavePage() {
                                 [req.id]: e.target.value,
                               }))
                             }
-                            className="h-8 text-xs"
+                            className="h-8 text-xs rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                           />
                           <div className="flex gap-2">
                             <Button
                               size="sm"
-                              className="flex-1 bg-success hover:bg-success/90"
+                              className="flex-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
                               disabled={
                                 !canApproveStudentLeaves ||
                                 reviewingId === req.id
@@ -711,7 +716,7 @@ export default function TeacherLeavePage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="flex-1 border-error/30 text-error hover:bg-error/10"
+                              className="flex-1 rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50"
                               disabled={
                                 !canApproveStudentLeaves ||
                                 reviewingId === req.id

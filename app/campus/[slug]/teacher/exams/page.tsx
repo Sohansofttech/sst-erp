@@ -287,7 +287,8 @@ export default function TeacherExamsPage() {
           label="Total Exam Duties"
           value={duties.length}
           icon={<ClipboardCheck />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Current term roster"
         />
         <StatCard
@@ -308,7 +309,7 @@ export default function TeacherExamsPage() {
           label="Assigned Rooms / Labs"
           value={uniqueRooms}
           icon={<DoorOpen />}
-          tone="teal"
+          tone="primary"
           description={`${schedule.length} scheduled papers`}
         />
       </div>
@@ -330,12 +331,12 @@ export default function TeacherExamsPage() {
               description="Invigilation and evaluation duties will appear here once published by the Exam Cell."
             />
           ) : (
-            <Card className="bg-white">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-foreground">
+            <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+              <CardHeader className="border-b border-[#E5E9EF] pb-4">
+                <CardTitle className="text-lg font-bold text-[#202936]">
                   Assigned Exam & Invigilation Roster
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-[#788391]">
                   Submit exam hall attendance and report any malpractice incidents immediately after each shift.
                 </CardDescription>
               </CardHeader>
@@ -436,13 +437,13 @@ export default function TeacherExamsPage() {
         </TabsContent>
 
         <TabsContent value="schedule" className="space-y-4">
-          <Card className="bg-white">
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#E5E9EF] pb-4">
               <div>
-                <CardTitle className="text-lg font-semibold text-foreground">
+                <CardTitle className="text-lg font-bold text-[#202936]">
                   Official Examination Timetable
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-[#788391]">
                   Scheduled papers, rooms, and assessment weightage across your classes.
                 </CardDescription>
               </div>

@@ -290,10 +290,10 @@ export default function TeacherTimetablePage() {
                       type="button"
                       onClick={() => setSelectedDay(day)}
                       className={cn(
-                        "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+                        "inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-bold transition-all",
                         active
-                          ? "border-brand bg-brand text-white"
-                          : "border-border bg-card text-foreground hover:bg-muted"
+                          ? "border-[#F5A000] bg-[#F5A000] text-white shadow-xs"
+                          : "border-[#E5E9EF] bg-white text-[#202936] hover:bg-[#EEF1F5]"
                       )}
                     >
                       <span>{day}</span>
@@ -301,8 +301,8 @@ export default function TeacherTimetablePage() {
                         className={cn(
                           "rounded-full px-1.5 py-0.5 text-[11px]",
                           active
-                            ? "bg-white/20 text-white"
-                            : "bg-muted text-muted-foreground"
+                            ? "bg-white/20 text-white font-bold"
+                            : "bg-[#EEF1F5] text-[#788391]"
                         )}
                       >
                         {count}
@@ -326,51 +326,51 @@ export default function TeacherTimetablePage() {
                       <Card
                         key={slot.id}
                         className={cn(
-                          "py-4 transition-all",
+                          "py-4 rounded-2xl border-[#E5E9EF] bg-white shadow-xs transition-all",
                           isActiveSlot &&
-                            "border-primary ring-2 ring-primary/20",
+                            "border-[#F5A000] ring-2 ring-[#F5A000]/25",
                           slot.isSubstituted &&
                             !isActiveSlot &&
-                            "border-teal/50 bg-teal/[0.03]"
+                            "border-amber-200 bg-amber-50/40"
                         )}
                       >
                         <CardContent className="flex flex-col justify-between gap-3 px-5 sm:flex-row sm:items-center">
                           <div className="flex items-start gap-4">
                             <div
                               className={cn(
-                                "flex size-11 shrink-0 flex-col items-center justify-center rounded-lg border text-center",
+                                "flex size-11 shrink-0 flex-col items-center justify-center rounded-xl border text-center font-bold",
                                 isActiveSlot
-                                  ? "border-primary bg-primary text-white"
-                                  : "border-border bg-muted/60 text-foreground"
+                                  ? "border-[#F5A000] bg-[#F5A000] text-white"
+                                  : "border-[#E5E9EF] bg-[#EEF1F5] text-[#202936]"
                               )}
                             >
-                              <span className="text-[10px] font-medium uppercase">
+                              <span className="text-[10px] font-bold uppercase">
                                 Period
                               </span>
-                              <span className="text-[15px] leading-none font-bold">
+                              <span className="text-[15px] leading-none font-extrabold">
                                 {slot.period}
                               </span>
                             </div>
 
                             <div className="space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[15px] font-semibold text-foreground">
+                                <span className="text-[15px] font-bold text-[#202936]">
                                   {slot.subject}
                                 </span>
-                                <Badge variant="secondary">
+                                <Badge variant="secondary" className="rounded-full bg-[#EEF1F5] text-[#202936]">
                                   {slot.className} - {slot.section}
                                 </Badge>
                                 {isActiveSlot && (
-                                  <Badge className="gap-1 bg-primary text-white">
+                                  <Badge className="gap-1 rounded-full bg-[#F5A000] text-white font-bold">
                                     <Sparkles className="size-3" />
                                     Active Slot
                                   </Badge>
                                 )}
                                 {slot.isSubstituted && (
-                                  <Badge variant="teal">Substituted</Badge>
+                                  <Badge className="rounded-full border-amber-200 bg-amber-100 text-amber-800 font-bold">Substituted</Badge>
                                 )}
                               </div>
-                              <div className="flex flex-wrap items-center gap-4 text-[13px] text-muted-foreground">
+                              <div className="flex flex-wrap items-center gap-4 text-[13px] text-[#788391]">
                                 <span className="inline-flex items-center gap-1">
                                   <Clock className="size-3.5" />
                                   {slot.startTime} – {slot.endTime}
@@ -380,13 +380,13 @@ export default function TeacherTimetablePage() {
                                   Room {slot.room}
                                 </span>
                                 {slot.subjectCode && (
-                                  <span className="font-mono text-xs">
+                                  <span className="font-mono text-xs text-[#788391]">
                                     {slot.subjectCode}
                                   </span>
                                 )}
                               </div>
                               {slot.substitutedFor && (
-                                <p className="text-[12.5px] font-medium text-teal-700">
+                                <p className="text-[12.5px] font-bold text-[#123B5A]">
                                   Covering for {slot.substitutedFor}
                                   {slot.notes ? ` · ${slot.notes}` : ""}
                                 </p>
@@ -450,36 +450,35 @@ export default function TeacherTimetablePage() {
                                 type="button"
                                 onClick={() => setActiveSlotId(slot.id)}
                                 className={cn(
-                                  "flex w-full flex-col gap-1 rounded-lg border p-2.5 text-left transition-all",
+                                  "flex w-full flex-col gap-1 rounded-xl border p-2.5 text-left transition-all",
                                   isActiveSlot
-                                    ? "border-primary bg-primary/[0.06] ring-2 ring-primary/20"
+                                    ? "border-[#F5A000] bg-amber-50/50 ring-2 ring-[#F5A000]/30 shadow-xs"
                                     : slot.isSubstituted
-                                      ? "border-teal/40 bg-teal/[0.07]"
-                                      : "border-border bg-card hover:border-primary/40"
+                                      ? "border-amber-200 bg-amber-50/40 text-amber-900"
+                                      : "border-[#E5E9EF] bg-white hover:border-[#123B5A]/40"
                                 )}
                               >
                                 <div className="flex items-center justify-between gap-1">
-                                  <span className="text-[12.5px] font-semibold text-foreground">
+                                  <span className="text-[12.5px] font-bold text-[#202936]">
                                     {slot.className}-{slot.section}
                                   </span>
                                   {slot.isSubstituted && (
                                     <Badge
-                                      variant="teal"
-                                      className="px-1.5 py-0 text-[10px]"
+                                      className="rounded-full border-amber-200 bg-amber-100 text-amber-800 px-1.5 py-0 text-[10px] font-bold"
                                     >
                                       Sub
                                     </Badge>
                                   )}
                                   {isActiveSlot && !slot.isSubstituted && (
-                                    <Badge className="bg-primary px-1.5 py-0 text-[10px] text-white">
+                                    <Badge className="rounded-full bg-[#F5A000] px-1.5 py-0 text-[10px] text-white font-bold">
                                       Active
                                     </Badge>
                                   )}
                                 </div>
-                                <p className="truncate text-[12px] font-medium text-muted-foreground">
+                                <p className="truncate text-[12px] font-medium text-[#788391]">
                                   {slot.subject}
                                 </p>
-                                <p className="text-[11px] text-muted-foreground">
+                                <p className="text-[11px] text-[#788391]">
                                   Room {slot.room}
                                 </p>
                               </button>
@@ -496,14 +495,14 @@ export default function TeacherTimetablePage() {
         </div>
 
         {/* Workload Summary Breakdown Card */}
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle>Workload Summary</CardTitle>
-            <CardDescription>
+        <Card className="h-fit rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+          <CardHeader className="border-b border-[#E5E9EF] pb-4">
+            <CardTitle className="text-[#202936]">Workload Summary</CardTitle>
+            <CardDescription className="text-[#788391]">
               Weekly allocation across classes & subjects.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-5">
             {allocations.map((alloc) => {
               const sectionSlotCount = slots.filter(
                 (s) => s.sectionId === alloc.sectionId
@@ -511,7 +510,7 @@ export default function TeacherTimetablePage() {
               return (
                 <div
                   key={alloc.id}
-                  className="space-y-1.5 rounded-xl border p-3.5"
+                  className="space-y-1.5 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/30 p-3.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[14px] font-semibold text-foreground">

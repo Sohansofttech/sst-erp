@@ -100,7 +100,7 @@ function RiskPill({ level }: { level: Mentee["riskLevel"] }) {
     return (
       <Badge
         variant="outline"
-        className="border-error/30 bg-error/10 text-error"
+        className="border-rose-200 bg-rose-50 text-rose-700 font-semibold"
       >
         At Risk
       </Badge>
@@ -110,7 +110,7 @@ function RiskPill({ level }: { level: Mentee["riskLevel"] }) {
     return (
       <Badge
         variant="outline"
-        className="border-warning/35 bg-warning/12 text-amber-700"
+        className="border-amber-200 bg-amber-50 text-amber-700 font-semibold"
       >
         Needs Watch
       </Badge>
@@ -119,7 +119,7 @@ function RiskPill({ level }: { level: Mentee["riskLevel"] }) {
   return (
     <Badge
       variant="outline"
-      className="border-success/25 bg-success/10 text-success"
+      className="border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold"
     >
       On Track
     </Badge>
@@ -129,7 +129,7 @@ function RiskPill({ level }: { level: Mentee["riskLevel"] }) {
 function TrendBadge({ trend }: { trend?: Mentee["iaTrend"] }) {
   if (trend === "up") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
         <TrendingUp className="size-3.5" />
         Improving
       </span>
@@ -137,14 +137,14 @@ function TrendBadge({ trend }: { trend?: Mentee["iaTrend"] }) {
   }
   if (trend === "down") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-error">
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600">
         <TrendingDown className="size-3.5" />
         Declining
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#788391]">
       <Minus className="size-3.5" />
       Steady
     </span>
@@ -375,7 +375,8 @@ export default function TeacherMentoringPage() {
           label="Assigned Mentees"
           value={mentees.length}
           icon={<Users />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Cohort across Class 10-A"
         />
         <StatCard
@@ -403,31 +404,31 @@ export default function TeacherMentoringPage() {
 
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Left Cohort List */}
-        <Card className="bg-white lg:col-span-5">
+        <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs lg:col-span-5">
           <CardHeader className="space-y-3">
             <div>
-              <CardTitle className="text-lg font-semibold text-foreground">
+              <CardTitle className="text-lg font-bold text-[#202936]">
                 Mentee Roster
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm text-[#788391]">
                 Select a student to open their mentoring workspace.
               </CardDescription>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
+                <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-[#788391]" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search mentee..."
-                  className="pl-9"
+                  className="rounded-xl border-[#E5E9EF] bg-white pl-9 text-[#202936] focus-visible:ring-[#F5A000]"
                 />
               </div>
               <Select value={riskFilter} onValueChange={setRiskFilter}>
-                <SelectTrigger className="sm:w-36" aria-label="Filter by risk">
+                <SelectTrigger className="rounded-xl border-[#E5E9EF] bg-white sm:w-36 text-[#202936]" aria-label="Filter by risk">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-[#E5E9EF]">
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="at_risk">At Risk</SelectItem>
                   <SelectItem value="watch">Needs Watch</SelectItem>
@@ -451,18 +452,18 @@ export default function TeacherMentoringPage() {
                     type="button"
                     onClick={() => selectMentee(mentee)}
                     className={cn(
-                      "w-full rounded-lg border p-3.5 text-left transition-colors",
+                      "w-full rounded-xl border p-3.5 text-left transition-all",
                       isSelected
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
+                        ? "border-[#F5A000] bg-amber-50/50 ring-1 ring-[#F5A000]/30 shadow-xs"
+                        : "border-[#E5E9EF] bg-white hover:bg-[#EEF1F5]/60"
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-semibold text-foreground">
+                        <div className="font-bold text-[#202936]">
                           {mentee.fullName}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-[#788391]">
                           {mentee.rollNo} • {mentee.className} -{" "}
                           {mentee.section}
                         </div>
@@ -474,24 +475,24 @@ export default function TeacherMentoringPage() {
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
-                            "font-medium",
+                            "font-semibold",
                             mentee.attendancePercent < 75
-                              ? "text-error"
+                              ? "text-rose-600"
                               : mentee.attendancePercent < 85
                                 ? "text-amber-700"
-                                : "text-foreground"
+                                : "text-[#202936]"
                           )}
                         >
                           Att: {mentee.attendancePercent}%
                         </span>
                         <span
                           className={cn(
-                            "font-medium",
+                            "font-semibold",
                             mentee.iaAverage < 60
-                              ? "text-error"
+                              ? "text-rose-600"
                               : mentee.iaAverage < 75
                                 ? "text-amber-700"
-                                : "text-foreground"
+                                : "text-[#202936]"
                           )}
                         >
                           IA Avg: {mentee.iaAverage}%
@@ -501,7 +502,7 @@ export default function TeacherMentoringPage() {
                     </div>
 
                     {mentee.escalated && (
-                      <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-error">
+                      <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600">
                         <ShieldAlert className="size-3" />
                         Escalated to Coordinator
                       </div>
@@ -522,24 +523,24 @@ export default function TeacherMentoringPage() {
             />
           ) : (
             <>
-              <Card className="bg-white">
+              <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
                 <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-xl font-semibold text-foreground">
+                      <CardTitle className="text-xl font-bold text-[#202936]">
                         {activeMentee.fullName}
                       </CardTitle>
                       <RiskPill level={activeMentee.riskLevel} />
                       {activeMentee.escalated && (
                         <Badge
                           variant="outline"
-                          className="border-error/35 bg-error/10 text-error"
+                          className="border-rose-200 bg-rose-50 text-rose-700 font-semibold"
                         >
                           Escalated
                         </Badge>
                       )}
                     </div>
-                    <CardDescription className="mt-1">
+                    <CardDescription className="mt-1 text-xs text-[#788391]">
                       Roll No: {activeMentee.rollNo} • Admission:{" "}
                       {activeMentee.admissionNo} • Guardian:{" "}
                       {activeMentee.guardianContact.guardianName} (
@@ -551,6 +552,7 @@ export default function TeacherMentoringPage() {
                     <Button
                       size="sm"
                       onClick={() => setMeetingDialogOpen(true)}
+                      className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]"
                     >
                       <MessageSquarePlus className="size-4" />
                       Log Mentoring Meeting
@@ -558,7 +560,7 @@ export default function TeacherMentoringPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-error/30 text-error hover:bg-error/10 hover:text-error"
+                      className="rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
                       onClick={() => setEscalateDialogOpen(true)}
                     >
                       <ShieldAlert className="size-4" />
@@ -569,49 +571,49 @@ export default function TeacherMentoringPage() {
 
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <div className="text-xs font-medium text-muted-foreground">
+                    <div className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 p-3">
+                      <div className="text-xs font-semibold text-[#788391]">
                         Attendance Rate
                       </div>
                       <div
                         className={cn(
                           "mt-1 text-xl font-bold",
                           activeMentee.attendancePercent < 75
-                            ? "text-error"
+                            ? "text-rose-600"
                             : activeMentee.attendancePercent < 85
                               ? "text-amber-700"
-                              : "text-success"
+                              : "text-emerald-700"
                         )}
                       >
                         {activeMentee.attendancePercent}%
                       </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <div className="text-xs font-medium text-muted-foreground">
+                    <div className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 p-3">
+                      <div className="text-xs font-semibold text-[#788391]">
                         IA Average & Trend
                       </div>
                       <div className="mt-1 flex items-baseline justify-between">
-                        <span className="text-xl font-bold text-foreground">
+                        <span className="text-xl font-bold text-[#202936]">
                           {activeMentee.iaAverage}%
                         </span>
                         <TrendBadge trend={activeMentee.iaTrend} />
                       </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <div className="text-xs font-medium text-muted-foreground">
+                    <div className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 p-3">
+                      <div className="text-xs font-semibold text-[#788391]">
                         Last Check-in
                       </div>
-                      <div className="mt-1 text-lg font-semibold text-foreground">
+                      <div className="mt-1 text-lg font-bold text-[#202936]">
                         {activeMentee.lastSessionDate ?? "None"}
                       </div>
                     </div>
                   </div>
 
                   {activeMentee.escalated && activeMentee.escalationReason && (
-                    <div className="flex items-start gap-2.5 rounded-lg border border-error/25 bg-error/8 p-3 text-xs text-error">
-                      <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                    <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+                      <ShieldAlert className="mt-0.5 size-4 shrink-0 text-rose-600" />
                       <div>
-                        <div className="font-semibold">
+                        <div className="font-bold">
                           Escalated Concern Note
                         </div>
                         <p className="mt-0.5">{activeMentee.escalationReason}</p>
@@ -619,20 +621,20 @@ export default function TeacherMentoringPage() {
                     </div>
                   )}
 
-                  <Separator />
+                  <Separator className="bg-[#E5E9EF]" />
 
                   {/* Confidential Notes Section */}
                   <div className="space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Label
                         htmlFor="confidential-note"
-                        className="text-sm font-semibold text-foreground"
+                        className="text-sm font-bold text-[#202936]"
                       >
                         Confidential Mentor Notes
                       </Label>
                       <Badge
                         variant="outline"
-                        className="border-brand/30 bg-brand/10 text-brand"
+                        className="border-[#123B5A]/20 bg-[#123B5A]/10 text-[#123B5A] font-semibold"
                       >
                         <Lock className="mr-1 size-3" />
                         Confidential: Mentor & Authorized Roles Only
@@ -644,9 +646,10 @@ export default function TeacherMentoringPage() {
                       value={confidentialDraft}
                       onChange={(e) => setConfidentialDraft(e.target.value)}
                       placeholder="Record private counseling context, learning support needs, or home study barriers (not visible to peers)..."
+                      className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                     />
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-[#788391]">
                         Strictly excluded from student report cards and public logs.
                       </span>
                       <Button
@@ -654,6 +657,7 @@ export default function TeacherMentoringPage() {
                         variant="outline"
                         disabled={savingNote}
                         onClick={handleSaveConfidentialNote}
+                        className="rounded-xl border-[#123B5A] text-[#123B5A] hover:bg-[#123B5A] hover:text-white"
                       >
                         {savingNote ? "Saving..." : "Save Confidential Note"}
                       </Button>
@@ -663,12 +667,12 @@ export default function TeacherMentoringPage() {
               </Card>
 
               {/* Session History */}
-              <Card className="bg-white">
+              <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-foreground">
+                  <CardTitle className="text-lg font-bold text-[#202936]">
                     Mentoring Meeting Logs ({activeSessions.length})
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm text-[#788391]">
                     Agendas, student goals, and agreed follow-up actions.
                   </CardDescription>
                 </CardHeader>
@@ -682,14 +686,14 @@ export default function TeacherMentoringPage() {
                     activeSessions.map((session) => (
                       <div
                         key={session.id}
-                        className="rounded-lg border border-slate-200 p-4"
+                        className="rounded-xl border border-[#E5E9EF] p-4 bg-white"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-semibold text-foreground">
+                          <div className="font-bold text-[#202936]">
                             {session.topic}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="capitalize">
+                            <Badge variant="outline" className="capitalize border-[#E5E9EF] bg-[#EEF1F5] text-[#202936]">
                               {session.mode.replace("_", " ")}
                             </Badge>
                             <StatusBadge
@@ -703,28 +707,28 @@ export default function TeacherMentoringPage() {
                             />
                           </div>
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
+                        <div className="mt-1 text-xs text-[#788391]">
                           Date: {session.sessionDate}
                           {session.followUpDate
                             ? ` • Next Follow-up: ${session.followUpDate}`
                             : ""}
                         </div>
-                        <p className="mt-2.5 text-sm text-foreground">
+                        <p className="mt-2.5 text-sm text-[#202936]">
                           {session.observations}
                         </p>
                         {session.actionItems.length > 0 && (
-                          <div className="mt-3 space-y-1 rounded-md bg-slate-50 p-2.5">
-                            <div className="text-xs font-semibold text-foreground">
+                          <div className="mt-3 space-y-1 rounded-xl bg-[#EEF1F5]/60 p-3 border border-[#E5E9EF]">
+                            <div className="text-xs font-bold text-[#202936]">
                               Action Items
                             </div>
-                            <ul className="space-y-1 text-xs text-muted-foreground">
+                            <ul className="space-y-1 text-xs text-[#788391]">
                               {session.actionItems.map((item, idx) => (
                                 <li
                                   key={`${session.id}-ai-${idx}`}
                                   className="flex items-start gap-1.5"
                                 >
-                                  <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-teal" />
-                                  <span>{item}</span>
+                                  <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-[#F5A000]" />
+                                  <span className="text-[#202936]">{item}</span>
                                 </li>
                               ))}
                             </ul>
@@ -742,10 +746,10 @@ export default function TeacherMentoringPage() {
 
       {/* Log Mentoring Meeting Dialog */}
       <Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Log Mentoring Meeting</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-[#202936]">Log Mentoring Meeting</DialogTitle>
+            <DialogDescription className="text-xs text-[#788391]">
               {activeMentee
                 ? `Record session agenda, goals, and action plan for ${activeMentee.fullName} (${activeMentee.rollNo}).`
                 : "Record mentoring meeting details."}
@@ -754,20 +758,21 @@ export default function TeacherMentoringPage() {
           <form onSubmit={handleLogMeeting} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="sessionDate">Meeting Date</Label>
+                <Label htmlFor="sessionDate" className="text-xs font-semibold text-[#202936]">Meeting Date</Label>
                 <Input
                   id="sessionDate"
                   type="date"
+                  className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                   {...meetingForm.register("sessionDate")}
                 />
                 {meetingForm.formState.errors.sessionDate && (
-                  <p className="text-xs text-error">
+                  <p className="text-xs text-rose-600">
                     {meetingForm.formState.errors.sessionDate.message}
                   </p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="mode">Session Mode</Label>
+                <Label htmlFor="mode" className="text-xs font-semibold text-[#202936]">Session Mode</Label>
                 <Select
                   defaultValue="in_person"
                   onValueChange={(val) =>
@@ -777,10 +782,10 @@ export default function TeacherMentoringPage() {
                     )
                   }
                 >
-                  <SelectTrigger id="mode">
+                  <SelectTrigger id="mode" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-[#E5E9EF]">
                     <SelectItem value="in_person">In-Person</SelectItem>
                     <SelectItem value="parent_call">Parent Call</SelectItem>
                     <SelectItem value="online">Online Video</SelectItem>
@@ -790,56 +795,60 @@ export default function TeacherMentoringPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="topic">Agenda / Discussion Topic</Label>
+              <Label htmlFor="topic" className="text-xs font-semibold text-[#202936]">Agenda / Discussion Topic</Label>
               <Input
                 id="topic"
                 placeholder="e.g. Term 1 Recovery Plan & Study Schedule"
+                className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 {...meetingForm.register("topic")}
               />
               {meetingForm.formState.errors.topic && (
-                <p className="text-xs text-error">
+                <p className="text-xs text-rose-600">
                   {meetingForm.formState.errors.topic.message}
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="observations">Goals & Observations</Label>
+              <Label htmlFor="observations" className="text-xs font-semibold text-[#202936]">Goals & Observations</Label>
               <Textarea
                 id="observations"
                 rows={3}
                 placeholder="Summarize academic goals set and student feedback..."
+                className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 {...meetingForm.register("observations")}
               />
               {meetingForm.formState.errors.observations && (
-                <p className="text-xs text-error">
+                <p className="text-xs text-rose-600">
                   {meetingForm.formState.errors.observations.message}
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="actionItemsText">
+              <Label htmlFor="actionItemsText" className="text-xs font-semibold text-[#202936]">
                 Action Items (one per line or semicolon-separated)
               </Label>
               <Textarea
                 id="actionItemsText"
                 rows={2}
                 placeholder="Complete Chapter 4 worksheet&#10;Attend Tuesday remedial session"
+                className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 {...meetingForm.register("actionItemsText")}
               />
               {meetingForm.formState.errors.actionItemsText && (
-                <p className="text-xs text-error">
+                <p className="text-xs text-rose-600">
                   {meetingForm.formState.errors.actionItemsText.message}
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="followUpDate">Next Follow-Up Date (optional)</Label>
+              <Label htmlFor="followUpDate" className="text-xs font-semibold text-[#202936]">Next Follow-Up Date (optional)</Label>
               <Input
                 id="followUpDate"
                 type="date"
+                className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 {...meetingForm.register("followUpDate")}
               />
             </div>
@@ -848,11 +857,12 @@ export default function TeacherMentoringPage() {
               <Button
                 type="button"
                 variant="outline"
+                className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                 onClick={() => setMeetingDialogOpen(false)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingMeeting}>
+              <Button type="submit" disabled={savingMeeting} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
                 {savingMeeting ? "Saving..." : "Save Meeting Log"}
               </Button>
             </DialogFooter>
@@ -862,29 +872,30 @@ export default function TeacherMentoringPage() {
 
       {/* Escalate Concern Dialog */}
       <Dialog open={escalateDialogOpen} onOpenChange={setEscalateDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-error">
+            <DialogTitle className="text-xl font-bold text-rose-600">
               Escalate Mentee Concern
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs text-[#788391]">
               Notify the Academic Coordinator and Student Counselor for{" "}
               {activeMentee?.fullName}.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEscalate} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="escalation-reason">
+              <Label htmlFor="escalation-reason" className="text-xs font-semibold text-[#202936]">
                 Reason for Escalation & Recommended Support
               </Label>
               <Textarea
                 id="escalation-reason"
                 rows={4}
                 placeholder="Outline attendance drop, consecutive IA failures, or intervention needed..."
+                className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 {...escalationForm.register("reason")}
               />
               {escalationForm.formState.errors.reason && (
-                <p className="text-xs text-error">
+                <p className="text-xs text-rose-600">
                   {escalationForm.formState.errors.reason.message}
                 </p>
               )}
@@ -893,6 +904,7 @@ export default function TeacherMentoringPage() {
               <Button
                 type="button"
                 variant="outline"
+                className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                 onClick={() => setEscalateDialogOpen(false)}
               >
                 Cancel
@@ -900,6 +912,7 @@ export default function TeacherMentoringPage() {
               <Button
                 type="submit"
                 variant="destructive"
+                className="rounded-xl bg-rose-600 text-white hover:bg-rose-700"
                 disabled={savingEscalation}
               >
                 {savingEscalation ? "Escalating..." : "Confirm Escalation"}
