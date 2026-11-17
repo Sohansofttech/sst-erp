@@ -42,8 +42,8 @@ function LoginContent() {
   }, [requestedRole, router]);
 
   // Form states for Institution Admin
-  const [institutionCode, setInstitutionCode] = useState("SST-ENG-001");
-  const [usernameOrEmail, setUsernameOrEmail] = useState("admin@sohansoft.in");
+  const [institutionCode, setInstitutionCode] = useState("BRIND123");
+  const [usernameOrEmail, setUsernameOrEmail] = useState("contactus@brind.edu.in");
   const [password, setPassword] = useState("Admin@2026");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -95,7 +95,7 @@ function LoginContent() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
 
@@ -105,25 +105,55 @@ function LoginContent() {
 
     setIsLoading(true);
 
-    // Simulated Demo Authentication Delay
-    setTimeout(() => {
-      if (password === "wrongpassword" || institutionCode.toLowerCase() === "invalid") {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: usernameOrEmail.trim().toLowerCase(),
+          password,
+          institutionCode: institutionCode.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
         setIsLoading(false);
-        setAuthError("Authentication failed: Unrecognized Institution Code or Invalid Credentials.");
+        setAuthError(data.error || "Authentication failed: Unrecognized Institution Code or Invalid Credentials.");
+        return;
+      }
+
+      // Check role
+      const userRole = data.data?.user?.role;
+      if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN") {
+        setIsLoading(false);
+        setAuthError("Access restricted: This account does not have Institution Admin privileges.");
         return;
       }
 
       setLoginSuccess(true);
       setTimeout(() => {
-        router.push("/admin");
-      }, 700);
-    }, 600);
+        window.location.href = "/admin";
+      }, 400);
+    } catch (err: unknown) {
+      setIsLoading(false);
+      const msg = err instanceof Error ? err.message : "A network or server error occurred during login. Please try again.";
+      setAuthError(msg);
+    }
   };
 
   const handleQuickDemoFill = () => {
-    setInstitutionCode(profile.code || "SST-ENG-001");
-    setUsernameOrEmail("admin@sohansoft.in");
-    setPassword("Admin@2026");
+    // If currently filling BRIND123, switch to APEX-TECH and vice versa
+    if (institutionCode === "BRIND123") {
+      setInstitutionCode("APEX-TECH");
+      setUsernameOrEmail("admin@apex.edu");
+      setPassword("Admin@2026");
+    } else {
+      setInstitutionCode("BRIND123");
+      setUsernameOrEmail("contactus@brind.edu.in");
+      setPassword("Admin@2026");
+    }
     setFieldErrors({});
     setAuthError("");
   };

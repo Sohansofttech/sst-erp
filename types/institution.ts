@@ -1,3 +1,6 @@
+import type { InstitutionThemeConfig } from "@/lib/theme-utils";
+export type { InstitutionThemeConfig };
+
 export type InstitutionType =
   | "Engineering & Technology"
   | "Arts & Science"
@@ -29,6 +32,7 @@ export interface InstitutionProfile {
   accentColor: string;
   academicCalendarType: "Semester" | "Annual" | "Trimester";
   currencySymbol: string;
+  themeConfig?: InstitutionThemeConfig;
 }
 
 export interface Term {
@@ -157,6 +161,7 @@ export interface DashboardStats {
   attendanceRateToday: number;
   totalAdmissions?: number;
   totalGuardians?: number;
+  totalFeesCollected?: number;
 }
 
 // -------------------------------------------------------------

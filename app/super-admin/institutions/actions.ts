@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
+import { provisionInstitutionAdmin, syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
 
 const institutionInput = z.object({
   name: z.string().trim().min(2).max(160),
@@ -31,6 +32,7 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
   const parsed = readInput(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the institution details.", success: null };
   const data = parsed.data;
+  let newInstitutionId = "";
   try {
     await prisma.$transaction(async (tx) => {
       const institution = await tx.platformInstitution.create({ data: {
@@ -39,15 +41,57 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
         city: data.city || null, state: data.state || null, postalCode: data.postalCode || null,
         country: data.country, website: data.website || null,
       } });
+      newInstitutionId = institution.id;
       await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_CREATED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { slug: institution.slug } } });
     });
+
+    if (newInstitutionId) {
+      await syncInstitutionToAppDb(newInstitutionId);
+      const adminName = formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
+      const adminEmail = formData.get("adminEmail")?.toString().trim() || data.email || undefined;
+      const adminPassword = formData.get("adminPassword")?.toString().trim() || "Admin@2026";
+
+      await provisionInstitutionAdmin({
+        institutionId: newInstitutionId,
+        adminName,
+        adminEmail,
+        password: adminPassword,
+        actorUserId: actor.id ?? undefined,
+      });
+    }
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "That institution code or slug is already in use.", success: null };
     return { error: "The institution could not be saved. Confirm that the database migration is applied and try again.", success: null };
   }
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/institutions");
-  return { error: null, success: "Institution created." };
+  return { error: null, success: "Institution created and administrator provisioned." };
+}
+
+export async function provisionAdminForInstitution(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const id = z.uuid().safeParse(formData.get("institutionId"));
+  if (!id.success) throw new Error("Invalid institution ID.");
+
+  const adminName = formData.get("adminName")?.toString().trim() || undefined;
+  const adminEmail = formData.get("adminEmail")?.toString().trim() || undefined;
+  const password = formData.get("password")?.toString().trim() || undefined;
+
+  const result = await provisionInstitutionAdmin({
+    institutionId: id.data,
+    adminName,
+    adminEmail,
+    password,
+    actorUserId: actor.id ?? undefined,
+  });
+
+  if (!result.success) {
+    throw new Error(result.error || "Failed to provision administrator.");
+  }
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/institutions");
+  revalidatePath(`/super-admin/institutions/${id.data}`);
 }
 
 export async function editInstitution(_previous: InstitutionFormState, formData: FormData): Promise<InstitutionFormState> {

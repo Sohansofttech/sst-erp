@@ -39,6 +39,8 @@ import {
   CertificateAuditLog,
 } from "@/types/institution";
 
+import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
+
 export const initialInstitutionProfile: InstitutionProfile = {
   id: "inst-sst-01",
   name: "SST Institute of Engineering & Technology",
@@ -58,10 +60,11 @@ export const initialInstitutionProfile: InstitutionProfile = {
   postalCode: "560066",
   country: "India",
   logoUrl: "",
-  primaryColor: "#153B66",
-  accentColor: "#14B8A6",
+  primaryColor: "#123B5A",
+  accentColor: "#F5A000",
   academicCalendarType: "Semester",
   currencySymbol: "₹",
+  themeConfig: DEFAULT_INSTITUTION_THEME,
 };
 
 export const initialAcademicYears: AcademicYear[] = [

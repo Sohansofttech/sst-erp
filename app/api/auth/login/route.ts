@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import db from "@/lib/db";
 import { signToken, AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
 import { SessionUser } from "@/types";
+import { syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,15 +41,46 @@ export async function POST(req: NextRequest) {
 
     // Find institution if code provided, or search by email domain / lookup
     let institutionId: string | undefined;
+    let resolvedInstitutionName = "";
     if (institutionCode) {
-      const inst = await db.institution.findUnique({ where: { code: institutionCode } });
+      let inst = await db.institution.findFirst({
+        where: {
+          OR: [
+            { code: { equals: institutionCode.trim(), mode: "insensitive" } },
+            { id: { equals: institutionCode.trim(), mode: "insensitive" } },
+            { slug: { equals: institutionCode.trim(), mode: "insensitive" } },
+          ],
+        },
+      });
+
+      if (!inst) {
+        // Fallback: check table "Institution" (PlatformInstitution)
+        try {
+          const rawInst: any = await db.$queryRaw`
+            SELECT id, name, code, slug, type, status, email
+            FROM "Institution"
+            WHERE LOWER(code) = LOWER(${institutionCode.trim()})
+               OR LOWER(slug) = LOWER(${institutionCode.trim()})
+               OR id::text = ${institutionCode.trim()}
+            LIMIT 1
+          `;
+          if (rawInst && rawInst.length > 0) {
+            inst = rawInst[0];
+            await syncInstitutionToAppDb(rawInst[0].id);
+          }
+        } catch (e) {
+          console.warn("PlatformInstitution lookup in login fallback:", e);
+        }
+      }
+
       if (!inst) {
         return NextResponse.json(
-          { success: false, error: "Invalid institution code." },
+          { success: false, error: "Invalid institution code or institution not found." },
           { status: 400 }
         );
       }
       institutionId = inst.id;
+      resolvedInstitutionName = inst.name || "";
     }
 
     // Lookup user using safe select to ensure compatibility with PostgreSQL users table
@@ -83,6 +115,34 @@ export async function POST(req: NextRequest) {
           { success: false, error: "Invalid email or password." },
           { status: 401 }
         );
+      }
+    }
+
+    // Validate active administrator membership for ADMIN role
+    if (user.role === "ADMIN" && user.institutionId) {
+      try {
+        const memberships: any = await db.$queryRaw`
+          SELECT m.id, m.status
+          FROM "InstitutionMembership" m
+          WHERE (m."userId"::text = ${user.id} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(email) = LOWER(${user.email})))
+            AND m."institutionId"::text = ${user.institutionId}
+            AND m.status = 'ACTIVE'
+          LIMIT 1
+        `;
+
+        if (memberships.length === 0) {
+          const totalMemberships: any = await db.$queryRaw`
+            SELECT COUNT(*)::int as count FROM "InstitutionMembership" WHERE "institutionId"::text = ${user.institutionId}
+          `;
+          if (totalMemberships[0]?.count > 0) {
+            return NextResponse.json(
+              { success: false, error: "Access denied: Account does not have an active administrator membership for this institution." },
+              { status: 403 }
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("Membership validation warning:", err);
       }
     }
 
@@ -136,11 +196,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let institutionName = "";
-    if (user.institutionId) {
+    let institutionName = resolvedInstitutionName || "";
+    if (!institutionName && user.institutionId) {
       try {
         const insts = await db.$queryRaw<any[]>`
-          SELECT name FROM institutions WHERE id = ${user.institutionId} LIMIT 1
+          SELECT name FROM institutions WHERE id = ${user.institutionId}
+          UNION ALL
+          SELECT name FROM "Institution" WHERE id::text = ${user.institutionId}
+          LIMIT 1
         `;
         if (insts.length > 0) {
           institutionName = insts[0].name || "";
