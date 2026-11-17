@@ -67,10 +67,22 @@ function Button({
   children,
   ...props
 }: ButtonProps) {
-  const Comp = asChild ? Slot.Root : "button"
+  if (asChild) {
+    return (
+      <Slot.Root
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </Slot.Root>
+    )
+  }
 
   return (
-    <Comp
+    <button
       data-slot="button"
       data-variant={variant}
       data-size={size}
@@ -85,7 +97,7 @@ function Button({
       )}
       {children}
       {!isLoading && rightIcon && <span className="inline-flex shrink-0">{rightIcon}</span>}
-    </Comp>
+    </button>
   )
 }
 
