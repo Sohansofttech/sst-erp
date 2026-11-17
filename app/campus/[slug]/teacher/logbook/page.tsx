@@ -332,7 +332,7 @@ export default function TeacherLogBookPage() {
         title="Teaching & Project Log Book"
         subtitle="Maintain daily lecture/lab syllabus logs and review periodic student project & internship logs."
         action={
-          <Button onClick={() => setAddOpen(true)}>
+          <Button onClick={() => setAddOpen(true)} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
             <Plus className="size-4" />
             Log Lecture / Lab Topic
           </Button>
@@ -344,7 +344,8 @@ export default function TeacherLogBookPage() {
           label="My Log Entries"
           value={entries.length}
           icon={<BookOpen />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Current term records"
         />
         <StatCard
@@ -371,32 +372,32 @@ export default function TeacherLogBookPage() {
       </div>
 
       <Tabs defaultValue="teaching" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="teaching">
+        <TabsList className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
+          <TabsTrigger value="teaching" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
             My Teaching / Lab Log Book ({entries.length})
           </TabsTrigger>
-          <TabsTrigger value="student-reviews">
+          <TabsTrigger value="student-reviews" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
             Student Project / Internship Log Reviews ({reviews.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="teaching" className="space-y-4">
-          <Card className="bg-white">
+          <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold text-foreground">
+                <CardTitle className="text-lg font-bold text-[#202936]">
                   Daily Lecture & Practical Register
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm text-[#788391]">
                   Track unit-wise topics, pedagogy method, and cumulative syllabus completion.
                 </CardDescription>
               </div>
               <div className="w-full sm:w-64">
                 <Select value={sectionFilter} onValueChange={setSectionFilter}>
-                  <SelectTrigger aria-label="Filter by class">
+                  <SelectTrigger className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]" aria-label="Filter by class">
                     <SelectValue placeholder="All Classes & Subjects" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-[#E5E9EF]">
                     <SelectItem value="all">All Classes & Subjects</SelectItem>
                     {allocations.map((a) => (
                       <SelectItem key={a.id} value={a.sectionId}>
@@ -416,98 +417,102 @@ export default function TeacherLogBookPage() {
                   />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date & Period</TableHead>
-                      <TableHead>Class & Subject</TableHead>
-                      <TableHead>Unit & Topic Covered</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Progress</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredEntries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>
-                          <div className="font-medium text-foreground">
-                            {entry.date}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Period {entry.period}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium text-foreground">
-                            {entry.className} - {entry.section}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {entry.subjectName}
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-md">
-                          <div className="text-xs font-semibold text-brand">
-                            {entry.unit}
-                          </div>
-                          <div className="text-sm text-foreground">
-                            {entry.topicCovered}
-                          </div>
-                          {entry.homeworkAssigned && (
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              HW: {entry.homeworkAssigned}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{entry.teachingMethod}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-16 overflow-hidden rounded-full bg-slate-200">
-                              <div
-                                className="h-full bg-teal"
-                                style={{
-                                  width: `${entry.syllabusProgressPercent}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-xs font-semibold text-foreground">
-                              {entry.syllabusProgressPercent}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            status={mapApprovalStatus(entry.status)}
-                          />
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table className="w-full">
+                    <TableHeader className="bg-[#EEF1F5]/80">
+                      <TableRow className="border-b border-[#E5E9EF]">
+                        <TableHead className="font-bold text-[#788391]">Date & Period</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Class & Subject</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Unit & Topic Covered</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Method</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Progress</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-[#E5E9EF]">
+                      {filteredEntries.map((entry) => (
+                        <TableRow key={entry.id} className="border-b border-[#E5E9EF] hover:bg-[#EEF1F5]/50 transition-colors">
+                          <TableCell>
+                            <div className="font-bold text-[#202936]">
+                              {entry.date}
+                            </div>
+                            <div className="text-xs text-[#788391]">
+                              Period {entry.period}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-bold text-[#202936]">
+                              {entry.className} - {entry.section}
+                            </div>
+                            <div className="text-xs text-[#788391]">
+                              {entry.subjectName}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-md">
+                            <div className="text-xs font-bold text-[#123B5A]">
+                              {entry.unit}
+                            </div>
+                            <div className="text-sm font-medium text-[#202936]">
+                              {entry.topicCovered}
+                            </div>
+                            {entry.homeworkAssigned && (
+                              <div className="mt-1 text-xs text-[#788391]">
+                                HW: {entry.homeworkAssigned}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="border-[#E5E9EF] bg-[#EEF1F5] text-[#202936]">
+                              {entry.teachingMethod}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-16 overflow-hidden rounded-full bg-[#EEF1F5]">
+                                <div
+                                  className="h-full bg-[#F5A000]"
+                                  style={{
+                                    width: `${entry.syllabusProgressPercent}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-bold text-[#202936]">
+                                {entry.syllabusProgressPercent}%
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              status={mapApprovalStatus(entry.status)}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="student-reviews" className="space-y-4">
-          <Card className="bg-white">
+          <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold text-foreground">
+                <CardTitle className="text-lg font-bold text-[#202936]">
                   Periodic Student Project & Internship Logs
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-sm text-[#788391]">
                   Review weekly logs, leave formative remarks, return for revision, or approve & lock entries.
                 </CardDescription>
               </div>
               <div className="w-full sm:w-52">
                 <Select value={reviewFilter} onValueChange={setReviewFilter}>
-                  <SelectTrigger aria-label="Filter student logs">
+                  <SelectTrigger className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]" aria-label="Filter student logs">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-[#E5E9EF]">
                     <SelectItem value="all">All Log Entries</SelectItem>
                     <SelectItem value="pending">Pending Review</SelectItem>
                     <SelectItem value="returned">Returned</SelectItem>
@@ -529,28 +534,28 @@ export default function TeacherLogBookPage() {
                   return (
                     <div
                       key={item.id}
-                      className="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 p-4 sm:flex-row sm:items-center"
+                      className="flex flex-col justify-between gap-4 rounded-xl border border-[#E5E9EF] p-4 bg-white sm:flex-row sm:items-center hover:border-[#123B5A]/30 transition-all"
                     >
                       <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-foreground">
+                          <span className="font-bold text-[#202936]">
                             {item.studentName}
                           </span>
-                          <Badge variant="outline">{item.rollNo}</Badge>
-                          <span className="text-xs text-muted-foreground">
+                          <Badge variant="outline" className="border-[#E5E9EF] bg-[#EEF1F5] text-[#202936] font-semibold">{item.rollNo}</Badge>
+                          <span className="text-xs text-[#788391]">
                             {item.weekLabel} • {item.hoursLogged} hrs logged
                           </span>
                           <StatusBadge status={mapApprovalStatus(item.status)} />
                         </div>
-                        <div className="text-sm font-medium text-brand">
+                        <div className="text-sm font-bold text-[#123B5A]">
                           {item.projectTitle}
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-[#788391]">
                           {item.summary}
                         </p>
                         {item.teacherRemarks && (
-                          <div className="rounded-md bg-slate-50 px-3 py-1.5 text-xs text-foreground">
-                            <span className="font-semibold">
+                          <div className="rounded-xl bg-[#EEF1F5]/60 border border-[#E5E9EF] px-3 py-1.5 text-xs text-[#202936]">
+                            <span className="font-bold text-[#123B5A]">
                               Reviewer Remarks:{" "}
                             </span>
                             {item.teacherRemarks}
@@ -563,6 +568,7 @@ export default function TeacherLogBookPage() {
                           size="sm"
                           variant={isLocked ? "outline" : "default"}
                           onClick={() => openReviewModal(item)}
+                          className={isLocked ? "rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]" : "rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]"}
                         >
                           {isLocked ? (
                             <>
@@ -588,24 +594,24 @@ export default function TeacherLogBookPage() {
 
       {/* Create Teaching Log Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>New Teaching / Lab Log Entry</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-[#202936]">New Teaching / Lab Log Entry</DialogTitle>
+            <DialogDescription className="text-xs text-[#788391]">
               Log daily topic delivery and cumulative syllabus progress.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddEntry} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="allocationId">Class & Subject</Label>
+              <Label htmlFor="allocationId" className="text-xs font-semibold text-[#202936]">Class & Subject</Label>
               <Select
                 value={form.getValues("allocationId")}
                 onValueChange={(val) => form.setValue("allocationId", val)}
               >
-                <SelectTrigger id="allocationId">
+                <SelectTrigger id="allocationId" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]">
                   <SelectValue placeholder="Select class & subject" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-[#E5E9EF]">
                   {allocations.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.className} - {a.section} • {a.subjectName}
@@ -617,26 +623,28 @@ export default function TeacherLogBookPage() {
 
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="log-date">Date</Label>
-                <Input id="log-date" type="date" {...form.register("date")} />
+                <Label htmlFor="log-date" className="text-xs font-semibold text-[#202936]">Date</Label>
+                <Input id="log-date" type="date" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]" {...form.register("date")} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="log-period">Period (1–8)</Label>
+                <Label htmlFor="log-period" className="text-xs font-semibold text-[#202936]">Period (1–8)</Label>
                 <Input
                   id="log-period"
                   type="number"
                   min={1}
                   max={8}
+                  className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                   {...form.register("period", { valueAsNumber: true })}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="log-progress">Syllabus %</Label>
+                <Label htmlFor="log-progress" className="text-xs font-semibold text-[#202936]">Syllabus %</Label>
                 <Input
                   id="log-progress"
                   type="number"
                   min={0}
                   max={100}
+                  className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                   {...form.register("syllabusProgressPercent", {
                     valueAsNumber: true,
                   })}
@@ -646,20 +654,21 @@ export default function TeacherLogBookPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="log-unit">Unit / Chapter</Label>
+                <Label htmlFor="log-unit" className="text-xs font-semibold text-[#202936]">Unit / Chapter</Label>
                 <Input
                   id="log-unit"
                   placeholder="e.g. Unit 5: Coordinate Geometry"
+                  className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                   {...form.register("unit")}
                 />
                 {form.formState.errors.unit && (
-                  <p className="text-xs text-error">
+                  <p className="text-xs text-rose-600">
                     {form.formState.errors.unit.message}
                   </p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="log-method">Teaching Method</Label>
+                <Label htmlFor="log-method" className="text-xs font-semibold text-[#202936]">Teaching Method</Label>
                 <Select
                   value={selectedMethod}
                   onValueChange={(val) =>
@@ -669,10 +678,10 @@ export default function TeacherLogBookPage() {
                     )
                   }
                 >
-                  <SelectTrigger id="log-method">
+                  <SelectTrigger id="log-method" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-[#E5E9EF]">
                     <SelectItem value="Lecture">Lecture</SelectItem>
                     <SelectItem value="Lab Demo">Lab Demo</SelectItem>
                     <SelectItem value="Interactive">Interactive</SelectItem>
@@ -684,27 +693,29 @@ export default function TeacherLogBookPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="topicCovered">Topic Covered</Label>
+              <Label htmlFor="topicCovered" className="text-xs font-semibold text-[#202936]">Topic Covered</Label>
               <Textarea
                 id="topicCovered"
                 rows={2}
                 placeholder="Key theorems, solved examples, or practical demonstration..."
+                className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 {...form.register("topicCovered")}
               />
               {form.formState.errors.topicCovered && (
-                <p className="text-xs text-error">
+                <p className="text-xs text-rose-600">
                   {form.formState.errors.topicCovered.message}
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="homeworkAssigned">
+              <Label htmlFor="homeworkAssigned" className="text-xs font-semibold text-[#202936]">
                 Homework / Follow-up Task (optional)
               </Label>
               <Input
                 id="homeworkAssigned"
                 placeholder="e.g. Exercise 7.2 Q1–Q6"
+                className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 {...form.register("homeworkAssigned")}
               />
             </div>
@@ -713,11 +724,12 @@ export default function TeacherLogBookPage() {
               <Button
                 type="button"
                 variant="outline"
+                className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                 onClick={() => setAddOpen(false)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingEntry}>
+              <Button type="submit" disabled={savingEntry} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
                 {savingEntry ? "Submitting..." : "Submit Log Entry"}
               </Button>
             </DialogFooter>
@@ -732,10 +744,10 @@ export default function TeacherLogBookPage() {
           if (!open) setActiveReview(null)
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Student Project Log Review</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-[#202936]">Student Project Log Review</DialogTitle>
+            <DialogDescription className="text-xs text-[#788391]">
               {activeReview
                 ? `${activeReview.studentName} (${activeReview.rollNo}) • ${activeReview.weekLabel}`
                 : ""}
@@ -744,23 +756,23 @@ export default function TeacherLogBookPage() {
 
           {activeReview && (
             <div className="space-y-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-                <div className="font-semibold text-brand">
+              <div className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 p-3.5 text-sm">
+                <div className="font-bold text-[#123B5A]">
                   {activeReview.projectTitle}
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">
+                <div className="mt-1 text-xs text-[#788391]">
                   Submitted: {activeReview.entryDate} • Hours:{" "}
                   {activeReview.hoursLogged}h
                 </div>
-                <p className="mt-2 text-foreground">{activeReview.summary}</p>
+                <p className="mt-2 text-[#202936]">{activeReview.summary}</p>
               </div>
 
               {activeReview.status === "locked" ||
               activeReview.status === "approved" ? (
-                <div className="flex items-start gap-2 rounded-lg border border-brand/25 bg-brand/8 p-3 text-xs text-brand">
-                  <Lock className="mt-0.5 size-4 shrink-0" />
+                <div className="flex items-start gap-2 rounded-xl border border-[#123B5A]/25 bg-[#123B5A]/8 p-3 text-xs text-[#123B5A]">
+                  <Lock className="mt-0.5 size-4 shrink-0 text-[#123B5A]" />
                   <div>
-                    <div className="font-semibold">
+                    <div className="font-bold">
                       Entry Approved & Locked
                     </div>
                     <p className="mt-0.5">
@@ -771,7 +783,7 @@ export default function TeacherLogBookPage() {
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <Label htmlFor="student-review-remarks">
+                  <Label htmlFor="student-review-remarks" className="text-xs font-semibold text-[#202936]">
                     Mentor / Guide Remarks
                   </Label>
                   <Textarea
@@ -780,6 +792,7 @@ export default function TeacherLogBookPage() {
                     value={reviewRemarks}
                     onChange={(e) => setReviewRemarks(e.target.value)}
                     placeholder="Provide feedback on methodology, calculations, or missing evidence..."
+                    className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                   />
                 </div>
               )}
@@ -788,6 +801,7 @@ export default function TeacherLogBookPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                   onClick={() => setActiveReview(null)}
                 >
                   Close
@@ -798,7 +812,7 @@ export default function TeacherLogBookPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="border-warning/40 text-amber-700 hover:bg-warning/10"
+                        className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
                         disabled={savingReview}
                         onClick={() => handleStudentReview("returned")}
                       >
@@ -809,6 +823,7 @@ export default function TeacherLogBookPage() {
                         type="button"
                         disabled={savingReview}
                         onClick={() => handleStudentReview("approved")}
+                        className="rounded-xl bg-[#123B5A] text-white hover:bg-[#1B4D70]"
                       >
                         <Lock className="size-4" />
                         Approve & Lock

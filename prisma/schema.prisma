@@ -321,18 +321,18 @@ model Enrollment {
 // TIMETABLE
 // -------------------------------------------------------------
 model TimetableSlot {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   institutionId String
   courseId      String
   semester      Int
-  section       String   @default("A")
+  section       String    @default("A")
   subjectId     String
   teacherId     String?
-  dayOfWeek     String   // MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY
-  startTime     String   // e.g. "09:00"
-  endTime       String   // e.g. "10:00"
-  roomNumber    String   // e.g. "LH-201"
-  createdAt     DateTime @default(now())
+  dayOfWeek     DayOfWeek
+  startTime     String    // e.g. "09:00"
+  endTime       String    // e.g. "10:00"
+  roomNumber    String    // e.g. "LH-201"
+  createdAt     DateTime  @default(now())
 
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   subject       Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
@@ -967,6 +967,16 @@ model AuditLog {
 }
 
 // Separate Super Admin models map to their existing PascalCase platform tables.
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
 
 enum InstitutionType {
   SCHOOL

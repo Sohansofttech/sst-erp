@@ -23,6 +23,19 @@
   --color-error: var(--error);
   --color-error-foreground: var(--error-foreground);
 
+  /* SST-ERP Dashboard Theme Tokens */
+  --color-sst-navy: var(--sst-navy);
+  --color-sst-navy-dark: var(--sst-navy-dark);
+  --color-sst-navy-hover: var(--sst-navy-hover);
+  --color-sst-navy-light: var(--sst-navy-light);
+  --color-sst-orange: var(--sst-orange);
+  --color-sst-orange-hover: var(--sst-orange-hover);
+  --color-sst-canvas: var(--sst-canvas);
+  --color-sst-card: var(--sst-card);
+  --color-sst-text-primary: var(--sst-text-primary);
+  --color-sst-text-secondary: var(--sst-text-secondary);
+  --color-sst-border: var(--sst-border);
+
   /* Sidebar tokens */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -102,6 +115,19 @@
   --input: #cbd5e1;
   --ring: #2563eb;
   --radius: 0.625rem;
+
+  /* SST-ERP Dashboard Design System Tokens */
+  --sst-navy: #123B5A;
+  --sst-navy-dark: #0D2D46;
+  --sst-navy-hover: #1B4D70;
+  --sst-navy-light: #16466C;
+  --sst-orange: #F5A000;
+  --sst-orange-hover: #E09200;
+  --sst-canvas: #EEF1F5;
+  --sst-card: #FFFFFF;
+  --sst-text-primary: #202936;
+  --sst-text-secondary: #788391;
+  --sst-border: #E5E9EF;
 
   /* Mandated Institutional Design System Palette */
   --erp-brand: #153B66;
@@ -194,4 +220,44 @@
     @apply bg-background text-foreground text-[14px] leading-relaxed antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
+}
+
+/* SST-ERP Teacher Portal Scoped Theme */
+.sst-teacher-theme {
+  --background: #EEF1F5;
+  --foreground: #202936;
+  --card: #FFFFFF;
+  --card-foreground: #202936;
+  --popover: #FFFFFF;
+  --popover-foreground: #202936;
+  --border: #E5E9EF;
+  --input: #E5E9EF;
+  --ring: #F5A000;
+
+  --primary: #F5A000;
+  --primary-foreground: #FFFFFF;
+  --secondary: #123B5A;
+  --secondary-foreground: #FFFFFF;
+  --muted: #EEF1F5;
+  --muted-foreground: #788391;
+  --accent: #F5A000;
+  --accent-foreground: #FFFFFF;
+
+  --brand: #123B5A;
+  --brand-foreground: #FFFFFF;
+
+  --sidebar: #123B5A;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-accent: #1B4D70;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-primary: #F5A000;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #F5A000;
+
+  --chart-1: #16466C;
+  --chart-2: #F5A000;
+  --chart-3: #123B5A;
+  --chart-4: #10B981;
+  --chart-5: #F59E0B;
 }

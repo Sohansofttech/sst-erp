@@ -12,14 +12,18 @@ export type StatCardTone =
   | "success"
   | "warning"
   | "error"
+  | "navy"
+  | "darkNavy"
 
 const TONE_CLASSES: Record<StatCardTone, string> = {
-  primary: "bg-primary/10 text-primary",
-  brand: "bg-brand/10 text-brand",
-  teal: "bg-teal/12 text-teal",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/12 text-warning",
-  error: "bg-error/10 text-error",
+  primary: "bg-amber-50 text-[#F5A000]",
+  brand: "bg-[#123B5A]/10 text-[#123B5A]",
+  teal: "bg-emerald-50 text-emerald-600",
+  success: "bg-emerald-50 text-emerald-600",
+  warning: "bg-amber-50 text-amber-600",
+  error: "bg-rose-50 text-rose-600",
+  navy: "bg-[#123B5A]/10 text-[#123B5A]",
+  darkNavy: "bg-white/15 text-[#F5A000]",
 }
 
 export interface StatCardTrend {
@@ -37,6 +41,7 @@ export interface StatCardProps {
   helperText?: string
   icon?: React.ReactNode
   tone?: StatCardTone
+  variant?: "default" | "dark"
   trend?: StatCardTrend
   badgeText?: string
   badgeVariant?: "success" | "warning" | "error" | "info" | "brand" | "neutral"
@@ -53,6 +58,7 @@ export function StatCard({
   helperText,
   icon,
   tone = "primary",
+  variant = "default",
   trend,
   badgeText,
   badgeVariant = "info",
@@ -62,23 +68,37 @@ export function StatCard({
   const displayTitle = title ?? label ?? ""
   const displaySubtitle = subtitle ?? description ?? helperText
   const direction = trend?.direction ?? "neutral"
+  const isDark = variant === "dark" || tone === "darkNavy"
 
   return (
     <Card
       onClick={onClick}
       className={cn(
-        "gap-0 py-5 shadow-xs transition-all hover:shadow-md",
-        onClick && "cursor-pointer hover:border-primary",
+        "gap-0 rounded-2xl py-5 shadow-xs transition-all hover:shadow-md",
+        isDark
+          ? "border-0 bg-[#123B5A] text-white hover:bg-[#16466C]"
+          : "border-[#E5E9EF] bg-white text-[#202936]",
+        onClick && (isDark ? "cursor-pointer hover:ring-2 hover:ring-[#F5A000]" : "cursor-pointer hover:border-[#F5A000]"),
         className
       )}
     >
       <CardContent className="flex items-start justify-between gap-4 px-5">
         <div className="min-w-0 space-y-1.5">
-          <p className="truncate text-[13px] font-medium text-muted-foreground">
+          <p
+            className={cn(
+              "truncate text-[13px] font-medium",
+              isDark ? "text-white/75" : "text-[#788391]"
+            )}
+          >
             {displayTitle}
           </p>
           <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold tracking-tight text-foreground sm:text-[26px]">
+            <p
+              className={cn(
+                "text-2xl font-bold tracking-tight sm:text-[28px]",
+                isDark ? "text-white" : "text-[#202936]"
+              )}
+            >
               {value}
             </p>
             {badgeText && (
@@ -93,10 +113,18 @@ export function StatCard({
               {trend && (
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-                    direction === "up" && "bg-success/10 text-success",
-                    direction === "down" && "bg-error/10 text-error",
-                    direction === "neutral" && "bg-muted text-muted-foreground"
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+                    isDark
+                      ? direction === "up"
+                        ? "bg-emerald-500/20 text-emerald-300"
+                        : direction === "down"
+                          ? "bg-rose-500/20 text-rose-300"
+                          : "bg-white/10 text-white/80"
+                      : direction === "up"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : direction === "down"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          : "bg-[#EEF1F5] text-[#788391]"
                   )}
                 >
                   {direction === "up" && <TrendingUp className="size-3" />}
@@ -105,7 +133,12 @@ export function StatCard({
                 </span>
               )}
               {displaySubtitle && (
-                <span className="text-[13px] text-muted-foreground">
+                <span
+                  className={cn(
+                    "text-[13px]",
+                    isDark ? "text-white/75" : "text-[#788391]"
+                  )}
+                >
                   {trend?.label ?? displaySubtitle}
                 </span>
               )}
@@ -116,8 +149,8 @@ export function StatCard({
         {icon && (
           <div
             className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5",
-              TONE_CLASSES[tone]
+              "flex size-11 shrink-0 items-center justify-center rounded-xl [&_svg]:size-5",
+              isDark ? "bg-white/15 text-[#F5A000]" : TONE_CLASSES[tone]
             )}
           >
             {icon}

@@ -78,7 +78,7 @@ function TeacherRoleSwitch() {
     <div
       role="group"
       aria-label="Demo role switch"
-      className="hidden items-center rounded-lg border border-border bg-muted/70 p-0.5 sm:inline-flex"
+      className="hidden items-center rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-0.5 sm:inline-flex"
     >
       {ROLE_OPTIONS.map((option) => {
         const active = role === option.value
@@ -89,10 +89,10 @@ function TeacherRoleSwitch() {
             onClick={() => handleSelect(option.value)}
             aria-pressed={active}
             className={cn(
-              "rounded-md px-2.5 py-1 text-[12px] font-semibold transition-all",
+              "rounded-lg px-2.5 py-1 text-[12px] font-bold transition-all",
               active
-                ? "bg-brand text-white shadow-xs"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-[#123B5A] text-white shadow-xs"
+                : "text-[#788391] hover:text-[#202936]"
             )}
           >
             <span className="hidden lg:inline">{option.label}</span>
@@ -307,10 +307,10 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
       profileHref={`${base}/profile`}
       onSignOut={() => toast.info("Demo sign-out clicked")}
       sidebarFooter={
-        <div className="space-y-1.5 rounded-lg bg-white/8 px-3 py-2.5">
-          <div className="flex items-center justify-between text-[11px] font-medium text-white/65">
+        <div className="space-y-1.5 rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2.5">
+          <div className="flex items-center justify-between text-[11px] font-bold text-white/70">
             <span>ACTIVE ROLE</span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-teal/20 px-1.5 py-0.5 text-[10px] font-semibold text-teal">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#F5A000]/25 px-2 py-0.5 text-[10px] font-bold text-[#F5A000]">
               <Award className="size-2.5" />
               {currentRoleMeta?.label}
             </span>

@@ -19,21 +19,21 @@ export function LoadingState({
   className,
 }: LoadingStateProps) {
   return (
-    <Card className={cn("border-dashed shadow-none", className)}>
+    <Card className={cn("rounded-2xl border border-dashed border-[#E5E9EF] bg-white shadow-none", className)}>
       <CardContent
         className={cn(
           "flex flex-col items-center justify-center text-center",
           compact ? "py-8" : "py-14"
         )}
       >
-        <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="flex size-11 items-center justify-center rounded-full bg-amber-50 text-[#F5A000]">
           <Loader2 className="size-5 animate-spin" />
         </div>
-        <h3 className="mt-4 text-[18px] font-semibold text-foreground">
+        <h3 className="mt-4 text-[18px] font-bold text-[#202936]">
           {title}
         </h3>
         {description && (
-          <p className="mt-1 max-w-md text-[14px] text-muted-foreground">
+          <p className="mt-1 max-w-md text-[14px] text-[#788391]">
             {description}
           </p>
         )}
@@ -60,21 +60,21 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <Card className={cn("border-dashed shadow-none", className)}>
+    <Card className={cn("rounded-2xl border border-dashed border-[#E5E9EF] bg-white shadow-none", className)}>
       <CardContent
         className={cn(
           "flex flex-col items-center justify-center text-center",
           compact ? "py-8" : "py-14"
         )}
       >
-        <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-6">
+        <div className="flex size-12 items-center justify-center rounded-full bg-[#EEF1F5] text-[#788391] [&_svg]:size-6">
           {icon ?? <Inbox />}
         </div>
-        <h3 className="mt-4 text-[18px] font-semibold text-foreground">
+        <h3 className="mt-4 text-[18px] font-bold text-[#202936]">
           {title}
         </h3>
         {description && (
-          <p className="mt-1 max-w-md text-[14px] text-muted-foreground">
+          <p className="mt-1 max-w-md text-[14px] text-[#788391]">
             {description}
           </p>
         )}
@@ -102,21 +102,21 @@ export function ErrorState({
   className,
 }: ErrorStateProps) {
   return (
-    <Card className={cn("border-error/25 shadow-none", className)}>
+    <Card className={cn("rounded-2xl border border-rose-200 bg-white shadow-none", className)}>
       <CardContent
         className={cn(
           "flex flex-col items-center justify-center text-center",
           compact ? "py-8" : "py-14"
         )}
       >
-        <div className="flex size-12 items-center justify-center rounded-full bg-error/10 text-error">
+        <div className="flex size-12 items-center justify-center rounded-full bg-rose-50 text-rose-600">
           <AlertCircle className="size-6" />
         </div>
-        <h3 className="mt-4 text-[18px] font-semibold text-foreground">
+        <h3 className="mt-4 text-[18px] font-bold text-[#202936]">
           {title}
         </h3>
         {description && (
-          <p className="mt-1 max-w-md text-[14px] text-muted-foreground">
+          <p className="mt-1 max-w-md text-[14px] text-[#788391]">
             {description}
           </p>
         )}
@@ -125,7 +125,7 @@ export function ErrorState({
             type="button"
             variant="outline"
             onClick={onRetry}
-            className="mt-5"
+            className="mt-5 rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
           >
             <RefreshCw className="size-4" />
             {retryLabel}

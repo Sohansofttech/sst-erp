@@ -14,12 +14,12 @@ export const Badge: React.FC<BadgeProps> = ({
   className = "",
 }) => {
   const variantStyles = {
-    success: "bg-[#DCFCE7] text-[#16A34A] border-[#BBF7D0]",
-    warning: "bg-[#FEF3C7] text-[#D97706] border-[#FDE68A]",
-    error: "bg-[#FEE2E2] text-[#DC2626] border-[#FECACA]",
-    info: "bg-[#DBEAFE] text-[#2563EB] border-[#BFDBFE]",
-    brand: "bg-[#E0E7FF] text-[#153B66] border-[#C7D2FE]",
-    neutral: "bg-[#F1F5F9] text-[#64748B] border-[#E2E8F0]",
+    success: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    warning: "bg-amber-50 text-amber-700 border-amber-200",
+    error: "bg-rose-50 text-rose-700 border-rose-200",
+    info: "bg-amber-50 text-[#F5A000] border-amber-200",
+    brand: "bg-[#123B5A]/10 text-[#123B5A] border-[#123B5A]/20",
+    neutral: "bg-[#EEF1F5] text-[#788391] border-[#E5E9EF]",
   };
 
   const sizeStyles = {

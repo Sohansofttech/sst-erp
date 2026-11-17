@@ -87,26 +87,26 @@ const STATUS_PILLS: Array<{
   {
     value: "present",
     label: "Present",
-    activeClass: "border-[#16A34A] bg-[#16A34A] text-white shadow-xs",
-    hoverClass: "hover:border-[#16A34A]/50 hover:text-[#16A34A]",
+    activeClass: "border-emerald-600 bg-emerald-600 text-white shadow-xs",
+    hoverClass: "hover:border-emerald-500 hover:text-emerald-700",
   },
   {
     value: "absent",
     label: "Absent",
-    activeClass: "border-[#DC2626] bg-[#DC2626] text-white shadow-xs",
-    hoverClass: "hover:border-[#DC2626]/50 hover:text-[#DC2626]",
+    activeClass: "border-rose-600 bg-rose-600 text-white shadow-xs",
+    hoverClass: "hover:border-rose-500 hover:text-rose-700",
   },
   {
     value: "late",
     label: "Late",
-    activeClass: "border-[#F59E0B] bg-[#F59E0B] text-white shadow-xs",
-    hoverClass: "hover:border-[#F59E0B]/50 hover:text-amber-700",
+    activeClass: "border-amber-500 bg-[#F5A000] text-white shadow-xs",
+    hoverClass: "hover:border-[#F5A000] hover:text-amber-800",
   },
   {
     value: "on_duty",
     label: "On-Duty",
-    activeClass: "border-[#2563EB] bg-[#2563EB] text-white shadow-xs",
-    hoverClass: "hover:border-[#2563EB]/50 hover:text-[#2563EB]",
+    activeClass: "border-[#123B5A] bg-[#123B5A] text-white shadow-xs",
+    hoverClass: "hover:border-[#123B5A] hover:text-[#123B5A]",
   },
 ]
 
@@ -656,30 +656,30 @@ export default function TeacherAttendancePage() {
             aria-label="Live Attendance Summary"
             className="flex flex-wrap items-center gap-2"
           >
-            <Badge variant="secondary" className="px-2.5 py-1 text-xs">
+            <Badge variant="secondary" className="px-2.5 py-1 text-xs rounded-full bg-[#EEF1F5] text-[#202936]">
               Total: {totalCount}
             </Badge>
             <Badge
               variant="outline"
-              className="border-success/30 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"
+              className="rounded-full border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"
             >
               Present: {presentCount}
             </Badge>
             <Badge
               variant="outline"
-              className="border-error/30 bg-error/10 px-2.5 py-1 text-xs font-semibold text-error"
+              className="rounded-full border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700"
             >
               Absent: {absentStudents.length}
             </Badge>
             <Badge
               variant="outline"
-              className="border-warning/35 bg-warning/12 px-2.5 py-1 text-xs font-semibold text-amber-700"
+              className="rounded-full border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700"
             >
               Late: {lateCount}
             </Badge>
             <Badge
               variant="outline"
-              className="border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
+              className="rounded-full border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#123B5A]"
             >
               On-Duty: {onDutyCount}
             </Badge>

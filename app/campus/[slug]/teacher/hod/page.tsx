@@ -235,13 +235,13 @@ export default function HodOversightPage() {
       />
 
       {role !== "hod" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand/25 bg-brand/8 px-4 py-3 text-sm text-brand">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#123B5A]/20 bg-[#123B5A]/8 px-4 py-3 text-sm text-[#123B5A]">
           <span>
             Viewing <strong>Department of Mathematics</strong> oversight.
             Switch the demo role toggle to <strong>HoD</strong> to approve or
             lock department IA submissions.
           </span>
-          <Button size="sm" onClick={() => setRole("hod")}>
+          <Button size="sm" onClick={() => setRole("hod")} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
             Switch to HoD Role
           </Button>
         </div>
@@ -252,7 +252,8 @@ export default function HodOversightPage() {
           label="Department Faculty"
           value={facultyLoad.length}
           icon={<Users />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Mathematics Wing"
         />
         <StatCard
@@ -279,25 +280,25 @@ export default function HodOversightPage() {
       </div>
 
       <Tabs defaultValue="ia-queue" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="ia-queue">
+        <TabsList className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
+          <TabsTrigger value="ia-queue" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
             IA Marks Lock & Approval Queue ({assessments.length})
           </TabsTrigger>
-          <TabsTrigger value="workload">
+          <TabsTrigger value="workload" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
             Course Allocations & Faculty Workload ({facultyLoad.length})
           </TabsTrigger>
-          <TabsTrigger value="summary">
+          <TabsTrigger value="summary" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
             Department Attendance & Result Summary
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="ia-queue" className="space-y-4">
-          <Card className="bg-white">
+          <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold text-foreground">
+              <CardTitle className="text-lg font-bold text-[#202936]">
                 Internal Assessment Moderation & Lock Queue
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm text-[#788391]">
                 Approve submitted IA marks, lock finalized sheets for report cards, or return sheets with correction remarks.
               </CardDescription>
             </CardHeader>
@@ -310,126 +311,130 @@ export default function HodOversightPage() {
                   />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Assessment</TableHead>
-                      <TableHead>Class & Subject</TableHead>
-                      <TableHead>Entries</TableHead>
-                      <TableHead>Section Mean</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">HoD Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {assessments.map((ia) => {
-                      const scored = ia.marks.filter(
-                        (m) => !m.isAbsent && m.obtainedMarks !== null
-                      )
-                      const mean =
-                        scored.length > 0
-                          ? Math.round(
-                              (scored.reduce(
-                                (sum, m) => sum + (m.obtainedMarks ?? 0),
-                                0
-                              ) /
-                                scored.length) *
-                                10
-                            ) / 10
-                          : 0
-                      const isLocked = ia.status === "locked"
+                <div className="overflow-x-auto">
+                  <Table className="w-full">
+                    <TableHeader className="bg-[#EEF1F5]/80">
+                      <TableRow className="border-b border-[#E5E9EF]">
+                        <TableHead className="font-bold text-[#788391]">Assessment</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Class & Subject</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Entries</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Section Mean</TableHead>
+                        <TableHead className="font-bold text-[#788391]">Status</TableHead>
+                        <TableHead className="text-right font-bold text-[#788391]">HoD Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-[#E5E9EF]">
+                      {assessments.map((ia) => {
+                        const scored = ia.marks.filter(
+                          (m) => !m.isAbsent && m.obtainedMarks !== null
+                        )
+                        const mean =
+                          scored.length > 0
+                            ? Math.round(
+                                (scored.reduce(
+                                  (sum, m) => sum + (m.obtainedMarks ?? 0),
+                                  0
+                                ) /
+                                  scored.length) *
+                                  10
+                              ) / 10
+                            : 0
+                        const isLocked = ia.status === "locked"
 
-                      return (
-                        <TableRow key={ia.id}>
-                          <TableCell>
-                            <div className="font-medium text-foreground">
-                              {ia.title}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Date: {ia.conductedDate} • Max: {ia.maxMarks}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium text-foreground">
-                              {ia.className} - {ia.section}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {ia.subjectName}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {scored.length}/{ia.marks.length} graded
-                          </TableCell>
-                          <TableCell className="font-semibold text-foreground">
-                            {mean}/{ia.maxMarks}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={mapIAStatus(ia.status)} />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {isLocked ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-brand">
-                                <Lock className="size-3.5" />
-                                Locked & Published
-                              </span>
-                            ) : (
-                              <div className="inline-flex flex-wrap justify-end gap-1.5">
-                                {ia.status !== "approved" && (
+                        return (
+                          <TableRow key={ia.id} className="border-b border-[#E5E9EF] hover:bg-[#EEF1F5]/50 transition-colors">
+                            <TableCell>
+                              <div className="font-bold text-[#202936]">
+                                {ia.title}
+                              </div>
+                              <div className="text-xs text-[#788391]">
+                                Date: {ia.conductedDate} • Max: {ia.maxMarks}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-bold text-[#202936]">
+                                {ia.className} - {ia.section}
+                              </div>
+                              <div className="text-xs text-[#788391]">
+                                {ia.subjectName}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-[#788391] font-medium">
+                              {scored.length}/{ia.marks.length} graded
+                            </TableCell>
+                            <TableCell className="font-bold text-[#202936]">
+                              {mean}/{ia.maxMarks}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={mapIAStatus(ia.status)} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {isLocked ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-bold text-[#123B5A]">
+                                  <Lock className="size-3.5" />
+                                  Locked & Published
+                                </span>
+                              ) : (
+                                <div className="inline-flex flex-wrap justify-end gap-1.5">
+                                  {ia.status !== "approved" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        role !== "hod" || busyId === ia.id
+                                      }
+                                      onClick={() =>
+                                        handleIAStatus(ia, "approved")
+                                      }
+                                      className="rounded-xl border-[#123B5A] text-[#123B5A] hover:bg-[#123B5A] hover:text-white"
+                                    >
+                                      <CheckCircle2 className="size-3.5" />
+                                      Approve
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    disabled={role !== "hod" || busyId === ia.id}
+                                    onClick={() => handleIAStatus(ia, "locked")}
+                                    className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]"
+                                  >
+                                    <Lock className="size-3.5" />
+                                    Lock Marks
+                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    disabled={
-                                      role !== "hod" || busyId === ia.id
-                                    }
-                                    onClick={() =>
-                                      handleIAStatus(ia, "approved")
-                                    }
+                                    className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
+                                    disabled={role !== "hod" || busyId === ia.id}
+                                    onClick={() => {
+                                      setReturnTarget(ia)
+                                      setReturnNote(ia.correctionNote ?? "")
+                                    }}
                                   >
-                                    <CheckCircle2 className="size-3.5" />
-                                    Approve
+                                    <RotateCcw className="size-3.5" />
+                                    Return
                                   </Button>
-                                )}
-                                <Button
-                                  size="sm"
-                                  disabled={role !== "hod" || busyId === ia.id}
-                                  onClick={() => handleIAStatus(ia, "locked")}
-                                >
-                                  <Lock className="size-3.5" />
-                                  Lock Marks
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-warning/40 text-amber-700 hover:bg-warning/10"
-                                  disabled={role !== "hod" || busyId === ia.id}
-                                  onClick={() => {
-                                    setReturnTarget(ia)
-                                    setReturnNote(ia.correctionNote ?? "")
-                                  }}
-                                >
-                                  <RotateCcw className="size-3.5" />
-                                  Return
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="workload" className="space-y-4">
-          <Card className="bg-white">
+          <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold text-foreground">
+              <CardTitle className="text-lg font-bold text-[#202936]">
                 Faculty Workload Balance (Weekly Hours vs 22h Norm)
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm text-[#788391]">
                 Compare weekly period load, section allocation, and syllabus pacing across Department of Mathematics faculty.
               </CardDescription>
             </CardHeader>
@@ -442,27 +447,28 @@ export default function HodOversightPage() {
                 return (
                   <div
                     key={fac.teacherId}
-                    className="rounded-lg border border-slate-200 p-4"
+                    className="rounded-xl border border-[#E5E9EF] p-4 bg-white hover:border-[#123B5A]/30 transition-all"
                   >
                     <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                       <div>
-                        <div className="font-semibold text-foreground">
+                        <div className="font-bold text-[#202936]">
                           {fac.fullName}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-[#788391]">
                           {fac.designation} • {fac.subjects.join(" • ")}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">
+                        <Badge variant="outline" className="border-[#E5E9EF] bg-[#EEF1F5] text-[#202936] font-semibold">
                           {fac.sectionsCount} sections
                         </Badge>
                         <Badge
                           variant="outline"
                           className={cn(
+                            "font-semibold",
                             fac.weeklyHours >= 21
-                              ? "border-warning/35 bg-warning/12 text-amber-700"
-                              : "border-primary/25 bg-primary/8 text-primary"
+                              ? "border-amber-200 bg-amber-50 text-amber-700"
+                              : "border-[#123B5A]/25 bg-[#123B5A]/8 text-[#123B5A]"
                           )}
                         >
                           {fac.weeklyHours} / 22 hrs/wk
@@ -473,18 +479,18 @@ export default function HodOversightPage() {
                     <div className="mt-3 grid gap-4 sm:grid-cols-2">
                       <div>
                         <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-muted-foreground">
+                          <span className="text-[#788391]">
                             Teaching Load Utilization
                           </span>
-                          <span className="font-semibold text-foreground">
+                          <span className="font-bold text-[#202936]">
                             {loadPct}%
                           </span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-2 overflow-hidden rounded-full bg-[#EEF1F5]">
                           <div
                             className={cn(
                               "h-full rounded-full",
-                              fac.weeklyHours >= 21 ? "bg-warning" : "bg-primary"
+                              fac.weeklyHours >= 21 ? "bg-[#F5A000]" : "bg-[#123B5A]"
                             )}
                             style={{ width: `${loadPct}%` }}
                           />
@@ -492,16 +498,16 @@ export default function HodOversightPage() {
                       </div>
                       <div>
                         <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-muted-foreground">
+                          <span className="text-[#788391]">
                             Syllabus Completion Avg
                           </span>
-                          <span className="font-semibold text-foreground">
+                          <span className="font-bold text-[#202936]">
                             {fac.syllabusAveragePercent}%
                           </span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-2 overflow-hidden rounded-full bg-[#EEF1F5]">
                           <div
-                            className="h-full rounded-full bg-teal"
+                            className="h-full rounded-full bg-emerald-500"
                             style={{ width: `${fac.syllabusAveragePercent}%` }}
                           />
                         </div>
@@ -513,46 +519,48 @@ export default function HodOversightPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-white">
+          <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold text-foreground">
+              <CardTitle className="text-lg font-bold text-[#202936]">
                 Active Course Allocations
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm text-[#788391]">
                 Curriculum codes, assigned sections, and weekly timetable periods.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Subject Code</TableHead>
-                    <TableHead>Course Title</TableHead>
-                    <TableHead>Section</TableHead>
-                    <TableHead>Weekly Periods</TableHead>
-                    <TableHead>Syllabus %</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allocations.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-medium text-brand">
-                        {a.subjectCode}
-                      </TableCell>
-                      <TableCell className="font-medium text-foreground">
-                        {a.subjectName}
-                      </TableCell>
-                      <TableCell>
-                        {a.className} - {a.section}
-                      </TableCell>
-                      <TableCell>{a.weeklyHours} hrs/wk</TableCell>
-                      <TableCell className="font-semibold text-foreground">
-                        {a.syllabusCompletionPercent}%
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table className="w-full">
+                  <TableHeader className="bg-[#EEF1F5]/80">
+                    <TableRow className="border-b border-[#E5E9EF]">
+                      <TableHead className="font-bold text-[#788391]">Subject Code</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Course Title</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Section</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Weekly Periods</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Syllabus %</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-[#E5E9EF]">
+                    {allocations.map((a) => (
+                      <TableRow key={a.id} className="border-b border-[#E5E9EF] hover:bg-[#EEF1F5]/50 transition-colors">
+                        <TableCell className="font-bold text-[#123B5A]">
+                          {a.subjectCode}
+                        </TableCell>
+                        <TableCell className="font-bold text-[#202936]">
+                          {a.subjectName}
+                        </TableCell>
+                        <TableCell className="text-[#202936]">
+                          {a.className} - {a.section}
+                        </TableCell>
+                        <TableCell className="text-[#788391]">{a.weeklyHours} hrs/wk</TableCell>
+                        <TableCell className="font-bold text-[#202936]">
+                          {a.syllabusCompletionPercent}%
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -560,40 +568,40 @@ export default function HodOversightPage() {
         <TabsContent value="summary" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             {facultyLoad.map((fac) => (
-              <Card key={fac.teacherId} className="bg-white">
+              <Card key={fac.teacherId} className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs hover:border-[#123B5A]/30 transition-all">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <CardTitle className="text-base font-semibold text-foreground">
+                      <CardTitle className="text-base font-bold text-[#202936]">
                         {fac.fullName}
                       </CardTitle>
-                      <CardDescription>{fac.subjects.join(", ")}</CardDescription>
+                      <CardDescription className="text-xs text-[#788391]">{fac.subjects.join(", ")}</CardDescription>
                     </div>
-                    <BookOpenCheck className="size-4 text-teal" />
+                    <BookOpenCheck className="size-4 text-[#F5A000]" />
                   </div>
                 </CardHeader>
                 <CardContent className="grid grid-cols-3 gap-3 text-center">
-                  <div className="rounded-md bg-slate-50 p-2.5">
-                    <div className="text-[11px] text-muted-foreground">
+                  <div className="rounded-xl bg-[#EEF1F5]/60 border border-[#E5E9EF] p-2.5">
+                    <div className="text-[11px] font-semibold text-[#788391]">
                       Attendance Avg
                     </div>
-                    <div className="mt-0.5 text-lg font-bold text-foreground">
+                    <div className="mt-0.5 text-lg font-bold text-[#202936]">
                       {fac.attendanceAveragePercent}%
                     </div>
                   </div>
-                  <div className="rounded-md bg-slate-50 p-2.5">
-                    <div className="text-[11px] text-muted-foreground">
+                  <div className="rounded-xl bg-[#EEF1F5]/60 border border-[#E5E9EF] p-2.5">
+                    <div className="text-[11px] font-semibold text-[#788391]">
                       Syllabus Pacing
                     </div>
-                    <div className="mt-0.5 text-lg font-bold text-teal">
+                    <div className="mt-0.5 text-lg font-bold text-emerald-600">
                       {fac.syllabusAveragePercent}%
                     </div>
                   </div>
-                  <div className="rounded-md bg-slate-50 p-2.5">
-                    <div className="text-[11px] text-muted-foreground">
+                  <div className="rounded-xl bg-[#EEF1F5]/60 border border-[#E5E9EF] p-2.5">
+                    <div className="text-[11px] font-semibold text-[#788391]">
                       Sections
                     </div>
-                    <div className="mt-0.5 text-lg font-bold text-brand">
+                    <div className="mt-0.5 text-lg font-bold text-[#123B5A]">
                       {fac.sectionsCount}
                     </div>
                   </div>
@@ -611,29 +619,31 @@ export default function HodOversightPage() {
           if (!open) setReturnTarget(null)
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Return IA Marks for Correction</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-xl font-bold text-rose-600">Return IA Marks for Correction</DialogTitle>
+            <DialogDescription className="text-xs text-[#788391]">
               {returnTarget
                 ? `${returnTarget.title} • ${returnTarget.className} - ${returnTarget.section}`
                 : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="hod-return-note">Correction Instructions</Label>
+            <Label htmlFor="hod-return-note" className="text-xs font-semibold text-[#202936]">Correction Instructions</Label>
             <Textarea
               id="hod-return-note"
               rows={3}
               value={returnNote}
               onChange={(e) => setReturnNote(e.target.value)}
               placeholder="Specify missing re-test marks or rounding discrepancies..."
+              className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
             />
           </div>
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
+              className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
               onClick={() => setReturnTarget(null)}
             >
               Cancel
@@ -641,6 +651,7 @@ export default function HodOversightPage() {
             <Button
               type="button"
               variant="destructive"
+              className="rounded-xl bg-rose-600 text-white hover:bg-rose-700"
               disabled={!returnTarget || busyId === returnTarget?.id}
               onClick={submitReturn}
             >

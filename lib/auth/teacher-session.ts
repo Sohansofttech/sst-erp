@@ -115,6 +115,11 @@ export function mapDbTeacherToProfile(
   }
 }
 
+// In-memory caches for fast tenant resolution and zero pool churn
+const institutionCache = new Map<string, { inst: institutions; timestamp: number }>()
+const inFlightInstitutions = new Map<string, Promise<institutions | null>>()
+const demoSessionCache = new Map<string, { session: TeacherSession; timestamp: number }>()
+
 /**
  * Resolves an active institution from the database by slug or institution code / id.
  */
@@ -122,18 +127,47 @@ export async function resolveInstitution(slug: string): Promise<institutions | n
   if (!slug) return null
 
   const trimmed = slug.trim()
+  const lower = trimmed.toLowerCase()
 
-  return prisma.institutions.findFirst({
-    where: {
-      OR: [
-        { code: trimmed },
-        { code: trimmed.toLowerCase() },
-        { code: trimmed.toUpperCase() },
-        { id: trimmed },
-      ],
-      isActive: true,
-    },
-  })
+  const cached = institutionCache.get(lower)
+  if (cached && Date.now() - cached.timestamp < 300_000) {
+    return cached.inst
+  }
+
+  if (inFlightInstitutions.has(lower)) {
+    return inFlightInstitutions.get(lower)!
+  }
+
+  const promise = (async () => {
+    try {
+      const inst = await prisma.institutions.findFirst({
+        where: {
+          OR: [
+            { code: trimmed },
+            { code: trimmed.toLowerCase() },
+            { code: trimmed.toUpperCase() },
+            { id: trimmed },
+          ],
+          isActive: true,
+        },
+      })
+      if (inst) {
+        const entry = { inst, timestamp: Date.now() }
+        institutionCache.set(lower, entry)
+        institutionCache.set(inst.id.toLowerCase(), entry)
+        if (inst.code) institutionCache.set(inst.code.toLowerCase(), entry)
+      }
+      return inst
+    } catch (err) {
+      console.warn("[resolveInstitution] DB error:", err)
+      return cached?.inst ?? null
+    } finally {
+      inFlightInstitutions.delete(lower)
+    }
+  })()
+
+  inFlightInstitutions.set(lower, promise)
+  return promise
 }
 
 /**
@@ -150,10 +184,15 @@ export async function getTenantContext(slug: string): Promise<TenantContext> {
     )
   }
 
-  const dbYears = await prisma.academic_years.findMany({
-    where: { institutionId: institution.id },
-    orderBy: { startDate: "desc" },
-  })
+  let dbYears: any[] = []
+  try {
+    dbYears = await prisma.academic_years.findMany({
+      where: { institutionId: institution.id },
+      orderBy: { startDate: "desc" },
+    })
+  } catch (err) {
+    console.warn("[getTenantContext] AY query error:", err)
+  }
 
   const academicYears = dbYears.map(mapDbAcademicYearToCommon)
   const currentAcademicYear =
@@ -219,13 +258,36 @@ export async function getTeacherSession(
     return null
   }
 
-  const [dbYears, supabaseUser] = await Promise.all([
-    prisma.academic_years.findMany({
-      where: { institutionId: institution.id },
-      orderBy: { startDate: "desc" },
-    }),
-    getAuthenticatedUser(),
-  ])
+  // Check demo session cache before any remote DB calls
+  const cachedDemo = demoSessionCache.get(institution.id)
+  const now = Date.now()
+
+  let dbYears: any[] = []
+  let supabaseUser: SupabaseUser | null = null
+
+  try {
+    const [years, user] = await Promise.all([
+      prisma.academic_years.findMany({
+        where: { institutionId: institution.id },
+        orderBy: { startDate: "desc" },
+      }),
+      getAuthenticatedUser(),
+    ])
+    dbYears = years
+    supabaseUser = user
+  } catch (err) {
+    console.warn("[getTeacherSession] AY or auth check error:", err)
+    try {
+      supabaseUser = await getAuthenticatedUser()
+    } catch {
+      supabaseUser = null
+    }
+  }
+
+  // If user is not authenticated via Supabase cookie and we have a valid cached demo session, return it immediately
+  if (!supabaseUser && cachedDemo && now - cachedDemo.timestamp < 60_000) {
+    return cachedDemo.session
+  }
 
   const currentAcademicYear = dbYears.find((y: any) => y.isCurrent) ?? dbYears[0] ?? null
 
@@ -247,33 +309,37 @@ export async function getTeacherSession(
 
   // 1. Try to find the teacher from Supabase Auth credentials
   if (supabaseUser) {
-    const user = await prisma.users.findFirst({
-      where: {
-        institutionId: institution.id,
-        isActive: true,
-        OR: [
-          { id: supabaseUser.id },
-          ...(supabaseUser.email ? [{ email: supabaseUser.email }] : []),
-        ],
-      },
-      include: {
-        teachers: true,
-      },
-    })
+    try {
+      const user = await prisma.users.findFirst({
+        where: {
+          institutionId: institution.id,
+          isActive: true,
+          OR: [
+            { id: supabaseUser.id },
+            ...(supabaseUser.email ? [{ email: supabaseUser.email }] : []),
+          ],
+        },
+        include: {
+          teacherProfile: true,
+        },
+      })
 
-    if (user && user.teachers && (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "FACULTY")) {
-      const profile = mapDbTeacherToProfile(user.teachers, user)
-      return {
-        institution,
-        user,
-        teacher: user.teachers,
-        academicYears: dbYears,
-        currentAcademicYear,
-        profile,
-        tenantContext,
-        supabaseUser,
-        isDemoFallback: false,
+      if (user && user.teacherProfile && (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "FACULTY")) {
+        const profile = mapDbTeacherToProfile(user.teacherProfile, user)
+        return {
+          institution,
+          user,
+          teacher: user.teacherProfile,
+          academicYears: dbYears,
+          currentAcademicYear,
+          profile,
+          tenantContext,
+          supabaseUser,
+          isDemoFallback: false,
+        }
       }
+    } catch (err) {
+      console.warn("[getTeacherSession] DB user query error:", err)
     }
   }
 
@@ -284,17 +350,22 @@ export async function getTeacherSession(
 
   if (allowFallback) {
     // Find the first active teacher for this institution (e.g. seeded Dr. Ananya Sharma)
-    const demoTeacher = await prisma.teachers.findFirst({
-      where: { institutionId: institution.id },
-      include: { users: true },
-      orderBy: { createdAt: "asc" },
-    })
+    let demoTeacher: any = null
+    try {
+      demoTeacher = await prisma.teachers.findFirst({
+        where: { institutionId: institution.id },
+        include: { user: true },
+        orderBy: { createdAt: "asc" },
+      })
+    } catch (err) {
+      console.warn("[getTeacherSession] Demo teacher query error:", err)
+    }
 
-    if (demoTeacher && demoTeacher.users && demoTeacher.users.isActive) {
-      const profile = mapDbTeacherToProfile(demoTeacher, demoTeacher.users)
-      return {
+    if (demoTeacher && demoTeacher.user && demoTeacher.user.isActive) {
+      const profile = mapDbTeacherToProfile(demoTeacher, demoTeacher.user)
+      const sessionResult: TeacherSession = {
         institution,
-        user: demoTeacher.users,
+        user: demoTeacher.user,
         teacher: demoTeacher,
         academicYears: dbYears,
         currentAcademicYear,
@@ -303,6 +374,8 @@ export async function getTeacherSession(
         supabaseUser: null,
         isDemoFallback: true,
       }
+      demoSessionCache.set(institution.id, { session: sessionResult, timestamp: Date.now() })
+      return sessionResult
     }
   }
 

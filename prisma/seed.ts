@@ -487,7 +487,7 @@ async function main() {
         section: "A",
         subjectId: slot.sub.id,
         teacherId: teacher1.id,
-        dayOfWeek: slot.day,
+        dayOfWeek: slot.day as any,
         startTime: slot.start,
         endTime: slot.end,
         roomNumber: slot.room,

@@ -144,7 +144,8 @@ export function TeacherShellPreview({
           label="Assigned Classes"
           value="6"
           icon={<BookOpen />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           trend={{ value: "+1", direction: "up", label: "this term" }}
         />
         <StatCard
