@@ -290,7 +290,7 @@ export default function ClassTeacherToolsPage() {
       />
 
       {role !== "class_teacher" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/8 px-4 py-3 text-sm text-primary">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E5E9EF] bg-white px-4 py-3 text-sm text-[#202936] shadow-xs">
           <span>
             Scoped strictly to your Class Teacher section:{" "}
             <strong>Class 10 - A</strong>. Switch the demo role toggle to{" "}
@@ -299,6 +299,7 @@ export default function ClassTeacherToolsPage() {
           <Button
             size="sm"
             variant="outline"
+            className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
             onClick={() => setRole("class_teacher")}
           >
             Switch to Class Teacher Role
@@ -311,7 +312,8 @@ export default function ClassTeacherToolsPage() {
           label="Section Strength"
           value={students.length}
           icon={<Users />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Class 10 - A enrolled"
         />
         <StatCard
@@ -332,7 +334,7 @@ export default function ClassTeacherToolsPage() {
           label="Section IA Mean"
           value={`${avgIA}%`}
           icon={<Award />}
-          tone="teal"
+          tone="primary"
           description={`${honorStudents} high-merit scholars`}
         />
       </div>
@@ -348,16 +350,16 @@ export default function ClassTeacherToolsPage() {
         </TabsList>
 
         <TabsContent value="defaulters" className="space-y-4">
-          <Card className="bg-white">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-foreground">
+          <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+            <CardHeader className="border-b border-[#E5E9EF] pb-4">
+              <CardTitle className="text-lg font-bold text-[#202936]">
                 Attendance Shortage & Borderline Watch (Class 10 - A)
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-[#788391]">
                 Students below 75% require immediate parent intimation for examination eligibility compliance.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-5">
               {defaulters.length + borderline.length === 0 ? (
                 <EmptyState
                   title="Zero attendance defaulters"
@@ -429,24 +431,24 @@ export default function ClassTeacherToolsPage() {
 
         <TabsContent value="summary" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
-            <Card className="bg-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                  <FileBarChart2 className="size-4 text-brand" />
+            <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+              <CardHeader className="pb-2 border-b border-[#E5E9EF]">
+                <CardTitle className="flex items-center gap-2 text-base font-bold text-[#202936]">
+                  <FileBarChart2 className="size-4 text-[#123B5A]" />
                   Attendance Distribution
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+              <CardContent className="space-y-2 text-sm pt-4">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">90% and above</span>
-                  <span className="font-semibold text-success">
+                  <span className="text-[#788391]">90% and above</span>
+                  <span className="font-bold text-emerald-700">
                     {students.filter((s) => s.attendancePercent >= 90).length}{" "}
                     students
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">75% – 89%</span>
-                  <span className="font-semibold text-foreground">
+                  <span className="text-[#788391]">75% – 89%</span>
+                  <span className="font-bold text-[#202936]">
                     {
                       students.filter(
                         (s) =>
@@ -457,24 +459,24 @@ export default function ClassTeacherToolsPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">
+                  <span className="text-[#788391]">
                     Below 75% (Shortage)
                   </span>
-                  <span className="font-semibold text-error">
+                  <span className="font-bold text-rose-700">
                     {defaulters.length} student(s)
                   </span>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                  <Award className="size-4 text-teal" />
+            <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+              <CardHeader className="pb-2 border-b border-[#E5E9EF]">
+                <CardTitle className="flex items-center gap-2 text-base font-bold text-[#202936]">
+                  <Award className="size-4 text-[#F5A000]" />
                   IA Score Distribution
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+              <CardContent className="space-y-2 text-sm pt-4">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
                     Distinction (≥ 85%)

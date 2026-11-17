@@ -474,7 +474,10 @@ function LoginContent() {
             {/* Bottom Footer Details */}
             <div className="mt-8 pt-4 border-t border-[#F1F5F9] flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-[#94A3B8]">
               <span>SST ERP • Institution Administration Subsystem</span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
+                <Link href="/login" className="text-[#F5A000] hover:underline font-semibold">
+                  Unified Campus Gateway (/login) →
+                </Link>
                 <Link href="/super-admin/login" className="text-[#123B5A] hover:text-[#F5A000] font-semibold">
                   Super Admin Console →
                 </Link>

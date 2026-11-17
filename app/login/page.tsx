@@ -1,69 +1,85 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
-import Link from "next/link";
 import {
-  ShieldCheck,
-  GraduationCap,
-  Users,
+  School,
+  Lock,
+  Mail,
+  Eye,
+  EyeOff,
+  ArrowRight,
   AlertCircle,
-  KeyRound,
-  Smartphone,
   CheckCircle2,
-  ArrowLeft,
+  Building2,
+  GraduationCap,
+  BookOpen,
+  ShieldCheck,
+  Sparkles,
+  CheckCircle,
 } from "lucide-react";
-import { Button } from "@/components/shared/Button";
-import { FormInput } from "@/components/shared/FormInput";
 
 function LoginForm() {
-  const [authMethod, setAuthMethod] = useState<"PASSWORD" | "OTP">("PASSWORD");
-  const [email, setEmail] = useState("john.doe@student.apex.edu");
-  const [password, setPassword] = useState("Student@123");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [institutionName, setInstitutionName] = useState<string>("Apex Institute of Technology");
 
-  const handleSendOtp = () => {
-    if (!email) {
-      setError("Please enter your registered institutional email address first.");
-      return;
+  // Dynamically load the live institution name configured by Super Admin / Admin
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_institution_name");
+      if (stored && !stored.includes("E2E")) {
+        setInstitutionName(stored);
+      } else {
+        try {
+          const profile = localStorage.getItem("sst_erp_inst_admin_profile");
+          if (profile) {
+            const parsed = JSON.parse(profile);
+            if (parsed.name && !parsed.name.includes("E2E")) {
+              setInstitutionName(parsed.name);
+            }
+          }
+        } catch {}
+      }
     }
-    setError(null);
-    setOtpSent(true);
-    setOtp("123456"); // Pre-fill demo OTP
-    setInfoMessage("Verification OTP sent! For testing, use demo OTP: 123456");
-  };
+
+    fetch("/api/public/institution")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.name) {
+          setInstitutionName(data.name);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("erp_institution_name", data.name);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
-      const payload: any = {
-        email: email.trim().toLowerCase(),
-        loginType: authMethod,
-      };
-
-      if (authMethod === "PASSWORD") {
-        payload.password = password;
-      } else {
-        payload.otp = otp;
-      }
-
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
       });
 
       const json = await res.json();
 
-      if (!json.success) {
-        throw new Error(json.error || "Authentication failed.");
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Invalid email or password.");
       }
 
       if (json.data?.token) {
@@ -71,6 +87,9 @@ function LoginForm() {
       }
       if (json.data?.user) {
         localStorage.setItem("erp_user", JSON.stringify(json.data.user));
+        if (json.data.user.institutionName) {
+          localStorage.setItem("erp_institution_name", json.data.user.institutionName);
+        }
         if (json.data.user.activeChildId) {
           localStorage.setItem("erp_active_child_id", json.data.user.activeChildId);
           document.cookie = `erp_active_child=${json.data.user.activeChildId}; path=/; max-age=86400`;
@@ -80,218 +99,317 @@ function LoginForm() {
         }
       }
 
-      // Hard navigation ensures all session cookies and layout states reload freshly
-      window.location.href = "/dashboard";
+      const destination = json.data?.redirectUrl || "/dashboard";
+      setSuccessMessage("Authentication successful. Redirecting to your portal...");
+
+      // Hard navigation ensures all session cookies and layout states initialize freshly
+      window.location.href = destination;
     } catch (err: any) {
-      setError(err.message || "Failed to sign in. Please verify your credentials.");
+      setError(err.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#EEF1F5] flex flex-col justify-center py-4 sm:py-6 sm:px-6 lg:px-8">
-      {/* Back to Home Link */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0 mb-2">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#123B5A] hover:text-[#F5A000] transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Sohan Soft Tech ERP Home</span>
-        </Link>
-      </div>
+  const handleDemoFill = (demoEmail: string, demoPw: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPw);
+    setError(null);
+    setSuccessMessage(null);
+  };
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="flex justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-[#123B5A] text-white flex items-center justify-center shadow-md border-2 border-white">
-            <GraduationCap className="w-7 h-7 text-[#F5A000]" />
+  return (
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#EEF1F5] text-[#202936] font-sans">
+      {/* LEFT COLUMN: Immersive Visual Hero Banner (Desktop / Large Screens) */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-[52%] relative bg-[#123B5A] text-white flex-col justify-between p-10 xl:p-14 overflow-hidden">
+        {/* Background Image with Dark Navy Gradient Overlay */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src="/images/campus-hero.jpg"
+            alt="Institution Campus"
+            className="w-full h-full object-cover object-center filter brightness-[0.88] contrast-[1.05]"
+          />
+          {/* Multi-layered dark navy overlay for optimal contrast and elegance */}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#123B5A] via-[#123B5A]/75 to-[#123B5A]/55" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#123B5A]/90 via-transparent to-[#123B5A]/50" />
+        </div>
+
+        {/* Top Branding Bar on Hero */}
+        <div className="relative z-10 flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg shrink-0">
+            <School className="w-6 h-6 text-[#F5A000]" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-xl tracking-tight text-white truncate max-w-[280px] xl:max-w-[360px]" title={institutionName}>
+                {institutionName}
+              </span>
+              <span className="bg-[#F5A000] text-[#123B5A] text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm shrink-0">
+                ERP
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 font-medium">
+              Smart Campus Management System
+            </p>
           </div>
         </div>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#123B5A]">
-          Student Portal
-        </h1>
-        <p className="mt-0.5 text-xs font-medium text-[#788391]">
-          Sign in to access your student academic records, timetable, and coursework
-        </p>
-      </div>
 
-      <div className="mt-4 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-6 px-6 shadow-xl border border-[#E5E9EF] sm:rounded-2xl sm:px-8">
-          {/* Authentication Method Switcher: Password vs OTP */}
-          <div className="mb-4">
-            <div className="flex bg-[#EEF1F5] p-1 rounded-xl border border-[#E5E9EF]">
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMethod("PASSWORD");
-                  setError(null);
-                  setInfoMessage(null);
-                }}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                  authMethod === "PASSWORD"
-                    ? "bg-white text-[#123B5A] shadow-sm border border-[#E5E9EF]"
-                    : "text-[#788391] hover:text-[#202936]"
-                }`}
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Password Login</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMethod("OTP");
-                  setError(null);
-                  setInfoMessage(null);
-                }}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-                  authMethod === "OTP"
-                    ? "bg-white text-[#123B5A] shadow-sm border border-[#E5E9EF]"
-                    : "text-[#788391] hover:text-[#202936]"
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>OTP Login</span>
-              </button>
-            </div>
+        {/* Center / Showcase Section */}
+        <div className="relative z-10 my-auto py-12 max-w-xl">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-[#F5A000] text-xs font-bold tracking-wide uppercase mb-6 shadow-sm">
+            <Sparkles className="w-4 h-4 text-[#F5A000]" />
+            <span>Unified Campus Ecosystem</span>
           </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-[#FEE2E2] border border-[#FECACA] rounded-lg text-xs text-[#DC2626] flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
+          <h2 className="text-3xl xl:text-4xl font-extrabold leading-tight tracking-tight text-white drop-shadow-sm">
+            Empowering Academic Excellence & Seamless Campus Governance
+          </h2>
+
+          <p className="mt-4 text-sm xl:text-base text-slate-200 leading-relaxed font-normal">
+            A secure single-entry portal designed for students, teachers, departmental leadership, and administrators.
+          </p>
+
+          {/* Value Proposition Pills */}
+          <div className="mt-8 grid grid-cols-1 gap-3">
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl px-4 py-3 shadow-xs">
+              <div className="w-8 h-8 rounded-lg bg-[#F5A000]/20 flex items-center justify-center shrink-0">
+                <GraduationCap className="w-4 h-4 text-[#F5A000]" />
+              </div>
+              <div className="text-xs">
+                <p className="font-bold text-white">Academic Lifecycle Management</p>
+                <p className="text-slate-300">Timetable, dynamic attendance, marks, examinations & LMS tasks.</p>
+              </div>
             </div>
-          )}
 
-          {infoMessage && (
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0" />
-              <span>{infoMessage}</span>
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl px-4 py-3 shadow-xs">
+              <div className="w-8 h-8 rounded-lg bg-[#F5A000]/20 flex items-center justify-center shrink-0">
+                <Building2 className="w-4 h-4 text-[#F5A000]" />
+              </div>
+              <div className="text-xs">
+                <p className="font-bold text-white">Automated Role-Based Redirection</p>
+                <p className="text-slate-300">Intelligent server routing to Student, Teacher, Admin, or Super Admin portals.</p>
+              </div>
             </div>
-          )}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <FormInput
-              label="Institutional Email Address"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. name@student.apex.edu"
-              required
-            />
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl px-4 py-3 shadow-xs">
+              <div className="w-8 h-8 rounded-lg bg-[#F5A000]/20 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-[#F5A000]" />
+              </div>
+              <div className="text-xs">
+                <p className="font-bold text-white">Multi-Tenant Institutional Security</p>
+                <p className="text-slate-300">Cryptographically signed sessions, strict tenant isolation & audit logs.</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-            {authMethod === "PASSWORD" ? (
-              <>
-                <FormInput
-                  label="Password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+        {/* Bottom Status / Trust Bar on Hero */}
+        <div className="relative z-10 pt-6 border-t border-white/15 flex items-center justify-between text-xs text-slate-300">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-medium">Institutional System Operational</span>
+          </div>
+          <span className="text-[11px] text-slate-400">© 2026 {institutionName}</span>
+        </div>
+      </div>
 
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center">
-                    <input
-                      id="remember-me"
-                      name="remember-me"
-                      type="checkbox"
-                      defaultChecked
-                      suppressHydrationWarning
-                      className="h-4 w-4 text-[#F59E0B] focus:ring-[#F59E0B] border-[#E2E8F0] rounded"
-                    />
-                    <label htmlFor="remember-me" className="ml-2 block text-[#64748B]">
-                      Remember session
-                    </label>
-                  </div>
-                  <span className="text-[#0F2942] hover:text-[#F59E0B] font-medium hover:underline cursor-pointer">
-                    Forgot password?
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[13px] font-medium text-[#1E293B]">
-                    6-Digit One-Time Password (OTP)
-                  </label>
-                  {!otpSent ? (
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      className="text-xs font-semibold text-[#F59E0B] hover:underline"
-                    >
-                      Send OTP Code
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      className="text-xs text-[#64748B] hover:underline"
-                    >
-                      Resend OTP
-                    </button>
-                  )}
-                </div>
+      {/* RIGHT COLUMN: The Clean, Modern Institution Portal Login Card */}
+      <div className="w-full lg:w-1/2 xl:w-[48%] flex flex-col justify-center items-center py-8 sm:py-12 px-4 sm:px-8 lg:px-12 xl:px-16 overflow-y-auto">
+        <div className="w-full max-w-md">
+          {/* Header & Badging */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#123B5A] text-white shadow-md border-2 border-white mb-3">
+              <School className="w-7 h-7 text-[#F5A000]" />
+            </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    placeholder="Enter 6-digit OTP"
-                    className="w-full px-3.5 py-2 text-sm tracking-widest font-mono text-center border border-[#E2E8F0] rounded-lg focus:border-[#F59E0B] focus:outline-none focus:ring-2 focus:ring-[#F59E0B]/20 bg-white"
-                    required
-                  />
-                  {!otpSent && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSendOtp}
-                      className="shrink-0"
-                    >
-                      Request OTP
-                    </Button>
-                  )}
-                </div>
+            <div className="flex justify-center mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#123B5A]/10 text-[#123B5A] text-[11px] font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" />
+                <span>Institution Portal</span>
+              </div>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#123B5A]">
+              Institution Portal
+            </h1>
+            <p className="text-xs sm:text-sm font-medium text-[#788391] mt-1">
+              Sign in to continue
+            </p>
+          </div>
+
+          {/* Login Card */}
+          <div className="bg-white rounded-2xl shadow-xl border border-[#E5E9EF] p-6 sm:p-8">
+            {error && (
+              <div className="mb-4 p-3.5 bg-[#FEE2E2] border border-[#FECACA] rounded-xl text-xs text-[#DC2626] font-semibold flex items-center gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-[#DC2626]" />
+                <span>{error}</span>
               </div>
             )}
 
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-full mt-2 font-semibold shadow-md py-2.5 text-sm bg-[#F5A000] hover:bg-[#DE9100] text-white"
-              isLoading={loading}
-            >
-              Sign In to Student Portal
-            </Button>
-          </form>
+            {successMessage && (
+              <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{successMessage}</span>
+              </div>
+            )}
 
-          {/* Quick Fill Credentials helpers */}
-          <div className="mt-6 pt-4 border-t border-[#E5E9EF] text-center space-y-3">
-            <div className="flex items-center justify-center gap-2 text-xs text-[#788391]">
-              <span className="font-semibold text-slate-700">Quick Fill:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("john.doe@student.apex.edu");
-                  setPassword("Student@123");
-                  setError(null);
-                  setInfoMessage(null);
-                }}
-                className="text-[#D97706] hover:underline font-semibold inline-flex items-center gap-1 bg-[#FEF3C7] px-2.5 py-1 rounded-md border border-[#FDE68A]"
-              >
-                <GraduationCap className="w-3.5 h-3.5 text-[#D97706]" />
-                Student Account
-              </button>
-            </div>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              {/* Email Address */}
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-xs font-bold text-[#202936] uppercase tracking-wider mb-1.5"
+                >
+                  Email Address
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#788391]">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. yourname@apex.edu"
+                    className="w-full pl-10 pr-3.5 py-2.5 text-xs sm:text-sm bg-[#F8FAFC] focus:bg-white border border-[#E5E9EF] rounded-xl text-[#202936] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#123B5A] focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#788391]">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#F5A000]" />
-              <span>Secure Student Portal • Sohan Soft Tech ERP</span>
+              {/* Password */}
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-xs font-bold text-[#202936] uppercase tracking-wider mb-1.5"
+                >
+                  Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#788391]">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[#F8FAFC] focus:bg-white border border-[#E5E9EF] rounded-xl text-[#202936] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#123B5A] focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#788391] hover:text-[#202936] transition-colors cursor-pointer"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold text-white bg-[#F5A000] hover:bg-[#DE9100] active:scale-[0.99] shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Verifying Credentials...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Sign In to Portal</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Quick Demo Credentials Helper */}
+            <div className="mt-6 pt-5 border-t border-[#E2E8F0]">
+              <p className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider mb-2.5 text-center">
+                Quick Demo Access (Click to auto-fill)
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-left">
+                {[
+                  {
+                    role: "Student",
+                    email: "john.doe@student.apex.edu",
+                    pw: "Student@123",
+                    icon: GraduationCap,
+                  },
+                  {
+                    role: "Teacher",
+                    email: "prof.sharma@apex.edu",
+                    pw: "Password@123",
+                    icon: BookOpen,
+                  },
+                  {
+                    role: "Institution Admin",
+                    email: "admin@apex.edu",
+                    pw: "Password@123",
+                    icon: Building2,
+                  },
+                  {
+                    role: "Super Admin",
+                    email: "superadmin@sohansofttech.com",
+                    pw: "SuperAdmin@123",
+                    icon: ShieldCheck,
+                  },
+                ].map((account) => {
+                  const Icon = account.icon;
+                  const isSelected = email.trim().toLowerCase() === account.email.toLowerCase();
+
+                  return (
+                    <button
+                      key={account.role}
+                      type="button"
+                      onClick={() => handleDemoFill(account.email, account.pw)}
+                      className={`p-2.5 rounded-xl border transition-all text-[11px] group cursor-pointer text-left ${
+                        isSelected
+                          ? "border-[#F5A000] bg-[#FFFBEB] shadow-xs ring-1 ring-[#F5A000]/50"
+                          : "border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#F5A000] hover:bg-amber-50/50"
+                      }`}
+                    >
+                      <div
+                        className={`flex items-center gap-1.5 font-bold transition-colors ${
+                          isSelected
+                            ? "text-[#D97706]"
+                            : "text-[#123B5A] group-hover:text-[#F5A000]"
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5 text-[#F5A000]" />
+                        <span>{account.role}</span>
+                      </div>
+                      <span
+                        className={`text-[10px] block truncate mt-0.5 ${
+                          isSelected ? "text-[#92400E]" : "text-[#64748B]"
+                        }`}
+                      >
+                        {account.email}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          </div>
+
+          {/* Security & Support Note */}
+          <div className="mt-5 text-center text-[11px] text-[#788391] flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Encrypted with 256-bit SSL | Institutional Single Sign-On</span>
           </div>
         </div>
       </div>
@@ -304,10 +422,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-[#EEF1F5] flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-xs text-[#788391] font-medium">Loading Student Portal...</p>
-          </div>
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin" />
         </div>
       }
     >

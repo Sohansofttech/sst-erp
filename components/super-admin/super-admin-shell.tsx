@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   Activity, Bell, Building2, ChevronDown, CircleHelp, CreditCard, LayoutDashboard,
   Menu, Palette, Puzzle, Settings2, ShieldCheck, Users, X, ClipboardList, Globe2, KeyRound, Megaphone, Archive,
@@ -30,7 +31,7 @@ export function SuperAdminShell({ children, userEmail, developmentMode = false }
       {menuOpen && <button aria-label="Close navigation" className="sa-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={`sa-sidebar ${menuOpen ? "sa-sidebar-open" : ""}`} aria-label="Super Admin navigation">
         <div className="sa-brand">
-          <div className="sa-brand-mark"><LayoutDashboard size={21} /></div>
+          <div className="sa-brand-mark"><Image src="/sohan_logo.png" alt="Sohan Soft Tech logo" width={38} height={38} priority /></div>
           <div><div className="sa-brand-title">SST-ERP</div><div className="sa-brand-caption">Platform Console</div></div>
         </div>
         <nav className="sa-nav">

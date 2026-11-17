@@ -446,17 +446,17 @@ export default function TeacherQuizzesPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {quizzes.map((quiz) => (
-                <Card key={quiz.id} className="flex flex-col justify-between">
+                <Card key={quiz.id} className="flex flex-col justify-between rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="brand">
+                          <Badge variant="brand" className="rounded-full bg-[#123B5A]/10 text-[#123B5A] border-[#123B5A]/20 font-bold">
                             {quiz.className}-{quiz.section}
                           </Badge>
-                          <Badge variant="secondary">{quiz.subjectName}</Badge>
+                          <Badge variant="secondary" className="rounded-full bg-[#EEF1F5] text-[#202936] font-semibold">{quiz.subjectName}</Badge>
                         </div>
-                        <CardTitle className="pt-1">{quiz.title}</CardTitle>
+                        <CardTitle className="pt-1 text-[#202936]">{quiz.title}</CardTitle>
                       </div>
                       <StatusBadge
                         status={
@@ -469,51 +469,51 @@ export default function TeacherQuizzesPage() {
                       />
                     </div>
                     {quiz.description && (
-                      <CardDescription>{quiz.description}</CardDescription>
+                      <CardDescription className="text-[#788391]">{quiz.description}</CardDescription>
                     )}
                   </CardHeader>
 
-                  <CardContent className="space-y-3 text-[13px] text-muted-foreground">
-                    <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-2.5 text-center">
+                  <CardContent className="space-y-3 text-[13px] text-[#788391]">
+                    <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#EEF1F5] p-2.5 text-center">
                       <div>
-                        <p className="text-[11.5px]">Duration</p>
-                        <p className="font-semibold text-foreground">
+                        <p className="text-[11.5px] font-medium text-[#788391]">Duration</p>
+                        <p className="font-extrabold text-[#202936]">
                           {quiz.durationMinutes} min
                         </p>
                       </div>
                       <div>
-                        <p className="text-[11.5px]">Total Marks</p>
-                        <p className="font-semibold text-foreground">
+                        <p className="text-[11.5px] font-medium text-[#788391]">Total Marks</p>
+                        <p className="font-extrabold text-[#202936]">
                           {quiz.totalMarks}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[11.5px]">Attempts</p>
-                        <p className="font-semibold text-primary">
+                        <p className="text-[11.5px] font-medium text-[#788391]">Attempts</p>
+                        <p className="font-extrabold text-[#F5A000]">
                           {quiz.attemptCount}/{quiz.totalStudents}
                         </p>
                       </div>
                     </div>
 
-                    <p className="flex items-center gap-1.5 text-[12.5px]">
-                      <Clock className="size-3.5" />
+                    <p className="flex items-center gap-1.5 text-[12.5px] text-[#788391]">
+                      <Clock className="size-3.5 text-[#F5A000]" />
                       Window: {quiz.scheduledAt.slice(0, 16).replace("T", " ")}{" "}
                       → {quiz.closesAt.slice(0, 16).replace("T", " ")}
                     </p>
                   </CardContent>
 
-                  <CardFooter className="gap-2 border-t pt-4">
+                  <CardFooter className="gap-2 border-t border-[#E5E9EF] pt-4">
                     <Button
                       type="button"
                       variant="outline"
-                      className="flex-1"
+                      className="flex-1 rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                       onClick={() => void handleToggleStatus(quiz)}
                     >
                       {quiz.status === "published" ? "Close Quiz" : "Publish"}
                     </Button>
                     <Button
                       type="button"
-                      className="flex-1"
+                      className="flex-1 rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
                       onClick={() => void handleSelectResultQuiz(quiz.id)}
                     >
                       <ListChecks className="size-4" />

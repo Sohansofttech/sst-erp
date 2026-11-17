@@ -72,11 +72,16 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         });
         const json = await res.json();
         if (isMounted && json.success && json.data?.session) {
+          const sess = json.data.session;
+          const instName = sess.institutionName || "Apex Institute of Technology";
+          if (typeof window !== "undefined") {
+            localStorage.setItem("erp_institution_name", instName);
+          }
           setUser({
-            fullName: json.data.session.fullName,
-            role: json.data.session.role,
-            institutionName: json.data.session.institutionName,
-            email: json.data.session.email,
+            fullName: sess.fullName,
+            role: sess.role,
+            institutionName: instName,
+            email: sess.email,
           });
         }
       } catch (err) {
@@ -97,7 +102,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#EEF1F5]">
+    <div className="flex h-screen overflow-hidden bg-[#EEF1F5]">
       {/* Shared Responsive Sidebar */}
       <Sidebar
         portalType={effectiveRole}
@@ -106,10 +111,11 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         selectedChildId={currentChildId}
         userFullName={user?.fullName}
         userEmail={user?.email}
+        institutionName={user?.institutionName}
       />
 
-      {/* Main Content Area */}
-      <div className="lg:pl-64 flex flex-col min-h-screen">
+      {/* Main Content Area with Fixed Header and Independent Main Scrolling */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Header
           portalType={effectiveRole}
           userFullName={user?.fullName || "John Doe"}
@@ -117,18 +123,20 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
           institutionName={user?.institutionName || "Apex Institute of Technology"}
           selectedChildId={currentChildId}
           onSelectChild={handleSelect}
-          onMenuToggle={() => setSidebarOpen(true)}
+          onMenuToggle={() => setSidebarOpen((prev) => !prev)}
         />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {pageTitle && (
-            <div className="mb-6">
-              <h1 className="text-2xl sm:text-[28px] font-bold text-[#202936]">
-                {pageTitle}
-              </h1>
-            </div>
-          )}
-          {children}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+          <div className="max-w-7xl w-full mx-auto space-y-6">
+            {pageTitle && (
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-[#1E293B]">
+                  {pageTitle}
+                </h1>
+              </div>
+            )}
+            {children}
+          </div>
         </main>
       </div>
     </div>

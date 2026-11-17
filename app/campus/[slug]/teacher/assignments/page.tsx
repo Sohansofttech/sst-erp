@@ -556,7 +556,7 @@ export default function TeacherAssignmentsPage() {
       />
 
       {/* Filter Bar */}
-      <Card className="py-4">
+      <Card className="py-4 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5">
           <div className="flex items-center gap-3">
             <Label htmlFor="asg-filter">Class & Subject:</Label>
@@ -600,20 +600,20 @@ export default function TeacherAssignmentsPage() {
                 ? Math.round((asg.submittedCount / asg.totalStudents) * 100)
                 : 0
             return (
-              <Card key={asg.id} className="flex flex-col justify-between">
+              <Card key={asg.id} className="flex flex-col justify-between rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="brand">
+                        <Badge variant="brand" className="rounded-full bg-[#123B5A]/10 text-[#123B5A] border-[#123B5A]/20 font-bold">
                           {asg.className}-{asg.section}
                         </Badge>
-                        <Badge variant="secondary">{asg.subjectName}</Badge>
+                        <Badge variant="secondary" className="rounded-full bg-[#EEF1F5] text-[#202936] font-semibold">{asg.subjectName}</Badge>
                         {asg.allowLateSubmission !== false && (
-                          <Badge variant="outline">Late Allowed</Badge>
+                          <Badge variant="outline" className="rounded-full border-[#E5E9EF] text-[#788391]">Late Allowed</Badge>
                         )}
                       </div>
-                      <CardTitle className="pt-1">{asg.title}</CardTitle>
+                      <CardTitle className="pt-1 text-[#202936]">{asg.title}</CardTitle>
                     </div>
                     <StatusBadge
                       status={
@@ -625,37 +625,37 @@ export default function TeacherAssignmentsPage() {
                       }
                     />
                   </div>
-                  <CardDescription>{asg.description}</CardDescription>
+                  <CardDescription className="text-[#788391]">{asg.description}</CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted-foreground">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-[#788391]">
                     <span className="inline-flex items-center gap-1.5">
                       <Calendar className="size-3.5" />
-                      Due: <strong className="text-foreground">{asg.dueDate}</strong>
+                      Due: <strong className="text-[#202936]">{asg.dueDate}</strong>
                     </span>
                     <span>
                       Max Marks:{" "}
-                      <strong className="text-foreground">{asg.maxMarks}</strong>
+                      <strong className="text-[#202936]">{asg.maxMarks}</strong>
                     </span>
                   </div>
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-[13px]">
-                      <span className="font-medium text-foreground">
+                      <span className="font-bold text-[#202936]">
                         Submission Progress
                       </span>
-                      <span className="font-semibold text-primary">
+                      <span className="font-bold text-[#F5A000]">
                         {asg.submittedCount}/{asg.totalStudents} submitted ({pct}%)
                       </span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#EEF1F5]">
                       <div
-                        className="h-full rounded-full bg-primary transition-all"
+                        className="h-full rounded-full bg-[#F5A000] transition-all"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <p className="text-[12px] text-muted-foreground">
+                    <p className="text-[12px] text-[#788391]">
                       {asg.gradedCount} of {asg.submittedCount} submissions graded
                     </p>
                   </div>

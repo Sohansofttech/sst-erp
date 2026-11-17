@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { editInstitution, type InstitutionFormState } from "@/app/super-admin/institutions/actions";
+import { editInstitution, type InstitutionFormState } from "@/app/super-admin/(protected)/institutions/actions";
 
 const initial: InstitutionFormState = { error: null, success: null };
 type InstitutionData = { id: string; name: string; code: string | null; slug: string; type: "SCHOOL" | "COLLEGE" | "OTHER"; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; postalCode: string | null; country: string; website: string | null };

@@ -98,10 +98,10 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
           </div>
         )}
 
-        <div className="bg-[#EEF1F5] p-4 rounded-xl border border-[#E5E9EF]">
-          <div className="flex justify-between items-center text-xs text-[#788391]">
+        <div className="bg-[#EEF1F5] p-4 rounded-xl border border-[#E2E8F0]">
+          <div className="flex justify-between items-center text-xs text-[#64748B]">
             <span>Outstanding Balance</span>
-            <span className="font-semibold text-[#202936]">
+            <span className="font-semibold text-[#1E293B]">
               ₹{invoice.outstandingAmount.toLocaleString()}
             </span>
           </div>
@@ -119,7 +119,7 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
         </div>
 
         <div>
-          <label className="block text-[13px] font-medium text-[#202936] mb-2">
+          <label className="block text-[13px] font-medium text-[#1E293B] mb-2">
             Select Payment Method
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -129,7 +129,7 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "UPI"
                   ? "border-[#F5A000] bg-[#FFFBEB] text-[#D97706] font-semibold"
-                  : "border-[#E5E9EF] hover:bg-[#EEF1F5] text-[#788391]"
+                  : "border-[#E2E8F0] hover:bg-[#EEF1F5] text-[#64748B]"
               }`}
             >
               <Smartphone className="w-5 h-5 mx-auto mb-1" />
@@ -141,7 +141,7 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "NET_BANKING"
                   ? "border-[#F5A000] bg-[#FFFBEB] text-[#D97706] font-semibold"
-                  : "border-[#E5E9EF] hover:bg-[#EEF1F5] text-[#788391]"
+                  : "border-[#E2E8F0] hover:bg-[#EEF1F5] text-[#64748B]"
               }`}
             >
               <Building className="w-5 h-5 mx-auto mb-1" />
@@ -153,7 +153,7 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "CREDIT_CARD"
                   ? "border-[#F5A000] bg-[#FFFBEB] text-[#D97706] font-semibold"
-                  : "border-[#E5E9EF] hover:bg-[#EEF1F5] text-[#788391]"
+                  : "border-[#E2E8F0] hover:bg-[#EEF1F5] text-[#64748B]"
               }`}
             >
               <CreditCard className="w-5 h-5 mx-auto mb-1" />

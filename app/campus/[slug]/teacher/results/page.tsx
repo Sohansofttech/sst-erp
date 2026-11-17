@@ -425,7 +425,8 @@ export default function TeacherResultsPage() {
           label="Permitted Registers"
           value={entries.length}
           icon={<ClipboardList />}
-          tone="brand"
+          variant="dark"
+          tone="darkNavy"
           description="Assigned final subjects"
         />
         <StatCard
@@ -439,7 +440,7 @@ export default function TeacherResultsPage() {
           label="Current Section Avg"
           value={`${classAverage}/${activeEntry.maxTotalMarks}`}
           icon={<ShieldCheck />}
-          tone="teal"
+          tone="primary"
           description={activeEntry.subjectName}
         />
         <StatCard
@@ -452,13 +453,13 @@ export default function TeacherResultsPage() {
       </div>
 
       {/* Selector & Pipeline Status Card */}
-      <Card className="bg-white">
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-[#E5E9EF] pb-4">
           <div className="space-y-1">
-            <CardTitle className="text-lg font-semibold text-foreground">
+            <CardTitle className="text-lg font-bold text-[#202936]">
               Active Subject Result Sheet
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-[#788391]">
               Max Theory: {activeEntry.maxTheoryMarks} • Max Practical:{" "}
               {activeEntry.maxPracticalMarks} • Total Max:{" "}
               {activeEntry.maxTotalMarks}

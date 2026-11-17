@@ -15,7 +15,7 @@ export function LoginForm() {
     <form className="sa-login-form" action={formAction}>
       <div className="sa-login-field">
         <label htmlFor="admin-email">Email address</label>
-        <input id="admin-email" name="email" type="email" autoComplete="username" defaultValue="vidhyalakshmi@i.sohansoft.in" required />
+        <input id="admin-email" name="email" type="email" autoComplete="username" required />
       </div>
       <div className="sa-login-field">
         <div className="sa-login-label-row">

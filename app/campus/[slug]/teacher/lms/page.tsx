@@ -359,11 +359,11 @@ export default function TeacherLMSPage() {
       />
 
       {/* Filter Bar */}
-      <Card className="py-4">
+      <Card className="py-4 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
         <CardContent className="flex flex-col gap-3 px-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-64 border-[#E5E9EF]">
                 <SelectValue placeholder="All Courses / Subjects" />
               </SelectTrigger>
               <SelectContent>
@@ -377,7 +377,7 @@ export default function TeacherLMSPage() {
             </Select>
 
             <div className="relative w-full sm:w-64">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#788391]" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -387,7 +387,7 @@ export default function TeacherLMSPage() {
             </div>
           </div>
 
-          <Badge variant="secondary">
+          <Badge variant="secondary" className="rounded-full bg-[#EEF1F5] text-[#202936] font-semibold">
             {filteredMaterials.length} Resources · {unitNames.length} Units
           </Badge>
         </CardContent>
@@ -399,7 +399,7 @@ export default function TeacherLMSPage() {
           title="No study materials found"
           description="Upload PDF notes or attach video/reference links for your students."
           action={
-            <Button type="button" onClick={() => setDialogOpen(true)}>
+            <Button type="button" className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]" onClick={() => setDialogOpen(true)}>
               <Plus className="size-4" />
               Add Study Material
             </Button>
@@ -408,14 +408,14 @@ export default function TeacherLMSPage() {
       ) : (
         <div className="space-y-5">
           {unitNames.map((unitName) => (
-            <Card key={unitName}>
-              <CardHeader className="border-b pb-4">
+            <Card key={unitName} className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+              <CardHeader className="border-b border-[#E5E9EF] pb-4">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <FolderOpen className="size-4 text-primary" />
+                  <CardTitle className="flex items-center gap-2 text-[#202936]">
+                    <FolderOpen className="size-4 text-[#F5A000]" />
                     {unitName}
                   </CardTitle>
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="rounded-full border-[#E5E9EF] text-[#788391]">
                     {groupedByUnit[unitName].length} item(s)
                   </Badge>
                 </div>
@@ -426,13 +426,13 @@ export default function TeacherLMSPage() {
                   return (
                     <div
                       key={item.id}
-                      className="flex flex-col justify-between gap-3 rounded-xl border bg-background/50 p-4"
+                      className="flex flex-col justify-between gap-3 rounded-xl border border-[#E5E9EF] bg-white p-4 shadow-xs"
                     >
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span
                             className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold",
                               meta.badgeClass
                             )}
                           >
@@ -444,25 +444,25 @@ export default function TeacherLMSPage() {
                           />
                         </div>
 
-                        <h3 className="text-[14.5px] font-semibold text-foreground">
+                        <h3 className="text-[14.5px] font-bold text-[#202936]">
                           {item.title}
                         </h3>
                         {item.description && (
-                          <p className="text-[13px] text-muted-foreground">
+                          <p className="text-[13px] text-[#788391]">
                             {item.description}
                           </p>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between border-t pt-3 text-[12.5px] text-muted-foreground">
+                      <div className="flex items-center justify-between border-t border-[#E5E9EF] pt-3 text-[12.5px] text-[#788391]">
                         <div className="flex items-center gap-2">
-                          <BookOpen className="size-3.5" />
+                          <BookOpen className="size-3.5 text-[#123B5A]" />
                           <span>
                             {item.className} ({item.section}) ·{" "}
                             {item.subjectName}
                           </span>
                           {item.fileSizeLabel && (
-                            <span className="font-mono text-[11px]">
+                            <span className="font-mono text-[11px] text-[#788391]">
                               ({item.fileSizeLabel})
                             </span>
                           )}
@@ -472,6 +472,7 @@ export default function TeacherLMSPage() {
                             type="button"
                             size="xs"
                             variant="outline"
+                            className="rounded-lg border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                             onClick={() =>
                               toast.info(`Opening ${item.title}`, {
                                 description: item.fileUrl,
@@ -485,10 +486,11 @@ export default function TeacherLMSPage() {
                             type="button"
                             size="icon-xs"
                             variant="ghost"
+                            className="rounded-lg hover:bg-rose-50"
                             aria-label={`Delete ${item.title}`}
                             onClick={() => void handleDelete(item)}
                           >
-                            <Trash2 className="size-3.5 text-error" />
+                            <Trash2 className="size-3.5 text-rose-600" />
                           </Button>
                         </div>
                       </div>

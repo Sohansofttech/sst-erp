@@ -11,10 +11,10 @@ export const FormInput = React.forwardRef<HTMLInputElement, FormInputProps>(
     const inputId = id || label.toLowerCase().replace(/\s+/g, "-");
 
     return (
-      <div className="w-full">
+      <div className="w-full space-y-1.5">
         <label
           htmlFor={inputId}
-          className="block text-[13px] font-medium text-[#202936] mb-1.5"
+          className="block text-[13px] font-medium text-[#1E293B]"
         >
           {label} {props.required && <span className="text-[#DC2626]">*</span>}
         </label>
@@ -22,17 +22,17 @@ export const FormInput = React.forwardRef<HTMLInputElement, FormInputProps>(
           id={inputId}
           ref={ref}
           suppressHydrationWarning
-          className={`w-full px-3.5 py-2 text-[14px] bg-white border rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-[#F5A000]/20 disabled:bg-[#EEF1F5] disabled:cursor-not-allowed ${
+          className={`w-full h-9 px-3 text-sm bg-white border rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-[#F5A000] disabled:bg-[#EEF1F5] disabled:cursor-not-allowed ${
             error
               ? "border-[#DC2626] focus:border-[#DC2626]"
-              : "border-[#E5E9EF] focus:border-[#F5A000]"
-          } ${className}`}
+              : "border-[#E2E8F0] focus:border-[#F5A000]"
+          } text-[#1E293B] ${className}`}
           {...props}
         />
         {error ? (
           <p className="mt-1 text-xs text-[#DC2626]">{error}</p>
         ) : helperText ? (
-          <p className="mt-1 text-xs text-[#788391]">{helperText}</p>
+          <p className="mt-1 text-xs text-[#64748B]">{helperText}</p>
         ) : null}
       </div>
     );

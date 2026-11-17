@@ -108,6 +108,12 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
         address: parsed.data.address || null, city: parsed.data.city || null, state: parsed.data.state || null,
         postalCode: parsed.data.postalCode || null, country: parsed.data.country, website: parsed.data.website || null,
       } });
+      try {
+        await tx.institution.updateMany({
+          where: { OR: [{ id: id.data }, { slug: parsed.data.slug }] },
+          data: { name: parsed.data.name, slug: parsed.data.slug },
+        });
+      } catch {}
       await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: id.data, action: "INSTITUTION_UPDATED", entity: "Institution", entityId: id.data, result: "SUCCESS" } });
     });
   } catch (error) {

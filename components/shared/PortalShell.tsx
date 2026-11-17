@@ -110,6 +110,8 @@ interface SidebarContentProps {
   portalLabel: string
   groups: PortalNavGroup[]
   pathname: string
+  user?: PortalUser
+  onSignOut?: () => void
   sidebarFooter?: React.ReactNode
   onNavigate?: () => void
 }
@@ -120,6 +122,8 @@ function SidebarContent({
   portalLabel,
   groups,
   pathname,
+  user,
+  onSignOut,
   sidebarFooter,
   onNavigate,
 }: SidebarContentProps) {
@@ -140,27 +144,49 @@ function SidebarContent({
     }))
   }
 
+  const userInitials = user ? (user.initials ?? getInitials(user.name)) : "TC"
+
   return (
-    <div className="flex h-full flex-col bg-brand text-brand-foreground">
+    <div className="flex h-full flex-col bg-[#123B5A] text-white select-none">
       {/* Brand header */}
-      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-5">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-teal/20 text-teal ring-1 ring-teal/30">
+      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-5">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#F5A000] text-white shadow-xs">
           <GraduationCap className="size-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold tracking-tight text-white">
+          <p className="truncate text-[15px] font-bold tracking-tight text-white">
             {institutionName}
           </p>
-          <p className="truncate text-[12px] font-medium text-white/70">
+          <p className="truncate text-[12px] font-medium text-white/75">
             {portalLabel}
           </p>
         </div>
       </div>
 
+      {/* Profile banner inside sidebar */}
+      {user && (
+        <div className="mx-3 mt-3 mb-1 flex items-center gap-3 rounded-xl bg-white/[0.06] p-3 border border-white/10">
+          <Avatar className="size-10 shrink-0 ring-2 ring-[#F5A000]/60">
+            {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+            <AvatarFallback className="bg-[#F5A000] text-white font-bold text-xs">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold text-white leading-tight">
+              {user.name}
+            </p>
+            <p className="truncate text-[11px] text-white/70 leading-tight mt-0.5">
+              {user.role ?? user.email}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Grouped Navigation */}
       <nav
         aria-label="Portal Navigation"
-        className="flex-1 space-y-4 overflow-y-auto px-3 py-4"
+        className="flex-1 space-y-4 overflow-y-auto px-3 py-3"
       >
         {groups.map((group) => {
           const isOpen = openGroups[group.id] ?? true
@@ -172,7 +198,7 @@ function SidebarContent({
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-1 text-left text-[11px] font-semibold tracking-wider text-white/55 uppercase transition-colors hover:text-white/85"
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-1 text-left text-[11px] font-bold tracking-wider text-white/60 uppercase transition-colors hover:text-white/90"
                 >
                   <span>{group.label}</span>
                   {isOpen ? (
@@ -182,13 +208,13 @@ function SidebarContent({
                   )}
                 </button>
               ) : (
-                <div className="px-3 py-1 text-[11px] font-semibold tracking-wider text-white/55 uppercase">
+                <div className="px-3 py-1 text-[11px] font-bold tracking-wider text-white/60 uppercase">
                   {group.label}
                 </div>
               )}
 
               {isOpen && (
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {group.items.map((item) => {
                     const isActive = item.exact
                       ? pathname === item.href
@@ -201,25 +227,19 @@ function SidebarContent({
                         href={item.href}
                         onClick={onNavigate}
                         className={cn(
-                          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-colors",
+                          "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] transition-all",
                           isActive
-                            ? "bg-white/14 font-semibold text-white shadow-xs"
-                            : "text-white/78 hover:bg-white/8 hover:text-white"
+                            ? "bg-[#F5A000] font-bold text-white shadow-xs"
+                            : "text-white/80 font-medium hover:bg-[#1B4D70] hover:text-white"
                         )}
                       >
-                        {isActive && (
-                          <span
-                            aria-hidden="true"
-                            className="absolute top-1.5 bottom-1.5 left-0 w-1 rounded-r-full bg-teal"
-                          />
-                        )}
                         {item.icon && (
                           <span
                             className={cn(
                               "flex size-4 shrink-0 items-center justify-center transition-colors",
                               isActive
-                                ? "text-teal"
-                                : "text-white/70 group-hover:text-white"
+                                ? "text-white"
+                                : "text-white/75 group-hover:text-white"
                             )}
                           >
                             {item.icon}
@@ -229,12 +249,12 @@ function SidebarContent({
                         {item.badge !== undefined && (
                           <span
                             className={cn(
-                              "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold",
-                              item.badgeTone === "warning"
-                                ? "bg-warning/25 text-amber-200"
-                                : item.badgeTone === "muted"
-                                  ? "bg-white/12 text-white/75"
-                                  : "bg-teal/20 text-teal"
+                              "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
+                              isActive
+                                ? "bg-white/25 text-white"
+                                : item.badgeTone === "warning"
+                                  ? "bg-[#F5A000]/30 text-amber-200"
+                                  : "bg-white/15 text-white"
                             )}
                           >
                             {item.badge}
@@ -251,16 +271,26 @@ function SidebarContent({
       </nav>
 
       {/* Sidebar footer */}
-      <div className="border-t border-sidebar-border p-4">
+      <div className="border-t border-white/10 p-3 space-y-2">
         {sidebarFooter ?? (
-          <div className="rounded-lg bg-white/8 px-3 py-2.5">
-            <p className="text-[11px] font-medium tracking-wide text-white/60 uppercase">
+          <div className="rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2">
+            <p className="text-[10px] font-bold tracking-wider text-white/60 uppercase">
               Campus Tenant
             </p>
             <p className="mt-0.5 truncate font-mono text-[12px] text-white/90">
               /{institutionSlug}
             </p>
           </div>
+        )}
+        {onSignOut && (
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium text-white/75 hover:bg-[#1B4D70] hover:text-white transition-colors"
+          >
+            <LogOut className="size-4 text-white/70" />
+            <span>Sign out</span>
+          </button>
         )}
       </div>
     </div>
@@ -312,15 +342,17 @@ export function PortalShell({
   const userInitials = user.initials ?? getInitials(user.name)
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="sst-teacher-theme min-h-screen bg-[#EEF1F5] text-[#202936]">
       {/* Desktop Fixed Left Sidebar */}
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-64 lg:flex-col">
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-64 lg:flex-col shadow-lg">
         <SidebarContent
           institutionName={institutionName}
           institutionSlug={institutionSlug}
           portalLabel={portalLabel}
           groups={resolvedGroups}
           pathname={pathname}
+          user={user}
+          onSignOut={onSignOut}
           sidebarFooter={sidebarFooter}
         />
       </aside>
@@ -330,7 +362,7 @@ export function PortalShell({
         <SheetContent
           side="left"
           showCloseButton={false}
-          className="w-72 border-r-0 bg-brand p-0 text-brand-foreground"
+          className="w-72 border-r-0 bg-[#123B5A] p-0 text-white"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>{institutionName} Navigation</SheetTitle>
@@ -341,6 +373,8 @@ export function PortalShell({
             portalLabel={portalLabel}
             groups={resolvedGroups}
             pathname={pathname}
+            user={user}
+            onSignOut={onSignOut}
             sidebarFooter={sidebarFooter}
             onNavigate={() => setMobileOpen(false)}
           />
@@ -350,31 +384,31 @@ export function PortalShell({
       {/* Main Column */}
       <div className="flex min-h-screen flex-col lg:pl-64">
         {/* Top White Header Bar */}
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-[#E5E9EF] bg-white px-4 sm:px-6 lg:px-8 shadow-xs">
           <div className="flex min-w-0 items-center gap-3">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="lg:hidden"
+              className="lg:hidden text-[#202936] hover:bg-[#EEF1F5] rounded-xl"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation menu"
             >
-              <Menu className="size-5 text-foreground" />
+              <Menu className="size-5 text-[#202936]" />
             </Button>
 
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="hidden size-8 shrink-0 items-center justify-center rounded-md bg-brand/8 text-brand sm:flex">
+              <div className="hidden size-8 shrink-0 items-center justify-center rounded-lg bg-[#123B5A]/10 text-[#123B5A] sm:flex">
                 <Building2 className="size-4" />
               </div>
-              <span className="truncate text-[15px] font-semibold text-foreground">
+              <span className="truncate text-[15px] font-bold text-[#202936]">
                 {institutionName}
               </span>
               <Badge
                 variant="outline"
-                className="hidden border-teal/30 bg-teal/10 font-mono text-[11px] font-medium text-brand sm:inline-flex"
+                className="hidden rounded-full border-[#F5A000]/40 bg-amber-50 font-sans text-[11px] font-bold text-[#F5A000] sm:inline-flex"
               >
-                {institutionSlug}
+                Active Teacher
               </Badge>
             </div>
           </div>
@@ -387,17 +421,17 @@ export function PortalShell({
               <SelectTrigger
                 size="sm"
                 aria-label="Select academic year"
-                className="h-9 gap-1.5 border-border bg-card text-[13px] font-medium text-foreground"
+                className="h-9 gap-1.5 border-[#E5E9EF] bg-white text-[13px] font-semibold text-[#202936] rounded-xl hover:bg-[#EEF1F5]/50 focus:ring-[#F5A000]"
               >
-                <Calendar className="size-3.5 text-muted-foreground" />
-                <span className="hidden text-muted-foreground md:inline">
+                <Calendar className="size-3.5 text-[#788391]" />
+                <span className="hidden text-[#788391] md:inline">
                   AY
                 </span>
                 <SelectValue placeholder="Academic Year" />
               </SelectTrigger>
-              <SelectContent align="end">
+              <SelectContent align="end" className="rounded-xl border-[#E5E9EF] bg-white">
                 {academicYears.map((year) => (
-                  <SelectItem key={year} value={year}>
+                  <SelectItem key={year} value={year} className="text-[13px] font-medium text-[#202936] focus:bg-[#EEF1F5] focus:text-[#202936]">
                     {year}
                   </SelectItem>
                 ))}
@@ -415,11 +449,11 @@ export function PortalShell({
                   ? `${notificationCount} unread notifications`
                   : "Notifications"
               }
-              className="relative border-border bg-card text-muted-foreground hover:text-foreground"
+              className="relative rounded-xl border-[#E5E9EF] bg-white text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5]"
             >
               <Bell className="size-4" />
               {notificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold text-white">
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F5A000] px-1 text-[10px] font-bold text-white shadow-xs">
                   {notificationCount > 99 ? "99+" : notificationCount}
                 </span>
               )}
@@ -431,59 +465,59 @@ export function PortalShell({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-9 gap-2 rounded-lg px-2 hover:bg-muted"
+                  className="h-9 gap-2 rounded-xl px-2 hover:bg-[#EEF1F5]"
                 >
-                  <Avatar size="sm">
+                  <Avatar size="sm" className="ring-1 ring-[#E5E9EF]">
                     {user.avatarUrl && (
                       <AvatarImage src={user.avatarUrl} alt={user.name} />
                     )}
-                    <AvatarFallback>{userInitials}</AvatarFallback>
+                    <AvatarFallback className="bg-[#123B5A] text-white font-bold text-xs">{userInitials}</AvatarFallback>
                   </Avatar>
                   <div className="hidden text-left md:block">
-                    <p className="text-[13px] leading-tight font-semibold text-foreground">
+                    <p className="text-[13px] leading-tight font-bold text-[#202936]">
                       {user.name}
                     </p>
                     {user.role && (
-                      <p className="text-[11px] leading-tight text-muted-foreground">
+                      <p className="text-[11px] leading-tight text-[#788391]">
                         {user.role}
                       </p>
                     )}
                   </div>
-                  <ChevronDown className="hidden size-3.5 text-muted-foreground md:block" />
+                  <ChevronDown className="hidden size-3.5 text-[#788391] md:block" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 rounded-xl border-[#E5E9EF] bg-white shadow-md">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col gap-0.5">
-                    <p className="text-sm font-semibold text-foreground">
+                    <p className="text-sm font-bold text-[#202936]">
                       {user.name}
                     </p>
                     {user.email && (
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="truncate text-xs text-[#788391]">
                         {user.email}
                       </p>
                     )}
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator className="bg-[#E5E9EF]" />
                 {profileHref ? (
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuItem asChild className="focus:bg-[#EEF1F5] focus:text-[#202936]">
                     <Link href={profileHref}>
-                      <User className="size-4" />
+                      <User className="size-4 text-[#788391]" />
                       My Profile
                     </Link>
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem>
-                    <User className="size-4" />
+                  <DropdownMenuItem className="focus:bg-[#EEF1F5] focus:text-[#202936]">
+                    <User className="size-4 text-[#788391]" />
                     My Profile
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem>
-                  <Settings className="size-4" />
+                <DropdownMenuItem className="focus:bg-[#EEF1F5] focus:text-[#202936]">
+                  <Settings className="size-4 text-[#788391]" />
                   Preferences
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator className="bg-[#E5E9EF]" />
                 <DropdownMenuItem variant="destructive" onClick={onSignOut}>
                   <LogOut className="size-4" />
                   Sign out
@@ -493,7 +527,7 @@ export function PortalShell({
           </div>
         </header>
 
-        {/* Main Content Area (#F8FAFC) */}
+        {/* Main Content Area (#EEF1F5 canvas) */}
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>

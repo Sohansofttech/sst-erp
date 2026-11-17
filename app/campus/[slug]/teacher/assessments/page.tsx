@@ -538,11 +538,11 @@ export default function TeacherAssessmentsPage() {
 
         {/* Tab 1: Define IA Components */}
         <TabsContent value="define" className="mt-4 grid gap-6 lg:grid-cols-5">
-          <Card className="lg:col-span-2">
+          <Card className="lg:col-span-2 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <form onSubmit={handleSubmit(onCreateComponent)}>
-              <CardHeader>
-                <CardTitle>Define New IA Component</CardTitle>
-                <CardDescription>
+              <CardHeader className="border-b border-[#E5E9EF] pb-4">
+                <CardTitle className="text-[#202936]">Define New IA Component</CardTitle>
+                <CardDescription className="text-[#788391]">
                   Create an internal test, quiz weightage, or lab evaluation component.
                 </CardDescription>
               </CardHeader>
@@ -670,18 +670,18 @@ export default function TeacherAssessmentsPage() {
             </form>
           </Card>
 
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <CardTitle>Configured IA Components</CardTitle>
-              <CardDescription>
+          <Card className="lg:col-span-3 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+            <CardHeader className="border-b border-[#E5E9EF] pb-4">
+              <CardTitle className="text-[#202936]">Configured IA Components</CardTitle>
+              <CardDescription className="text-[#788391]">
                 Click any component to jump directly to marks entry.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 pt-5">
               {assessments.map((ia) => (
                 <div
                   key={ia.id}
-                  className="flex flex-col justify-between gap-3 rounded-xl border p-4 sm:flex-row sm:items-center"
+                  className="flex flex-col justify-between gap-3 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/30 p-4 sm:flex-row sm:items-center"
                 >
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -720,7 +720,7 @@ export default function TeacherAssessmentsPage() {
 
         {/* Tab 2: Enter Marks */}
         <TabsContent value="enter" className="mt-4 space-y-4">
-          <Card className="py-4">
+          <Card className="py-4 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
             <CardContent className="grid gap-4 px-5 md:grid-cols-3">
               <div className="space-y-1.5">
                 <Label htmlFor="filter-sec">Filter by Class & Section</Label>
@@ -812,11 +812,11 @@ export default function TeacherAssessmentsPage() {
                   </div>
                 )}
 
-              <Card>
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#E5E9EF] pb-4">
                   <div>
-                    <CardTitle className="flex flex-wrap items-center gap-2">
-                      <ClipboardCheck className="size-4 text-primary" />
+                    <CardTitle className="flex flex-wrap items-center gap-2 text-[#202936]">
+                      <ClipboardCheck className="size-4 text-[#F5A000]" />
                       {activeAssessment.title}
                       <StatusBadge
                         status={mapApprovalToStatusBadge(
@@ -824,10 +824,10 @@ export default function TeacherAssessmentsPage() {
                         )}
                       />
                       {activeAssessment.publishedToStudents && (
-                        <Badge variant="teal">Published to Students</Badge>
+                        <Badge className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-200 font-bold">Published to Students</Badge>
                       )}
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-[#788391]">
                       {activeAssessment.className}-{activeAssessment.section} ·{" "}
                       {activeAssessment.subjectName} · Max Marks:{" "}
                       {activeAssessment.maxMarks} · Passing:{" "}
@@ -840,6 +840,7 @@ export default function TeacherAssessmentsPage() {
                       <Button
                         type="button"
                         variant="outline"
+                        className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                         disabled={savingMarks}
                         onClick={() => void handleSaveMarks("draft", false)}
                       >
@@ -849,6 +850,7 @@ export default function TeacherAssessmentsPage() {
                       <Button
                         type="button"
                         variant="secondary"
+                        className="rounded-xl"
                         disabled={savingMarks}
                         onClick={() => void handleSaveMarks("submitted", true)}
                       >
@@ -857,6 +859,7 @@ export default function TeacherAssessmentsPage() {
                       </Button>
                       <Button
                         type="button"
+                        className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
                         disabled={savingMarks}
                         onClick={() => void handlePublishToStudents()}
                       >
@@ -867,8 +870,8 @@ export default function TeacherAssessmentsPage() {
                   )}
                 </CardHeader>
 
-                <CardContent>
-                  <div className="overflow-hidden rounded-lg border">
+                <CardContent className="pt-5">
+                  <div className="overflow-hidden rounded-xl border border-[#E5E9EF]">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -979,14 +982,14 @@ export default function TeacherAssessmentsPage() {
         {/* Tab 3: Correction Requests */}
         <TabsContent value="corrections" className="mt-4 space-y-4">
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Active Correction Queue</CardTitle>
-                <CardDescription>
+            <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+              <CardHeader className="border-b border-[#E5E9EF] pb-4">
+                <CardTitle className="text-[#202936]">Active Correction Queue</CardTitle>
+                <CardDescription className="text-[#788391]">
                   Assessments returned by HoD or flagged for marks correction.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 pt-5">
                 {correctionAssessments.length === 0 ? (
                   <EmptyState
                     compact
@@ -997,27 +1000,28 @@ export default function TeacherAssessmentsPage() {
                   correctionAssessments.map((ia) => (
                     <div
                       key={ia.id}
-                      className="space-y-2 rounded-xl border border-error/25 bg-error/[0.03] p-4"
+                      className="space-y-2 rounded-xl border border-rose-200 bg-rose-50/30 p-4"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <p className="text-[14.5px] font-semibold text-foreground">
+                          <p className="text-[14.5px] font-bold text-[#202936]">
                             {ia.title}
                           </p>
-                          <p className="text-[12.5px] text-muted-foreground">
+                          <p className="text-[12.5px] text-[#788391]">
                             {ia.className}-{ia.section} · {ia.subjectName}
                           </p>
                         </div>
                         <StatusBadge status="Rejected" />
                       </div>
                       {ia.correctionNote && (
-                        <p className="text-[13px] text-red-900">
+                        <p className="text-[13px] text-rose-700">
                           {ia.correctionNote}
                         </p>
                       )}
                       <Button
                         type="button"
                         size="sm"
+                        className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
                         onClick={() => {
                           handleSelectAssessment(ia.id)
                           setActiveTab("enter")
@@ -1031,10 +1035,10 @@ export default function TeacherAssessmentsPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Request Re-open for Locked / Approved IA</CardTitle>
-                <CardDescription>
+            <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+              <CardHeader className="border-b border-[#E5E9EF] pb-4">
+                <CardTitle className="text-[#202936]">Request Re-open for Locked / Approved IA</CardTitle>
+                <CardDescription className="text-[#788391]">
                   Submit a correction request to re-open a locked or approved marksheet.
                 </CardDescription>
               </CardHeader>

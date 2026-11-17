@@ -48,13 +48,13 @@ export default function InternalAssessmentsPage() {
   return (
     <PortalLayout portalType="STUDENT" pageTitle="Internal Assessments & Marks">
       {/* Official Continuous Evaluation Notice */}
-      <div className="mb-6 p-4 rounded-xl border border-[#E5E9EF] bg-white shadow-sm flex items-start gap-3.5">
+      <div className="p-4 rounded-xl border border-[#E2E8F0] bg-white shadow-xs flex items-start gap-3.5">
         <div className="w-9 h-9 rounded-lg bg-[#123B5A]/10 flex items-center justify-center shrink-0">
           <ShieldCheck className="w-5 h-5 text-[#123B5A]" />
         </div>
         <div className="text-xs">
           <p className="font-semibold text-[#123B5A]">Continuous Assessment & Internal Evaluation</p>
-          <p className="mt-0.5 text-[#788391] leading-relaxed">
+          <p className="mt-0.5 text-[#64748B] leading-relaxed">
             All internal assessment scores, assignment grades, and periodic tests are officially recorded and certified by respective course faculty members.
           </p>
         </div>
@@ -68,17 +68,17 @@ export default function InternalAssessmentsPage() {
               key={idx}
               title={
                 <div className="flex items-center justify-between w-full">
-                  <span className="text-sm font-bold text-[#202936]">{sub.subjectName}</span>
+                  <span className="text-sm font-bold text-[#1E293B]">{sub.subjectName}</span>
                   <Badge variant="brand" size="sm">{sub.subjectCode}</Badge>
                 </div>
               }
             >
               <div className="space-y-3">
                 {sub.assessments.map((a: any) => (
-                  <div key={a.id} className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF] flex justify-between items-center text-xs">
+                  <div key={a.id} className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E2E8F0] flex justify-between items-center text-xs">
                     <div>
-                      <p className="font-semibold text-[#202936]">{a.assessmentName}</p>
-                      <p className="text-[11px] text-[#788391] mt-0.5">
+                      <p className="font-semibold text-[#1E293B]">{a.assessmentName}</p>
+                      <p className="text-[11px] text-[#64748B] mt-0.5">
                         Conducted: {new Date(a.conductedDate).toLocaleDateString()}
                       </p>
                       {a.remarks && <p className="text-[11px] text-emerald-700 italic mt-0.5">"{a.remarks}"</p>}
@@ -87,15 +87,15 @@ export default function InternalAssessmentsPage() {
                       <span className="text-sm font-bold text-[#123B5A]">
                         {a.marksObtained} / {a.maxMarks}
                       </span>
-                      <span className="text-[10px] text-[#788391] block">
+                      <span className="text-[10px] text-[#64748B] block">
                         Weight: {a.weightage}%
                       </span>
                     </div>
                   </div>
                 ))}
 
-                <div className="pt-2 flex justify-between items-center border-t border-[#E5E9EF] text-xs">
-                  <span className="font-semibold text-[#788391]">Cumulative IA Score:</span>
+                <div className="pt-2 flex justify-between items-center border-t border-[#E2E8F0] text-xs">
+                  <span className="font-semibold text-[#64748B]">Cumulative IA Score:</span>
                   <span className="font-bold text-sm text-[#F5A000]">{sub.percentage}%</span>
                 </div>
               </div>

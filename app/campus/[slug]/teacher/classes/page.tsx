@@ -227,19 +227,19 @@ export default function TeacherClassesPage() {
             >
               <Card
                 className={cn(
-                  "h-full py-5 transition-all hover:border-primary/50",
+                  "h-full py-5 rounded-2xl border-[#E5E9EF] bg-white shadow-xs transition-all hover:border-[#F5A000]/60",
                   isSelected &&
-                    "border-primary ring-2 ring-primary/20"
+                    "border-[#F5A000] ring-2 ring-[#F5A000]/25 shadow-sm"
                 )}
               >
                 <CardContent className="space-y-4 px-5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-[17px] font-semibold text-foreground">
+                      <p className="text-[17px] font-bold text-[#202936]">
                         {classAllocation.className} - Section{" "}
                         {classAllocation.section}
                       </p>
-                      <p className="mt-0.5 text-[13.5px] font-medium text-primary">
+                      <p className="mt-0.5 text-[13.5px] font-bold text-[#F5A000]">
                         {subjectAllocation?.subjectName ?? "Mathematics"}{" "}
                         {subjectAllocation?.subjectCode
                           ? `(${subjectAllocation.subjectCode})`
@@ -247,31 +247,31 @@ export default function TeacherClassesPage() {
                       </p>
                     </div>
                     {classAllocation.role === "class_teacher" ? (
-                      <Badge variant="teal" className="gap-1">
+                      <Badge className="rounded-full bg-[#123B5A]/10 text-[#123B5A] border-[#123B5A]/20 font-bold gap-1">
                         <UserCheck className="size-3" />
                         Class Teacher
                       </Badge>
                     ) : (
-                      <Badge variant="secondary">Subject Teacher</Badge>
+                      <Badge variant="secondary" className="rounded-full bg-[#EEF1F5] text-[#202936] font-semibold">Subject Teacher</Badge>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-2.5 text-center text-[12px]">
+                  <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#EEF1F5] p-2.5 text-center text-[12px]">
                     <div>
-                      <p className="text-muted-foreground">Students</p>
-                      <p className="mt-0.5 text-[14px] font-bold text-foreground">
+                      <p className="text-[#788391] font-medium">Students</p>
+                      <p className="mt-0.5 text-[14px] font-extrabold text-[#202936]">
                         {classAllocation.studentCount}
                       </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Avg Att.</p>
-                      <p className="mt-0.5 text-[14px] font-bold text-success">
+                      <p className="text-[#788391] font-medium">Avg Att.</p>
+                      <p className="mt-0.5 text-[14px] font-extrabold text-emerald-700">
                         {classAllocation.averageAttendancePercent}%
                       </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Room</p>
-                      <p className="mt-0.5 text-[14px] font-bold text-foreground">
+                      <p className="text-[#788391] font-medium">Room</p>
+                      <p className="mt-0.5 text-[14px] font-extrabold text-[#202936]">
                         {classAllocation.roomNo}
                       </p>
                     </div>
@@ -280,17 +280,17 @@ export default function TeacherClassesPage() {
                   {subjectAllocation && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-[12.5px]">
-                        <span className="text-muted-foreground">
+                        <span className="text-[#788391]">
                           Syllabus Progress ({subjectAllocation.weeklyHours}{" "}
                           hrs/wk)
                         </span>
-                        <span className="font-semibold text-foreground">
+                        <span className="font-bold text-[#202936]">
                           {syllabus}%
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[#EEF1F5]">
                         <div
-                          className="h-full rounded-full bg-teal transition-all"
+                          className="h-full rounded-full bg-[#F5A000] transition-all"
                           style={{ width: `${syllabus}%` }}
                         />
                       </div>
@@ -304,16 +304,16 @@ export default function TeacherClassesPage() {
       </section>
 
       {/* Active Section Student Roster */}
-      <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#E5E9EF] pb-4">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="size-4 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-[#202936]">
+              <Users className="size-4 text-[#F5A000]" />
               {activeItem
                 ? `${activeItem.classAllocation.className} - Section ${activeItem.classAllocation.section} Student Roster`
                 : "Student Roster"}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-[#788391]">
               {activeItem?.subjectAllocation?.subjectName ?? "Subject"} · Room{" "}
               {activeItem?.classAllocation.roomNo ?? "—"} ·{" "}
               {filteredRoster.length} of {roster.length} students shown
@@ -322,7 +322,7 @@ export default function TeacherClassesPage() {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="relative w-full sm:w-64">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#788391]" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -334,6 +334,7 @@ export default function TeacherClassesPage() {
               type="button"
               variant={onlyLowAttendance ? "default" : "outline"}
               size="sm"
+              className={onlyLowAttendance ? "rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]" : "rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"}
               onClick={() => setOnlyLowAttendance((v) => !v)}
             >
               {onlyLowAttendance ? "Showing < 75% Att." : "Filter < 75% Att."}
@@ -341,7 +342,7 @@ export default function TeacherClassesPage() {
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="pt-5">
           {loadingRoster ? (
             <LoadingState compact title="Loading student roster..." />
           ) : filteredRoster.length === 0 ? (
@@ -354,6 +355,7 @@ export default function TeacherClassesPage() {
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="rounded-xl border-[#E5E9EF] text-[#202936]"
                   onClick={() => {
                     setSearchQuery("")
                     setOnlyLowAttendance(false)
@@ -364,7 +366,7 @@ export default function TeacherClassesPage() {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-xl border border-[#E5E9EF]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -380,25 +382,25 @@ export default function TeacherClassesPage() {
                   {filteredRoster.map((student) => {
                     const attTone =
                       student.attendancePercent < 75
-                        ? "border-error/25 bg-error/10 text-error"
+                        ? "border-rose-200 bg-rose-50 text-rose-700 font-bold"
                         : student.attendancePercent < 85
-                          ? "border-warning/30 bg-warning/12 text-amber-700"
-                          : "border-success/25 bg-success/10 text-success"
+                          ? "border-amber-200 bg-amber-50 text-amber-700 font-bold"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-700 font-bold"
 
                     return (
                       <TableRow key={student.studentId}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar size="sm">
-                              <AvatarFallback className="bg-brand/12 text-[11px] font-semibold text-brand">
+                              <AvatarFallback className="bg-[#123B5A]/10 text-[11px] font-bold text-[#123B5A]">
                                 {getStudentInitials(student.fullName)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="text-[13.5px] font-semibold text-foreground">
+                              <p className="text-[13.5px] font-bold text-[#202936]">
                                 {student.fullName}
                               </p>
-                              <p className="font-mono text-[11.5px] text-muted-foreground">
+                              <p className="font-mono text-[11.5px] text-[#788391]">
                                 {student.admissionNo}
                               </p>
                             </div>
@@ -409,11 +411,11 @@ export default function TeacherClassesPage() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="text-[13px] font-medium text-foreground">
+                            <p className="text-[13px] font-medium text-[#202936]">
                               {student.guardianContact.guardianName} (
                               {student.guardianContact.relation})
                             </p>
-                            <p className="text-[12px] text-muted-foreground">
+                            <p className="text-[12px] text-[#788391]">
                               {student.guardianContact.phone}
                             </p>
                           </div>
@@ -421,14 +423,14 @@ export default function TeacherClassesPage() {
                         <TableCell>
                           <span
                             className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-bold",
                               attTone
                             )}
                           >
                             {student.attendancePercent}%
                           </span>
                         </TableCell>
-                        <TableCell className="font-semibold text-foreground">
+                        <TableCell className="font-bold text-[#202936]">
                           {student.iaAverage}%
                         </TableCell>
                         <TableCell className="text-right">
@@ -436,6 +438,7 @@ export default function TeacherClassesPage() {
                             type="button"
                             size="xs"
                             variant="outline"
+                            className="rounded-lg border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                             onClick={() => setActiveStudent(student)}
                           >
                             View Student Summary

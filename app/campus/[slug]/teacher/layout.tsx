@@ -1,4 +1,6 @@
 import { Suspense } from "react"
+import { redirect } from "next/navigation"
+import { getSession } from "@/lib/auth/session"
 import { LoadingState } from "@/components/shared/StateViews"
 import { TeacherPortalShell } from "./teacher-portal-shell"
 
@@ -18,6 +20,11 @@ async function TeacherLayoutResolver({
   params: Promise<{ slug: string }>
   children: React.ReactNode
 }) {
+  const session = await getSession();
+  if (session && session.role === "STUDENT") {
+    redirect("/dashboard");
+  }
+
   const { slug } = await params
   const institutionName = formatInstitutionName(slug)
 

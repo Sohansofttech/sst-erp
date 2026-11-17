@@ -77,22 +77,22 @@ const STATUS_TOGGLES: Array<{
   {
     value: "present",
     label: "Present",
-    activeClass: "border-[#16A34A] bg-[#16A34A] text-white",
+    activeClass: "border-emerald-600 bg-emerald-600 text-white font-bold",
   },
   {
     value: "absent",
     label: "Absent",
-    activeClass: "border-[#DC2626] bg-[#DC2626] text-white",
+    activeClass: "border-rose-600 bg-rose-600 text-white font-bold",
   },
   {
     value: "late",
     label: "Late",
-    activeClass: "border-[#F59E0B] bg-[#F59E0B] text-white",
+    activeClass: "border-amber-500 bg-[#F5A000] text-white font-bold",
   },
   {
     value: "on_duty",
     label: "On-Duty",
-    activeClass: "border-[#2563EB] bg-[#2563EB] text-white",
+    activeClass: "border-[#123B5A] bg-[#123B5A] text-white font-bold",
   },
 ]
 
@@ -313,7 +313,7 @@ export default function TeacherAttendanceHistoryPage() {
       />
 
       {/* Filter Bar */}
-      <Card className="py-4">
+      <Card className="py-4 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
         <CardContent className="grid gap-3 px-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -380,17 +380,17 @@ export default function TeacherAttendanceHistoryPage() {
       </Card>
 
       {/* Sessions Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="size-4 text-primary" />
+      <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+        <CardHeader className="border-b border-[#E5E9EF] pb-4">
+          <CardTitle className="flex items-center gap-2 text-[#202936]">
+            <History className="size-4 text-[#F5A000]" />
             Submitted & Saved Attendance Sessions
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-[#788391]">
             Showing {filteredSessions.length} of {sessions.length} recorded sessions.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-5">
           {filteredSessions.length === 0 ? (
             <EmptyState
               compact
@@ -398,7 +398,7 @@ export default function TeacherAttendanceHistoryPage() {
               description="Try adjusting your class, date, or status filters."
             />
           ) : (
-            <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-hidden rounded-xl border border-[#E5E9EF]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -426,16 +426,16 @@ export default function TeacherAttendanceHistoryPage() {
                         <TableCell>Period {session.period ?? 1}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-success">
+                            <span className="font-bold text-emerald-700">
                               {session.presentCount} P
                             </span>
-                            <span className="text-muted-foreground">/</span>
-                            <span className="font-semibold text-error">
+                            <span className="text-[#788391]">/</span>
+                            <span className="font-bold text-rose-700">
                               {session.absentCount} A
                             </span>
                             {(session.lateCount > 0 ||
                               session.onDutyCount > 0) && (
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-[#788391]">
                                 ({session.lateCount}L · {session.onDutyCount}OD)
                               </span>
                             )}
@@ -444,7 +444,7 @@ export default function TeacherAttendanceHistoryPage() {
                         <TableCell>
                           <div className="flex items-center gap-1.5">
                             {editable ? (
-                              <Badge variant="teal">Editable</Badge>
+                              <Badge className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700 font-bold">Editable</Badge>
                             ) : (
                               <StatusBadge status="Locked" />
                             )}

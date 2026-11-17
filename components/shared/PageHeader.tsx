@@ -26,13 +26,13 @@ export function PageHeader({
     >
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-[26px]">
+          <h1 className="text-2xl font-bold tracking-tight text-[#202936] sm:text-[26px]">
             {title}
           </h1>
           {badge}
         </div>
         {subtitle && (
-          <p className="text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">
+          <p className="text-[14px] leading-relaxed text-[#788391] sm:text-[15px]">
             {subtitle}
           </p>
         )}

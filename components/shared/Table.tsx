@@ -21,12 +21,12 @@ export function Table<T extends Record<string, any>>({
   className = "",
 }: TableProps<T>) {
   return (
-    <div className={`w-full overflow-x-auto rounded-lg border border-[#E5E9EF] ${className}`}>
+    <div className={`w-full overflow-x-auto rounded-xl border border-[#E5E9EF] ${className}`}>
       <table className="w-full text-left border-collapse text-[13px] md:text-[14px]">
         <thead>
-          <tr className="bg-[#EEF1F5] border-b border-[#E5E9EF] text-[#788391] font-semibold">
+          <tr className="bg-[#EEF1F5] border-b border-[#E5E9EF] text-[#788391] font-bold">
             {columns.map((col, idx) => (
-              <th key={idx} className={`px-4 py-3 font-semibold ${col.className || ""}`}>
+              <th key={idx} className={`px-4 py-3 font-bold ${col.className || ""}`}>
                 {col.header}
               </th>
             ))}

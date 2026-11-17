@@ -162,9 +162,9 @@ export async function GET(req: NextRequest) {
           startTime: s.startTime,
           endTime: s.endTime,
           roomNumber: s.roomNumber,
-          subjectCode: s.subject.code,
-          subjectName: s.subject.name,
-          teacherName: s.teacher?.user.fullName || "Faculty",
+          subjectCode: (s as any).subject?.code ?? "SUB",
+          subjectName: (s as any).subject?.name ?? "Subject",
+          teacherName: (s as any).teacher?.user?.fullName || "Faculty",
         })),
         feeSummary: {
           totalOutstanding,
