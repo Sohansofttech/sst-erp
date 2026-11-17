@@ -65,9 +65,17 @@ function Button({
   isLoading,
   disabled,
   children,
+  style,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button"
+
+  const isPrimary = variant === "default" || variant === "primary" || variant === "accent"
+  const dynamicStyle = isPrimary
+    ? { backgroundColor: "var(--admin-primary-btn, #F5A000)", ...style }
+    : variant === "navy"
+    ? { backgroundColor: "var(--admin-sidebar-bg, #123B5A)", ...style }
+    : style
 
   return (
     <Comp
@@ -76,6 +84,7 @@ function Button({
       data-size={size}
       disabled={disabled || isLoading}
       className={cn(buttonVariants({ variant, size, className }))}
+      style={dynamicStyle}
       {...props}
     >
       {isLoading ? (

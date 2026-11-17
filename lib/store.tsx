@@ -2,6 +2,10 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import {
+  InstitutionThemeConfig,
+  DEFAULT_INSTITUTION_THEME,
+} from "@/lib/theme-utils";
+import {
   InstitutionProfile,
   AcademicYear,
   Department,
@@ -126,6 +130,10 @@ interface ConvertStudentResult {
 interface InstitutionContextType {
   profile: InstitutionProfile;
   updateProfile: (data: Partial<InstitutionProfile>) => void;
+  refreshProfile: () => Promise<void>;
+  theme: InstitutionThemeConfig;
+  updateTheme: (newTheme: Partial<InstitutionThemeConfig>) => void;
+  resetThemeToDefaults: () => void;
 
   academicYears: AcademicYear[];
   activeAcademicYear: AcademicYear | undefined;
@@ -609,6 +617,9 @@ const STORAGE_KEY_PREFIX = "sst_erp_inst_admin_";
 
 export function InstitutionProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<InstitutionProfile>(initialInstitutionProfile);
+  const [theme, setTheme] = useState<InstitutionThemeConfig>(() => {
+    return initialInstitutionProfile.themeConfig || DEFAULT_INSTITUTION_THEME;
+  });
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>(initialAcademicYears);
   const [departments, setDepartments] = useState<Department[]>(initialDepartments);
   const [courses, setCourses] = useState<Course[]>(initialCourses);
@@ -664,8 +675,21 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
+        let currentInstId = initialInstitutionProfile.id;
         const savedProfile = localStorage.getItem(`${STORAGE_KEY_PREFIX}profile`);
-        if (savedProfile) setProfile(JSON.parse(savedProfile));
+        if (savedProfile) {
+          const parsed = JSON.parse(savedProfile);
+          currentInstId = parsed.id || currentInstId;
+          setProfile(parsed);
+          if (parsed.themeConfig) setTheme(parsed.themeConfig);
+        }
+
+        const savedTheme = localStorage.getItem(`${STORAGE_KEY_PREFIX}theme_${currentInstId}`);
+        if (savedTheme) {
+          try {
+            setTheme(JSON.parse(savedTheme));
+          } catch {}
+        }
 
         const savedAY = localStorage.getItem(`${STORAGE_KEY_PREFIX}ay`);
         if (savedAY) setAcademicYears(JSON.parse(savedAY));
@@ -779,6 +803,71 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     return () => clearTimeout(timer);
   }, []);
 
+  const refreshProfile = async () => {
+    try {
+      const res = await fetch("/api/admin/settings");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && json.data) {
+        const serverProfile = json.data as InstitutionProfile;
+        setProfile((prev) => {
+          const merged = {
+            ...prev,
+            ...serverProfile,
+            id: serverProfile.id || prev.id,
+            name: serverProfile.name || prev.name,
+            code: serverProfile.code || prev.code,
+          };
+          saveState("profile", merged);
+          return merged;
+        });
+
+        if (serverProfile.themeConfig) {
+          setTheme(serverProfile.themeConfig);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not refresh institution profile from /api/admin/settings:", err);
+    }
+  };
+
+  // Hydrate authenticated institution profile and settings from backend on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function hydrate() {
+      try {
+        const res = await fetch("/api/admin/settings");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && json.data && isMounted) {
+          const serverProfile = json.data as InstitutionProfile;
+          setProfile((prev) => {
+            const merged = {
+              ...prev,
+              ...serverProfile,
+              id: serverProfile.id || prev.id,
+              name: serverProfile.name || prev.name,
+              code: serverProfile.code || prev.code,
+            };
+            saveState("profile", merged);
+            return merged;
+          });
+
+          if (serverProfile.themeConfig) {
+            setTheme(serverProfile.themeConfig);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not hydrate institution profile from /api/admin/settings:", err);
+      }
+    }
+
+    hydrate();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Save state helper
   const saveState = (key: string, data: unknown) => {
     try {
@@ -794,6 +883,46 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("profile", updated);
       return updated;
     });
+  };
+
+  const updateTheme = (newTheme: Partial<InstitutionThemeConfig>) => {
+    setTheme((prev) => {
+      const updated: InstitutionThemeConfig = { ...prev, ...newTheme };
+      setProfile((p) => {
+        const updatedProfile = {
+          ...p,
+          themeConfig: updated,
+          primaryColor: updated.sidebarBackground,
+          accentColor: updated.accentColor,
+        };
+        saveState("profile", updatedProfile);
+        return updatedProfile;
+      });
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_${profile.id}`, JSON.stringify(updated));
+        } catch {}
+      }
+      try {
+        fetch("/api/admin/settings/theme", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updated),
+        }).catch(() => {});
+      } catch {}
+      return updated;
+    });
+  };
+
+  const resetThemeToDefaults = () => {
+    updateTheme(DEFAULT_INSTITUTION_THEME);
+    try {
+      fetch("/api/admin/settings/theme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "RESET" }),
+      }).catch(() => {});
+    } catch {}
   };
 
   const addAcademicYear = (data: Omit<AcademicYear, "id" | "createdAt">) => {
@@ -6067,6 +6196,7 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     setCertificateApplications(initialCertificateApplications);
     setIssuedCertificates(initialIssuedCertificates);
     setCertificateAudits(initialCertificateAudits);
+    setTheme(DEFAULT_INSTITUTION_THEME);
     try {
       localStorage.clear();
     } catch {
@@ -6093,6 +6223,10 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       value={{
         profile,
         updateProfile,
+        refreshProfile,
+        theme,
+        updateTheme,
+        resetThemeToDefaults,
         academicYears,
         activeAcademicYear: activeAY,
         addAcademicYear,

@@ -16,101 +16,167 @@ export interface AdminContext {
 // ----------------------------------------------------------------------------
 export async function getDashboardMetrics(institutionId: string) {
   try {
-    const safeCount = async (fn: () => Promise<number>, fallback: number) => {
-      try {
-        return await fn();
-      } catch {
-        return fallback;
-      }
-    };
-
+    // 1. Real Student Counts (raw SQL avoids Prisma StudentStatus enum casting error)
+    // 1. Run independent metrics queries concurrently via Promise.allSettled
     const [
-      studentsCount,
-      activeStudentsCount,
-      staffCount,
-      coursesCount,
-      departmentsCount,
-      pendingAdmissionsCount,
-      feeInvoicesCount,
-      pendingApprovalsCount,
-      eventsCount,
-      activeAcademicYear,
-    ] = await Promise.all([
-      safeCount(() => db.student.count({ where: { institutionId } }), 1250),
-      safeCount(() => db.student.count({ where: { institutionId, status: "ACTIVE" } }), 1180),
-      safeCount(() => db.user.count({ where: { institutionId, role: { in: ["TEACHER", "ADMIN"] } } }), 85),
-      safeCount(() => db.course.count({ where: { institutionId } }), 24),
-      safeCount(() => db.department.count({ where: { institutionId } }), 8),
-      safeCount(() => db.admissionApplication.count({ where: { institutionId, status: "SUBMITTED" } }), 14),
-      safeCount(() => db.feeInvoice.count({ where: { institutionId } }), 4),
-      safeCount(() => db.approvalRequest.count({ where: { institutionId, status: "PENDING" } }), 3),
-      safeCount(() => db.event.count({ where: { institutionId } }), 4),
-      db.academicYear.findFirst({ where: { institutionId, isCurrent: true } }).catch(() => null),
+      studentsRes,
+      staffRes,
+      coursesRes,
+      deptRes,
+      admRes,
+      feePayRes,
+      feeInvRes,
+      attRes,
+      appRes,
+      evRes,
+      ayRes,
+    ] = await Promise.allSettled([
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count,
+               COUNT(*) FILTER (WHERE status = 'ACTIVE' OR status IS NULL)::int as active_count
+        FROM students
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM users
+        WHERE "institutionId" = ${institutionId}
+          AND role IN ('TEACHER', 'ADMIN', 'STAFF')
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM courses
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM "Department"
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM "AdmissionApplication"
+        WHERE "institutionId" = ${institutionId} AND status = 'SUBMITTED'
+      `,
+      db.$queryRaw`
+        SELECT COALESCE(SUM(amount), 0)::float as total
+        FROM fee_payments
+        WHERE "institutionId" = ${institutionId} AND status = 'SUCCESS'
+      `,
+      db.$queryRaw`
+        SELECT COALESCE(SUM("paidAmount"), 0)::float as total_paid
+        FROM fee_invoices
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as total,
+               COUNT(*) FILTER (WHERE status = 'PRESENT')::int as present
+        FROM attendance_records
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM approval_requests
+        WHERE "institutionId" = ${institutionId} AND status = 'PENDING'
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM events
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT id, name, "startDate", "endDate", "isCurrent"
+        FROM academic_years
+        WHERE "institutionId" = ${institutionId} AND "isCurrent" = true
+        LIMIT 1
+      `,
     ]);
 
-    // Financial collection summary
-    let totalFeesCollected = 125500;
-    try {
-      const payments = await db.feePayment.findMany({
-        where: { institutionId, status: "SUCCESS" },
-        select: { amount: true },
-      });
-      if (payments.length > 0) {
-        totalFeesCollected = payments.reduce((acc, p) => acc + p.amount, 0);
-      } else {
-        const invoices = await getFeeInvoices(institutionId);
-        totalFeesCollected = invoices.reduce((acc: number, inv: any) => acc + (inv.paidAmount || 0), 0);
-      }
-    } catch {
-      try {
-        const invoices = await getFeeInvoices(institutionId);
-        totalFeesCollected = invoices.reduce((acc: number, inv: any) => acc + (inv.paidAmount || 0), 0);
-      } catch {
-        totalFeesCollected = 125500;
+    let studentsCount = 0;
+    let activeStudentsCount = 0;
+    let studentsStatus: "OK" | "UNAVAILABLE" = "OK";
+    if (studentsRes.status === "fulfilled") {
+      const rows = studentsRes.value as any[];
+      studentsCount = rows[0]?.count ?? 0;
+      activeStudentsCount = rows[0]?.active_count ?? 0;
+    } else {
+      studentsStatus = "UNAVAILABLE";
+    }
+
+    let staffCount = 0;
+    if (staffRes.status === "fulfilled") {
+      staffCount = (staffRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let coursesCount = 0;
+    if (coursesRes.status === "fulfilled") {
+      coursesCount = (coursesRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let departmentsCount = 0;
+    const departmentsAvailable = deptRes.status === "fulfilled";
+    if (departmentsAvailable) {
+      departmentsCount = (deptRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let pendingAdmissionsCount = 0;
+    const admissionsAvailable = admRes.status === "fulfilled";
+    if (admissionsAvailable) {
+      pendingAdmissionsCount = (admRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let totalFeesCollected = 0;
+    if (feePayRes.status === "fulfilled" && (feePayRes.value as any[])[0]?.total > 0) {
+      totalFeesCollected = (feePayRes.value as any[])[0].total;
+    } else if (feeInvRes.status === "fulfilled") {
+      totalFeesCollected = (feeInvRes.value as any[])[0]?.total_paid ?? 0;
+    }
+
+    let attendanceRate = "N/A";
+    let attendanceRateNumber = 0;
+    if (attRes.status === "fulfilled") {
+      const rows = attRes.value as any[];
+      const totalAtt = rows[0]?.total ?? 0;
+      const presentAtt = rows[0]?.present ?? 0;
+      if (totalAtt > 0) {
+        attendanceRateNumber = Math.round((presentAtt / totalAtt) * 100);
+        attendanceRate = `${attendanceRateNumber}%`;
       }
     }
 
-    // Recent activities from audit logs
+    let pendingApprovalsCount = 0;
+    if (appRes.status === "fulfilled") {
+      pendingApprovalsCount = (appRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let eventsCount = 0;
+    if (evRes.status === "fulfilled") {
+      eventsCount = (evRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let activeAcademicYear: any = null;
+    if (ayRes.status === "fulfilled") {
+      const rows = ayRes.value as any[];
+      if (rows && rows.length > 0) {
+        activeAcademicYear = rows[0];
+      }
+    }
+
+    // 10. Live Audit Logs for Recent Activity
     let recentActivities: any[] = [];
     try {
-      const dbActivities = await db.auditLog.findMany({
-        where: { institutionId },
-        orderBy: { createdAt: "desc" },
-        take: 8,
-        include: {
-          user: { select: { fullName: true, name: true, email: true, role: true } },
-        },
-      });
-      if (dbActivities.length > 0) {
-        recentActivities = dbActivities.map((a: any) => ({
-          id: a.id,
-          action: a.action,
-          tableName: a.entity || a.entityType || "general",
-          recordId: a.entityId || a.id,
-          userName: a.user?.fullName || a.user?.name || a.user?.email || "System",
-          userRole: a.user?.role || "SYSTEM",
-          timestamp: a.createdAt.toISOString(),
-        }));
-      }
-    } catch {
-      // fallback
-    }
-
-    if (recentActivities.length === 0) {
-      try {
-        const fallbackLogs = await getAuditLogs(institutionId, 8);
-        recentActivities = fallbackLogs.map((a: any) => ({
-          id: a.id,
-          action: a.action,
-          tableName: a.tableName || a.entity || "general",
-          recordId: a.recordId || a.entityId || "system",
-          userName: a.user?.fullName || a.user?.name || "System Admin",
-          userRole: a.user?.role || "ADMIN",
-          timestamp: typeof a.createdAt === "string" ? a.createdAt : a.createdAt?.toISOString?.() || new Date().toISOString(),
-        }));
-      } catch {
-        recentActivities = [];
-      }
+      const liveLogs = await getAuditLogs(institutionId, 8);
+      recentActivities = liveLogs.map((a: any) => ({
+        id: a.id,
+        action: a.action,
+        tableName: a.tableName || a.entity || "general",
+        recordId: a.recordId || a.entityId || a.id,
+        userName: a.user?.fullName || a.user?.name || a.user?.email || "System",
+        userRole: a.user?.role || "ADMIN",
+        timestamp: typeof a.createdAt === "string" ? a.createdAt : a.createdAt?.toISOString?.() || new Date().toISOString(),
+      }));
+    } catch (err: any) {
+      console.warn("Recent activities fallback:", err.message);
     }
 
     return {
@@ -125,6 +191,14 @@ export async function getDashboardMetrics(institutionId: string) {
         pendingApprovals: pendingApprovalsCount,
         totalFeesCollected,
         activeEvents: eventsCount,
+        attendanceRate,
+        attendanceRateNumber,
+      },
+      schemaStatus: {
+        students: studentsStatus,
+        departments: departmentsAvailable ? "OK" : "PENDING_MIGRATION",
+        admissions: admissionsAvailable ? "OK" : "PENDING_MIGRATION",
+        auditLogs: "OK",
       },
       activeAcademicYear: activeAcademicYear || {
         id: "ay_2026_27",
@@ -148,17 +222,22 @@ export async function getDashboardMetrics(institutionId: string) {
 // 1. ADMISSIONS & APPLICATIONS
 // ----------------------------------------------------------------------------
 export async function getAdmissions(institutionId: string, status?: string) {
-  return await db.admissionApplication.findMany({
-    where: {
-      institutionId,
-      ...(status ? { status: status as any } : {}),
-    },
-    include: {
-      course: true,
-      academicYear: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    return await db.admissionApplication.findMany({
+      where: {
+        institutionId,
+        ...(status ? { status: status as any } : {}),
+      },
+      include: {
+        course: true,
+        academicYear: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (err: any) {
+    console.warn("getAdmissions error (table pending migration):", err.message);
+    return [];
+  }
 }
 
 export async function createAdmissionApplication(
@@ -215,31 +294,70 @@ export async function updateAdmissionStatus(
 // 2. STUDENTS & ENROLLMENT
 // ----------------------------------------------------------------------------
 export async function getStudents(institutionId: string, options?: { search?: string; status?: string; take?: number }) {
-  return await db.student.findMany({
-    where: {
-      institutionId,
-      ...(options?.status ? { status: options.status as any } : {}),
-      ...(options?.search
-        ? {
-            OR: [
-              { fullName: { contains: options.search, mode: "insensitive" } },
-              { rollNumber: { contains: options.search, mode: "insensitive" } },
-              { email: { contains: options.search, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      currentCourse: true,
-      currentAcademicYear: true,
-      currentClass: true,
-      guardians: {
-        include: { guardian: true },
+  try {
+    // If status filter is passed, since PostgreSQL column is text, query via raw SQL to avoid type "StudentStatus" does not exist
+    if (options?.status) {
+      const status = options.status.toUpperCase();
+      const search = options?.search ? `%${options.search.trim().toLowerCase()}%` : null;
+      const rows: any = await db.$queryRaw`
+        SELECT s.*,
+               c.name as "courseName",
+               ay.name as "academicYearName"
+        FROM students s
+        LEFT JOIN courses c ON s."currentCourseId" = c.id
+        LEFT JOIN academic_years ay ON s."currentAcademicYearId" = ay.id
+        WHERE s."institutionId" = ${institutionId}
+          AND s.status = ${status}
+          AND (${search}::text IS NULL OR LOWER(s."fullName") LIKE ${search} OR LOWER(s."rollNumber") LIKE ${search} OR LOWER(s.email) LIKE ${search})
+        ORDER BY s."createdAt" DESC
+        LIMIT ${options?.take || 100};
+      `;
+      return rows;
+    }
+
+    return await db.student.findMany({
+      where: {
+        institutionId,
+        ...(options?.search
+          ? {
+              OR: [
+                { fullName: { contains: options.search, mode: "insensitive" } },
+                { rollNumber: { contains: options.search, mode: "insensitive" } },
+                { email: { contains: options.search, mode: "insensitive" } },
+              ],
+            }
+          : {}),
       },
-    },
-    orderBy: { createdAt: "desc" },
-    take: options?.take || 100,
-  });
+      include: {
+        currentCourse: true,
+        currentAcademicYear: true,
+        currentClass: true,
+        guardians: {
+          include: { guardian: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: options?.take || 100,
+    });
+  } catch (err: any) {
+    console.warn("getStudents query fallback to raw SQL:", err.message);
+    try {
+      const fallbackRows: any = await db.$queryRaw`
+        SELECT s.*,
+               c.name as "courseName",
+               ay.name as "academicYearName"
+        FROM students s
+        LEFT JOIN courses c ON s."currentCourseId" = c.id
+        LEFT JOIN academic_years ay ON s."currentAcademicYearId" = ay.id
+        WHERE s."institutionId" = ${institutionId}
+        ORDER BY s."createdAt" DESC
+        LIMIT ${options?.take || 100};
+      `;
+      return fallbackRows;
+    } catch {
+      return [];
+    }
+  }
 }
 
 export async function createStudent(
@@ -434,11 +552,19 @@ export async function createStaff(
 // 5, 6, 7 & 8. ACADEMIC STRUCTURE
 // ----------------------------------------------------------------------------
 export async function getAcademicYears(institutionId: string) {
-  return await db.academicYear.findMany({
-    where: { institutionId },
-    include: { terms: true },
-    orderBy: { startDate: "desc" },
-  });
+  try {
+    return await db.academicYear.findMany({
+      where: { institutionId },
+      include: { terms: true },
+      orderBy: { startDate: "desc" },
+    });
+  } catch {
+    // If AcademicTerm table does not exist, query without terms
+    return await db.academicYear.findMany({
+      where: { institutionId },
+      orderBy: { startDate: "desc" },
+    });
+  }
 }
 
 export async function createAcademicYear(
@@ -485,11 +611,16 @@ export async function createAcademicYear(
 }
 
 export async function getDepartments(institutionId: string) {
-  return await db.department.findMany({
-    where: { institutionId },
-    include: { courses: true, staff: true },
-    orderBy: { name: "asc" },
-  });
+  try {
+    return await db.department.findMany({
+      where: { institutionId },
+      include: { courses: true, staff: true },
+      orderBy: { name: "asc" },
+    });
+  } catch {
+    // Table public.Department does not exist yet (pending migration batch_1_academic_foundation)
+    return [];
+  }
 }
 
 export async function createDepartment(
@@ -507,15 +638,27 @@ export async function createDepartment(
 }
 
 export async function getCourses(institutionId: string) {
-  return await db.course.findMany({
-    where: { institutionId },
-    include: {
-      departmentRel: true,
-      subjects: true,
-      classes: true,
-    },
-    orderBy: { name: "asc" },
-  });
+  try {
+    return await db.course.findMany({
+      where: { institutionId },
+      include: {
+        departmentRel: true,
+        subjects: true,
+        classes: true,
+      },
+      orderBy: { name: "asc" },
+    });
+  } catch {
+    // If Department table does not exist, query without departmentRel
+    return await db.course.findMany({
+      where: { institutionId },
+      include: {
+        subjects: true,
+        classes: true,
+      },
+      orderBy: { name: "asc" },
+    });
+  }
 }
 
 export async function createCourse(
@@ -1217,7 +1360,7 @@ export async function recordFeePayment(
       }
 
       if (data.amount > invoice.outstandingAmount) {
-        throw new Error(`Payment amount (₹${data.amount}) exceeds outstanding balance (₹${invoice.outstandingAmount}).`);
+        throw new Error(`Payment amount (â‚¹${data.amount}) exceeds outstanding balance (â‚¹${invoice.outstandingAmount}).`);
       }
 
       const payment = await tx.feePayment.create({
@@ -1281,7 +1424,7 @@ export async function recordFeePayment(
       throw new Error(`Invoice ${target.invoiceNumber || data.invoiceId} is already fully settled.`);
     }
     if (target.outstandingAmount !== undefined && data.amount > target.outstandingAmount) {
-      throw new Error(`Payment amount (₹${data.amount}) exceeds outstanding balance (₹${target.outstandingAmount}).`);
+      throw new Error(`Payment amount (â‚¹${data.amount}) exceeds outstanding balance (â‚¹${target.outstandingAmount}).`);
     }
 
     const payment = {
@@ -1670,7 +1813,7 @@ function getInitialEvents(institutionId: string): any[] {
     {
       id: "ev_03",
       institutionId,
-      title: "Annual Cultural Fest – Kalothsava 2026",
+      title: "Annual Cultural Fest â€“ Kalothsava 2026",
       description: "Music concerts, classical dance competitions, fashion showcase, and literary debates.",
       category: "CULTURAL",
       eventDate: new Date("2026-12-18").toISOString(),
@@ -1867,7 +2010,7 @@ function getInitialNotifications(institutionId: string): any[] {
     {
       id: "notif_03",
       institutionId,
-      title: "Campus Placement Drive – Tata Consultancy Services",
+      title: "Campus Placement Drive â€“ Tata Consultancy Services",
       message: "Final year B.Tech students registered with CDC are requested to report to the placement cell in formal attire by 8:30 AM on Nov 18.",
       category: "PLACEMENT",
       createdAt: new Date("2026-11-10T14:00:00Z").toISOString(),
@@ -2171,30 +2314,51 @@ function getInitialAuditLogs(institutionId: string): any[] {
 
 export async function getAuditLogs(institutionId: string, take = 50) {
   try {
-    const list = await db.auditLog.findMany({
-      where: { institutionId },
-      select: {
-        id: true,
-        institutionId: true,
-        userId: true,
-        action: true,
-        entityType: true,
-        entityId: true,
-        oldValuesJson: true,
-        newValuesJson: true,
-        userAgent: true,
-        ipAddress: true,
-        createdAt: true,
-        user: {
-          select: { id: true, fullName: true, name: true, email: true, role: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take,
-    }).then((entries) => entries.map((entry) => ({ ...entry, entity: entry.entityType })));
-    if (list && list.length > 0) return list;
+    const rawList: any = await db.$queryRaw`
+      SELECT
+        id,
+        action,
+        "entityType" as "tableName",
+        "entityId" as "recordId",
+        "createdAt",
+        "actorUserId" as "userId",
+        "oldValuesJson",
+        "newValuesJson",
+        "ipAddress"
+      FROM audit_logs
+      WHERE "institutionId" = ${institutionId}
+      UNION ALL
+      SELECT
+        id::text,
+        action,
+        entity as "tableName",
+        "entityId" as "recordId",
+        "createdAt",
+        "userId"::text as "userId",
+        NULL as "oldValuesJson",
+        metadata::text as "newValuesJson",
+        "ipAddress"
+      FROM "AuditLog"
+      WHERE "institutionId"::text = ${institutionId}
+      ORDER BY "createdAt" DESC
+      LIMIT ${take};
+    `;
+
+    if (rawList && rawList.length > 0) {
+      return rawList.map((r: any) => ({
+        id: r.id,
+        action: r.action,
+        tableName: r.tableName || "general",
+        recordId: r.recordId || r.id,
+        entity: r.tableName,
+        entityType: r.tableName,
+        entityId: r.recordId,
+        createdAt: r.createdAt,
+        user: { fullName: "Administrator", role: "ADMIN", email: "" },
+      }));
+    }
   } catch (err: any) {
-    console.warn("Audit logs query fallback:", err.message);
+    console.warn("Audit logs raw query error:", err.message);
   }
 
   let list = globalAuditLogsRegistry.get(institutionId);
@@ -2215,17 +2379,12 @@ export async function createAuditLog(data: {
   newValues?: any;
 }) {
   try {
-    return await db.auditLog.create({
-      data: {
-        institutionId: data.institutionId,
-        userId: data.userId,
-        action: data.action,
-        entityType: data.tableName,
-        entityId: data.recordId,
-        oldValuesJson: data.oldValues ? JSON.stringify(data.oldValues) : undefined,
-        newValuesJson: data.newValues ? JSON.stringify(data.newValues) : undefined,
-      },
-    });
+    const newId = crypto.randomUUID();
+    await db.$executeRaw`
+      INSERT INTO audit_logs (id, "institutionId", "actorUserId", action, "entityType", "entityId", "oldValuesJson", "newValuesJson", "createdAt")
+      VALUES (${newId}, ${data.institutionId}, ${data.userId || null}, ${data.action}, ${data.tableName}, ${data.recordId}, ${JSON.stringify(data.oldValues || null)}, ${JSON.stringify(data.newValues || null)}, NOW())
+    `;
+    return { id: newId, ...data, createdAt: new Date() };
   } catch (err: any) {
     console.warn("Audit log creation bypassed:", err.message);
     const newLog = {
