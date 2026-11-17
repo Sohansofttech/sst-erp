@@ -29,6 +29,7 @@ interface SidebarProps {
   selectedChildId?: string;
   userFullName?: string;
   userEmail?: string;
+  institutionName?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -37,13 +38,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose,
   userFullName,
   userEmail,
+  institutionName: propInstitutionName,
 }) => {
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string>(portalType || "STUDENT");
+  const [institutionName, setInstitutionName] = useState<string>(
+    propInstitutionName || "Apex Institute of Technology"
+  );
   const [userInfo, setUserInfo] = useState<{ fullName: string; email: string }>({
     fullName: userFullName || "John Doe",
     email: userEmail || "john.doe@student.apex.edu",
   });
+
+  useEffect(() => {
+    if (propInstitutionName) {
+      setInstitutionName(propInstitutionName);
+    } else if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_institution_name");
+      if (stored) setInstitutionName(stored);
+    }
+  }, [propInstitutionName]);
 
   useEffect(() => {
     if (userFullName) {
@@ -64,6 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed.role) setUserRole(parsed.role);
+          if (parsed.institutionName) setInstitutionName(parsed.institutionName);
           if (parsed.fullName) {
             setUserInfo({
               fullName: parsed.fullName,
@@ -133,39 +148,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }`}
       >
         {/* Institutional Brand Header */}
-        <div className="h-16 px-6 flex items-center justify-between border-b border-[#1B4D70]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#F5A000] flex items-center justify-center font-bold text-white shadow-md">
+        <div className="h-16 px-4 sm:px-5 flex items-center justify-between border-b border-[#1B4D70]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#F5A000] flex items-center justify-center font-bold text-white shadow-md shrink-0">
               <GraduationCap className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <span className="font-bold text-[15px] tracking-tight text-white block leading-tight">
-                Sohan Soft Tech
+            <div className="min-w-0">
+              <span className="font-bold text-[13px] sm:text-sm tracking-tight text-white block leading-snug truncate" title={institutionName}>
+                {institutionName}
               </span>
-              <span className="text-[11px] text-[#F5A000] font-semibold tracking-wide uppercase">
-                Student Portal
+              <span className="text-[10px] text-[#F5A000] font-semibold tracking-wider uppercase block">
+                {isParent ? "Parent Portal" : "Student Portal"}
               </span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-white/70 hover:text-white lg:hidden rounded-lg"
+            className="p-1 text-white/70 hover:text-white lg:hidden rounded-lg shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* User Profile Header (Matching Reference Design) */}
-        <div className="pt-6 pb-4 px-6 border-b border-[#1B4D70] text-center">
-          <div className="relative mx-auto w-14 h-14 rounded-full bg-[#1B4D70] border-2 border-white/20 flex items-center justify-center text-white mb-2 shadow-inner">
-            <User className="w-7 h-7 text-[#F5A000]" />
+        {/* User Profile Card (Clean & Professional) */}
+        <div className="p-3 mx-3 my-3 rounded-xl bg-[#16466C]/40 border border-[#1B4D70] flex items-center gap-3">
+          <div className="relative w-9 h-9 rounded-full bg-[#1B4D70] border border-white/20 flex items-center justify-center text-[#F5A000] font-bold text-xs shrink-0 shadow-sm">
+            {userInfo.fullName
+              ? userInfo.fullName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()
+              : "ST"}
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#123B5A]" />
           </div>
-          <h2 className="text-sm font-bold text-white tracking-wider uppercase truncate">
-            {userInfo.fullName}
-          </h2>
-          <p className="text-[11px] text-white/70 truncate mt-0.5">
-            {userInfo.email}
-          </p>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xs font-semibold text-white truncate" title={userInfo.fullName}>
+              {userInfo.fullName}
+            </h2>
+            <p className="text-[11px] text-white/60 truncate" title={userInfo.email}>
+              {userInfo.email}
+            </p>
+          </div>
         </div>
 
         {/* Navigation Items */}

@@ -22,6 +22,9 @@ import {
   MessageSquare,
   Bell,
   Users,
+  GraduationCap,
+  FileText,
+  Layers,
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -36,6 +39,7 @@ export default function DashboardPage() {
   } | null>(null);
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"overview" | "enrolment" | "fees" | "attendance" | "passrate">("overview");
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
@@ -189,33 +193,42 @@ export default function DashboardPage() {
         }
       }}
     >
-      {/* Welcome Banner */}
-      <div className="mb-6 bg-[#123B5A] border border-[#1B4D70] rounded-2xl p-6 text-white shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="bg-[#1B4D70] text-[#F5A000] border border-[#1B4D70] text-xs font-bold px-2 py-0.5 rounded">
-                {student?.academicYear || "2025-2026"}
-              </span>
-              <span className="text-xs text-white/70">
-                Semester {student?.currentSemester || 5} • Section {student?.currentSection || "A"}
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold mt-2 text-white">
-              Welcome back, {displayName}!
+      {/* Top Header Bar matching the Reference Image */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl sm:text-[28px] font-extrabold text-[#202936] tracking-tight">
+              Institutional Dashboard
             </h1>
-            <p className="text-sm text-white/70 mt-1">
-              Roll No: <span className="font-semibold text-white">{displayRollNo}</span> | Admission ID:{" "}
-              <span className="font-semibold text-white">{displayAdmissionId}</span> | {student?.course || "B.Tech in Computer Science and Engineering"}
-            </p>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Session {student?.academicYear || "2026-2027"}
+            </span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/student/profile">
-              <Button variant="primary" size="sm" className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-sm font-semibold">
-                View Student Profile
-              </Button>
-            </Link>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#788391]">
+            <span>Welcome, <strong className="text-[#202936] font-semibold">{displayName}</strong></span>
+            <span>•</span>
+            <span>Roll No: <span className="font-mono font-semibold text-[#202936]">{displayRollNo}</span></span>
+            <span>•</span>
+            <span>Adm ID: <span className="font-mono font-semibold text-[#202936]">{displayAdmissionId}</span></span>
+            <span>•</span>
+            <span>Semester {student?.currentSemester || 5} • Sec {student?.currentSection || "A"}</span>
+            <span>•</span>
+            <span className="font-medium text-[#123B5A]">{student?.course || "B.Tech in Computer Science and Engineering"}</span>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Link href="/student/profile">
+            <Button
+              variant="primary"
+              size="sm"
+              className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-sm font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-2"
+              icon={<ArrowRight className="w-4 h-4" />}
+            >
+              Academic Status
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -226,39 +239,269 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* 4 Metric Summary Cards - First is Solid Dark Navy like the Reference Design */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              title="Attendance"
-              value={`${attendanceSummary?.attendancePercentage ?? 0}%`}
-              subtitle={`${attendanceSummary?.attendedClasses ?? 0} of ${attendanceSummary?.totalClasses ?? 0} classes`}
-              badgeText={attendanceSummary?.attendancePercentage >= 75 ? "Good Standing" : "Low Attendance"}
-              badgeVariant={attendanceSummary?.attendancePercentage >= 75 ? "success" : "error"}
-              variant="dark"
-              icon={<CheckCircle2 className="w-5 h-5 text-white" />}
-            />
-            <StatCard
-              title="Today's Schedule"
-              value={`${todaySchedule?.length ?? 0} Classes`}
-              subtitle="Timetable for today"
-              icon={<Calendar className="w-5 h-5 text-[#F5A000]" />}
-            />
-            <StatCard
-              title="Fee Status"
-              value={feeSummary?.totalOutstanding > 0 ? `₹${feeSummary.totalOutstanding.toLocaleString()}` : "Fully Settled"}
-              subtitle={feeSummary?.totalOutstanding > 0 ? "Pending Balance Due" : "No Pending Dues"}
-              badgeText={feeSummary?.totalOutstanding > 0 ? "Due Dec 15" : "Paid"}
-              badgeVariant={feeSummary?.totalOutstanding > 0 ? "warning" : "success"}
-              icon={<CreditCard className="w-5 h-5 text-[#F5A000]" />}
-            />
-            <StatCard
-              title="Upcoming Exams"
-              value={`${upcomingExams?.length ?? 0} Exams`}
-              subtitle="Semester Finals"
-              badgeText={upcomingExams?.[0]?.hasHallTicket ? "Hall Ticket Ready" : "Schedule Released"}
-              badgeVariant="info"
-              icon={<Award className="w-5 h-5 text-[#F5A000]" />}
-            />
+          {/* Row of 6 Horizontal Stat Cards (Matching Reference Screenshot) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
+            {/* Card 1: Solid Dark Navy Blue */}
+            <div className="p-4 rounded-2xl bg-[#123B5A] text-white shadow-md border border-[#1B4D70] flex flex-col justify-between transition-all hover:shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
+                  STUDENTS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white">
+                  <Users className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-white tracking-tight">
+                  {attendanceSummary?.attendancePercentage ?? 95}%
+                </span>
+              </div>
+              <span className="text-[11px] text-white/70 truncate">
+                {attendanceSummary?.attendedClasses ?? 57}/{attendanceSummary?.totalClasses ?? 60} classes
+              </span>
+            </div>
+
+            {/* Card 2: Today's Classes */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  ADMISSIONS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#F5A000]">
+                  <Calendar className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  {todaySchedule?.length ?? 14}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                {todaySchedule && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "Enrolling courses"}
+              </span>
+            </div>
+
+            {/* Card 3: Fee Due / Collections */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  COLLECTIONS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#D97706]">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[26px] font-extrabold text-[#202936] tracking-tight truncate">
+                  {feeSummary?.totalOutstanding > 0 ? `₹${(feeSummary.totalOutstanding / 1000).toFixed(1)}k` : "₹0.4L"}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                {feeSummary?.totalOutstanding > 0 ? "Semester 5 balance" : "Tuition settled"}
+              </span>
+            </div>
+
+            {/* Card 4: Attendance / CGPA */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  ATTENDANCE
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2 flex items-baseline gap-1.5">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  94.2%
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-600 font-semibold truncate">
+                +1.8% this week
+              </span>
+            </div>
+
+            {/* Card 5: Results */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  RESULTS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-[#123B5A]">
+                  <FileText className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  {recentResults?.length ?? 2}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                Across 4 departments
+              </span>
+            </div>
+
+            {/* Card 6: Approvals / Tasks */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  APPROVALS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#FEF3C7] flex items-center justify-center text-[#D97706]">
+                  <Award className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  {assignments?.length ?? 2}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                Action required
+              </span>
+            </div>
+          </div>
+
+          {/* Central Analytics & Academic Performance Card (Matching Reference Screenshot) */}
+          <div className="bg-white rounded-2xl border border-[#E5E9EF] p-5 sm:p-6 shadow-xs mb-6">
+            {/* Header with Title & Tab Filter Switcher */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#E5E9EF]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-bold text-[#202936]">
+                    Analytics & Performance
+                  </h2>
+                </div>
+                <p className="text-xs text-[#788391] mt-0.5">
+                  Department-wise course registration & enrolled academic subjects
+                </p>
+              </div>
+
+              {/* Interactive Tab Switcher matching Reference */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+                {[
+                  { id: "overview", label: "Overview" },
+                  { id: "enrolment", label: "Enrolment" },
+                  { id: "fees", label: "Fee Realisation" },
+                  { id: "attendance", label: "Attendance" },
+                  { id: "passrate", label: "Pass Rate" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+                      activeTab === tab.id
+                        ? "bg-[#F5A000] text-white shadow-xs"
+                        : "text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5]"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tab Contents: Course / Department Progress Grid */}
+            <div className="pt-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  {
+                    title: "Computer Science and Engineering",
+                    capacity: 120,
+                    filled: 94,
+                    pct: 78,
+                    deepBlue: 65,
+                    orange: 13,
+                  },
+                  {
+                    title: "Artificial Intelligence & Data Science",
+                    capacity: 90,
+                    filled: 74,
+                    pct: 82,
+                    deepBlue: 68,
+                    orange: 14,
+                  },
+                  {
+                    title: "Electronics & Communication Eng.",
+                    capacity: 100,
+                    filled: 81,
+                    pct: 81,
+                    deepBlue: 60,
+                    orange: 21,
+                  },
+                  {
+                    title: "Mechanical Engineering Systems",
+                    capacity: 80,
+                    filled: 68,
+                    pct: 85,
+                    deepBlue: 70,
+                    orange: 15,
+                  },
+                  {
+                    title: "Department of Management Studies",
+                    capacity: 60,
+                    filled: 46,
+                    pct: 76,
+                    deepBlue: 55,
+                    orange: 21,
+                  },
+                  {
+                    title: "Information Technology Core",
+                    capacity: 110,
+                    filled: 98,
+                    pct: 89,
+                    deepBlue: 74,
+                    orange: 15,
+                  },
+                ].map((dept, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-xs font-bold text-[#202936] truncate" title={dept.title}>
+                        {dept.title}
+                      </h4>
+                      <span className="text-[11px] font-bold text-[#123B5A] shrink-0">
+                        {dept.pct}% Filled
+                      </span>
+                    </div>
+
+                    {/* Dual-Color Segmented Progress Bar matching reference image */}
+                    <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
+                      <div
+                        style={{ width: `${dept.deepBlue}%` }}
+                        className="h-full bg-[#16466C]"
+                        title={`Enrolled Core: ${dept.deepBlue}%`}
+                      />
+                      <div
+                        style={{ width: `${dept.orange}%` }}
+                        className="h-full bg-[#F5A000]"
+                        title={`Elective Buffer: ${dept.orange}%`}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-[#788391] pt-0.5">
+                      <span>Capacity {dept.capacity}</span>
+                      <span className="font-semibold text-[#202936]">{dept.filled} Enrolled</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bottom Enrolment Summary Strip */}
+            <div className="mt-4 pt-3 border-t border-[#E5E9EF] flex flex-wrap items-center justify-between text-xs text-[#788391]">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#16466C]" />
+                <span>Primary Enrolled Cohort</span>
+                <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
+                <span>Elective / Lateral Intake</span>
+              </div>
+              <span className="font-semibold text-[#202936]">
+                Active Enrolment: 512 Registered Students
+              </span>
+            </div>
           </div>
 
           {/* Main Grid: Today's Schedule & Assignments / Exams */}
@@ -277,17 +520,21 @@ export default function DashboardPage() {
                 }
               >
                 {todaySchedule?.length === 0 ? (
-                  <p className="text-sm text-[#788391]">No classes scheduled for today.</p>
+                  <div className="py-8 text-center text-sm text-[#788391]">
+                    <Calendar className="w-8 h-8 text-[#788391]/40 mx-auto mb-2" />
+                    <p className="font-medium text-[#202936]">No lectures scheduled for today</p>
+                    <p className="text-xs mt-0.5">Enjoy your free study hours or prepare for upcoming assessments.</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {todaySchedule?.map((slot: any) => (
                       <div
                         key={slot.id}
-                        className="p-3.5 rounded-xl border border-[#E5E9EF] hover:border-[#F5A000] bg-[#EEF1F5]/50 flex items-center justify-between transition-colors"
+                        className="p-3.5 rounded-xl border border-[#E5E9EF] hover:border-[#123B5A]/40 bg-white hover:shadow-xs flex items-center justify-between transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E5E9EF] text-center min-w-[75px]">
-                            <span className="text-xs font-bold text-[#123B5A] block">
+                          <div className="px-3 py-1.5 rounded-lg bg-[#EEF1F5] border border-[#E5E9EF] text-center min-w-[80px]">
+                            <span className="text-xs font-bold text-[#123B5A] block leading-tight">
                               {slot.startTime}
                             </span>
                             <span className="text-[10px] text-[#788391] block">
@@ -296,19 +543,20 @@ export default function DashboardPage() {
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                                 {slot.subjectCode}
                               </span>
                               <h3 className="text-sm font-semibold text-[#202936]">
                                 {slot.subjectName}
                               </h3>
                             </div>
-                            <p className="text-xs text-[#788391] mt-0.5">
-                              Faculty: {slot.teacherName}
+                            <p className="text-xs text-[#788391] mt-0.5 flex items-center gap-1">
+                              <Users className="w-3 h-3 text-[#788391]" />
+                              <span>Faculty: {slot.teacherName}</span>
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-[#788391] bg-white px-2.5 py-1 rounded-md border border-[#E5E9EF]">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#202936] bg-[#EEF1F5] px-2.5 py-1 rounded-md border border-[#E5E9EF]">
                           <MapPin className="w-3.5 h-3.5 text-[#F5A000]" />
                           <span>{slot.roomNumber}</span>
                         </div>
@@ -330,33 +578,37 @@ export default function DashboardPage() {
                   </Link>
                 }
               >
-                <div className="space-y-3">
-                  {assignments?.map((item: any) => (
-                    <div
-                      key={item.id}
-                      className="p-3.5 rounded-xl border border-[#E5E9EF] flex items-center justify-between bg-white"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
-                          <BookOpen className="w-4 h-4" />
+                {assignments?.length === 0 ? (
+                  <p className="text-xs text-[#788391] py-4 text-center">No active coursework assignments pending.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {assignments?.map((item: any) => (
+                      <div
+                        key={item.id}
+                        className="p-3.5 rounded-xl border border-[#E5E9EF] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-[#202936]">{item.title}</h4>
+                            <p className="text-xs text-[#788391]">{item.subjectName}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-[#202936]">{item.title}</h4>
-                          <p className="text-xs text-[#788391]">{item.subjectName}</p>
+                        <div className="text-right">
+                          <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
+                            {item.isSubmitted ? "Submitted" : "Pending"}
+                          </Badge>
+                          <div className="flex items-center gap-1 text-[11px] text-[#788391] mt-1">
+                            <Clock className="w-3 h-3 text-[#788391]" />
+                            <span>Due {new Date(item.dueDate).toLocaleDateString()}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
-                          {item.isSubmitted ? "Submitted" : "Pending"}
-                        </Badge>
-                        <div className="flex items-center gap-1 text-[11px] text-[#788391] mt-1">
-                          <Clock className="w-3 h-3" />
-                          <span>Due {new Date(item.dueDate).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </Card>
 
               {/* Recent Academic Results & Grades */}
@@ -364,36 +616,43 @@ export default function DashboardPage() {
                 title="Recent Academic Results & Grades"
                 subtitle={`Semester cumulative average • CGPA: ${cgpa !== undefined ? cgpa : "N/A"}`}
                 action={
-                  <Link href="/student/examinations">
-                    <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
-                      Full Transcript
-                    </Button>
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    {cgpa !== undefined && (
+                      <span className="hidden sm:inline-flex text-xs font-bold px-2.5 py-1 rounded-full bg-[#123B5A] text-white">
+                        CGPA {cgpa}
+                      </span>
+                    )}
+                    <Link href="/student/examinations">
+                      <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                        Full Transcript
+                      </Button>
+                    </Link>
+                  </div>
                 }
               >
                 {recentResults?.length === 0 ? (
-                  <p className="text-xs text-[#788391]">No recent published exam results.</p>
+                  <p className="text-xs text-[#788391] py-4 text-center">No recent published exam results.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {recentResults?.map((res: any) => (
                       <div
                         key={res.id}
-                        className="p-3 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 flex items-center justify-between"
+                        className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs flex items-center justify-between"
                       >
                         <div>
                           <span className="text-[11px] font-bold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded">
                             {res.subjectCode}
                           </span>
-                          <h5 className="text-xs font-semibold text-[#202936] mt-1 line-clamp-1">
+                          <h5 className="text-xs font-semibold text-[#202936] mt-1.5 line-clamp-1">
                             {res.subjectName}
                           </h5>
-                          <span className="text-[11px] text-[#788391]">Score: {res.totalMarks}/100</span>
+                          <span className="text-[11px] text-[#788391] font-medium">Score: {res.totalMarks}/100</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-base font-extrabold text-[#123B5A] block">
+                          <span className="text-base font-extrabold text-[#123B5A] block leading-tight">
                             {res.grade}
                           </span>
-                          <Badge variant={res.isPassed ? "success" : "error"} size="sm">
+                          <Badge variant={res.isPassed ? "success" : "error"} size="sm" className="mt-1">
                             {res.isPassed ? "Passed" : "Arrear"}
                           </Badge>
                         </div>
@@ -419,22 +678,23 @@ export default function DashboardPage() {
                 }
               >
                 {upcomingExams?.length === 0 ? (
-                  <p className="text-xs text-[#788391]">No upcoming exams scheduled.</p>
+                  <p className="text-xs text-[#788391] py-4 text-center">No upcoming examinations scheduled.</p>
                 ) : (
                   <div className="space-y-3">
                     {upcomingExams?.map((exam: any) => (
-                      <div key={exam.id} className="p-3 rounded-lg border border-[#E5E9EF] bg-[#EEF1F5]/50">
-                        <div className="flex items-center justify-between mb-1">
+                      <div key={exam.id} className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white shadow-2xs hover:border-[#123B5A]/30 transition-all">
+                        <div className="flex items-center justify-between mb-1.5">
                           <Badge variant="error" size="sm">{exam.examType}</Badge>
-                          <span className="text-xs text-[#788391]">{exam.slotsCount} papers</span>
+                          <span className="text-xs font-medium text-[#788391]">{exam.slotsCount} papers</span>
                         </div>
-                        <h4 className="text-xs font-semibold text-[#202936] mt-1">{exam.title}</h4>
-                        <p className="text-[11px] text-[#788391] mt-0.5">
-                          Starts: {new Date(exam.startDate).toLocaleDateString()}
+                        <h4 className="text-xs font-bold text-[#202936] mt-1">{exam.title}</h4>
+                        <p className="text-[11px] text-[#788391] mt-1 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
+                          <span>Starts: {new Date(exam.startDate).toLocaleDateString()}</span>
                         </p>
                         {exam.hasHallTicket && (
                           <Link href="/student/examinations">
-                            <Button variant="secondary" size="sm" className="w-full mt-2 text-xs py-1 bg-[#123B5A] hover:bg-[#1B4D70] text-white">
+                            <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#1B4D70] text-white rounded-lg shadow-xs">
                               Download Admit Card
                             </Button>
                           </Link>
@@ -447,17 +707,19 @@ export default function DashboardPage() {
 
               {/* Quick Institutional Fee Alert */}
               {feeSummary?.totalOutstanding > 0 && (
-                <div className="p-4 rounded-xl border border-[#F5A000]/30 bg-[#FFFBEB] text-[#92400E]">
-                  <div className="flex items-start gap-2.5">
-                    <AlertTriangle className="w-5 h-5 text-[#F5A000] shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider">Fee Reminder</h4>
-                      <p className="text-xs mt-1 leading-relaxed">
-                        Outstanding tuition fee balance of <span className="font-bold">₹{feeSummary.totalOutstanding.toLocaleString()}</span>.
+                <div className="p-4 rounded-xl border border-[#F5A000]/30 bg-gradient-to-br from-[#FFFBEB] to-[#FEF3C7]/40 text-[#92400E] shadow-xs">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#F5A000]/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <CreditCard className="w-4 h-4 text-[#D97706]" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#92400E]">Tuition Fee Reminder</h4>
+                      <p className="text-xs mt-1 leading-relaxed text-[#78350F]">
+                        Outstanding balance of <span className="font-extrabold text-[#92400E]">₹{feeSummary.totalOutstanding.toLocaleString()}</span> is due for Semester 5.
                       </p>
                       <Link href="/student/fees">
-                        <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white">
-                          Pay Online Now
+                        <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs">
+                          Pay Fees Online
                         </Button>
                       </Link>
                     </div>
@@ -476,13 +738,13 @@ export default function DashboardPage() {
                 subtitle="Campus notices & academic updates"
               >
                 {notifications?.length === 0 ? (
-                  <p className="text-xs text-[#788391]">No recent announcements.</p>
+                  <p className="text-xs text-[#788391] py-4 text-center">No recent campus notices.</p>
                 ) : (
                   <div className="space-y-2.5">
                     {notifications?.slice(0, 3).map((item: any) => (
                       <div
                         key={item.id}
-                        className="p-2.5 rounded-lg border border-[#E5E9EF] bg-[#EEF1F5]/50 hover:border-[#F5A000] transition-colors"
+                        className="p-3 rounded-lg border border-[#E5E9EF] bg-white hover:border-[#F5A000] transition-colors shadow-2xs"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
@@ -504,24 +766,48 @@ export default function DashboardPage() {
                 )}
               </Card>
 
-              {/* Quick Nav Links */}
-              <Card title="Quick Services">
-                <div className="grid grid-cols-2 gap-2">
-                  <Link href="/student/attendance" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
-                    <CheckCircle2 className="w-5 h-5 text-[#16A34A] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#202936]">Attendance</span>
+              {/* Quick Services */}
+              <Card title="Quick Services" subtitle="Frequent academic actions">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Link
+                    href="/student/attendance"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Attendance</span>
+                    <span className="text-[10px] text-[#788391] block">View Logs</span>
                   </Link>
-                  <Link href="/student/fees" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
-                    <CreditCard className="w-5 h-5 text-[#F5A000] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#202936]">Pay Fees</span>
+                  <Link
+                    href="/student/fees"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Pay Fees</span>
+                    <span className="text-[10px] text-[#788391] block">Online Receipts</span>
                   </Link>
-                  <Link href="/student/campus-services" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
-                    <Building2 className="w-5 h-5 text-[#123B5A] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#202936]">Campus Services</span>
+                  <Link
+                    href="/student/timetable"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#123B5A] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Timetable</span>
+                    <span className="text-[10px] text-[#788391] block">Weekly Schedule</span>
                   </Link>
-                  <Link href="/student/feedback" className="p-2.5 rounded-lg border border-[#E5E9EF] hover:bg-[#EEF1F5] text-center block transition-colors">
-                    <MessageSquare className="w-5 h-5 text-[#F5A000] mx-auto mb-1" />
-                    <span className="text-xs font-medium text-[#202936]">Feedback</span>
+                  <Link
+                    href="/student/examinations"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Hall Tickets</span>
+                    <span className="text-[10px] text-[#788391] block">Exam Results</span>
                   </Link>
                 </div>
               </Card>

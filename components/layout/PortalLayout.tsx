@@ -72,11 +72,16 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         });
         const json = await res.json();
         if (isMounted && json.success && json.data?.session) {
+          const sess = json.data.session;
+          const instName = sess.institutionName || "Apex Institute of Technology";
+          if (typeof window !== "undefined") {
+            localStorage.setItem("erp_institution_name", instName);
+          }
           setUser({
-            fullName: json.data.session.fullName,
-            role: json.data.session.role,
-            institutionName: json.data.session.institutionName,
-            email: json.data.session.email,
+            fullName: sess.fullName,
+            role: sess.role,
+            institutionName: instName,
+            email: sess.email,
           });
         }
       } catch (err) {
@@ -106,6 +111,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         selectedChildId={currentChildId}
         userFullName={user?.fullName}
         userEmail={user?.email}
+        institutionName={user?.institutionName}
       />
 
       {/* Main Content Area */}
