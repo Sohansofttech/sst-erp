@@ -90,5 +90,12 @@ export async function POST() {
     expires: new Date(0),
   });
 
+  response.cookies.set({
+    name: "sst_session",
+    value: "",
+    path: "/",
+    expires: new Date(0),
+  });
+
   return response;
 }

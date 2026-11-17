@@ -15,7 +15,9 @@ import {
   LogOut,
   Sparkles,
   ExternalLink,
+  KeyRound,
 } from "lucide-react";
+import { ChangePasswordModal } from "../shared/ChangePasswordModal";
 
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
@@ -27,6 +29,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
   const [showYearMenu, setShowYearMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -214,6 +217,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 <button
                   onClick={() => {
                     setShowProfileMenu(false);
+                    setIsPasswordModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg text-[#1E293B] hover:bg-[#F8FAFC] text-left cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-[#F5A000]" /> Security & Password
+                </button>
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
                     handleLogout();
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg text-[#DC2626] hover:bg-[#FEE2E2] text-left cursor-pointer"
@@ -225,6 +237,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
           )}
         </div>
       </div>
+
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
     </header>
   );
 };

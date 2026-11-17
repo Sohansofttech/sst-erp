@@ -29,6 +29,7 @@ import {
   PortalShell,
   type PortalNavGroup,
 } from "@/components/shared"
+import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner"
 import {
   TeacherRoleProvider,
   useTeacherRole,
@@ -321,6 +322,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
         </div>
       }
     >
+      <MustChangePasswordBanner />
       {children}
     </PortalShell>
   )
