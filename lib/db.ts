@@ -15,7 +15,7 @@ const connectionString =
 
 const adapter = new PrismaPg({
   connectionString,
-  max: process.env.NODE_ENV === "production" ? 1 : 10,
+  max: process.env.NODE_ENV === "production" ? 1 : 2,
 });
 
 export const db =

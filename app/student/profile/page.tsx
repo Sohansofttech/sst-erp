@@ -8,6 +8,7 @@ import { Button } from "@/components/shared/Button";
 import { Modal } from "@/components/shared/Modal";
 import { FormInput } from "@/components/shared/FormInput";
 import { Table } from "@/components/shared/Table";
+import { ChangePasswordModal } from "@/components/shared/ChangePasswordModal";
 import {
   User,
   Phone,
@@ -27,6 +28,7 @@ export default function StudentProfilePage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -393,8 +395,37 @@ export default function StudentProfilePage() {
               ))}
             </div>
           </Card>
+
+          {/* Security & Authentication */}
+          <Card title="Security & Authentication">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-[#E5E9EF] bg-slate-50/50 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 text-[#F5A000] flex items-center justify-center shrink-0">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="font-bold text-[#202936]">Account Password</p>
+                  <p className="text-[11px] text-[#788391]">
+                    Regularly update your password to protect your academic records and prevent compromised credentials.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPasswordModalOpen(true)}
+              >
+                Change Password
+              </Button>
+            </div>
+          </Card>
         </div>
       </div>
+
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
 
       {/* Profile Correction Request Modal */}
       <Modal

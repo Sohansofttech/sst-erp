@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
+import Link from "next/link";
 import {
   School,
   Lock,
@@ -311,6 +312,14 @@ function LoginForm() {
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
+                </div>
+                <div className="flex items-center justify-end mt-1.5">
+                  <Link
+                    href="/forgot-password"
+                    className="text-[11px] font-semibold text-[#123B5A] hover:text-[#F5A000] transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
               </div>
 

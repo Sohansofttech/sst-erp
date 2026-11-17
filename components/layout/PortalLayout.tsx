@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -125,6 +126,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
           onSelectChild={handleSelect}
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}
         />
+
+        <MustChangePasswordBanner />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl w-full mx-auto space-y-6">

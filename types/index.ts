@@ -10,6 +10,7 @@ export interface SessionUser {
   studentId?: string; // Present if role is STUDENT
   guardianId?: string; // Present if role is PARENT
   activeChildId?: string; // Currently active child for PARENT
+  mustChangePassword?: boolean; // Force password change flag
 }
 
 export interface ApiResponse<T = any> {

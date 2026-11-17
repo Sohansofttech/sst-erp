@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import db from "@/lib/db";
 import { signToken, AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
+import { isDefaultOrTemporaryPassword, checkPwnedPassword } from "@/lib/auth/password-security";
 import { SessionUser } from "@/types";
 
 export async function POST(req: NextRequest) {
@@ -153,6 +154,17 @@ export async function POST(req: NextRequest) {
     }
 
     const institutionName = user.institution?.name || "";
+    let mustChangePassword = false;
+    if (password) {
+      if (isDefaultOrTemporaryPassword(password)) {
+        mustChangePassword = true;
+      } else {
+        const pwned = await checkPwnedPassword(password);
+        if (pwned.compromised) {
+          mustChangePassword = true;
+        }
+      }
+    }
 
     const sessionUser: SessionUser = {
       userId: user.id,
@@ -164,6 +176,7 @@ export async function POST(req: NextRequest) {
       studentId,
       guardianId,
       activeChildId,
+      mustChangePassword,
     };
 
     const token = await signToken(sessionUser);
@@ -184,11 +197,22 @@ export async function POST(req: NextRequest) {
         user: sessionUser,
         token,
         redirectUrl,
+        mustChangePassword,
       },
     });
 
     response.cookies.set({
       name: AUTH_COOKIE_NAME,
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
+
+    response.cookies.set({
+      name: "sst_session",
       value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
