@@ -123,14 +123,14 @@ export function AdminDashboard({ summary, demoData, unavailable = false, filters
 
   return (
     <>
-      <form className="sa-date-filter" action="/admin"><div><strong>Dashboard activity period</strong><span>Institution registrations and audit activity are filtered; headline totals remain platform-wide.</span></div><label>From<input type="date" name="from" defaultValue={filters.from} /></label><label>To<input type="date" name="to" defaultValue={filters.to} /></label><button className="sa-button sa-button-secondary">Apply</button><Link className="sa-small-link" href="/admin">Clear</Link></form>
+      <form className="sa-date-filter" action="/super-admin"><div><strong>Dashboard activity period</strong><span>Institution registrations and audit activity are filtered; headline totals remain platform-wide.</span></div><label>From<input type="date" name="from" defaultValue={filters.from} /></label><label>To<input type="date" name="to" defaultValue={filters.to} /></label><button className="sa-button sa-button-secondary">Apply</button><Link className="sa-small-link" href="/super-admin">Clear</Link></form>
       <section className="sa-welcome" aria-labelledby="welcome-title">
         <div><h2 id="welcome-title">Welcome to your platform overview</h2><p>Live platform metrics from the SST-ERP database.</p></div>
         <div className="sa-live-badge"><span className="sa-live-dot" /> LIVE DATA</div>
       </section>
       <section className="sa-stats" aria-label="Live platform statistics">
         {stats.map(({ label, value, note, icon: Icon, color, background }, index) => (
-          <Link className="sa-card sa-stat sa-stat-link" key={label} href={["/admin/institutions", "/admin/billing", "/admin/users", "/admin/billing"][index]}>
+          <Link className="sa-card sa-stat sa-stat-link" key={label} href={["/super-admin/institutions", "/super-admin/billing", "/super-admin/users", "/super-admin/billing"][index]}>
             <div className="sa-stat-top"><span className="sa-stat-label">{label}</span><span className="sa-stat-icon" style={{ color, background }}><Icon size={18} /></span></div>
             <div className="sa-stat-value">{value}</div><div className="sa-stat-note">{note}</div>
           </Link>
@@ -176,7 +176,7 @@ export function AdminDashboard({ summary, demoData, unavailable = false, filters
           {summary.expiringSubscriptions.length > 0 && <div className="sa-expiry-list">{summary.expiringSubscriptions.map((subscription) => <div key={subscription.id}>{subscription.institution.name} · {formatDate(subscription.endsAt)}</div>)}</div>}
         </article>
       </section>
-      <section className="sa-card sa-panel sa-notification-overview"><div className="sa-panel-heading"><div><h3>Platform notifications</h3><div className="sa-panel-subtitle">Published in the platform; no external delivery is implied</div></div><Link className="sa-small-link" href="/admin/notifications">Manage</Link></div>{summary.recentNotifications.length === 0 ? <div className="sa-empty-state">No platform announcements have been published.</div> : <div className="sa-data-list">{summary.recentNotifications.map((notice) => <div className="sa-data-row" key={notice.id}><span className="sa-list-icon sa-list-icon-teal"><Megaphone size={16} /></span><div className="sa-data-main"><strong>{notice.title}</strong><span>{notice.status} · {formatDate(notice.createdAt)}</span></div></div>)}</div>}</section>
+      <section className="sa-card sa-panel sa-notification-overview"><div className="sa-panel-heading"><div><h3>Platform notifications</h3><div className="sa-panel-subtitle">Published in the platform; no external delivery is implied</div></div><Link className="sa-small-link" href="/super-admin/notifications">Manage</Link></div>{summary.recentNotifications.length === 0 ? <div className="sa-empty-state">No platform announcements have been published.</div> : <div className="sa-data-list">{summary.recentNotifications.map((notice) => <div className="sa-data-row" key={notice.id}><span className="sa-list-icon sa-list-icon-teal"><Megaphone size={16} /></span><div className="sa-data-main"><strong>{notice.title}</strong><span>{notice.status} · {formatDate(notice.createdAt)}</span></div></div>)}</div>}</section>
     </>
   );
 }

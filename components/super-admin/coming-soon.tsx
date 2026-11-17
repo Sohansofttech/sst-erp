@@ -9,7 +9,7 @@ export function ComingSoon({ title, description }: { title: string; description:
         <span className="sa-coming-eyebrow"><Clock3 size={14} /> COMING SOON</span>
         <h2 id="coming-soon-title">{title}</h2>
         <p>{description}</p>
-        <Link className="sa-back-link" href="/admin"><ArrowLeft size={16} /> Back to Dashboard</Link>
+        <Link className="sa-back-link" href="/super-admin"><ArrowLeft size={16} /> Back to Dashboard</Link>
       </div>
     </section>
   );

@@ -44,20 +44,20 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const [academicsOpen, setAcademicsOpen] = useState(
-    pathname.startsWith("/institution-admin/academics") || pathname === "/institution-admin"
+    pathname.startsWith("/admin/academics") || pathname === "/admin"
   );
 
-  const isAcademicsActive = pathname.startsWith("/institution-admin/academics");
+  const isAcademicsActive = pathname.startsWith("/admin/academics");
 
-  const placeholderLinks = [
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/fees-finance", label: "Fees & Finance", icon: CreditCard },
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/hostel", label: "Hostel", icon: Home },
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/transport", label: "Transport", icon: Bus },
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/events-resources", label: "Events & Resources", icon: CalendarDays },
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/gate-management", label: "Gate Management", icon: Shield },
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/communication", label: "Communication", icon: MessageSquare },
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/approvals", label: "Approvals", icon: CheckSquare },
-    { section: "Campus Services & Finance", href: "/institution-admin/placeholder/audit-logs", label: "Audit Logs", icon: History },
+  const campusServiceLinks = [
+    { href: "/admin/fees", label: "Fees & Finance", icon: CreditCard },
+    { href: "/admin/hostel", label: "Hostel", icon: Home },
+    { href: "/admin/transport", label: "Transport", icon: Bus },
+    { href: "/admin/events", label: "Events & Resources", icon: CalendarDays },
+    { href: "/admin/gate-management", label: "Gate Management", icon: Shield },
+    { href: "/admin/communication", label: "Communication", icon: MessageSquare },
+    { href: "/admin/approvals", label: "Approvals", icon: CheckSquare },
+    { href: "/admin/audit-logs", label: "Audit Logs", icon: History },
   ];
 
   return (
@@ -65,80 +65,74 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#0F172A]/50 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-[#0D2B42]/60 backdrop-blur-xs lg:hidden"
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar Panel - Fixed/Sticky on Desktop, Scrollable Independently */}
+      {/* Sidebar Panel - Fixed Deep Navy Blue Vertical Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#153B66] text-white flex flex-col transition-transform duration-300 ease-in-out shadow-xl",
+          "fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#123B5A] text-white flex flex-col transition-transform duration-300 ease-in-out shadow-xl",
           "lg:static lg:h-full lg:shrink-0 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Brand / Logo Area (Fixed Top) */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-[#1E4D82] bg-[#0E2847] shrink-0">
-          <Link href="/institution-admin" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#2563EB] flex items-center justify-center font-black text-white text-base shadow-xs">
+        <div className="flex items-center justify-between h-16 px-5 border-b border-[#16466C] bg-[#0D2B42] shrink-0">
+          <Link href="/admin" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#F5A000] flex items-center justify-center font-black text-white text-base shadow-xs">
               SST
             </div>
             <div>
               <span className="text-sm font-extrabold tracking-wide text-white block leading-tight">
                 SST ERP
               </span>
-              <span className="text-[10px] uppercase font-bold text-[#14B8A6] tracking-wider block">
+              <span className="text-[10px] uppercase font-bold text-[#8EA4C2] tracking-wider block">
                 Institution Admin
               </span>
             </div>
           </Link>
-          <span className="text-[10px] font-semibold bg-[#14B8A6]/20 text-[#14B8A6] border border-[#14B8A6]/40 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-semibold bg-[#F5A000]/30 text-white border border-[#F5A000]/60 px-1.5 py-0.5 rounded">
             Admin
           </span>
         </div>
 
-        {/* Navigation Items (Scrollable independently from main content) */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        {/* Navigation Items (Scrollable independently with white icons and text) */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
           {/* Section: Main Administration */}
-          <div className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
+          <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
             Main Administration
           </div>
 
           {/* 1. Dashboard */}
           <Link
-            href="/institution-admin"
+            href="/admin"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname === "/institution-admin"
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <LayoutDashboard className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <LayoutDashboard className="w-4 h-4 shrink-0 text-white" />
             <span>Dashboard</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
           {/* 2. Institution Settings */}
           <Link
-            href="/institution-admin/settings"
+            href="/admin/settings"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname === "/institution-admin/settings"
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname === "/admin/settings"
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Settings className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <Settings className="w-4 h-4 shrink-0 text-white" />
             <span>Institution Settings</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
           {/* 3. Academics Collapsible Group */}
@@ -148,407 +142,328 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               className={cn(
                 "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
                 isAcademicsActive
-                  ? "bg-[#1E4D82] text-white"
-                  : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+                  ? "bg-[#16466C] text-white"
+                  : "text-white hover:bg-[#16466C] hover:text-white"
               )}
             >
               <div className="flex items-center gap-3">
-                <GraduationCap className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+                <GraduationCap className="w-4 h-4 shrink-0 text-white" />
                 <span>Academics</span>
               </div>
               <ChevronDown
                 className={cn(
-                  "w-3.5 h-3.5 text-[#93C5FD] transition-transform duration-200",
+                  "w-3.5 h-3.5 text-white/80 transition-transform duration-200",
                   academicsOpen && "rotate-180"
                 )}
               />
             </button>
 
             {academicsOpen && (
-              <div className="mt-1 ml-4 pl-3 border-l border-[#1E4D82] space-y-1">
+              <div className="mt-1 ml-4 pl-3 border-l border-[#16466C] space-y-1">
+                {/* 3.1 Academic Years */}
                 <Link
-                  href="/institution-admin/academics/academic-years"
+                  href="/admin/academics/academic-years"
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/institution-admin/academics/academic-years"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
+                    pathname.startsWith("/admin/academics/academic-years")
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <Calendar className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
                   <span>Academic Years</span>
                 </Link>
 
+                {/* 3.2 Departments */}
                 <Link
-                  href="/institution-admin/academics/courses"
+                  href="/admin/academics/departments"
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/institution-admin/academics/courses"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
+                    pathname.startsWith("/admin/academics/departments")
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-[#93C5FD]" />
-                  <span>Courses & Programs</span>
-                </Link>
-
-                <Link
-                  href="/institution-admin/academics/departments"
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/institution-admin/academics/departments"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
-                  )}
-                >
-                  <Building className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <Building className="w-3.5 h-3.5 text-white shrink-0" />
                   <span>Departments</span>
                 </Link>
 
+                {/* 3.3 Programs & Courses */}
                 <Link
-                  href="/institution-admin/academics/classes"
+                  href="/admin/academics/courses"
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/institution-admin/academics/classes"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
+                    pathname.startsWith("/admin/academics/courses")
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <Layers className="w-3.5 h-3.5 text-[#93C5FD]" />
+                  <BookOpen className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span>Programs & Courses</span>
+                </Link>
+
+                {/* 3.4 Classes & Sections */}
+                <Link
+                  href="/admin/academics/classes"
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
+                    pathname.startsWith("/admin/academics/classes")
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
+                  )}
+                >
+                  <Layers className="w-3.5 h-3.5 text-white shrink-0" />
                   <span>Classes & Sections</span>
                 </Link>
 
+                {/* 3.5 Subjects */}
                 <Link
-                  href="/institution-admin/academics/subjects"
+                  href="/admin/academics/subjects"
                   onClick={onClose}
                   className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    pathname === "/institution-admin/academics/subjects"
-                      ? "bg-[#2563EB] text-white font-semibold"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
+                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
+                    pathname.startsWith("/admin/academics/subjects")
+                      ? "bg-[#F5A000] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
                   )}
                 >
-                  <BookMarked className="w-3.5 h-3.5 text-[#93C5FD]" />
-                  <span>Subjects</span>
+                  <BookMarked className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span>Subject Master</span>
                 </Link>
               </div>
             )}
           </div>
 
-          {/* 4. Roles & Permissions */}
+          {/* 4. Admissions */}
           <Link
-            href="/institution-admin/roles-permissions"
+            href="/admin/admissions"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname === "/institution-admin/roles-permissions"
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/admissions")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <ShieldAlert className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Roles & Permissions</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
-          </Link>
-
-          {/* Section: People & Governance */}
-          <div className="pt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
-            People & Governance
-          </div>
-
-          {/* 5. Admissions */}
-          <Link
-            href="/institution-admin/admissions"
-            onClick={onClose}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/admissions")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
-            )}
-          >
-            <UserPlus className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <UserPlus className="w-4 h-4 shrink-0 text-white" />
             <span>Admissions</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* 6. Students */}
+          {/* Section: People & Workload */}
+          <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
+            People & Workload
+          </div>
+
+          {/* 5. Students */}
           <Link
-            href="/institution-admin/students"
+            href="/admin/students"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/students")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/students")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Users className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <Users className="w-4 h-4 shrink-0 text-white" />
             <span>Students</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* 7. Guardians */}
+          {/* 6. Guardians */}
           <Link
-            href="/institution-admin/guardians"
+            href="/admin/guardians"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/guardians")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/guardians")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <HeartHandshake className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <HeartHandshake className="w-4 h-4 shrink-0 text-white" />
             <span>Guardians</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* 8. Staff Management */}
+          {/* 7. Faculty & Staff */}
           <Link
-            href="/institution-admin/staff"
+            href="/admin/staff"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/staff")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/staff")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Briefcase className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Staff Management</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <Briefcase className="w-4 h-4 shrink-0 text-white" />
+            <span>Faculty & Staff</span>
           </Link>
 
-          {/* Section: Operations & Assessments */}
-          <div className="pt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
-            Operations & Assessments
+          {/* 8. Roles & Permissions */}
+          <Link
+            href="/admin/roles-permissions"
+            onClick={onClose}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+              pathname.startsWith("/admin/roles-permissions")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
+            )}
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0 text-white" />
+            <span>Roles & Permissions</span>
+          </Link>
+
+          {/* Section: Academic Operations */}
+          <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
+            Academic Operations
           </div>
 
-          {/* Timetable Management */}
+          {/* 9. Timetable */}
           <Link
-            href="/institution-admin/timetable"
+            href="/admin/timetable"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/timetable")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/timetable")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Clock className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <Clock className="w-4 h-4 shrink-0 text-white" />
             <span>Timetable</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* Attendance Management */}
+          {/* 10. Attendance */}
           <Link
-            href="/institution-admin/attendance"
+            href="/admin/attendance"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/attendance")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/attendance")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <CalendarCheck className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <CalendarCheck className="w-4 h-4 shrink-0 text-white" />
             <span>Attendance</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* Examinations Management */}
+          {/* 11. Examinations */}
           <Link
-            href="/institution-admin/examinations"
+            href="/admin/examinations"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/examinations")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/examinations")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <FileSpreadsheet className="w-4 h-4 shrink-0 text-[#93C5FD]" />
+            <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
             <span>Examinations</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
           </Link>
 
-          {/* Internal Assessments (Phase 4A) */}
+          {/* 12. Internal Assessment (IA) */}
           <Link
-            href="/institution-admin/ia"
+            href="/admin/ia"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/ia")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/ia")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <Award className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Internal Assessments</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <Award className="w-4 h-4 shrink-0 text-white" />
+            <span>Internal Assessment</span>
           </Link>
 
-          {/* Results & Grade Cards (Phase 4C) */}
+          {/* 13. Results */}
           <Link
-            href="/institution-admin/results"
+            href="/admin/results"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/results")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/results")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <GraduationCap className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Results & Grade Cards</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <GraduationCap className="w-4 h-4 shrink-0 text-white" />
+            <span>Results & Grading</span>
           </Link>
 
-          {/* Promotions & Academic Standing (Phase 4D) */}
+          {/* 14. Promotions */}
           <Link
-            href="/institution-admin/promotions"
+            href="/admin/promotions"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/promotions")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/promotions")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <TrendingUp className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Promotions & Standing</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <TrendingUp className="w-4 h-4 shrink-0 text-white" />
+            <span>Student Promotions</span>
           </Link>
 
-          {/* Certificates & Degrees (Phase 4E) */}
+          {/* 15. Certificates */}
           <Link
-            href="/institution-admin/certificates"
+            href="/admin/certificates"
             onClick={onClose}
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/institution-admin/certificates")
-                ? "bg-[#2563EB] text-white shadow-xs"
-                : "text-[#E2E8F0] hover:bg-[#1E4D82] hover:text-white"
+              pathname.startsWith("/admin/certificates")
+                ? "bg-[#F5A000] text-white shadow-xs"
+                : "text-white hover:bg-[#16466C] hover:text-white"
             )}
           >
-            <FileText className="w-4 h-4 shrink-0 text-[#93C5FD]" />
-            <span>Certificates & Degrees</span>
-            <span className="ml-auto text-[10px] bg-[#14B8A6] text-white px-1.5 py-0.2 rounded font-bold">
-              Active
-            </span>
+            <FileText className="w-4 h-4 shrink-0 text-white" />
+            <span>Certificates</span>
           </Link>
 
-          {placeholderLinks
-            .filter((item) => item.section === "Operations & Assessments")
-            .map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
-                    isActive
-                      ? "bg-[#2563EB] text-white font-semibold shadow-xs"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="w-3.5 h-3.5 text-[#93C5FD]" />
-                    <span>{item.label}</span>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                      isActive
-                        ? "bg-white/20 text-white font-bold"
-                        : "text-[#93C5FD]/60 bg-white/5"
-                    )}
-                  >
-                    Soon
-                  </span>
-                </Link>
-              );
-            })}
-
-          {/* Section: Campus Services & Finance */}
-          <div className="pt-3 px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#93C5FD]/60">
-            Campus Services & Finance
+          {/* Section: Campus Services & Administration */}
+          <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
+            Campus Services & Administration
           </div>
 
-          {placeholderLinks
-            .filter((item) => item.section === "Campus Services & Finance")
-            .map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
-                    isActive
-                      ? "bg-[#2563EB] text-white font-semibold shadow-xs"
-                      : "text-[#CBD5E1] hover:bg-[#1E4D82] hover:text-white"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="w-3.5 h-3.5 text-[#93C5FD]" />
-                    <span>{item.label}</span>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                      isActive
-                        ? "bg-white/20 text-white font-bold"
-                        : "text-[#93C5FD]/60 bg-white/5"
-                    )}
-                  >
-                    Soon
-                  </span>
-                </Link>
-              );
-            })}
+          {/* Campus Services Links (Real Functional Modules) */}
+          {campusServiceLinks.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors",
+                  isActive
+                    ? "bg-[#F5A000] text-white font-semibold shadow-xs"
+                    : "text-white hover:bg-[#16466C] hover:text-white"
+                )}
+              >
+                <Icon className="w-4 h-4 shrink-0 text-white" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </div>
 
-        {/* Footer info (Fixed Bottom) */}
-        <div className="p-3 border-t border-[#1E4D82] bg-[#0E2847]/80 text-[11px] text-[#93C5FD] shrink-0">
-          <div className="flex items-center gap-1.5 font-semibold text-white">
-            <Sparkles className="w-3.5 h-3.5 text-[#14B8A6]" />
-            <span>Institution Portal</span>
+        {/* Sidebar Footer */}
+        <div className="p-3 border-t border-[#16466C] bg-[#0D2B42] text-[11px] text-[#8EA4C2] shrink-0">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" />
+            <span className="font-semibold text-white">Academic Year</span>
           </div>
-          <p className="text-[10px] text-[#94A3B8] mt-0.5">
-            SST ERP • Administration Suite
+          <p className="text-[10px] text-[#8EA4C2] mt-0.5">
+            AY 2026-2027 • Central Campus
           </p>
         </div>
       </aside>

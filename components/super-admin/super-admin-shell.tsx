@@ -12,18 +12,18 @@ import { superAdminNavigation } from "@/components/super-admin/navigation-items"
 import { LogoutButton } from "@/components/super-admin/logout-button";
 
 const navigationIcons: Record<string, LucideIcon> = {
-  "/admin": LayoutDashboard, "/admin/institutions": Building2, "/admin/onboarding": ClipboardList,
-  "/admin/subscription-plans": CreditCard, "/admin/billing": CreditCard, "/admin/branding": Palette,
-  "/admin/domains": Globe2, "/admin/modules": Puzzle, "/admin/usage": Activity,
-  "/admin/users": Users, "/admin/support": CircleHelp, "/admin/support-access": KeyRound,
-  "/admin/notifications": Megaphone, "/admin/audit-logs": ShieldCheck,
-  "/admin/deletion": Archive, "/admin/settings": Settings2,
+  "/super-admin": LayoutDashboard, "/super-admin/institutions": Building2, "/super-admin/onboarding": ClipboardList,
+  "/super-admin/subscription-plans": CreditCard, "/super-admin/billing": CreditCard, "/super-admin/branding": Palette,
+  "/super-admin/domains": Globe2, "/super-admin/modules": Puzzle, "/super-admin/usage": Activity,
+  "/super-admin/users": Users, "/super-admin/support": CircleHelp, "/super-admin/support-access": KeyRound,
+  "/super-admin/notifications": Megaphone, "/super-admin/audit-logs": ShieldCheck,
+  "/super-admin/deletion": Archive, "/super-admin/settings": Settings2,
 };
 
 export function SuperAdminShell({ children, userEmail, developmentMode = false }: { children: React.ReactNode; userEmail: string; developmentMode?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
-  const activeItem = superAdminNavigation.find((item) => item.href === pathname || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`))) ?? superAdminNavigation[0];
+  const activeItem = superAdminNavigation.find((item) => item.href === pathname || (item.href !== "/super-admin" && pathname.startsWith(`${item.href}/`))) ?? superAdminNavigation[0];
 
   return (
     <div className="super-admin">

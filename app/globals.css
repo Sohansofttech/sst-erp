@@ -66,12 +66,14 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Team Member 3: Institution Admin Portal Design Tokens */
-  --color-primary-navy: #153B66;
-  --color-primary-blue: #2563EB;
-  --color-secondary-teal: #14B8A6;
-  --color-bg-main: #F8FAFC;
+  /* Reference Image Design Tokens (SST-ERP Institution Admin Theme - PDF Spec) */
+  --color-primary-navy: #123B5A;
+  --color-primary-blue: #F5A000;
+  --color-accent-orange: #F5A000;
+  --color-accent-yellow: #F5A000;
+  --color-bg-main: #EEF1F5;
   --color-card-bg: #FFFFFF;
+  --color-card-border: #E2E8F0;
   --color-text-primary: #1E293B;
   --color-text-secondary: #64748B;
   --color-status-success: #16A34A;
@@ -128,6 +130,19 @@
   --erp-warning: #F5A000;
   --erp-error: #DC2626;
 
+  /* Reference Design System Tokens (PDF Spec Final Theme) */
+  --primary-navy: #123B5A;
+  --primary-blue: #F5A000;
+  --accent-orange: #F5A000;
+  --accent-yellow: #F5A000;
+  --bg-main: #EEF1F5;
+  --card-bg: #FFFFFF;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --status-success: #16A34A;
+  --status-warning: #F59E0B;
+  --status-error: #DC2626;
+
   /* Charts */
   --chart-1: #16466C;
   --chart-2: #F5A000;
@@ -140,9 +155,9 @@
   --sidebar-foreground: #FFFFFF;
   --sidebar-primary: #F5A000;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1B4D70;
+  --sidebar-accent: #16466C;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #1B4D70;
+  --sidebar-border: #16466C;
   --sidebar-ring: #F5A000;
 }
 

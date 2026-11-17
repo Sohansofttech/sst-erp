@@ -27,9 +27,11 @@ const badgeVariants = cva(
         error:
           "border-[#FECACA] bg-[#FEE2E2] text-[#DC2626]",
         info:
-          "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
+          "border-[#FDE68A] bg-[#FEF3C7] text-[#D97706]",
         navy:
-          "border-[#C7D2FE] bg-[#E0E7FF] text-[#153B66]",
+          "border-[#16466C]/30 bg-[#EEF1F5] text-[#123B5A]",
+        orange:
+          "border-[#FDE68A] bg-[#FEF3C7] text-[#F5A000]",
         neutral:
           "border-[#E2E8F0] bg-[#F1F5F9] text-[#64748B]",
       },
