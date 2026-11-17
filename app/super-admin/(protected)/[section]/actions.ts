@@ -359,10 +359,11 @@ export async function issueInvoice(formData: FormData) {
 export async function requestDeletion(formData: FormData) {
   const actor = await requireSuperAdmin();
   if (!actor.id) throw new Error("Deletion requests require an identified requester. Sign in with a provisioned Super Admin account.");
+  const actorId = actor.id;
   const input = z.object({ institutionId: z.uuid(), reason: z.string().trim().min(20).max(2000) }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("A valid institution and a deletion reason of at least 20 characters are required.");
   await prisma.$transaction(async (tx) => {
-    const request = await tx.institutionDeletionRequest.create({ data: { institutionId: input.data.institutionId, requestedById: actor.id, reason: input.data.reason } });
+    const request = await tx.institutionDeletionRequest.create({ data: { institutionId: input.data.institutionId, requestedById: actorId, reason: input.data.reason } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "INSTITUTION_DELETION_REQUESTED", entity: "InstitutionDeletionRequest", entityId: request.id, result: "SUCCESS" } });
   });
   revalidatePath("/super-admin/deletion");
@@ -399,6 +400,7 @@ export async function reviewDeletionRequest(formData: FormData) {
 export async function requestSupportAccess(formData: FormData) {
   const actor = await requireSuperAdmin();
   if (!actor.id) throw new Error("Support access requests require an identified requester. Sign in with a provisioned Super Admin account.");
+  const actorId = actor.id;
   const input = z.object({ institutionId: z.uuid(), ticketId: z.union([z.uuid(), z.literal("")]).optional(), reason: z.string().trim().min(20).max(2000), durationHours: z.coerce.number().int().min(1).max(8) }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("Provide an institution, a detailed reason and a duration of at most eight hours.");
   const expiresAt = new Date(Date.now() + input.data.durationHours * 60 * 60 * 1000);
@@ -407,7 +409,7 @@ export async function requestSupportAccess(formData: FormData) {
     if (!ticket || ticket.institutionId !== input.data.institutionId) throw new Error("The support ticket must belong to the selected institution.");
   }
   await prisma.$transaction(async (tx) => {
-    const session = await tx.supportAccessSession.create({ data: { institutionId: input.data.institutionId, ticketId: input.data.ticketId || null, requestedById: actor.id, reason: input.data.reason, allowedActions: ["READ_SUPPORT_CONTEXT"], expiresAt } });
+    const session = await tx.supportAccessSession.create({ data: { institutionId: input.data.institutionId, ticketId: input.data.ticketId || null, requestedById: actorId, reason: input.data.reason, allowedActions: ["READ_SUPPORT_CONTEXT"], expiresAt } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUPPORT_ACCESS_REQUESTED", entity: "SupportAccessSession", entityId: session.id, result: "SUCCESS" } });
   });
   revalidatePath("/super-admin/support-access");
