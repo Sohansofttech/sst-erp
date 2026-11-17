@@ -48,22 +48,22 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-[#153B66]/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-[#123B5A]/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white rounded-xl shadow-2xl border border-[#E2E8F0] overflow-hidden transform transition-all z-10 my-8`}
+        className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white rounded-xl shadow-2xl border border-[#E5E9EF] overflow-hidden transform transition-all z-10 my-8`}
       >
-        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
+        <div className="px-6 py-4 border-b border-[#E5E9EF] flex items-center justify-between bg-[#EEF1F5]">
           <div>
-            <h3 className="text-[18px] font-semibold text-[#1E293B]">{title}</h3>
-            {subtitle && <p className="text-xs text-[#64748B] mt-0.5">{subtitle}</p>}
+            <h3 className="text-[18px] font-semibold text-[#202936]">{title}</h3>
+            {subtitle && <p className="text-xs text-[#788391] mt-0.5">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-[#64748B] hover:text-[#1E293B] hover:bg-[#E2E8F0] transition-colors"
+            className="p-1 rounded-lg text-[#788391] hover:text-[#202936] hover:bg-[#E5E9EF] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -72,7 +72,7 @@ export const Modal: React.FC<ModalProps> = ({
         <div className="p-6 max-h-[75vh] overflow-y-auto">{children}</div>
 
         {footer && (
-          <div className="px-6 py-3.5 bg-[#F8FAFC] border-t border-[#E2E8F0] flex justify-end gap-3">
+          <div className="px-6 py-3.5 bg-[#EEF1F5] border-t border-[#E5E9EF] flex justify-end gap-3">
             {footer}
           </div>
         )}
@@ -80,4 +80,3 @@ export const Modal: React.FC<ModalProps> = ({
     </div>
   );
 };
-

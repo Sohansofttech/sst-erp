@@ -86,9 +86,10 @@ export function StatCard({
         <div className="min-w-0 space-y-1.5">
           <p
             className={cn(
-              "truncate text-[13px] font-medium",
-              isDark ? "text-white/75" : "text-[#788391]"
+              "truncate text-[13px] font-semibold tracking-normal",
+              isDark ? "text-white/80" : "text-[#788391]"
             )}
+            title={displayTitle}
           >
             {displayTitle}
           </p>

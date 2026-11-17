@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { createInstitution, type InstitutionFormState } from "@/app/admin/(portal)/institutions/actions";
+import { createInstitution, type InstitutionFormState } from "@/app/super-admin/institutions/actions";
 
 const initial: InstitutionFormState = { error: null, success: null };
 

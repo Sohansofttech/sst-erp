@@ -64,7 +64,7 @@ export default function ParentFeesPage() {
           title="Total Fee"
           value={`₹${summary?.totalFees?.toLocaleString() ?? 0}`}
           subtitle="Semester 5 total"
-          icon={<CreditCard className="w-5 h-5 text-[#153B66]" />}
+          icon={<CreditCard className="w-5 h-5 text-[#F59E0B]" />}
         />
         <StatCard
           title="Total Settled"
@@ -91,12 +91,12 @@ export default function ParentFeesPage() {
             {invoices?.map((inv: any) => (
               <div
                 key={inv.id}
-                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-3 text-xs"
+                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-3 text-xs"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-[#153B66]">{inv.invoiceNumber}</span>
+                      <span className="font-bold text-[#0F2942]">{inv.invoiceNumber}</span>
                       <Badge variant={inv.status === "PAID" ? "success" : "warning"} size="sm">
                         {inv.status}
                       </Badge>
@@ -182,4 +182,3 @@ export default function ParentFeesPage() {
     </PortalLayout>
   );
 }
-

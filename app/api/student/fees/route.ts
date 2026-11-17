@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
     const url = new URL(req.url);
-    const requestedStudentId = url.searchParams.get("studentId") || session.studentId;
+    const requestedStudentId = url.searchParams.get("studentId") || session.studentId || session.activeChildId;
 
     if (!requestedStudentId) {
       return NextResponse.json({ success: false, error: "Missing student ID" }, { status: 400 });
@@ -85,4 +85,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

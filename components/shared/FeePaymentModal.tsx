@@ -98,10 +98,10 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
           </div>
         )}
 
-        <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0]">
-          <div className="flex justify-between items-center text-xs text-[#64748B]">
+        <div className="bg-[#EEF1F5] p-4 rounded-xl border border-[#E5E9EF]">
+          <div className="flex justify-between items-center text-xs text-[#788391]">
             <span>Outstanding Balance</span>
-            <span className="font-semibold text-[#1E293B]">
+            <span className="font-semibold text-[#202936]">
               ₹{invoice.outstandingAmount.toLocaleString()}
             </span>
           </div>
@@ -119,7 +119,7 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
         </div>
 
         <div>
-          <label className="block text-[13px] font-medium text-[#1E293B] mb-2">
+          <label className="block text-[13px] font-medium text-[#202936] mb-2">
             Select Payment Method
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -128,8 +128,8 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               onClick={() => setMethod("UPI")}
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "UPI"
-                  ? "border-[#2563EB] bg-blue-50/50 text-[#2563EB] font-semibold"
-                  : "border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B]"
+                  ? "border-[#F5A000] bg-[#FFFBEB] text-[#D97706] font-semibold"
+                  : "border-[#E5E9EF] hover:bg-[#EEF1F5] text-[#788391]"
               }`}
             >
               <Smartphone className="w-5 h-5 mx-auto mb-1" />
@@ -140,8 +140,8 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               onClick={() => setMethod("NET_BANKING")}
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "NET_BANKING"
-                  ? "border-[#2563EB] bg-blue-50/50 text-[#2563EB] font-semibold"
-                  : "border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B]"
+                  ? "border-[#F5A000] bg-[#FFFBEB] text-[#D97706] font-semibold"
+                  : "border-[#E5E9EF] hover:bg-[#EEF1F5] text-[#788391]"
               }`}
             >
               <Building className="w-5 h-5 mx-auto mb-1" />
@@ -152,8 +152,8 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
               onClick={() => setMethod("CREDIT_CARD")}
               className={`p-3 rounded-xl border text-center transition-all ${
                 method === "CREDIT_CARD"
-                  ? "border-[#2563EB] bg-blue-50/50 text-[#2563EB] font-semibold"
-                  : "border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#64748B]"
+                  ? "border-[#F5A000] bg-[#FFFBEB] text-[#D97706] font-semibold"
+                  : "border-[#E5E9EF] hover:bg-[#EEF1F5] text-[#788391]"
               }`}
             >
               <CreditCard className="w-5 h-5 mx-auto mb-1" />
@@ -201,4 +201,3 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
     </Modal>
   );
 };
-

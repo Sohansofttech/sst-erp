@@ -9,7 +9,7 @@ export async function requireSuperAdmin() {
 
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) redirect("/admin/login");
+  if (error || !user) redirect("/super-admin/login");
   if (!(await hasSuperAdminRole(user.id))) throw new Error("Super Admin access is required.");
   return { id: user.id, email: user.email ?? null, developmentMode: false as const };
 }

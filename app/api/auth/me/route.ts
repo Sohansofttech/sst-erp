@@ -46,6 +46,22 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Retrieve live institution name from DB so any updates made by Admin/Super Admin immediately reflect in the portal
+    const targetInstitutionId = session.institutionId || additionalInfo.student?.institutionId;
+    if (targetInstitutionId) {
+      try {
+        const inst = await db.institution.findUnique({
+          where: { id: targetInstitutionId },
+          select: { name: true },
+        });
+        if (inst?.name) {
+          session.institutionName = inst.name;
+        }
+      } catch (err) {
+        console.warn("Live institution name fetch error:", err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -76,4 +92,3 @@ export async function POST() {
 
   return response;
 }
-

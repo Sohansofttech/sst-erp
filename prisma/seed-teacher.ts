@@ -726,7 +726,7 @@ async function main() {
       DO $$
       BEGIN
         IF NOT EXISTS (
-          SELECT 1 FROM pg_policies 
+          SELECT 1 FROM pg_policies
           WHERE tablename = 'objects' AND policyname = 'Public Access Course Materials'
         ) THEN
           CREATE POLICY "Public Access Course Materials" ON storage.objects

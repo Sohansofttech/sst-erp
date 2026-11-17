@@ -13,7 +13,17 @@ export async function getSession(req?: NextRequest): Promise<SessionUser | null>
     } else {
       token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
     }
-  } else {
+
+    if (!token) {
+      const rawCookie = req.headers.get("cookie");
+      if (rawCookie) {
+        const match = rawCookie.match(new RegExp(`(?:^|; )${AUTH_COOKIE_NAME}=([^;]*)`));
+        if (match) token = decodeURIComponent(match[1]);
+      }
+    }
+  }
+
+  if (!token) {
     try {
       const cookieStore = await cookies();
       token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
@@ -23,7 +33,24 @@ export async function getSession(req?: NextRequest): Promise<SessionUser | null>
   }
 
   if (!token) return null;
-  return await verifyToken(token);
+  const session = await verifyToken(token);
+  if (session && session.role === "PARENT" && req) {
+    const activeChildHeader = req.headers.get("x-active-child");
+    let activeChildCookie = req.cookies.get("erp_active_child")?.value;
+    if (!activeChildCookie) {
+      const rawCookie = req.headers.get("cookie");
+      if (rawCookie) {
+        const match = rawCookie.match(/(?:^|; )erp_active_child=([^;]*)/);
+        if (match) activeChildCookie = decodeURIComponent(match[1]);
+      }
+    }
+    if (activeChildHeader) {
+      session.activeChildId = activeChildHeader;
+    } else if (activeChildCookie) {
+      session.activeChildId = activeChildCookie;
+    }
+  }
+  return session;
 }
 
 export class UnauthorizedError extends Error {
@@ -58,4 +85,3 @@ export async function requireRole(
   }
   return session;
 }
-

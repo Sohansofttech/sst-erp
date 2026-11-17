@@ -51,23 +51,20 @@ export async function POST(req: NextRequest) {
       institutionId = inst.id;
     }
 
-    // Lookup user
+    // Lookup user using safe select to ensure compatibility with PostgreSQL users table
     const user = await db.user.findFirst({
       where: {
         email: email.trim().toLowerCase(),
         ...(institutionId ? { institutionId } : {}),
       },
-      include: {
-        institution: true,
-        studentProfile: true,
-        guardianAccount: {
-          include: {
-            guardianLinks: {
-              where: { isVerified: true, canAccessPortal: true },
-              include: { student: true },
-            },
-          },
-        },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        passwordHash: true,
+        role: true,
+        isActive: true,
+        institutionId: true,
       },
     });
 
@@ -80,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     // Check password if standard login
     if (loginType !== "OTP" && !otp) {
-      const isPwValid = await bcrypt.compare(password, user.passwordHash);
+      const isPwValid = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
       if (!isPwValid) {
         return NextResponse.json(
           { success: false, error: "Invalid email or password." },
@@ -94,34 +91,72 @@ export async function POST(req: NextRequest) {
     let activeChildId: string | undefined;
 
     if (user.role === "STUDENT") {
-      if (!user.studentProfile) {
+      let studentRecord: any = null;
+      try {
+        const students = await db.$queryRaw<any[]>`
+          SELECT id, "institutionId" FROM students WHERE "userId" = ${user.id} LIMIT 1
+        `;
+        studentRecord = students[0] || null;
+      } catch (err) {
+        console.warn("Raw student lookup error:", err);
+      }
+
+      if (!studentRecord) {
         return NextResponse.json(
           { success: false, error: "No student record associated with this account." },
           { status: 403 }
         );
       }
-      studentId = user.studentProfile.id;
+      studentId = studentRecord.id;
     } else if (user.role === "PARENT") {
-      if (!user.guardianAccount) {
+      try {
+        const guardians = await db.$queryRaw<any[]>`
+          SELECT id FROM guardian_accounts WHERE "userId" = ${user.id} LIMIT 1
+        `;
+        if (guardians.length > 0) {
+          guardianId = guardians[0].id;
+          const links = await db.$queryRaw<any[]>`
+            SELECT "studentId" FROM guardian_links
+            WHERE "guardianAccountId" = ${guardianId} AND "isVerified" = true AND "canAccessPortal" = true
+            LIMIT 1
+          `;
+          if (links.length > 0) {
+            activeChildId = links[0].studentId;
+          }
+        }
+      } catch (err) {
+        console.warn("Raw guardian lookup error:", err);
+      }
+
+      if (!guardianId) {
         return NextResponse.json(
           { success: false, error: "No guardian record associated with this account." },
           { status: 403 }
         );
       }
-      guardianId = user.guardianAccount.id;
-      // Default to first linked child
-      if (user.guardianAccount.guardianLinks.length > 0) {
-        activeChildId = user.guardianAccount.guardianLinks[0].studentId;
+    }
+
+    let institutionName = "";
+    if (user.institutionId) {
+      try {
+        const insts = await db.$queryRaw<any[]>`
+          SELECT name FROM institutions WHERE id = ${user.institutionId} LIMIT 1
+        `;
+        if (insts.length > 0) {
+          institutionName = insts[0].name || "";
+        }
+      } catch (err) {
+        console.warn("Raw institution lookup error:", err);
       }
     }
 
     const sessionUser: SessionUser = {
       userId: user.id,
       email: user.email,
-      fullName: user.fullName,
-      role: user.role as any,
-      institutionId: user.institutionId,
-      institutionName: user.institution.name,
+      fullName: user.fullName || "",
+      role: (user.role as any) || "STUDENT",
+      institutionId: user.institutionId || "",
+      institutionName,
       studentId,
       guardianId,
       activeChildId,
@@ -130,10 +165,13 @@ export async function POST(req: NextRequest) {
     const token = await signToken(sessionUser);
 
     // Update last login
-    await db.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    try {
+      await db.$executeRaw`
+        UPDATE users SET "lastLoginAt" = NOW() WHERE id = ${user.id}
+      `;
+    } catch {
+      // Non-critical background update
+    }
 
     const response = NextResponse.json({
       success: true,
@@ -163,4 +201,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

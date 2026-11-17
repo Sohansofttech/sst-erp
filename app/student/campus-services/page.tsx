@@ -42,11 +42,11 @@ export default function CampusServicesPage() {
     try {
       setLoading(true);
       const [hRes, tRes, evRes, resRes, elRes] = await Promise.all([
-        fetch("/api/student/hostel").then((r) => r.json()),
-        fetch("/api/student/transport").then((r) => r.json()),
-        fetch("/api/student/events").then((r) => r.json()),
-        fetch("/api/student/resources").then((r) => r.json()),
-        fetch("/api/student/electives").then((r) => r.json()),
+        fetch("/api/student/hostel", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/transport", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/events", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/resources", { credentials: "include" }).then((r) => r.json()),
+        fetch("/api/student/electives", { credentials: "include" }).then((r) => r.json()),
       ]);
 
       if (hRes.success) setHostel(hRes.data);
@@ -63,6 +63,13 @@ export default function CampusServicesPage() {
 
   useEffect(() => {
     fetchData();
+    const handleChildChanged = () => {
+      fetchData();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handleBookSubmit = async (e: React.FormEvent) => {
@@ -116,7 +123,7 @@ export default function CampusServicesPage() {
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Campus Living & Services">
-        <div className="py-20 text-center text-sm text-[#64748B]">Loading campus services...</div>
+        <div className="py-20 text-center text-sm text-[#788391]">Loading campus services...</div>
       </PortalLayout>
     );
   }
@@ -128,7 +135,7 @@ export default function CampusServicesPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-[#2563EB]" />
+              <Building2 className="w-5 h-5 text-[#F5A000]" />
               <span>Hostel & Residential Allocation</span>
             </div>
           }
@@ -136,33 +143,33 @@ export default function CampusServicesPage() {
         >
           {hostel ? (
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                <span className="text-[#64748B] block">Assigned Hostel Residence</span>
-                <span className="text-sm font-bold text-[#153B66]">{hostel.hostelName}</span>
+              <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
+                <span className="text-[#788391] block">Assigned Hostel Residence</span>
+                <span className="text-sm font-bold text-[#123B5A]">{hostel.hostelName}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                  <span className="text-[#64748B] block">Room Number</span>
-                  <span className="text-sm font-bold text-[#1E293B]">{hostel.roomNumber}</span>
+                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
+                  <span className="text-[#788391] block">Room Number</span>
+                  <span className="text-sm font-bold text-[#202936]">{hostel.roomNumber}</span>
                 </div>
-                <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                  <span className="text-[#64748B] block">Bed Assignment</span>
-                  <span className="text-sm font-bold text-[#1E293B]">{hostel.bedNumber}</span>
+                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
+                  <span className="text-[#788391] block">Bed Assignment</span>
+                  <span className="text-sm font-bold text-[#202936]">{hostel.bedNumber}</span>
                 </div>
               </div>
-              <div className="p-3 bg-white rounded-lg border border-[#E2E8F0] space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-[#1E293B]">
-                  <User className="w-4 h-4 text-[#2563EB]" />
+              <div className="p-3 bg-white rounded-lg border border-[#E5E9EF] space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-[#202936]">
+                  <User className="w-4 h-4 text-[#F5A000]" />
                   <span>Residential Warden: {hostel.wardenName}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[#64748B]">
+                <div className="flex items-center gap-1.5 text-[#788391]">
                   <Phone className="w-3.5 h-3.5" />
                   <span>Warden Contact: {hostel.wardenContact}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-[#64748B]">No hostel allocated. Registered as day-scholar.</p>
+            <p className="text-xs text-[#788391]">No hostel allocated. Registered as day-scholar.</p>
           )}
         </Card>
 
@@ -170,7 +177,7 @@ export default function CampusServicesPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <Bus className="w-5 h-5 text-[#14B8A6]" />
+              <Bus className="w-5 h-5 text-[#F5A000]" />
               <span>Campus Transport & Bus Service</span>
             </div>
           }
@@ -178,44 +185,44 @@ export default function CampusServicesPage() {
         >
           {transport ? (
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
+              <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-[#2563EB]">{transport.routeNumber}</span>
+                  <span className="text-xs font-bold text-[#D97706]">{transport.routeNumber}</span>
                   <Badge variant="brand" size="sm">{transport.vehicleNumber}</Badge>
                 </div>
-                <span className="text-sm font-bold text-[#153B66] mt-1 block">
+                <span className="text-sm font-bold text-[#123B5A] mt-1 block">
                   {transport.routeName}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                  <span className="text-[#64748B] block">Morning Pickup</span>
-                  <span className="font-bold text-[#1E293B]">{transport.pickupTime}</span>
-                  <span className="text-[11px] text-[#64748B] block mt-0.5 truncate">
+                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
+                  <span className="text-[#788391] block">Morning Pickup</span>
+                  <span className="font-bold text-[#202936]">{transport.pickupTime}</span>
+                  <span className="text-[11px] text-[#788391] block mt-0.5 truncate">
                     {transport.pickupPoint}
                   </span>
                 </div>
-                <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
-                  <span className="text-[#64748B] block">Evening Drop</span>
-                  <span className="font-bold text-[#1E293B]">{transport.dropTime}</span>
-                  <span className="text-[11px] text-[#64748B] block mt-0.5 truncate">
+                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
+                  <span className="text-[#788391] block">Evening Drop</span>
+                  <span className="font-bold text-[#202936]">{transport.dropTime}</span>
+                  <span className="text-[11px] text-[#788391] block mt-0.5 truncate">
                     Campus Bus Bay 4
                   </span>
                 </div>
               </div>
-              <div className="p-3 bg-white rounded-lg border border-[#E2E8F0] space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-[#1E293B]">
-                  <User className="w-4 h-4 text-[#14B8A6]" />
+              <div className="p-3 bg-white rounded-lg border border-[#E5E9EF] space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-[#202936]">
+                  <User className="w-4 h-4 text-[#F5A000]" />
                   <span>Driver: {transport.driverName}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[#64748B]">
+                <div className="flex items-center gap-1.5 text-[#788391]">
                   <Phone className="w-3.5 h-3.5" />
                   <span>Driver Mobile: {transport.driverContact}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-[#64748B]">No transport pass associated.</p>
+            <p className="text-xs text-[#788391]">No transport pass associated.</p>
           )}
         </Card>
       </div>
@@ -230,14 +237,14 @@ export default function CampusServicesPage() {
             {electives.map((el) => (
               <div
                 key={el.id}
-                className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex justify-between items-center text-xs"
+                className="p-3.5 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 flex justify-between items-center text-xs"
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#2563EB]">{el.subjectCode}</span>
-                    <h4 className="font-semibold text-[#1E293B]">{el.subjectName}</h4>
+                    <span className="font-bold text-[#D97706]">{el.subjectCode}</span>
+                    <h4 className="font-semibold text-[#202936]">{el.subjectName}</h4>
                   </div>
-                  <p className="text-[#64748B] text-[11px] mt-1">{el.description}</p>
+                  <p className="text-[#788391] text-[11px] mt-1">{el.description}</p>
                   <p className="text-[#94A3B8] text-[10px] mt-0.5">
                     Credits: {el.credits} • Enrolled: {el.enrolledCount} / {el.capacity}
                   </p>
@@ -268,9 +275,9 @@ export default function CampusServicesPage() {
             {events.map((ev) => (
               <div
                 key={ev.id}
-                className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white flex items-start gap-3 text-xs"
+                className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white flex items-start gap-3 text-xs"
               >
-                <div className="p-2.5 rounded-lg bg-[#DBEAFE] text-[#2563EB] shrink-0 text-center min-w-[50px]">
+                <div className="p-2.5 rounded-lg bg-[#FEF3C7] text-[#D97706] shrink-0 text-center min-w-[50px]">
                   <Calendar className="w-4 h-4 mx-auto mb-0.5" />
                   <span className="text-[10px] font-bold block">
                     {new Date(ev.eventDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -279,9 +286,9 @@ export default function CampusServicesPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <Badge variant="brand" size="sm">{ev.category}</Badge>
-                    <h4 className="font-bold text-[#1E293B]">{ev.title}</h4>
+                    <h4 className="font-bold text-[#202936]">{ev.title}</h4>
                   </div>
-                  <p className="text-[#64748B] text-xs mt-1 leading-relaxed">{ev.description}</p>
+                  <p className="text-[#788391] text-xs mt-1 leading-relaxed">{ev.description}</p>
                   <div className="flex items-center gap-3 mt-1.5 text-[11px] text-[#94A3B8]">
                     <span>Venue: {ev.venue}</span>
                     <span>•</span>
@@ -363,13 +370,13 @@ export default function CampusServicesPage() {
       >
         <form onSubmit={handleBookSubmit} className="space-y-4">
           <div>
-            <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+            <label className="block text-[13px] font-medium text-[#202936] mb-1">
               Resource Category
             </label>
             <select
               value={resourceType}
               onChange={(e) => setResourceType(e.target.value)}
-              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
+              className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg bg-white"
             >
               <option value="LAB_WORKSTATION">High-Performance Computing / Lab Workstation</option>
               <option value="LIBRARY_STUDY_ROOM">Library Discussion Room</option>
@@ -403,11 +410,11 @@ export default function CampusServicesPage() {
           </div>
 
           <div>
-            <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+            <label className="block text-[13px] font-medium text-[#202936] mb-1">
               Purpose & Research Objectives
             </label>
             <textarea
-              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg"
+              className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg"
               rows={3}
               value={purpose}
               onChange={(e) => setPurpose(e.target.value)}
@@ -429,4 +436,3 @@ export default function CampusServicesPage() {
     </PortalLayout>
   );
 }
-

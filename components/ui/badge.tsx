@@ -1,11 +1,10 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
-
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border font-semibold whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
@@ -21,32 +20,58 @@ const badgeVariants = cva(
           "border-[#123B5A]/20 bg-[#123B5A]/10 text-[#123B5A] [a&]:hover:bg-[#123B5A]/20",
         teal:
           "border-emerald-200 bg-emerald-50 text-emerald-700 [a&]:hover:bg-emerald-100",
+        success:
+          "border-[#BBF7D0] bg-[#DCFCE7] text-[#16A34A]",
+        warning:
+          "border-[#FDE68A] bg-[#FEF3C7] text-[#D97706]",
+        error:
+          "border-[#FECACA] bg-[#FEE2E2] text-[#DC2626]",
+        info:
+          "border-[#FDE68A] bg-[#FEF3C7] text-[#D97706]",
+        navy:
+          "border-[#16466C]/30 bg-[#EEF1F5] text-[#123B5A]",
+        orange:
+          "border-[#FDE68A] bg-[#FEF3C7] text-[#F5A000]",
+        neutral:
+          "border-[#E2E8F0] bg-[#F1F5F9] text-[#64748B]",
+      },
+      size: {
+        default: "px-2.5 py-0.5 text-xs",
+        sm: "text-[11px] px-2 py-0.5",
+        md: "text-xs px-2.5 py-1",
       },
     },
     defaultVariants: {
       variant: "default",
+      size: "default",
     },
   }
 )
 
+export interface BadgeProps
+  extends React.ComponentProps<"span">,
+    VariantProps<typeof badgeVariants> {
+  asChild?: boolean
+}
+
 function Badge({
   className,
   variant = "default",
+  size = "default",
   asChild = false,
   ...props
-}: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+}: BadgeProps) {
   const Comp = asChild ? Slot.Root : "span"
 
   return (
     <Comp
       data-slot="badge"
       data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
+      data-size={size}
+      className={cn(badgeVariants({ variant, size }), className)}
       {...props}
     />
   )
 }
 
 export { Badge, badgeVariants }
-

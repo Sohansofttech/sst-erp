@@ -3,13 +3,69 @@
 import * as React from "react"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
 import { Select as SelectPrimitive } from "radix-ui"
-
 import { cn } from "@/lib/utils"
 
-function Select({
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+export interface Option {
+  value: string
+  label: string
+}
+
+export interface NativeSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string
+  error?: string
+  helperText?: string
+  options: Option[]
+}
+
+const NativeSelect = React.forwardRef<HTMLSelectElement, NativeSelectProps>(
+  ({ className, label, error, helperText, options, id, required, ...props }, ref) => {
+    const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined)
+
+    return (
+      <div className="w-full space-y-1.5">
+        {label && (
+          <label
+            htmlFor={selectId}
+            className="block text-[13px] font-medium text-foreground"
+          >
+            {label}
+            {required && <span className="text-destructive ml-1">*</span>}
+          </label>
+        )}
+        <select
+          id={selectId}
+          ref={ref}
+          required={required}
+          className={cn(
+            "block w-full rounded-lg border border-input bg-card px-3 py-2 text-[14px] text-foreground transition-colors focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-muted disabled:cursor-not-allowed cursor-pointer",
+            error && "border-destructive focus:border-destructive focus:ring-destructive",
+            className
+          )}
+          {...props}
+        >
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {error && <p className="text-xs text-destructive font-medium">{error}</p>}
+        {!error && helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
+      </div>
+    )
+  }
+)
+NativeSelect.displayName = "NativeSelect"
+
+function Select(
+  props:
+    | (NativeSelectProps & { options: Option[] })
+    | (React.ComponentProps<typeof SelectPrimitive.Root> & { options?: never })
+) {
+  if ("options" in props && Array.isArray((props as NativeSelectProps).options)) {
+    return <NativeSelect {...(props as NativeSelectProps)} />
+  }
+  return <SelectPrimitive.Root data-slot="select" {...(props as React.ComponentProps<typeof SelectPrimitive.Root>)} />
 }
 
 function SelectGroup({
@@ -169,6 +225,7 @@ function SelectScrollDownButton({
 
 export {
   Select,
+  NativeSelect,
   SelectContent,
   SelectGroup,
   SelectItem,
@@ -179,4 +236,3 @@ export {
   SelectTrigger,
   SelectValue,
 }
-

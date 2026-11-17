@@ -23,7 +23,7 @@ export default function StudentFeedbackPage() {
   const fetchFeedback = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/student/feedback");
+      const res = await fetch("/api/student/feedback", { credentials: "include" });
       const json = await res.json();
       if (json.success) setFeedbackList(json.data);
     } catch (e) {
@@ -35,6 +35,13 @@ export default function StudentFeedbackPage() {
 
   useEffect(() => {
     fetchFeedback();
+    const handleChildChanged = () => {
+      fetchFeedback();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,13 +86,13 @@ export default function StudentFeedbackPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+                <label className="block text-[13px] font-medium text-[#202936] mb-1">
                   Category
                 </label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
+                  className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg bg-white"
                 >
                   <option value="ACADEMIC">Academic / Curriculum</option>
                   <option value="INFRASTRUCTURE">Campus Infrastructure & Wi-Fi</option>
@@ -103,11 +110,11 @@ export default function StudentFeedbackPage() {
               />
 
               <div>
-                <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+                <label className="block text-[13px] font-medium text-[#202936] mb-1">
                   Message / Details
                 </label>
                 <textarea
-                  className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg"
+                  className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg"
                   rows={4}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -136,7 +143,7 @@ export default function StudentFeedbackPage() {
             subtitle="Track resolution and department responses"
           >
             {loading ? (
-              <p className="text-xs text-[#64748B]">Loading feedback history...</p>
+              <p className="text-xs text-[#788391]">Loading feedback history...</p>
             ) : (
               <Table
                 columns={[
@@ -152,8 +159,8 @@ export default function StudentFeedbackPage() {
                     header: "Subject & Message",
                     cell: (item: any) => (
                       <div>
-                        <span className="font-bold text-[#1E293B] block">{item.subject}</span>
-                        <span className="text-xs text-[#64748B] line-clamp-1">{item.message}</span>
+                        <span className="font-bold text-[#202936] block">{item.subject}</span>
+                        <span className="text-xs text-[#788391] line-clamp-1">{item.message}</span>
                       </div>
                     ),
                   },
@@ -176,7 +183,7 @@ export default function StudentFeedbackPage() {
                           {item.response}
                         </div>
                       ) : (
-                        <span className="text-xs text-[#64748B] italic">Awaiting review</span>
+                        <span className="text-xs text-[#788391] italic">Awaiting review</span>
                       ),
                   },
                 ]}
@@ -190,4 +197,3 @@ export default function StudentFeedbackPage() {
     </PortalLayout>
   );
 }
-

@@ -15,29 +15,38 @@ export default function TimetablePage() {
 
   const days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
-  useEffect(() => {
-    const fetchTimetable = async () => {
-      try {
-        const res = await fetch("/api/student/timetable");
-        const json = await res.json();
-        if (json.success) {
-          setData(json.data);
-          const currentDay = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][new Date().getDay()];
-          setSelectedDay(days.includes(currentDay) ? currentDay : "MONDAY");
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+  const fetchTimetable = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/student/timetable", { credentials: "include" });
+      const json = await res.json();
+      if (json.success) {
+        setData(json.data);
+        const currentDay = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][new Date().getDay()];
+        setSelectedDay(days.includes(currentDay) ? currentDay : "MONDAY");
       }
-    };
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTimetable();
+    const handleChildChanged = () => {
+      fetchTimetable();
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
   }, []);
 
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Class Timetable">
-        <div className="py-20 text-center text-sm text-[#64748B]">Loading class schedule...</div>
+        <div className="py-20 text-center text-sm text-[#788391]">Loading class schedule...</div>
       </PortalLayout>
     );
   }
@@ -54,13 +63,13 @@ export default function TimetablePage() {
           <Badge variant="neutral">Section {section}</Badge>
         </div>
 
-        <div className="flex items-center bg-white border border-[#E2E8F0] rounded-xl p-1 shadow-sm">
+        <div className="flex items-center bg-white border border-[#E5E9EF] rounded-xl p-1 shadow-sm">
           <button
             onClick={() => setViewMode("DAILY")}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               viewMode === "DAILY"
-                ? "bg-[#2563EB] text-white shadow-sm"
-                : "text-[#64748B] hover:text-[#1E293B]"
+                ? "bg-[#123B5A] text-white shadow-sm"
+                : "text-[#788391] hover:text-[#202936]"
             }`}
           >
             Daily Timetable
@@ -69,8 +78,8 @@ export default function TimetablePage() {
             onClick={() => setViewMode("WEEKLY")}
             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               viewMode === "WEEKLY"
-                ? "bg-[#2563EB] text-white shadow-sm"
-                : "text-[#64748B] hover:text-[#1E293B]"
+                ? "bg-[#123B5A] text-white shadow-sm"
+                : "text-[#788391] hover:text-[#202936]"
             }`}
           >
             Weekly Schedule
@@ -88,8 +97,8 @@ export default function TimetablePage() {
                 onClick={() => setSelectedDay(d)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
                   selectedDay === d
-                    ? "bg-[#153B66] text-white border-[#153B66] shadow-sm"
-                    : "bg-white text-[#64748B] border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                    ? "bg-[#123B5A] text-white border-[#123B5A] shadow-sm"
+                    : "bg-white text-[#788391] border-[#E5E9EF] hover:bg-[#EEF1F5]"
                 }`}
               >
                 {d}
@@ -99,42 +108,42 @@ export default function TimetablePage() {
 
           <Card title={`${selectedDay} Class Schedule`}>
             {currentDaySlots.length === 0 ? (
-              <p className="text-xs text-[#64748B]">No classes scheduled for {selectedDay}.</p>
+              <p className="text-xs text-[#788391]">No classes scheduled for {selectedDay}.</p>
             ) : (
               <div className="space-y-3">
                 {currentDaySlots.map((slot: any) => (
                   <div
                     key={slot.id}
-                    className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-4 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="px-3 py-2 bg-white rounded-lg border border-[#E2E8F0] text-center min-w-[90px]">
-                        <span className="text-xs font-bold text-[#153B66] block">
+                      <div className="px-3 py-2 bg-white rounded-lg border border-[#E5E9EF] text-center min-w-[90px]">
+                        <span className="text-xs font-bold text-[#123B5A] block">
                           {slot.startTime} - {slot.endTime}
                         </span>
-                        <span className="text-[10px] text-[#64748B] block mt-0.5">60 Minutes</span>
+                        <span className="text-[10px] text-[#788391] block mt-0.5">60 Minutes</span>
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#DBEAFE] text-[#2563EB]">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                             {slot.subjectCode}
                           </span>
-                          <h4 className="text-sm font-semibold text-[#1E293B]">
+                          <h4 className="text-sm font-semibold text-[#202936]">
                             {slot.subjectName}
                           </h4>
                           {slot.isElective && (
                             <Badge variant="brand" size="sm">Elective</Badge>
                           )}
                         </div>
-                        <p className="text-xs text-[#64748B] mt-1 flex items-center gap-1.5">
+                        <p className="text-xs text-[#788391] mt-1 flex items-center gap-1.5">
                           <User className="w-3.5 h-3.5" />
                           <span>Faculty: {slot.teacherName}</span>
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-[#1E293B] bg-white px-3 py-1.5 rounded-lg border border-[#E2E8F0] self-start sm:self-center">
-                      <MapPin className="w-3.5 h-3.5 text-[#2563EB]" />
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-[#202936] bg-white px-3 py-1.5 rounded-lg border border-[#E5E9EF] self-start sm:self-center">
+                      <MapPin className="w-3.5 h-3.5 text-[#F5A000]" />
                       <span>{slot.roomNumber}</span>
                     </div>
                   </div>
@@ -150,20 +159,20 @@ export default function TimetablePage() {
             {days.map((day) => {
               const slots = weeklySchedule?.[day] || [];
               return (
-                <div key={day} className="border-b border-[#E2E8F0] pb-4 last:border-b-0">
-                  <h4 className="text-sm font-bold text-[#153B66] uppercase tracking-wider mb-2">
+                <div key={day} className="border-b border-[#E5E9EF] pb-4 last:border-b-0">
+                  <h4 className="text-sm font-bold text-[#123B5A] uppercase tracking-wider mb-2">
                     {day}
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                     {slots.map((s: any) => (
-                      <div key={s.id} className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs">
-                        <div className="flex justify-between items-center text-[#64748B] mb-1">
-                          <span className="font-semibold text-[#153B66]">{s.startTime} - {s.endTime}</span>
+                      <div key={s.id} className="p-3 bg-[#EEF1F5]/50 border border-[#E5E9EF] rounded-xl text-xs">
+                        <div className="flex justify-between items-center text-[#788391] mb-1">
+                          <span className="font-semibold text-[#123B5A]">{s.startTime} - {s.endTime}</span>
                           <span className="text-[11px] font-medium">{s.roomNumber}</span>
                         </div>
-                        <p className="font-bold text-[#1E293B] truncate">{s.subjectCode}</p>
-                        <p className="text-[#64748B] text-[11px] truncate">{s.subjectName}</p>
-                        <p className="text-[11px] text-[#2563EB] mt-1">{s.teacherName}</p>
+                        <p className="font-bold text-[#202936] truncate">{s.subjectCode}</p>
+                        <p className="text-[#788391] text-[11px] truncate">{s.subjectName}</p>
+                        <p className="text-[11px] text-[#D97706] mt-1">{s.teacherName}</p>
                       </div>
                     ))}
                   </div>
@@ -176,4 +185,3 @@ export default function TimetablePage() {
     </PortalLayout>
   );
 }
-

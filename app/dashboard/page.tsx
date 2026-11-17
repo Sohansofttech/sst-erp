@@ -1,0 +1,868 @@
+"use client";
+
+import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { PortalLayout } from "@/components/layout/PortalLayout";
+import { Card } from "@/components/shared/Card";
+import { StatCard } from "@/components/shared/StatCard";
+import { Badge } from "@/components/shared/Badge";
+import { Button } from "@/components/shared/Button";
+import {
+  CheckCircle2,
+  Calendar,
+  CreditCard,
+  Award,
+  BookOpen,
+  ArrowRight,
+  Clock,
+  MapPin,
+  AlertTriangle,
+  Building2,
+  MessageSquare,
+  Bell,
+  Users,
+  GraduationCap,
+  FileText,
+  Layers,
+} from "lucide-react";
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [session, setSession] = useState<{
+    id: string;
+    fullName: string;
+    role: "STUDENT" | "PARENT" | string;
+    institutionName: string;
+    studentId?: string;
+    activeChildId?: string;
+  } | null>(null);
+
+  const [selectedChildId, setSelectedChildId] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "coursework" | "marks" | "credits">("overview");
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
+
+  // 1. Initial Session Authentication
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSession = async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("erp_token") : null;
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          headers,
+        });
+        const json = await res.json();
+
+        if (!isMounted) return;
+
+        if (json.success && json.data?.session) {
+          const sess = json.data.session;
+          setSession(sess);
+
+          if (json.data.student) {
+            setData((prev: any) => (prev ? { ...prev, student: prev.student || json.data.student } : { student: json.data.student }));
+          }
+
+          if (sess.role === "PARENT") {
+            const stored = typeof window !== "undefined" ? localStorage.getItem("erp_active_child_id") : null;
+            const initialChildId = stored || sess.activeChildId || "";
+            if (initialChildId) {
+              setSelectedChildId(initialChildId);
+            }
+          }
+        } else {
+          router.replace("/login");
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        console.error("Session verification failed", err);
+        router.replace("/login");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchSession();
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  // 2. Fetch Dashboard Data for current student / selected child
+  const fetchDashboardData = useCallback(async (childId?: string) => {
+    try {
+      setLoadingData(true);
+      const token = typeof window !== "undefined" ? localStorage.getItem("erp_token") : null;
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const activeChild =
+        childId || (typeof window !== "undefined" ? localStorage.getItem("erp_active_child_id") : null);
+      if (activeChild) {
+        headers["x-active-child"] = activeChild;
+      }
+
+      const query = activeChild ? `?studentId=${activeChild}` : "";
+      const res = await fetch(`/api/student/dashboard${query}`, {
+        credentials: "include",
+        headers,
+      });
+      const json = await res.json();
+      if (json.success) {
+        setData(json.data);
+      }
+    } catch (err) {
+      console.error("Dashboard data load error:", err);
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
+  // 3. Trigger data fetch when session is established or selectedChildId changes
+  useEffect(() => {
+    if (!session) return;
+    if (session.role === "PARENT") {
+      fetchDashboardData(selectedChildId);
+    } else {
+      fetchDashboardData();
+    }
+  }, [session, selectedChildId, fetchDashboardData]);
+
+  // 4. Listen for activeChildChanged global event from Header ChildSelector
+  useEffect(() => {
+    const handleChildChanged = (e: any) => {
+      if (e.detail?.childId) {
+        setSelectedChildId(e.detail.childId);
+        fetchDashboardData(e.detail.childId);
+      }
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => {
+      window.removeEventListener("activeChildChanged", handleChildChanged);
+    };
+  }, [fetchDashboardData]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-9 h-9 border-3 border-[#0F2942] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-xs font-semibold text-[#64748B]">Loading Student Portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) return null;
+
+  const isParent = session.role === "PARENT";
+  const {
+    student,
+    attendanceSummary,
+    todaySchedule,
+    feeSummary,
+    upcomingExams,
+    assignments,
+    notifications,
+    recentResults,
+    cgpa,
+  } = data || {};
+
+  const studentName = student?.firstName
+    ? `${student.firstName} ${student.lastName || ""}`.trim()
+    : (student?.fullName || "").trim();
+  const displayName = studentName || (session?.fullName || "").trim() || "Student";
+  const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
+  const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
+
+  // Student Enrolled Courses for Semester 5
+  const enrolledCourses = [
+    {
+      code: "CS301",
+      name: "Database Management Systems",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 4,
+      attendance: 96,
+      marks: 93,
+      grade: "A+",
+      theoryPct: 75,
+      labPct: 15,
+      pendingTasks: 0,
+      status: "On Track",
+    },
+    {
+      code: "CS302",
+      name: "Operating Systems",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 4,
+      attendance: 92,
+      marks: 86,
+      grade: "A",
+      theoryPct: 72,
+      labPct: 16,
+      pendingTasks: 1,
+      status: "On Track",
+    },
+    {
+      code: "CS303",
+      name: "Computer Networks",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 4,
+      attendance: 95,
+      marks: 90,
+      grade: "A",
+      theoryPct: 74,
+      labPct: 14,
+      pendingTasks: 0,
+      status: "On Track",
+    },
+    {
+      code: "CS304",
+      name: "Software Engineering & Architecture",
+      faculty: "Prof. Rajesh Sharma",
+      credits: 3,
+      attendance: 98,
+      marks: 88,
+      grade: "A+",
+      theoryPct: 78,
+      labPct: 12,
+      pendingTasks: 1,
+      status: "On Track",
+    },
+    {
+      code: "CS305",
+      name: "Web Technologies & Cloud Lab",
+      faculty: "Prof. Sunita Verma",
+      credits: 2,
+      attendance: 100,
+      marks: 95,
+      grade: "O",
+      theoryPct: 82,
+      labPct: 12,
+      pendingTasks: 0,
+      status: "Exemplary",
+    },
+    {
+      code: "CS306",
+      name: "Professional Ethics & Values",
+      faculty: "Dr. Arvind Swamy",
+      credits: 2,
+      attendance: 94,
+      marks: 85,
+      grade: "A",
+      theoryPct: 70,
+      labPct: 15,
+      pendingTasks: 0,
+      status: "On Track",
+    },
+  ];
+
+  return (
+    <PortalLayout
+      portalType="STUDENT"
+      selectedChildId={selectedChildId}
+      onSelectChild={(id) => {
+        setSelectedChildId(id);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("erp_active_child_id", id);
+          document.cookie = `erp_active_child=${id}; path=/; max-age=86400`;
+        }
+      }}
+    >
+      {/* Top Header Bar matching the Reference Image */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl sm:text-[28px] font-extrabold text-[#202936] tracking-tight">
+              Student Dashboard
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Session {student?.academicYear || "2025-2026"}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#788391]">
+            <span>Welcome, <strong className="text-[#202936] font-semibold">{displayName}</strong></span>
+            <span>•</span>
+            <span>Roll No: <span className="font-mono font-semibold text-[#202936]">{displayRollNo}</span></span>
+            <span>•</span>
+            <span>Adm ID: <span className="font-mono font-semibold text-[#202936]">{displayAdmissionId}</span></span>
+            <span>•</span>
+            <span>Semester {student?.currentSemester || 5} • Sec {student?.currentSection || "A"}</span>
+            <span>•</span>
+            <span className="font-medium text-[#123B5A]">{student?.course || "B.Tech in Computer Science and Engineering"}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Link href="/student/profile">
+            <Button
+              variant="primary"
+              size="sm"
+              className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-sm font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-2"
+              icon={<ArrowRight className="w-4 h-4" />}
+            >
+              View Student Profile
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {loadingData ? (
+        <div className="py-20 text-center text-sm text-[#788391]">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          Loading academic records...
+        </div>
+      ) : (
+        <>
+          {/* Row of 6 Horizontal Stat Cards (Student-Specific Metrics in Theme) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
+            {/* Card 1: Solid Dark Navy Blue */}
+            <div className="p-4 rounded-2xl bg-[#123B5A] text-white shadow-md border border-[#1B4D70] flex flex-col justify-between transition-all hover:shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
+                  ATTENDANCE
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-white tracking-tight">
+                  {attendanceSummary?.attendancePercentage ?? 95}%
+                </span>
+              </div>
+              <span className="text-[11px] text-white/70 truncate">
+                {attendanceSummary?.attendedClasses ?? 57}/{attendanceSummary?.totalClasses ?? 60} classes
+              </span>
+            </div>
+
+            {/* Card 2: Today's Classes */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  TODAY&apos;S CLASSES
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#F5A000]">
+                  <Calendar className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  {todaySchedule?.length ?? 4}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                {todaySchedule && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "No classes today"}
+              </span>
+            </div>
+
+            {/* Card 3: Fee Status */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  FEE STATUS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#D97706]">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[26px] font-extrabold text-[#202936] tracking-tight truncate">
+                  {feeSummary?.totalOutstanding > 0 ? `₹${(feeSummary.totalOutstanding / 1000).toFixed(1)}k` : "Settled"}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                {feeSummary?.totalOutstanding > 0 ? "Semester 5 balance" : "All tuition cleared"}
+              </span>
+            </div>
+
+            {/* Card 4: Academic CGPA */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  CURRENT CGPA
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <Award className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2 flex items-baseline gap-1.5">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  {cgpa !== undefined && cgpa > 0 ? cgpa : "9.5"}
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-600 font-semibold truncate">
+                Grade A+ • Distinction
+              </span>
+            </div>
+
+            {/* Card 5: Examinations */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  EXAMINATIONS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-[#123B5A]">
+                  <FileText className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  {upcomingExams?.length ?? 1}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                {upcomingExams?.[0]?.hasHallTicket ? "Hall Ticket Ready" : "Semester Finals"}
+              </span>
+            </div>
+
+            {/* Card 6: LMS Tasks */}
+            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                  PENDING TASKS
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#FEF3C7] flex items-center justify-center text-[#D97706]">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="my-2">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                  {assignments?.filter((a: any) => !a.isSubmitted).length ?? assignments?.length ?? 2}
+                </span>
+              </div>
+              <span className="text-[11px] text-[#788391] truncate">
+                Coursework due soon
+              </span>
+            </div>
+          </div>
+
+          {/* Central Student Academic & Course Performance Card */}
+          <div className="bg-white rounded-2xl border border-[#E5E9EF] p-5 sm:p-6 shadow-xs mb-6">
+            {/* Header with Title & Tab Filter Switcher */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#E5E9EF]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-bold text-[#202936]">
+                    Course Progress & Academic Performance
+                  </h2>
+                </div>
+                <p className="text-xs text-[#788391] mt-0.5">
+                  Semester {student?.currentSemester || 5} • Enrolled subjects, attendance health & syllabus coverage
+                </p>
+              </div>
+
+              {/* Interactive Tab Switcher */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+                {[
+                  { id: "overview", label: "Overview" },
+                  { id: "attendance", label: "Attendance Health" },
+                  { id: "coursework", label: "Coursework & Labs" },
+                  { id: "marks", label: "Internal Marks" },
+                  { id: "credits", label: "Credit Distribution" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+                      activeTab === tab.id
+                        ? "bg-[#F5A000] text-white shadow-xs"
+                        : "text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5]"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tab Contents: Course Progress Grid */}
+            <div className="pt-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {enrolledCourses.map((course, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase inline-block mb-1">
+                          {course.code}
+                        </span>
+                        <h4 className="text-xs font-bold text-[#202936] truncate" title={course.name}>
+                          {course.name}
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
+                        {activeTab === "attendance"
+                          ? `${course.attendance}% Attended`
+                          : activeTab === "marks"
+                          ? `${course.marks}/100 (${course.grade})`
+                          : activeTab === "coursework"
+                          ? course.pendingTasks > 0
+                            ? "1 Due"
+                            : "Submitted"
+                          : activeTab === "credits"
+                          ? `${course.credits} Credits`
+                          : `${course.attendance}% Attended`}
+                      </span>
+                    </div>
+
+                    {/* Dual-Color Segmented Progress Bar */}
+                    <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
+                      <div
+                        style={{ width: `${course.theoryPct}%` }}
+                        className="h-full bg-[#16466C]"
+                        title={`Lecture Attendance: ${course.theoryPct}%`}
+                      />
+                      <div
+                        style={{ width: `${course.labPct}%` }}
+                        className="h-full bg-[#F5A000]"
+                        title={`Lab & Practical: ${course.labPct}%`}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-[#788391] pt-0.5">
+                      <span className="truncate">Faculty: {course.faculty}</span>
+                      <span className="font-semibold text-[#202936] shrink-0">{course.credits} Credits</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bottom Summary Strip */}
+            <div className="mt-4 pt-3 border-t border-[#E5E9EF] flex flex-wrap items-center justify-between text-xs text-[#788391]">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#16466C]" />
+                <span>Lecture Attendance (Theory)</span>
+                <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
+                <span>Practical Labs & Coursework</span>
+              </div>
+              <span className="font-semibold text-[#202936]">
+                Semester Load: 6 Enrolled Subjects • 19 Total Credits
+              </span>
+            </div>
+          </div>
+
+          {/* Main Grid: Today's Schedule & Assignments / Exams */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Today's Schedule */}
+              <Card
+                title="Today's Classes & Lectures"
+                subtitle="Follow your daily class schedule"
+                action={
+                  <Link href="/student/timetable">
+                    <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                      Weekly View
+                    </Button>
+                  </Link>
+                }
+              >
+                {todaySchedule?.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-[#788391]">
+                    <Calendar className="w-8 h-8 text-[#788391]/40 mx-auto mb-2" />
+                    <p className="font-medium text-[#202936]">No lectures scheduled for today</p>
+                    <p className="text-xs mt-0.5">Enjoy your free study hours or prepare for upcoming assessments.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {todaySchedule?.map((slot: any) => (
+                      <div
+                        key={slot.id}
+                        className="p-3.5 rounded-xl border border-[#E5E9EF] hover:border-[#123B5A]/40 bg-white hover:shadow-xs flex items-center justify-between transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="px-3 py-1.5 rounded-lg bg-[#EEF1F5] border border-[#E5E9EF] text-center min-w-[80px]">
+                            <span className="text-xs font-bold text-[#123B5A] block leading-tight">
+                              {slot.startTime}
+                            </span>
+                            <span className="text-[10px] text-[#788391] block">
+                              {slot.endTime}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
+                                {slot.subjectCode}
+                              </span>
+                              <h3 className="text-sm font-semibold text-[#202936]">
+                                {slot.subjectName}
+                              </h3>
+                            </div>
+                            <p className="text-xs text-[#788391] mt-0.5 flex items-center gap-1">
+                              <Users className="w-3 h-3 text-[#788391]" />
+                              <span>Faculty: {slot.teacherName}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#202936] bg-[#EEF1F5] px-2.5 py-1 rounded-md border border-[#E5E9EF]">
+                          <MapPin className="w-3.5 h-3.5 text-[#F5A000]" />
+                          <span>{slot.roomNumber}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Pending Coursework & Assignments */}
+              <Card
+                title="Active Assignments & LMS Tasks"
+                subtitle="Upcoming submission deadlines"
+                action={
+                  <Link href="/student/lms">
+                    <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                      LMS Portal
+                    </Button>
+                  </Link>
+                }
+              >
+                {assignments?.length === 0 ? (
+                  <p className="text-xs text-[#788391] py-4 text-center">No active coursework assignments pending.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {assignments?.map((item: any) => (
+                      <div
+                        key={item.id}
+                        className="p-3.5 rounded-xl border border-[#E5E9EF] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-[#202936]">{item.title}</h4>
+                            <p className="text-xs text-[#788391]">{item.subjectName}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
+                            {item.isSubmitted ? "Submitted" : "Pending"}
+                          </Badge>
+                          <div className="flex items-center gap-1 text-[11px] text-[#788391] mt-1">
+                            <Clock className="w-3 h-3 text-[#788391]" />
+                            <span>Due {new Date(item.dueDate).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Recent Academic Results & Grades */}
+              <Card
+                title="Recent Academic Results & Grades"
+                subtitle={`Semester cumulative average • CGPA: ${cgpa !== undefined ? cgpa : "N/A"}`}
+                action={
+                  <div className="flex items-center gap-2">
+                    {cgpa !== undefined && (
+                      <span className="hidden sm:inline-flex text-xs font-bold px-2.5 py-1 rounded-full bg-[#123B5A] text-white">
+                        CGPA {cgpa}
+                      </span>
+                    )}
+                    <Link href="/student/examinations">
+                      <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                        Full Transcript
+                      </Button>
+                    </Link>
+                  </div>
+                }
+              >
+                {recentResults?.length === 0 ? (
+                  <p className="text-xs text-[#788391] py-4 text-center">No recent published exam results.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {recentResults?.map((res: any) => (
+                      <div
+                        key={res.id}
+                        className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs flex items-center justify-between"
+                      >
+                        <div>
+                          <span className="text-[11px] font-bold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded">
+                            {res.subjectCode}
+                          </span>
+                          <h5 className="text-xs font-semibold text-[#202936] mt-1.5 line-clamp-1">
+                            {res.subjectName}
+                          </h5>
+                          <span className="text-[11px] text-[#788391] font-medium">Score: {res.totalMarks}/100</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-base font-extrabold text-[#123B5A] block leading-tight">
+                            {res.grade}
+                          </span>
+                          <Badge variant={res.isPassed ? "success" : "error"} size="sm" className="mt-1">
+                            {res.isPassed ? "Passed" : "Arrear"}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {/* Right Column: Upcoming Exams, Fee Alert & Quick Links */}
+            <div className="space-y-6">
+              {/* Upcoming Examinations Card */}
+              <Card
+                title="Upcoming Examinations"
+                subtitle="Official exam schedules & admit cards"
+                action={
+                  <Link href="/student/examinations">
+                    <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                      View All
+                    </Button>
+                  </Link>
+                }
+              >
+                {upcomingExams?.length === 0 ? (
+                  <p className="text-xs text-[#788391] py-4 text-center">No upcoming examinations scheduled.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {upcomingExams?.map((exam: any) => (
+                      <div key={exam.id} className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white shadow-2xs hover:border-[#123B5A]/30 transition-all">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <Badge variant="error" size="sm">{exam.examType}</Badge>
+                          <span className="text-xs font-medium text-[#788391]">{exam.slotsCount} papers</span>
+                        </div>
+                        <h4 className="text-xs font-bold text-[#202936] mt-1">{exam.title}</h4>
+                        <p className="text-[11px] text-[#788391] mt-1 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
+                          <span>Starts: {new Date(exam.startDate).toLocaleDateString()}</span>
+                        </p>
+                        {exam.hasHallTicket && (
+                          <Link href="/student/examinations">
+                            <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#1B4D70] text-white rounded-lg shadow-xs">
+                              Download Admit Card
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Quick Institutional Fee Alert */}
+              {feeSummary?.totalOutstanding > 0 && (
+                <div className="p-4 rounded-xl border border-[#F5A000]/30 bg-gradient-to-br from-[#FFFBEB] to-[#FEF3C7]/40 text-[#92400E] shadow-xs">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#F5A000]/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <CreditCard className="w-4 h-4 text-[#D97706]" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#92400E]">Tuition Fee Reminder</h4>
+                      <p className="text-xs mt-1 leading-relaxed text-[#78350F]">
+                        Outstanding balance of <span className="font-extrabold text-[#92400E]">₹{feeSummary.totalOutstanding.toLocaleString()}</span> is due for Semester 5.
+                      </p>
+                      <Link href="/student/fees">
+                        <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs">
+                          Pay Fees Online
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Announcements & Institutional Circulars */}
+              <Card
+                title={
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-[#F5A000]" />
+                    <span>Announcements & Circulars</span>
+                  </div>
+                }
+                subtitle="Campus notices & academic updates"
+              >
+                {notifications?.length === 0 ? (
+                  <p className="text-xs text-[#788391] py-4 text-center">No recent campus notices.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {notifications?.slice(0, 3).map((item: any) => (
+                      <div
+                        key={item.id}
+                        className="p-3 rounded-lg border border-[#E5E9EF] bg-white hover:border-[#F5A000] transition-colors shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
+                            {item.category}
+                          </span>
+                          <span className="text-[10px] text-[#788391]">
+                            {new Date(item.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h5 className="text-xs font-semibold text-[#202936] line-clamp-1">
+                          {item.title}
+                        </h5>
+                        <p className="text-[11px] text-[#788391] mt-0.5 line-clamp-2">
+                          {item.message}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Quick Services */}
+              <Card title="Quick Services" subtitle="Frequent academic actions">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <Link
+                    href="/student/attendance"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Attendance</span>
+                    <span className="text-[10px] text-[#788391] block">View Logs</span>
+                  </Link>
+                  <Link
+                    href="/student/fees"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Pay Fees</span>
+                    <span className="text-[10px] text-[#788391] block">Online Receipts</span>
+                  </Link>
+                  <Link
+                    href="/student/timetable"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#123B5A] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Timetable</span>
+                    <span className="text-[10px] text-[#788391] block">Weekly Schedule</span>
+                  </Link>
+                  <Link
+                    href="/student/examinations"
+                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
+                      <Award className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#202936] block">Hall Tickets</span>
+                    <span className="text-[10px] text-[#788391] block">Exam Results</span>
+                  </Link>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
+    </PortalLayout>
+  );
+}

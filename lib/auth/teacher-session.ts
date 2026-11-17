@@ -48,9 +48,9 @@ export function mapDbInstitutionToCommon(inst: institutions): CommonInstitution 
   return {
     id: inst.id,
     name: inst.name,
-    slug: inst.code.toLowerCase(),
+    slug: (inst.code || inst.slug || "institution").toLowerCase(),
     type: "school",
-    code: inst.code,
+    code: inst.code ?? undefined,
     city: inst.address?.includes(",") ? inst.address.split(",").slice(-2)[0]?.trim() : "Bengaluru",
     state: "Karnataka",
     boardOrUniversity: "CBSE",
@@ -92,7 +92,7 @@ export function mapDbTeacherToProfile(
     id: teacher.id,
     institutionId: teacher.institutionId,
     employeeCode: teacher.employeeId,
-    fullName: user.fullName,
+    fullName: user.fullName || user.name || "Faculty Member",
     email: user.email,
     phone: user.phone ?? "+91 98450 00000",
     photoUrl: user.avatarUrl ?? undefined,
@@ -324,12 +324,13 @@ export async function getTeacherSession(
         },
       })
 
-      if (user && user.teacherProfile && (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "FACULTY")) {
-        const profile = mapDbTeacherToProfile(user.teacherProfile, user)
+      const teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
+      if (user && teacherObj && (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "FACULTY")) {
+        const profile = mapDbTeacherToProfile(teacherObj, user)
         return {
           institution,
           user,
-          teacher: user.teacherProfile,
+          teacher: teacherObj,
           academicYears: dbYears,
           currentAcademicYear,
           profile,
@@ -361,11 +362,12 @@ export async function getTeacherSession(
       console.warn("[getTeacherSession] Demo teacher query error:", err)
     }
 
-    if (demoTeacher && demoTeacher.user && demoTeacher.user.isActive) {
-      const profile = mapDbTeacherToProfile(demoTeacher, demoTeacher.user)
+    const teacherUser = (demoTeacher as any)?.user || (demoTeacher as any)?.users
+    if (demoTeacher && teacherUser && teacherUser.isActive) {
+      const profile = mapDbTeacherToProfile(demoTeacher, teacherUser)
       const sessionResult: TeacherSession = {
         institution,
-        user: demoTeacher.user,
+        user: teacherUser,
         teacher: demoTeacher,
         academicYears: dbYears,
         currentAcademicYear,
