@@ -13,6 +13,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Institutional ERP — Student Portal",
   description: "Next.js Institutional ERP Student Portal with Multi-Tenant Architecture",
+  icons: {
+    icon: "/sohan_logo.png",
+    shortcut: "/sohan_logo.png",
+    apple: "/sohan_logo.png",
+  },
 };
 
 export default function RootLayout({
