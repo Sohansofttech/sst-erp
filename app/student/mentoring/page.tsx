@@ -84,7 +84,7 @@ export default function StudentMentoringPage() {
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Mentoring & Academic Log Book">
-        <div className="py-20 text-center text-sm text-[#788391]">Loading mentoring sessions...</div>
+        <div className="py-20 text-center text-sm text-[#64748B]">Loading mentoring sessions...</div>
       </PortalLayout>
     );
   }
@@ -106,19 +106,19 @@ export default function StudentMentoringPage() {
             {mentoring.map((m) => (
               <div
                 key={m.id}
-                className="p-5 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 space-y-3"
+                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#EEF1F5]/50 space-y-3"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E9EF] pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
                   <div>
-                    <h3 className="text-sm font-bold text-[#202936]">
+                    <h3 className="text-sm font-bold text-[#1E293B]">
                       Mentor: {m.mentorName} ({m.mentorDesignation})
                     </h3>
-                    <p className="text-xs text-[#788391]">
+                    <p className="text-xs text-[#64748B]">
                       {m.mentorDepartment} • {m.mentorEmail}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[#788391]">
+                    <span className="text-xs text-[#64748B]">
                       Session Date: {new Date(m.sessionDate).toLocaleDateString()}
                     </span>
                     {m.isPrivateNote && (
@@ -130,13 +130,13 @@ export default function StudentMentoringPage() {
                 <div className="text-xs space-y-2">
                   <div>
                     <span className="font-semibold text-[#123B5A]">Topics Discussed:</span>
-                    <p className="text-[#202936] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
+                    <p className="text-[#1E293B] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
                   </div>
 
                   {m.studentActionItems && (
-                    <div className="p-3 bg-white rounded-lg border border-[#E5E9EF]">
+                    <div className="p-3 bg-white rounded-lg border border-[#E2E8F0]">
                       <span className="font-semibold text-emerald-800">Student Action Items:</span>
-                      <p className="text-[#202936] mt-0.5">{m.studentActionItems}</p>
+                      <p className="text-[#1E293B] mt-0.5">{m.studentActionItems}</p>
                     </div>
                   )}
 
@@ -223,13 +223,13 @@ export default function StudentMentoringPage() {
       >
         <form onSubmit={handleLogSubmit} className="space-y-4">
           <div>
-            <label className="block text-[13px] font-medium text-[#202936] mb-1">
+            <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
               Activity Category
             </label>
             <select
               value={activityType}
               onChange={(e) => setActivityType(e.target.value)}
-              className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg bg-white"
+              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
             >
               <option value="PRACTICAL">Lab Practical Experiment</option>
               <option value="PROJECT">Capstone / Course Project</option>
@@ -265,11 +265,11 @@ export default function StudentMentoringPage() {
           </div>
 
           <div>
-            <label className="block text-[13px] font-medium text-[#202936] mb-1">
+            <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
               Description of Work Performed
             </label>
             <textarea
-              className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg"
+              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}

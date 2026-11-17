@@ -122,25 +122,38 @@ export function StatCard({
                           ? "bg-rose-500/20 text-rose-300"
                           : "bg-white/10 text-white/80"
                       : direction === "up"
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        ? "bg-emerald-50 text-emerald-700"
                         : direction === "down"
-                          ? "bg-rose-50 text-rose-700 border border-rose-200"
+                          ? "bg-rose-50 text-rose-700"
                           : "bg-[#EEF1F5] text-[#788391]"
                   )}
                 >
-                  {direction === "up" && <TrendingUp className="size-3" />}
-                  {direction === "down" && <TrendingDown className="size-3" />}
+                  {direction === "up" ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : direction === "down" ? (
+                    <TrendingDown className="h-3 w-3" />
+                  ) : null}
                   {trend.value}
+                  {trend.label && (
+                    <span
+                      className={cn(
+                        "font-normal",
+                        isDark ? "text-white/70" : "text-[#788391]"
+                      )}
+                    >
+                      {trend.label}
+                    </span>
+                  )}
                 </span>
               )}
               {displaySubtitle && (
                 <span
                   className={cn(
-                    "text-[13px]",
-                    isDark ? "text-white/75" : "text-[#788391]"
+                    "text-xs truncate",
+                    isDark ? "text-white/70" : "text-[#788391]"
                   )}
                 >
-                  {trend?.label ?? displaySubtitle}
+                  {displaySubtitle}
                 </span>
               )}
             </div>
@@ -150,8 +163,11 @@ export function StatCard({
         {icon && (
           <div
             className={cn(
-              "flex size-11 shrink-0 items-center justify-center rounded-xl [&_svg]:size-5",
-              isDark ? "bg-white/15 text-[#F5A000]" : TONE_CLASSES[tone]
+              "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
+              isDark
+                ? "border-white/10 bg-white/10 text-[#F5A000]"
+                : "border-[#E5E9EF] bg-[#EEF1F5] text-[#123B5A]",
+              TONE_CLASSES[tone]
             )}
           >
             {icon}

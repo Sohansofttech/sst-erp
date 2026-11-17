@@ -103,7 +103,7 @@ export default function StudentProfilePage() {
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Student Profile">
-        <div className="py-20 text-center text-sm text-[#788391]">Loading profile...</div>
+        <div className="py-20 text-center text-sm text-[#64748B]">Loading profile...</div>
       </PortalLayout>
     );
   }
@@ -120,24 +120,24 @@ export default function StudentProfilePage() {
       )}
 
       {/* Profile Header Bar */}
-      <div className="bg-white rounded-xl border border-[#E5E9EF] p-6 shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#123B5A] text-white flex items-center justify-center font-bold text-xl shadow-md">
+          <div className="w-16 h-16 rounded-xl bg-[#123B5A] text-white flex items-center justify-center font-bold text-xl shadow-xs">
             {student?.firstName?.[0]}
             {student?.lastName?.[0]}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-[#202936]">
+              <h2 className="text-xl font-bold text-[#1E293B]">
                 {student?.firstName} {student?.lastName}
               </h2>
               <Badge variant="success" size="sm">
                 {student?.status}
               </Badge>
             </div>
-            <p className="text-xs text-[#788391] mt-0.5">
-              Roll No: <span className="font-semibold text-[#202936]">{student?.rollNumber}</span> • Admission:{" "}
-              <span className="font-semibold text-[#202936]">{student?.admissionNumber}</span>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Roll No: <span className="font-semibold text-[#1E293B]">{student?.rollNumber}</span> • Admission:{" "}
+              <span className="font-semibold text-[#1E293B]">{student?.admissionNumber}</span>
             </p>
             <p className="text-xs text-[#F5A000] font-medium mt-0.5">
               {enrollment?.course?.name} ({enrollment?.course?.code})
@@ -164,32 +164,32 @@ export default function StudentProfilePage() {
           <Card title="Personal Information">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
-                <p className="text-[#788391] font-medium">Full Name</p>
-                <p className="font-semibold text-[#202936] text-sm mt-0.5">
+                <p className="text-[#64748B] font-medium">Full Name</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">
                   {student?.firstName} {student?.lastName}
                 </p>
               </div>
               <div>
-                <p className="text-[#788391] font-medium">Date of Birth</p>
-                <p className="font-semibold text-[#202936] text-sm mt-0.5">
+                <p className="text-[#64748B] font-medium">Date of Birth</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">
                   {student?.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString() : "N/A"}
                 </p>
               </div>
               <div>
-                <p className="text-[#788391] font-medium">Gender</p>
-                <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.gender}</p>
+                <p className="text-[#64748B] font-medium">Gender</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.gender}</p>
               </div>
               <div>
-                <p className="text-[#788391] font-medium">Blood Group</p>
-                <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.bloodGroup || "O+"}</p>
+                <p className="text-[#64748B] font-medium">Blood Group</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.bloodGroup || "O+"}</p>
               </div>
               <div>
-                <p className="text-[#788391] font-medium">Institutional Email</p>
-                <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.user?.email}</p>
+                <p className="text-[#64748B] font-medium">Institutional Email</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.user?.email}</p>
               </div>
               <div>
-                <p className="text-[#788391] font-medium">Emergency Phone</p>
-                <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.emergencyContact || "N/A"}</p>
+                <p className="text-[#64748B] font-medium">Emergency Phone</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.emergencyContact || "N/A"}</p>
               </div>
             </div>
           </Card>
@@ -198,21 +198,21 @@ export default function StudentProfilePage() {
           <Card title="Permanent & Residential Address">
             <div className="space-y-3 text-xs">
               <div>
-                <p className="text-[#788391] font-medium">Address Line</p>
-                <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.addressLine || "N/A"}</p>
+                <p className="text-[#64748B] font-medium">Address Line</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.addressLine || "N/A"}</p>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <p className="text-[#788391] font-medium">City</p>
-                  <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.city || "Bangalore"}</p>
+                  <p className="text-[#64748B] font-medium">City</p>
+                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.city || "Bangalore"}</p>
                 </div>
                 <div>
-                  <p className="text-[#788391] font-medium">State</p>
-                  <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.state || "Karnataka"}</p>
+                  <p className="text-[#64748B] font-medium">State</p>
+                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.state || "Karnataka"}</p>
                 </div>
                 <div>
-                  <p className="text-[#788391] font-medium">Postal Pincode</p>
-                  <p className="font-semibold text-[#202936] text-sm mt-0.5">{student?.pincode || "560103"}</p>
+                  <p className="text-[#64748B] font-medium">Postal Pincode</p>
+                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.pincode || "560103"}</p>
                 </div>
               </div>
             </div>
@@ -224,7 +224,7 @@ export default function StudentProfilePage() {
             subtitle="Admin review workflow for protected record corrections"
           >
             {requests.length === 0 ? (
-              <p className="text-xs text-[#788391]">No correction requests submitted.</p>
+              <p className="text-xs text-[#64748B]">No correction requests submitted.</p>
             ) : (
               <Table
                 columns={[
@@ -270,38 +270,38 @@ export default function StudentProfilePage() {
           <Card
             title={
               <div className="flex items-center gap-1.5">
-                <Lock className="w-4 h-4 text-[#788391]" />
+                <Lock className="w-4 h-4 text-[#64748B]" />
                 <span>Protected Academic Data</span>
               </div>
             }
             subtitle="Modifications require institutional registrar approval"
           >
             <div className="space-y-3 text-xs">
-              <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
-                <p className="text-[#788391]">Current Academic Year</p>
+              <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E2E8F0]">
+                <p className="text-[#64748B]">Current Academic Year</p>
                 <p className="font-bold text-[#123B5A] text-sm">
                   {enrollment?.academicYear?.name || "N/A"}
                 </p>
               </div>
-              <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
-                <p className="text-[#788391]">Department & Course</p>
-                <p className="font-bold text-[#202936] text-xs">
+              <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E2E8F0]">
+                <p className="text-[#64748B]">Department & Course</p>
+                <p className="font-bold text-[#1E293B] text-xs">
                   {enrollment?.course?.department}
                 </p>
-                <p className="text-[11px] text-[#788391] mt-0.5">
+                <p className="text-[11px] text-[#64748B] mt-0.5">
                   {enrollment?.course?.name}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
-                  <p className="text-[#788391]">Semester</p>
-                  <p className="font-bold text-[#202936] text-sm">
+                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E2E8F0]">
+                  <p className="text-[#64748B]">Semester</p>
+                  <p className="font-bold text-[#1E293B] text-sm">
                     Sem {student?.currentSemester}
                   </p>
                 </div>
-                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E5E9EF]">
-                  <p className="text-[#788391]">Section</p>
-                  <p className="font-bold text-[#202936] text-sm">
+                <div className="p-3 bg-[#EEF1F5]/50 rounded-lg border border-[#E2E8F0]">
+                  <p className="text-[#64748B]">Section</p>
+                  <p className="font-bold text-[#1E293B] text-sm">
                     Section {student?.currentSection}
                   </p>
                 </div>
@@ -316,16 +316,16 @@ export default function StudentProfilePage() {
           >
             <div className="space-y-3">
               {student?.guardianLinks?.length === 0 ? (
-                <p className="text-xs text-[#788391]">No guardian records linked.</p>
+                <p className="text-xs text-[#64748B]">No guardian records linked.</p>
               ) : (
                 student?.guardianLinks?.map((link: any) => (
                   <div
                     key={link.id}
-                    className="p-3.5 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 space-y-2"
+                    className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#EEF1F5]/50 space-y-2"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-xs font-bold text-[#202936]">
+                        <span className="text-xs font-bold text-[#1E293B]">
                           {link.guardianAccount.fullName}
                         </span>
                         <span className="ml-2 text-[10px] font-semibold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded">
@@ -342,27 +342,27 @@ export default function StudentProfilePage() {
                       </Badge>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#E5E9EF]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 border-t border-[#E2E8F0]">
                       <div>
-                        <span className="text-[#788391] block">Contact Number:</span>
-                        <span className="font-medium text-[#202936]">
+                        <span className="text-[#64748B] block">Contact Number:</span>
+                        <span className="font-medium text-[#1E293B]">
                           {link.guardianAccount.phone}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[#788391] block">Email Address:</span>
-                        <span className="font-medium text-[#202936]">
+                        <span className="text-[#64748B] block">Email Address:</span>
+                        <span className="font-medium text-[#1E293B]">
                           {link.guardianAccount.user?.email || "N/A"}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[#788391] block">Occupation:</span>
-                        <span className="font-medium text-[#202936]">
+                        <span className="text-[#64748B] block">Occupation:</span>
+                        <span className="font-medium text-[#1E293B]">
                           {link.guardianAccount.occupation || "Professional"}
                         </span>
                       </div>
                       <div>
-                        <span className="text-[#788391] block">Portal Access:</span>
+                        <span className="text-[#64748B] block">Portal Access:</span>
                         <span className="font-medium text-[#16A34A]">
                           {link.canAccessPortal ? "Active Access" : "Disabled"}
                         </span>
@@ -380,11 +380,11 @@ export default function StudentProfilePage() {
               {student?.documents?.map((doc: any) => (
                 <div
                   key={doc.id}
-                  className="p-3 rounded-lg border border-[#E5E9EF] bg-white flex items-center justify-between text-xs"
+                  className="p-3 rounded-lg border border-[#E2E8F0] bg-white flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-[#F5A000]" />
-                    <span className="font-medium text-[#202936]">{doc.title}</span>
+                    <span className="font-medium text-[#1E293B]">{doc.title}</span>
                   </div>
                   <Badge variant="brand" size="sm">
                     Verified
@@ -426,11 +426,11 @@ export default function StudentProfilePage() {
           />
 
           <div>
-            <label className="block text-[13px] font-medium text-[#202936] mb-1">
+            <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
               Reason for Update <span className="text-[#DC2626]">*</span>
             </label>
             <textarea
-              className="w-full px-3.5 py-2 text-xs border border-[#E5E9EF] rounded-lg focus:border-[#F5A000] focus:outline-none focus:ring-2 focus:ring-[#F5A000]/20"
+              className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg focus:border-[#F5A000] focus:outline-none focus:ring-2 focus:ring-[#F5A000]/20"
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}

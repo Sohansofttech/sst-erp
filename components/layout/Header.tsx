@@ -37,50 +37,49 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white border-b border-[#E5E9EF] shadow-sm flex items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 md:px-6 bg-white border-b border-[#E2E8F0] shadow-xs shrink-0">
       {/* Left side: Mobile Toggle & Institution Breadcrumb */}
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuToggle}
-          className="p-2 -ml-2 text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5] rounded-lg lg:hidden"
-          aria-label="Open sidebar"
+          className="p-2 rounded-lg text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] transition-colors cursor-pointer lg:hidden"
+          aria-label="Toggle Navigation"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-2 text-xs text-[#788391] font-medium">
-            <div className="w-7 h-7 rounded-lg bg-[#EEF1F5] flex items-center justify-center text-[#123B5A]">
-              <School className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-bold text-[#202936] block leading-tight">{institutionName}</span>
-              <span className="text-[10px] text-[#788391] block leading-tight">
-                {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"}
-              </span>
-            </div>
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#123B5A] text-white font-bold shadow-xs shrink-0">
+            <School className="w-5 h-5 text-white" />
           </div>
-          <Badge variant="brand" size="sm" className="hidden md:inline-flex bg-[#123B5A] text-white ml-1">
-            Active Student
-          </Badge>
+          <div className="min-w-0">
+            <h1 className="text-sm md:text-base font-bold text-[#1E293B] leading-tight truncate max-w-[200px] sm:max-w-xs md:max-w-md">
+              {institutionName}
+            </h1>
+            <p className="text-[11px] text-[#64748B] font-medium hidden sm:block">
+              {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"} • AY 2026-2027
+            </p>
+          </div>
+          <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#123B5A] text-white ml-1">
+            {portalType === "STUDENT" ? "Active Student" : "Active Parent"}
+          </span>
         </div>
       </div>
 
       {/* Right side: Academic Year, Notifications, User Profile */}
       <div className="flex items-center gap-2.5 sm:gap-3.5">
-        {/* Academic Year Selector matching Reference Screenshot */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E9EF] bg-white text-xs font-semibold text-[#202936] shadow-2xs">
-          <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
+        {/* Academic Year Switcher matching Admin Header */}
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#1E293B]">
+          <Calendar className="w-4 h-4 text-[#F5A000]" />
           <span>AY 2026-2027</span>
-          <ChevronDown className="w-3 h-3 text-[#788391] ml-0.5" />
         </div>
 
         <NotificationDropdown />
 
-        <div className="h-6 w-px bg-[#E5E9EF] hidden sm:block" />
+        <div className="h-6 w-px bg-[#E2E8F0] hidden sm:block" />
 
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-[#123B5A] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-[#123B5A] text-white flex items-center justify-center font-bold text-xs shadow-xs">
             {userFullName
               .split(" ")
               .map((n) => n[0])
@@ -89,20 +88,20 @@ export const Header: React.FC<HeaderProps> = ({
               .toUpperCase()}
           </div>
           <div className="hidden md:block text-left">
-            <p className="text-xs font-semibold text-[#202936] leading-tight">
+            <p className="text-xs font-semibold text-[#1E293B] leading-tight">
               {userFullName}
             </p>
-            <p className="text-[11px] text-[#788391] capitalize">{userRole.toLowerCase()}</p>
+            <p className="text-[11px] text-[#64748B] capitalize">{userRole.toLowerCase()}</p>
           </div>
-          <ChevronDown className="w-3.5 h-3.5 text-[#788391] hidden md:block" />
 
           <button
             onClick={handleLogout}
             title="Log Out"
-            className="p-1.5 text-[#788391] hover:text-[#DC2626] hover:bg-[#FEE2E2]/60 rounded-lg transition-colors ml-1"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] text-xs font-medium text-[#64748B] hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors ml-1 cursor-pointer"
             aria-label="Log Out"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </div>

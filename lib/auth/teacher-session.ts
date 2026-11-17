@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
+import { getSession } from "@/lib/auth/session"
 import type { Institution, AcademicYear, Teacher, User } from "@prisma/client"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 import type { Institution as CommonInstitution, AcademicYear as CommonAcademicYear, TenantContext } from "@/types/common"
@@ -307,7 +308,37 @@ export async function getTeacherSession(
     currentAcademicYear: currentAcademicYearCommon,
   }
 
-  // 1. Try to find the teacher from Supabase Auth credentials
+  // 1. Try to find the teacher from trusted ERP session (cookie sst_session)
+  const erpSession = await getSession()
+  if (erpSession && (erpSession.role === "TEACHER" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
+    const user = await prisma.users.findFirst({
+      where: {
+        id: erpSession.userId,
+        isActive: true,
+      },
+      include: {
+        teacherProfile: true,
+      },
+    })
+
+    const teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
+    if (user && teacherObj) {
+      const profile = mapDbTeacherToProfile(teacherObj, user)
+      return {
+        institution,
+        user,
+        teacher: teacherObj,
+        academicYears: dbYears,
+        currentAcademicYear,
+        profile,
+        tenantContext,
+        supabaseUser: null,
+        isDemoFallback: false,
+      }
+    }
+  }
+
+  // 2. Try to find the teacher from Supabase Auth credentials
   if (supabaseUser) {
     try {
       const user = await prisma.users.findFirst({

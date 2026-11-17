@@ -80,7 +80,7 @@ export const NotificationDropdown: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-[#788391] hover:text-[#202936] hover:bg-[#F1F5F9] rounded-lg transition-colors focus:outline-none"
+        className="relative p-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] rounded-lg transition-colors focus:outline-none cursor-pointer"
         aria-label="Notifications"
       >
         <Bell className="w-5 h-5" />
@@ -92,23 +92,23 @@ export const NotificationDropdown: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E5E9EF] z-50 overflow-hidden animate-in fade-in-50 duration-150">
-          <div className="px-4 py-3 border-b border-[#E5E9EF] bg-[#EEF1F5] flex items-center justify-between">
-            <h4 className="text-[14px] font-semibold text-[#202936]">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E2E8F0] z-50 overflow-hidden animate-in fade-in-50 duration-150">
+          <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#EEF1F5] flex items-center justify-between">
+            <h4 className="text-[14px] font-semibold text-[#1E293B]">
               Notifications
             </h4>
-            <span className="text-xs text-[#788391]">
+            <span className="text-xs text-[#64748B]">
               {unreadCount} unread
             </span>
           </div>
 
-          <div className="max-h-80 overflow-y-auto divide-y divide-[#E5E9EF]">
+          <div className="max-h-80 overflow-y-auto divide-y divide-[#E2E8F0]">
             {loading ? (
-              <div className="p-4 text-center text-xs text-[#788391]">
+              <div className="p-4 text-center text-xs text-[#64748B]">
                 Loading notifications...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-6 text-center text-xs text-[#788391]">
+              <div className="p-6 text-center text-xs text-[#64748B]">
                 No notifications to display.
               </div>
             ) : (

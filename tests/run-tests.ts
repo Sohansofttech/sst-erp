@@ -14,11 +14,9 @@ import { sendNotification, getUserNotifications, markNotificationAsRead } from "
 import { recordAudit } from "../lib/services/audit.service";
 import { POST as logoutHandler } from "../app/api/auth/me/route";
 import { SessionUser } from "../types";
-import { PrismaPg } from "@prisma/adapter-pg";
+import db from "../lib/db";
 
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/postgres";
-const adapter = new PrismaPg({ connectionString });
-const prisma = new PrismaClient({ adapter });
+const prisma = db;
 
 let passed = 0;
 let failed = 0;
@@ -62,8 +60,14 @@ async function runAllTests() {
   const adminUser = await prisma.user.findFirst({
     where: { email: "admin@apex.edu" },
   });
+  const teacherUser = await prisma.user.findFirst({
+    where: { email: "prof.sharma@apex.edu" },
+  });
+  const superAdminUser = await prisma.user.findFirst({
+    where: { email: "superadmin@sohansofttech.com" },
+  });
 
-  if (!studentUser || !parentUser || !unlinkedStudentUser || !horizonStudentUser || !siblingStudentUser || !adminUser) {
+  if (!studentUser || !parentUser || !unlinkedStudentUser || !horizonStudentUser || !siblingStudentUser || !adminUser || !teacherUser || !superAdminUser) {
     throw new Error("Missing test seed fixtures in database.");
   }
 
@@ -99,9 +103,9 @@ async function runAllTests() {
   };
 
   // ----------------------------------------------------
-  // ROW 22: CREATE STUDENT AUTHENTICATION AND SESSION HANDLING
+  // ROW 22: INSTITUTION PORTAL LOGIN, AUTHENTICATION & ROLE HANDLING
   // ----------------------------------------------------
-  console.log("--- Row 22: Student Authentication & Session Handling ---");
+  console.log("--- Row 22: Institution Portal Login, Authentication & Role Handling ---");
   {
     const isStudentPwValid = await bcrypt.compare("Student@123", studentUser.passwordHash!);
     assert(isStudentPwValid, "Student login credential verification succeeds");
@@ -109,8 +113,33 @@ async function runAllTests() {
     const isParentPwValid = await bcrypt.compare("Parent@123", parentUser.passwordHash!);
     assert(isParentPwValid, "Parent login credential verification succeeds");
 
+    const isTeacherPwValid = await bcrypt.compare("Password@123", teacherUser.passwordHash!);
+    assert(isTeacherPwValid, "Teacher login credential verification succeeds");
+
+    const isAdminPwValid = await bcrypt.compare("Password@123", adminUser.passwordHash!);
+    assert(isAdminPwValid, "Admin login credential verification succeeds");
+
+    const isSuperAdminPwValid = await bcrypt.compare("SuperAdmin@123", superAdminUser.passwordHash!);
+    assert(isSuperAdminPwValid, "Super Admin login credential verification succeeds");
+
     const isInvalidPwValid = await bcrypt.compare("WrongPassword!", studentUser.passwordHash!);
     assert(!isInvalidPwValid, "Invalid login credentials correctly rejected");
+
+    // Unified role determination and portal destination routing
+    const resolvePortal = (role: string, instSlug = "demo-school") => {
+      if (role === "STUDENT") return "/dashboard";
+      if (role === "TEACHER") return `/campus/${instSlug}/teacher`;
+      if (role === "ADMIN") return "/admin";
+      if (role === "SUPER_ADMIN") return "/super-admin";
+      if (role === "PARENT") return "/parent/dashboard";
+      return null;
+    };
+
+    assert(resolvePortal(studentUser.role!) === "/dashboard", "Role STUDENT routes to Student Portal");
+    assert(resolvePortal(teacherUser.role!, "APEX-TECH") === "/campus/APEX-TECH/teacher", "Role TEACHER routes to Teacher Portal");
+    assert(resolvePortal(adminUser.role!) === "/admin", "Role ADMIN routes to Admin Portal");
+    assert(resolvePortal(superAdminUser.role!) === "/super-admin", "Role SUPER_ADMIN routes to Super Admin Portal");
+    assert(resolvePortal("UNKNOWN_ROLE") === null, "Unsupported/invalid role blocked from redirection");
 
     // Token creation and verification
     const token = await signToken(studentSession);

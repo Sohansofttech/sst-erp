@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
-import { usePathname } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { InstitutionProvider } from "@/lib/store";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
@@ -9,17 +9,41 @@ import { AdminSidebar } from "./AdminSidebar";
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const isLoginPage = pathname === "/admin/login";
+
+  useEffect(() => {
+    if (isLoginPage) {
+      router.replace("/login");
+      return;
+    }
+
+    // Guard: Verify authenticated role on admin portal routes
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((json) => {
+        if (!json.success || !json.data?.session) {
+          router.replace("/login");
+          return;
+        }
+        const role = json.data.session.role;
+        if (role === "STUDENT" || role === "PARENT") {
+          router.replace("/dashboard");
+        } else if (role === "TEACHER") {
+          const slug = (json.data.session.institutionName ? "APEX-TECH" : "demo-school").toLowerCase();
+          router.replace(`/campus/${slug}/teacher`);
+        }
+      })
+      .catch(() => {
+        router.replace("/login");
+      });
+  }, [isLoginPage, router]);
 
   if (isLoginPage) {
     return (
-      <InstitutionProvider>
-        <div className="min-h-screen bg-[#F8FAFC]">
-          <Suspense fallback={<div className="p-6 text-sm text-[#64748B]">Loading...</div>}>
-            {children}
-          </Suspense>
-        </div>
-      </InstitutionProvider>
+      <div className="min-h-screen bg-[#EEF1F5] flex items-center justify-center">
+        <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin" />
+      </div>
     );
   }
 

@@ -2,7 +2,7 @@ import React from "react";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "outline" | "danger" | "ghost";
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "default";
   isLoading?: boolean;
   icon?: React.ReactNode;
 }
@@ -10,7 +10,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button: React.FC<ButtonProps> = ({
   children,
   variant = "primary",
-  size = "md",
+  size = "default",
   isLoading = false,
   icon,
   className = "",
@@ -18,7 +18,7 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    "inline-flex items-center justify-center font-bold rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed text-[14px]";
+    "inline-flex items-center justify-center font-bold rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-[14px]";
 
   const variantClasses = {
     primary: "bg-[#F5A000] hover:bg-[#E09200] text-white focus:ring-[#F5A000] shadow-xs",
@@ -29,9 +29,10 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const sizeClasses = {
-    sm: "px-2.5 py-1.5 text-xs gap-1.5",
-    md: "px-4 py-2 text-[14px] gap-2",
-    lg: "px-5 py-2.5 text-[15px] gap-2.5",
+    default: "h-9 px-3 text-xs gap-1.5",
+    sm: "h-8 px-2.5 text-xs gap-1.5",
+    md: "h-9 px-4 text-xs gap-2",
+    lg: "h-10 px-5 text-sm gap-2.5",
   };
 
   return (

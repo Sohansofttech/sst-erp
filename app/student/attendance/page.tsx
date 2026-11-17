@@ -45,7 +45,7 @@ export default function AttendancePage() {
   if (loading) {
     return (
       <PortalLayout portalType="STUDENT" pageTitle="Attendance & In/Out Register">
-        <div className="py-20 text-center text-sm text-[#788391]">Loading attendance records...</div>
+        <div className="py-20 text-center text-sm text-[#64748B]">Loading attendance records...</div>
       </PortalLayout>
     );
   }
@@ -90,43 +90,43 @@ export default function AttendancePage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-[#E5E9EF] pb-2 overflow-x-auto">
+      <div className="flex gap-2 mb-6 border-b border-[#E2E8F0] pb-2 overflow-x-auto">
         <button
           onClick={() => setTab("SUBJECT_WISE")}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
             tab === "SUBJECT_WISE"
-              ? "bg-[#123B5A] text-white shadow-sm"
-              : "text-[#788391] hover:text-[#202936] hover:bg-white"
+              ? "bg-[#123B5A] text-white shadow-xs"
+              : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
           Subject-Wise Attendance
         </button>
         <button
           onClick={() => setTab("MONTHLY")}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
             tab === "MONTHLY"
-              ? "bg-[#123B5A] text-white shadow-sm"
-              : "text-[#788391] hover:text-[#202936] hover:bg-white"
+              ? "bg-[#123B5A] text-white shadow-xs"
+              : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
           Monthly Attendance
         </button>
         <button
           onClick={() => setTab("DAILY_HISTORY")}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
             tab === "DAILY_HISTORY"
-              ? "bg-[#123B5A] text-white shadow-sm"
-              : "text-[#788391] hover:text-[#202936] hover:bg-white"
+              ? "bg-[#123B5A] text-white shadow-xs"
+              : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
           Absence History & Logs
         </button>
         <button
           onClick={() => setTab("IN_OUT")}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
             tab === "IN_OUT"
-              ? "bg-[#123B5A] text-white shadow-sm"
-              : "text-[#788391] hover:text-[#202936] hover:bg-white"
+              ? "bg-[#123B5A] text-white shadow-xs"
+              : "text-[#64748B] hover:text-[#1E293B] hover:bg-white"
           }`}
         >
           Campus In/Out Gate Register
@@ -141,18 +141,18 @@ export default function AttendancePage() {
               return (
                 <div
                   key={sub.subjectId}
-                  className="p-4 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF1F5]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                         {sub.subjectCode}
                       </span>
-                      <h4 className="text-sm font-semibold text-[#202936]">
+                      <h4 className="text-sm font-semibold text-[#1E293B]">
                         {sub.subjectName}
                       </h4>
                     </div>
-                    <p className="text-xs text-[#788391]">
+                    <p className="text-xs text-[#64748B]">
                       Attended {sub.attendedClasses} out of {sub.totalClasses} total lectures
                     </p>
 
@@ -169,10 +169,10 @@ export default function AttendancePage() {
 
                   <div className="flex items-center gap-4 self-end sm:self-center">
                     <div className="text-right">
-                      <span className="text-xl font-bold text-[#202936] block">
+                      <span className="text-xl font-bold text-[#1E293B] block">
                         {sub.percentage}%
                       </span>
-                      <span className="text-[11px] text-[#788391]">Attendance</span>
+                      <span className="text-[11px] text-[#64748B]">Attendance</span>
                     </div>
                     <Badge variant={isEligible ? "success" : "error"}>
                       {isEligible ? "Exam Eligible" : "Low %"}
@@ -196,7 +196,7 @@ export default function AttendancePage() {
               return (
                 <div
                   key={m.monthYear}
-                  className="p-4 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50"
+                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF1F5]/50"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-[#123B5A]">{m.monthYear}</span>
@@ -204,10 +204,10 @@ export default function AttendancePage() {
                       {isGood ? "Eligible" : "Shortage"}
                     </Badge>
                   </div>
-                  <div className="text-2xl font-extrabold text-[#202936] mb-1">
+                  <div className="text-2xl font-extrabold text-[#1E293B] mb-1">
                     {m.percentage}%
                   </div>
-                  <p className="text-xs text-[#788391]">
+                  <p className="text-xs text-[#64748B]">
                     {m.attendedClasses} attended / {m.totalClasses} total
                   </p>
                   <div className="mt-3 w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">

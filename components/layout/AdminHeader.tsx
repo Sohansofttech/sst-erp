@@ -28,6 +28,20 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  const handleLogout = async () => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("erp_token");
+        localStorage.removeItem("erp_user");
+        localStorage.removeItem("erp_institution_name");
+      }
+      await fetch("/api/auth/me", { method: "POST", credentials: "include" });
+      window.location.href = "/login";
+    } catch {
+      window.location.href = "/login";
+    }
+  };
+
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 md:px-6 bg-white border-b border-[#E2E8F0] shadow-xs">
       {/* Left: Mobile Toggle & Institution Name */}
@@ -200,7 +214,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 <button
                   onClick={() => {
                     setShowProfileMenu(false);
-                    router.push("/admin/login");
+                    handleLogout();
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg text-[#DC2626] hover:bg-[#FEE2E2] text-left cursor-pointer"
                 >

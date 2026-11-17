@@ -279,7 +279,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl sm:text-[28px] font-extrabold text-[#202936] tracking-tight">
+            <h1 className="text-2xl sm:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
               Student Dashboard
             </h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -287,12 +287,12 @@ export default function DashboardPage() {
               Session {student?.academicYear || "2025-2026"}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#788391]">
-            <span>Welcome, <strong className="text-[#202936] font-semibold">{displayName}</strong></span>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#64748B]">
+            <span>Welcome, <strong className="text-[#1E293B] font-semibold">{displayName}</strong></span>
             <span>•</span>
-            <span>Roll No: <span className="font-mono font-semibold text-[#202936]">{displayRollNo}</span></span>
+            <span>Roll No: <span className="font-mono font-semibold text-[#1E293B]">{displayRollNo}</span></span>
             <span>•</span>
-            <span>Adm ID: <span className="font-mono font-semibold text-[#202936]">{displayAdmissionId}</span></span>
+            <span>Adm ID: <span className="font-mono font-semibold text-[#1E293B]">{displayAdmissionId}</span></span>
             <span>•</span>
             <span>Semester {student?.currentSemester || 5} • Sec {student?.currentSection || "A"}</span>
             <span>•</span>
@@ -305,7 +305,7 @@ export default function DashboardPage() {
             <Button
               variant="primary"
               size="sm"
-              className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-sm font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-2"
+              className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs font-semibold px-4 py-2 rounded-md text-xs flex items-center gap-2 cursor-pointer"
               icon={<ArrowRight className="w-4 h-4" />}
             >
               View Student Profile
@@ -315,7 +315,7 @@ export default function DashboardPage() {
       </div>
 
       {loadingData ? (
-        <div className="py-20 text-center text-sm text-[#788391]">
+        <div className="py-20 text-center text-sm text-[#64748B]">
           <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
           Loading academic records...
         </div>
@@ -324,7 +324,7 @@ export default function DashboardPage() {
           {/* Row of 6 Horizontal Stat Cards (Student-Specific Metrics in Theme) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
             {/* Card 1: Solid Dark Navy Blue */}
-            <div className="p-4 rounded-2xl bg-[#123B5A] text-white shadow-md border border-[#1B4D70] flex flex-col justify-between transition-all hover:shadow-lg">
+            <div className="p-4 rounded-xl bg-[#123B5A] text-white shadow-xs border border-[#16466C] flex flex-col justify-between transition-all hover:shadow-md">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
                   ATTENDANCE
@@ -344,9 +344,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 2: Today's Classes */}
-            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-white text-[#1E293B] shadow-xs border border-[#E2E8F0] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                   TODAY&apos;S CLASSES
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#F5A000]">
@@ -354,19 +354,19 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="my-2">
-                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
                   {todaySchedule?.length ?? 4}
                 </span>
               </div>
-              <span className="text-[11px] text-[#788391] truncate">
+              <span className="text-[11px] text-[#64748B] truncate">
                 {todaySchedule && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "No classes today"}
               </span>
             </div>
 
             {/* Card 3: Fee Status */}
-            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-white text-[#1E293B] shadow-xs border border-[#E2E8F0] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                   FEE STATUS
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#FFFBEB] flex items-center justify-center text-[#D97706]">
@@ -374,19 +374,19 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="my-2">
-                <span className="text-2xl lg:text-[26px] font-extrabold text-[#202936] tracking-tight truncate">
+                <span className="text-2xl lg:text-[26px] font-extrabold text-[#1E293B] tracking-tight truncate">
                   {feeSummary?.totalOutstanding > 0 ? `₹${(feeSummary.totalOutstanding / 1000).toFixed(1)}k` : "Settled"}
                 </span>
               </div>
-              <span className="text-[11px] text-[#788391] truncate">
+              <span className="text-[11px] text-[#64748B] truncate">
                 {feeSummary?.totalOutstanding > 0 ? "Semester 5 balance" : "All tuition cleared"}
               </span>
             </div>
 
             {/* Card 4: Academic CGPA */}
-            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-white text-[#1E293B] shadow-xs border border-[#E2E8F0] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                   CURRENT CGPA
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
@@ -394,7 +394,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="my-2 flex items-baseline gap-1.5">
-                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
                   {cgpa !== undefined && cgpa > 0 ? cgpa : "9.5"}
                 </span>
               </div>
@@ -404,9 +404,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Card 5: Examinations */}
-            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-white text-[#1E293B] shadow-xs border border-[#E2E8F0] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                   EXAMINATIONS
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center text-[#123B5A]">
@@ -414,19 +414,19 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="my-2">
-                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
                   {upcomingExams?.length ?? 1}
                 </span>
               </div>
-              <span className="text-[11px] text-[#788391] truncate">
+              <span className="text-[11px] text-[#64748B] truncate">
                 {upcomingExams?.[0]?.hasHallTicket ? "Hall Ticket Ready" : "Semester Finals"}
               </span>
             </div>
 
             {/* Card 6: LMS Tasks */}
-            <div className="p-4 rounded-2xl bg-white text-[#202936] shadow-2xs border border-[#E5E9EF] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
+            <div className="p-4 rounded-xl bg-white text-[#1E293B] shadow-xs border border-[#E2E8F0] hover:border-[#123B5A]/30 transition-all flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#788391] uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">
                   PENDING TASKS
                 </span>
                 <div className="w-7 h-7 rounded-lg bg-[#FEF3C7] flex items-center justify-center text-[#D97706]">
@@ -434,27 +434,27 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="my-2">
-                <span className="text-2xl lg:text-[28px] font-extrabold text-[#202936] tracking-tight">
+                <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
                   {assignments?.filter((a: any) => !a.isSubmitted).length ?? assignments?.length ?? 2}
                 </span>
               </div>
-              <span className="text-[11px] text-[#788391] truncate">
+              <span className="text-[11px] text-[#64748B] truncate">
                 Coursework due soon
               </span>
             </div>
           </div>
 
           {/* Central Student Academic & Course Performance Card */}
-          <div className="bg-white rounded-2xl border border-[#E5E9EF] p-5 sm:p-6 shadow-xs mb-6">
-            {/* Header with Title & Tab Filter Switcher */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#E5E9EF]">
+          <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-xs mb-6 overflow-hidden">
+            {/* Header with Title & Tab Filter Switcher (px-6 py-4 border-b border-[#E2E8F0]) */}
+            <div className="px-6 py-4 border-b border-[#E2E8F0] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-bold text-[#202936]">
+                  <h2 className="text-base sm:text-lg font-bold text-[#1E293B]">
                     Course Progress & Academic Performance
                   </h2>
                 </div>
-                <p className="text-xs text-[#788391] mt-0.5">
+                <p className="text-xs text-[#64748B] mt-0.5">
                   Semester {student?.currentSemester || 5} • Enrolled subjects, attendance health & syllabus coverage
                 </p>
               </div>
@@ -471,10 +471,10 @@ export default function DashboardPage() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+                    className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all shrink-0 cursor-pointer ${
                       activeTab === tab.id
                         ? "bg-[#F5A000] text-white shadow-xs"
-                        : "text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5]"
+                        : "text-[#64748B] hover:text-[#1E293B] hover:bg-[#EEF1F5]"
                     }`}
                   >
                     {tab.label}
@@ -483,20 +483,20 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Tab Contents: Course Progress Grid */}
-            <div className="pt-5">
+            {/* Tab Contents: Course Progress Grid (p-6) */}
+            <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {enrolledCourses.map((course, idx) => (
                   <div
                     key={idx}
-                    className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs space-y-2.5"
+                    className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs space-y-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase inline-block mb-1">
                           {course.code}
                         </span>
-                        <h4 className="text-xs font-bold text-[#202936] truncate" title={course.name}>
+                        <h4 className="text-xs font-bold text-[#1E293B] truncate" title={course.name}>
                           {course.name}
                         </h4>
                       </div>
@@ -519,7 +519,7 @@ export default function DashboardPage() {
                     <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
                       <div
                         style={{ width: `${course.theoryPct}%` }}
-                        className="h-full bg-[#16466C]"
+                        className="h-full bg-[#123B5A]"
                         title={`Lecture Attendance: ${course.theoryPct}%`}
                       />
                       <div
@@ -529,26 +529,26 @@ export default function DashboardPage() {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-[#788391] pt-0.5">
+                    <div className="flex items-center justify-between text-[11px] text-[#64748B] pt-0.5">
                       <span className="truncate">Faculty: {course.faculty}</span>
-                      <span className="font-semibold text-[#202936] shrink-0">{course.credits} Credits</span>
+                      <span className="font-semibold text-[#1E293B] shrink-0">{course.credits} Credits</span>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* Bottom Summary Strip */}
-            <div className="mt-4 pt-3 border-t border-[#E5E9EF] flex flex-wrap items-center justify-between text-xs text-[#788391]">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#16466C]" />
-                <span>Lecture Attendance (Theory)</span>
-                <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
-                <span>Practical Labs & Coursework</span>
+              {/* Bottom Summary Strip */}
+              <div className="mt-5 pt-4 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between text-xs text-[#64748B]">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#123B5A]" />
+                  <span>Lecture Attendance (Theory)</span>
+                  <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
+                  <span>Practical Labs & Coursework</span>
+                </div>
+                <span className="font-semibold text-[#1E293B]">
+                  Semester Load: 6 Enrolled Subjects • 19 Total Credits
+                </span>
               </div>
-              <span className="font-semibold text-[#202936]">
-                Semester Load: 6 Enrolled Subjects • 19 Total Credits
-              </span>
             </div>
           </div>
 
@@ -568,24 +568,24 @@ export default function DashboardPage() {
                 }
               >
                 {todaySchedule?.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-[#788391]">
-                    <Calendar className="w-8 h-8 text-[#788391]/40 mx-auto mb-2" />
-                    <p className="font-medium text-[#202936]">No lectures scheduled for today</p>
-                    <p className="text-xs mt-0.5">Enjoy your free study hours or prepare for upcoming assessments.</p>
+                  <div className="py-8 text-center text-sm text-[#64748B]">
+                    <Calendar className="w-8 h-8 text-[#64748B]/40 mx-auto mb-2" />
+                    <p className="font-medium text-[#1E293B]">No lectures scheduled for today</p>
+                    <p className="text-xs mt-0.5 text-[#64748B]">Enjoy your free study hours or prepare for upcoming assessments.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {todaySchedule?.map((slot: any) => (
                       <div
                         key={slot.id}
-                        className="p-3.5 rounded-xl border border-[#E5E9EF] hover:border-[#123B5A]/40 bg-white hover:shadow-xs flex items-center justify-between transition-all"
+                        className="p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#123B5A]/40 bg-white hover:shadow-xs flex items-center justify-between transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="px-3 py-1.5 rounded-lg bg-[#EEF1F5] border border-[#E5E9EF] text-center min-w-[80px]">
+                          <div className="px-3 py-1.5 rounded-lg bg-[#EEF1F5] border border-[#E2E8F0] text-center min-w-[80px]">
                             <span className="text-xs font-bold text-[#123B5A] block leading-tight">
                               {slot.startTime}
                             </span>
-                            <span className="text-[10px] text-[#788391] block">
+                            <span className="text-[10px] text-[#64748B] block">
                               {slot.endTime}
                             </span>
                           </div>
@@ -594,17 +594,17 @@ export default function DashboardPage() {
                               <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF3C7] text-[#D97706]">
                                 {slot.subjectCode}
                               </span>
-                              <h3 className="text-sm font-semibold text-[#202936]">
+                              <h3 className="text-sm font-semibold text-[#1E293B]">
                                 {slot.subjectName}
                               </h3>
                             </div>
-                            <p className="text-xs text-[#788391] mt-0.5 flex items-center gap-1">
-                              <Users className="w-3 h-3 text-[#788391]" />
+                            <p className="text-xs text-[#64748B] mt-0.5 flex items-center gap-1">
+                              <Users className="w-3 h-3 text-[#64748B]" />
                               <span>Faculty: {slot.teacherName}</span>
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#202936] bg-[#EEF1F5] px-2.5 py-1 rounded-md border border-[#E5E9EF]">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#1E293B] bg-[#EEF1F5] px-2.5 py-1 rounded-md border border-[#E2E8F0]">
                           <MapPin className="w-3.5 h-3.5 text-[#F5A000]" />
                           <span>{slot.roomNumber}</span>
                         </div>
@@ -627,29 +627,29 @@ export default function DashboardPage() {
                 }
               >
                 {assignments?.length === 0 ? (
-                  <p className="text-xs text-[#788391] py-4 text-center">No active coursework assignments pending.</p>
+                  <p className="text-xs text-[#64748B] py-4 text-center">No active coursework assignments pending.</p>
                 ) : (
                   <div className="space-y-3">
                     {assignments?.map((item: any) => (
                       <div
                         key={item.id}
-                        className="p-3.5 rounded-xl border border-[#E5E9EF] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs"
+                        className="p-3.5 rounded-xl border border-[#E2E8F0] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-xs"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
                             <BookOpen className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-sm font-semibold text-[#202936]">{item.title}</h4>
-                            <p className="text-xs text-[#788391]">{item.subjectName}</p>
+                            <h4 className="text-sm font-semibold text-[#1E293B]">{item.title}</h4>
+                            <p className="text-xs text-[#64748B]">{item.subjectName}</p>
                           </div>
                         </div>
                         <div className="text-right">
                           <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
                             {item.isSubmitted ? "Submitted" : "Pending"}
                           </Badge>
-                          <div className="flex items-center gap-1 text-[11px] text-[#788391] mt-1">
-                            <Clock className="w-3 h-3 text-[#788391]" />
+                          <div className="flex items-center gap-1 text-[11px] text-[#64748B] mt-1">
+                            <Clock className="w-3 h-3 text-[#64748B]" />
                             <span>Due {new Date(item.dueDate).toLocaleDateString()}</span>
                           </div>
                         </div>
@@ -679,22 +679,22 @@ export default function DashboardPage() {
                 }
               >
                 {recentResults?.length === 0 ? (
-                  <p className="text-xs text-[#788391] py-4 text-center">No recent published exam results.</p>
+                  <p className="text-xs text-[#64748B] py-4 text-center">No recent published exam results.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {recentResults?.map((res: any) => (
                       <div
                         key={res.id}
-                        className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/30 transition-all shadow-2xs flex items-center justify-between"
+                        className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs flex items-center justify-between"
                       >
                         <div>
                           <span className="text-[11px] font-bold text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded">
                             {res.subjectCode}
                           </span>
-                          <h5 className="text-xs font-semibold text-[#202936] mt-1.5 line-clamp-1">
+                          <h5 className="text-xs font-semibold text-[#1E293B] mt-1.5 line-clamp-1">
                             {res.subjectName}
                           </h5>
-                          <span className="text-[11px] text-[#788391] font-medium">Score: {res.totalMarks}/100</span>
+                          <span className="text-[11px] text-[#64748B] font-medium">Score: {res.totalMarks}/100</span>
                         </div>
                         <div className="text-right">
                           <span className="text-base font-extrabold text-[#123B5A] block leading-tight">
@@ -726,23 +726,23 @@ export default function DashboardPage() {
                 }
               >
                 {upcomingExams?.length === 0 ? (
-                  <p className="text-xs text-[#788391] py-4 text-center">No upcoming examinations scheduled.</p>
+                  <p className="text-xs text-[#64748B] py-4 text-center">No upcoming examinations scheduled.</p>
                 ) : (
                   <div className="space-y-3">
                     {upcomingExams?.map((exam: any) => (
-                      <div key={exam.id} className="p-3.5 rounded-xl border border-[#E5E9EF] bg-white shadow-2xs hover:border-[#123B5A]/30 transition-all">
+                      <div key={exam.id} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white shadow-xs hover:border-[#123B5A]/30 transition-all">
                         <div className="flex items-center justify-between mb-1.5">
                           <Badge variant="error" size="sm">{exam.examType}</Badge>
-                          <span className="text-xs font-medium text-[#788391]">{exam.slotsCount} papers</span>
+                          <span className="text-xs font-medium text-[#64748B]">{exam.slotsCount} papers</span>
                         </div>
-                        <h4 className="text-xs font-bold text-[#202936] mt-1">{exam.title}</h4>
-                        <p className="text-[11px] text-[#788391] mt-1 flex items-center gap-1">
+                        <h4 className="text-xs font-bold text-[#1E293B] mt-1">{exam.title}</h4>
+                        <p className="text-[11px] text-[#64748B] mt-1 flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
                           <span>Starts: {new Date(exam.startDate).toLocaleDateString()}</span>
                         </p>
                         {exam.hasHallTicket && (
                           <Link href="/student/examinations">
-                            <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#1B4D70] text-white rounded-lg shadow-xs">
+                            <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#16466C] text-white rounded-md shadow-xs">
                               Download Admit Card
                             </Button>
                           </Link>
@@ -766,7 +766,7 @@ export default function DashboardPage() {
                         Outstanding balance of <span className="font-extrabold text-[#92400E]">₹{feeSummary.totalOutstanding.toLocaleString()}</span> is due for Semester 5.
                       </p>
                       <Link href="/student/fees">
-                        <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs">
+                        <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs rounded-md">
                           Pay Fees Online
                         </Button>
                       </Link>
@@ -786,26 +786,26 @@ export default function DashboardPage() {
                 subtitle="Campus notices & academic updates"
               >
                 {notifications?.length === 0 ? (
-                  <p className="text-xs text-[#788391] py-4 text-center">No recent campus notices.</p>
+                  <p className="text-xs text-[#64748B] py-4 text-center">No recent campus notices.</p>
                 ) : (
                   <div className="space-y-2.5">
                     {notifications?.slice(0, 3).map((item: any) => (
                       <div
                         key={item.id}
-                        className="p-3 rounded-lg border border-[#E5E9EF] bg-white hover:border-[#F5A000] transition-colors shadow-2xs"
+                        className="p-3 rounded-lg border border-[#E2E8F0] bg-white hover:border-[#F5A000] transition-colors shadow-xs"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
                             {item.category}
                           </span>
-                          <span className="text-[10px] text-[#788391]">
+                          <span className="text-[10px] text-[#64748B]">
                             {new Date(item.createdAt).toLocaleDateString()}
                           </span>
                         </div>
-                        <h5 className="text-xs font-semibold text-[#202936] line-clamp-1">
+                        <h5 className="text-xs font-semibold text-[#1E293B] line-clamp-1">
                           {item.title}
                         </h5>
-                        <p className="text-[11px] text-[#788391] mt-0.5 line-clamp-2">
+                        <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-2">
                           {item.message}
                         </p>
                       </div>
@@ -819,43 +819,43 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-2 gap-2.5">
                   <Link
                     href="/student/attendance"
-                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                    className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
                       <CheckCircle2 className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-semibold text-[#202936] block">Attendance</span>
-                    <span className="text-[10px] text-[#788391] block">View Logs</span>
+                    <span className="text-xs font-semibold text-[#1E293B] block">Attendance</span>
+                    <span className="text-[10px] text-[#64748B] block">View Logs</span>
                   </Link>
                   <Link
                     href="/student/fees"
-                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                    className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
                       <CreditCard className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-semibold text-[#202936] block">Pay Fees</span>
-                    <span className="text-[10px] text-[#788391] block">Online Receipts</span>
+                    <span className="text-xs font-semibold text-[#1E293B] block">Pay Fees</span>
+                    <span className="text-[10px] text-[#64748B] block">Online Receipts</span>
                   </Link>
                   <Link
                     href="/student/timetable"
-                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                    className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#123B5A] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
                       <Calendar className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-semibold text-[#202936] block">Timetable</span>
-                    <span className="text-[10px] text-[#788391] block">Weekly Schedule</span>
+                    <span className="text-xs font-semibold text-[#1E293B] block">Timetable</span>
+                    <span className="text-[10px] text-[#64748B] block">Weekly Schedule</span>
                   </Link>
                   <Link
                     href="/student/examinations"
-                    className="p-3 rounded-xl border border-[#E5E9EF] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
+                    className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
                       <Award className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-semibold text-[#202936] block">Hall Tickets</span>
-                    <span className="text-[10px] text-[#788391] block">Exam Results</span>
+                    <span className="text-xs font-semibold text-[#1E293B] block">Hall Tickets</span>
+                    <span className="text-[10px] text-[#64748B] block">Exam Results</span>
                   </Link>
                 </div>
               </Card>

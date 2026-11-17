@@ -6,6 +6,7 @@ import { hasSuperAdminRole } from "@/lib/super-admin/authorization";
 import { createClient } from "@/lib/supabase/server";
 import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 import { connection } from "next/server";
+import { getSession } from "@/lib/auth/session";
 import "../super-admin.css";
 
 export const metadata: Metadata = {
@@ -22,10 +23,32 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
 
   await connection();
 
+  // 1. Check ERP session (sst_session cookie)
+  const erpSession = await getSession();
+  if (erpSession) {
+    if (erpSession.role === "SUPER_ADMIN") {
+      return (
+        <SuperAdminShell userEmail={erpSession.email || "superadmin@sohansofttech.com"}>
+          {children}
+        </SuperAdminShell>
+      );
+    }
+    return (
+      <div className="super-admin sa-access-page">
+        <section className="sa-access-card" role="alert">
+          <h1>Super Admin access required</h1>
+          <p>Your account is signed in as {erpSession.role}, but it does not have an active Super Admin role.</p>
+          <LogoutButton className="sa-back-link" />
+        </section>
+      </div>
+    );
+  }
+
+  // 2. Fallback to Supabase Auth
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (error || !user) redirect("/super-admin/login");
+  if (error || !user) redirect("/login");
 
   let isSuperAdmin = false;
   try {

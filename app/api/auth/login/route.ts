@@ -63,14 +63,23 @@ export async function POST(req: NextRequest) {
         fullName: true,
         passwordHash: true,
         role: true,
+        platformRole: true,
         isActive: true,
         institutionId: true,
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            code: true,
+          },
+        },
       },
     });
 
     if (!user || !user.isActive) {
       return NextResponse.json(
-        { success: false, error: "Invalid email or account is inactive." },
+        { success: false, error: "Invalid email or password." },
         { status: 401 }
       );
     }
@@ -86,11 +95,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Normalize and verify role from trusted database record
+    const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
+
+    let redirectUrl = "";
     let studentId: string | undefined;
     let guardianId: string | undefined;
     let activeChildId: string | undefined;
 
-    if (user.role === "STUDENT") {
+    if (userRole === "STUDENT") {
+      redirectUrl = "/dashboard";
       let studentRecord: any = null;
       try {
         const students = await db.$queryRaw<any[]>`
@@ -101,14 +115,11 @@ export async function POST(req: NextRequest) {
         console.warn("Raw student lookup error:", err);
       }
 
-      if (!studentRecord) {
-        return NextResponse.json(
-          { success: false, error: "No student record associated with this account." },
-          { status: 403 }
-        );
+      if (studentRecord) {
+        studentId = studentRecord.id;
       }
-      studentId = studentRecord.id;
-    } else if (user.role === "PARENT") {
+    } else if (userRole === "PARENT" || userRole === "GUARDIAN") {
+      redirectUrl = "/parent/dashboard";
       try {
         const guardians = await db.$queryRaw<any[]>`
           SELECT id FROM guardian_accounts WHERE "userId" = ${user.id} LIMIT 1
@@ -127,34 +138,27 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.warn("Raw guardian lookup error:", err);
       }
-
-      if (!guardianId) {
-        return NextResponse.json(
-          { success: false, error: "No guardian record associated with this account." },
-          { status: 403 }
-        );
-      }
+    } else if (userRole === "TEACHER") {
+      const instSlug = (user.institution?.slug || user.institution?.code || "demo-school").toLowerCase();
+      redirectUrl = `/campus/${instSlug}/teacher`;
+    } else if (userRole === "ADMIN") {
+      redirectUrl = "/admin";
+    } else if (userRole === "SUPER_ADMIN") {
+      redirectUrl = "/super-admin";
+    } else {
+      return NextResponse.json(
+        { success: false, error: "Access denied: Account role is unrecognized or unsupported." },
+        { status: 403 }
+      );
     }
 
-    let institutionName = "";
-    if (user.institutionId) {
-      try {
-        const insts = await db.$queryRaw<any[]>`
-          SELECT name FROM institutions WHERE id = ${user.institutionId} LIMIT 1
-        `;
-        if (insts.length > 0) {
-          institutionName = insts[0].name || "";
-        }
-      } catch (err) {
-        console.warn("Raw institution lookup error:", err);
-      }
-    }
+    const institutionName = user.institution?.name || "";
 
     const sessionUser: SessionUser = {
       userId: user.id,
       email: user.email,
       fullName: user.fullName || "",
-      role: (user.role as any) || "STUDENT",
+      role: (userRole as any) || "STUDENT",
       institutionId: user.institutionId || "",
       institutionName,
       studentId,
@@ -179,6 +183,7 @@ export async function POST(req: NextRequest) {
       data: {
         user: sessionUser,
         token,
+        redirectUrl,
       },
     });
 
