@@ -55,6 +55,13 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
     const firstInst = await db.institution.findFirst({ select: { id: true } });
     if (firstInst) {
       defaultInstId = firstInst.id;
+    } else {
+      const platformRows: any = await db.$queryRaw`
+        SELECT id FROM "Institution" WHERE "archivedAt" IS NULL ORDER BY "createdAt" DESC LIMIT 1
+      `;
+      if (platformRows && platformRows.length > 0) {
+        defaultInstId = platformRows[0].id;
+      }
     }
   } catch {
     // DB might be offline or initializing

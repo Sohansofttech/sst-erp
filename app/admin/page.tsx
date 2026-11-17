@@ -110,12 +110,24 @@ export default function DashboardPage() {
   // Live computed metrics with fallbacks
   const liveStats = dashboardData?.stats;
 
-  const totalStudents = liveStats?.totalStudents || stats.totalStudents || students.length || 2450;
-  const totalStaff = liveStats?.totalFaculty || stats.totalStaff || 184;
-  const totalAdmissions = liveStats?.pendingAdmissions || stats.totalAdmissions || 142;
-  const pendingApprovalsCount = approvals.length || stats.pendingApprovals || 18;
-  const totalFeesCollected = liveStats?.totalFeesCollected ? `₹${(liveStats.totalFeesCollected / 100000).toFixed(1)}L` : "₹98.50L";
-  const attendanceRate = stats.attendanceRateToday ? `${stats.attendanceRateToday}%` : "94.8%";
+  const totalStudents = liveStats?.totalStudents !== undefined ? liveStats.totalStudents : (stats.totalStudents ?? 0);
+  const totalStaff = liveStats?.totalFaculty !== undefined ? liveStats.totalFaculty : (stats.totalStaff ?? 0);
+  const totalAdmissions = liveStats?.pendingAdmissions !== undefined ? liveStats.pendingAdmissions : (stats.totalAdmissions ?? 0);
+  const pendingApprovalsCount = approvals.length || (stats.pendingApprovals ?? 0);
+  const totalFeesCollected = liveStats?.totalFeesCollected !== undefined
+    ? `₹${(liveStats.totalFeesCollected / 100000).toFixed(2)}L`
+    : (stats.totalFeesCollected ? `₹${(stats.totalFeesCollected / 100000).toFixed(1)}L` : "₹0.00L");
+  const attendanceRate = liveStats?.attendanceRate || (stats.attendanceRateToday ? `${stats.attendanceRateToday}%` : "N/A");
+
+  const effectiveActivities = dashboardData?.recentActivities?.length
+    ? dashboardData.recentActivities.map((a: any) => ({
+        id: a.id,
+        user: a.userName || "Administrator",
+        action: a.action,
+        target: a.tableName || a.entity || "general",
+        timestamp: new Date(a.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }))
+    : recentActivities;
 
   // Real department enrollment calculated from store departments & students
   // Matching reference chart colors: alternating Navy (#123B5A), Orange (#F5A000), Blue (#F5A000), Amber (#F59E0B)
@@ -185,7 +197,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-[#38BDF8] font-bold mt-1">
               <TrendingUp className="w-3 h-3" />
-              <span>+8.4% from last term</span>
+              <span>{totalStudents > 0 ? "+8.4% from last term" : "No active students"}</span>
             </div>
           </CardContent>
         </Card>
@@ -203,7 +215,13 @@ export default function DashboardPage() {
               {loadingDashboard ? "..." : totalAdmissions}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium mt-1">
-              <span className="text-[#F5A000] font-bold">38</span> awaiting review
+              {dashboardData?.schemaStatus?.admissions === "PENDING_MIGRATION" ? (
+                <span className="text-[#F59E0B] font-medium">Setup in progress</span>
+              ) : totalAdmissions > 0 ? (
+                <span><span className="text-[#F5A000] font-bold">{totalAdmissions}</span> awaiting review</span>
+              ) : (
+                <span>No pending applications</span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -220,8 +238,8 @@ export default function DashboardPage() {
             <div className="text-2xl font-black text-[#1E293B] mt-1.5">
               {loadingDashboard ? "..." : totalFeesCollected}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#F5A000] font-bold mt-1">
-              <span>79.4% realized</span>
+            <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium mt-1">
+              <span>{totalFeesCollected !== "₹0.00L" ? "Fee collections" : "No collections recorded"}</span>
             </div>
           </CardContent>
         </Card>
@@ -238,8 +256,8 @@ export default function DashboardPage() {
             <div className="text-2xl font-black text-[#1E293B] mt-1.5">
               {attendanceRate}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#16A34A] font-bold mt-1">
-              <span>+1.2% this week</span>
+            <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium mt-1">
+              <span>{attendanceRate !== "N/A" ? `${attendanceRate} recorded` : "No sessions logged"}</span>
             </div>
           </CardContent>
         </Card>
@@ -257,7 +275,11 @@ export default function DashboardPage() {
               {loadingDashboard ? "..." : totalStaff}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium mt-1">
-              <span>Across {departments.length || 6} departments</span>
+              <span>
+                {dashboardData?.schemaStatus?.departments === "PENDING_MIGRATION"
+                  ? "Departments pending setup"
+                  : `Across ${departments.length} departments`}
+              </span>
             </div>
           </CardContent>
         </Card>

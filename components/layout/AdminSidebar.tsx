@@ -65,7 +65,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       {/* Mobile Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[#0D2B42]/60 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden"
           onClick={onClose}
         />
       )}
@@ -73,15 +73,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       {/* Sidebar Panel - Fixed Deep Navy Blue Vertical Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#123B5A] text-white flex flex-col transition-transform duration-300 ease-in-out shadow-xl",
+          "fixed top-0 bottom-0 left-0 z-50 w-64 bg-[var(--admin-sidebar-bg,#123B5A)] text-white flex flex-col transition-transform duration-300 ease-in-out shadow-xl",
           "lg:static lg:h-full lg:shrink-0 lg:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Brand / Logo Area (Fixed Top) */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-[#16466C] bg-[#0D2B42] shrink-0">
+        <div className="flex items-center justify-between h-16 px-5 border-b border-white/10 bg-black/20 shrink-0">
           <Link href="/admin" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#F5A000] flex items-center justify-center font-black text-white text-base shadow-xs">
+            <div className="w-8 h-8 rounded-lg bg-[var(--admin-accent,#F5A000)] flex items-center justify-center font-black text-white text-base shadow-xs">
               SST
             </div>
             <div>
@@ -93,7 +93,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               </span>
             </div>
           </Link>
-          <span className="text-[10px] font-semibold bg-[#F5A000]/30 text-white border border-[#F5A000]/60 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-semibold bg-[var(--admin-accent,#F5A000)]/30 text-white border border-white/30 px-1.5 py-0.5 rounded">
             Admin
           </span>
         </div>
@@ -112,8 +112,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname === "/admin"
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <LayoutDashboard className="w-4 h-4 shrink-0 text-white" />
@@ -127,8 +127,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname === "/admin/settings"
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <Settings className="w-4 h-4 shrink-0 text-white" />
@@ -143,7 +143,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
                 isAcademicsActive
                   ? "bg-[#16466C] text-white"
-                  : "text-white hover:bg-[#16466C] hover:text-white"
+                  : "text-white hover:bg-white/10 hover:text-white"
               )}
             >
               <div className="flex items-center gap-3">
@@ -159,7 +159,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             </button>
 
             {academicsOpen && (
-              <div className="mt-1 ml-4 pl-3 border-l border-[#16466C] space-y-1">
+              <div className="mt-1 ml-4 pl-3 border-l border-white/10 space-y-1">
                 {/* 3.1 Academic Years */}
                 <Link
                   href="/admin/academics/academic-years"
@@ -167,8 +167,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
                     pathname.startsWith("/admin/academics/academic-years")
-                      ? "bg-[#F5A000] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
+                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
@@ -182,8 +182,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
                     pathname.startsWith("/admin/academics/departments")
-                      ? "bg-[#F5A000] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
+                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <Building className="w-3.5 h-3.5 text-white shrink-0" />
@@ -197,8 +197,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
                     pathname.startsWith("/admin/academics/courses")
-                      ? "bg-[#F5A000] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
+                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <BookOpen className="w-3.5 h-3.5 text-white shrink-0" />
@@ -212,8 +212,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
                     pathname.startsWith("/admin/academics/classes")
-                      ? "bg-[#F5A000] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
+                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <Layers className="w-3.5 h-3.5 text-white shrink-0" />
@@ -227,8 +227,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                   className={cn(
                     "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
                     pathname.startsWith("/admin/academics/subjects")
-                      ? "bg-[#F5A000] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-[#16466C] hover:text-white"
+                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
+                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <BookMarked className="w-3.5 h-3.5 text-white shrink-0" />
@@ -245,8 +245,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/admissions")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <UserPlus className="w-4 h-4 shrink-0 text-white" />
@@ -265,8 +265,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/students")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <Users className="w-4 h-4 shrink-0 text-white" />
@@ -280,8 +280,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/guardians")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <HeartHandshake className="w-4 h-4 shrink-0 text-white" />
@@ -295,8 +295,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/staff")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <Briefcase className="w-4 h-4 shrink-0 text-white" />
@@ -310,8 +310,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/roles-permissions")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <ShieldAlert className="w-4 h-4 shrink-0 text-white" />
@@ -330,8 +330,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/timetable")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <Clock className="w-4 h-4 shrink-0 text-white" />
@@ -345,8 +345,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/attendance")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <CalendarCheck className="w-4 h-4 shrink-0 text-white" />
@@ -360,8 +360,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/examinations")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
@@ -375,8 +375,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/ia")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <Award className="w-4 h-4 shrink-0 text-white" />
@@ -390,8 +390,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/results")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <GraduationCap className="w-4 h-4 shrink-0 text-white" />
@@ -405,8 +405,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/promotions")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <TrendingUp className="w-4 h-4 shrink-0 text-white" />
@@ -420,8 +420,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
               pathname.startsWith("/admin/certificates")
-                ? "bg-[#F5A000] text-white shadow-xs"
-                : "text-white hover:bg-[#16466C] hover:text-white"
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
           >
             <FileText className="w-4 h-4 shrink-0 text-white" />
@@ -445,8 +445,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors",
                   isActive
-                    ? "bg-[#F5A000] text-white font-semibold shadow-xs"
-                    : "text-white hover:bg-[#16466C] hover:text-white"
+                    ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold shadow-xs"
+                    : "text-white hover:bg-white/10 hover:text-white"
                 )}
               >
                 <Icon className="w-4 h-4 shrink-0 text-white" />
@@ -457,7 +457,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-[#16466C] bg-[#0D2B42] text-[11px] text-[#8EA4C2] shrink-0">
+        <div className="p-3 border-t border-white/10 bg-black/20 text-[11px] text-[#8EA4C2] shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" />
             <span className="font-semibold text-white">Academic Year</span>
