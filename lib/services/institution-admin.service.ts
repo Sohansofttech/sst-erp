@@ -2173,14 +2173,25 @@ export async function getAuditLogs(institutionId: string, take = 50) {
   try {
     const list = await db.auditLog.findMany({
       where: { institutionId },
-      include: {
+      select: {
+        id: true,
+        institutionId: true,
+        userId: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        oldValuesJson: true,
+        newValuesJson: true,
+        userAgent: true,
+        ipAddress: true,
+        createdAt: true,
         user: {
           select: { id: true, fullName: true, name: true, email: true, role: true },
         },
       },
       orderBy: { createdAt: "desc" },
       take,
-    });
+    }).then((entries) => entries.map((entry) => ({ ...entry, entity: entry.entityType })));
     if (list && list.length > 0) return list;
   } catch (err: any) {
     console.warn("Audit logs query fallback:", err.message);
@@ -2209,7 +2220,7 @@ export async function createAuditLog(data: {
         institutionId: data.institutionId,
         userId: data.userId,
         action: data.action,
-        entity: data.tableName,
+        entityType: data.tableName,
         entityId: data.recordId,
         oldValuesJson: data.oldValues ? JSON.stringify(data.oldValues) : undefined,
         newValuesJson: data.newValues ? JSON.stringify(data.newValues) : undefined,
