@@ -1,14 +1,26 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ShieldAlert, ArrowRight } from "lucide-react";
+import { ShieldAlert, ArrowRight, X } from "lucide-react";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 
 export function MustChangePasswordBanner() {
   const [mustChange, setMustChange] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    // Suppress security banner in local environment
+    if (
+      typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.port === "3000" ||
+        process.env.NODE_ENV === "development")
+    ) {
+      return;
+    }
+
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
@@ -19,7 +31,17 @@ export function MustChangePasswordBanner() {
       .catch(() => {});
   }, []);
 
-  if (!mustChange) return null;
+  if (
+    dismissed ||
+    !mustChange ||
+    (typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.port === "3000" ||
+        process.env.NODE_ENV === "development"))
+  ) {
+    return null;
+  }
 
   return (
     <>
@@ -30,13 +52,23 @@ export function MustChangePasswordBanner() {
             <strong className="font-bold">Security Notice:</strong> You are currently signed in with a default or breached demo password. Google Password Manager and ERP security recommend changing it immediately.
           </p>
         </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="shrink-0 bg-white text-[#123B5A] hover:bg-slate-100 font-bold px-3 py-1.5 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer text-xs"
-        >
-          <span>Change Password</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setModalOpen(true)}
+            className="bg-white text-[#123B5A] hover:bg-slate-100 font-bold px-3 py-1.5 rounded-lg shadow-xs transition-all flex items-center gap-1.5 cursor-pointer text-xs"
+          >
+            <span>Change Password</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => setDismissed(true)}
+            className="p-1 hover:bg-white/20 rounded-md transition-colors text-white cursor-pointer"
+            title="Dismiss message"
+            aria-label="Dismiss message"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <ChangePasswordModal
