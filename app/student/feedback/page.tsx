@@ -60,7 +60,13 @@ export default function StudentFeedbackPage() {
         setSuccessMsg("Feedback submitted successfully to institution administration.");
         setSubject("");
         setMessage("");
-        fetchFeedback();
+        if (json.data) {
+          setFeedbackList((prev) => [
+            json.data,
+            ...prev.filter((item: any) => item.id !== json.data.id),
+          ]);
+        }
+        await fetchFeedback();
       } else {
         alert(json.error || "Failed to submit feedback.");
       }

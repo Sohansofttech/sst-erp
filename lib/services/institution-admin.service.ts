@@ -2648,7 +2648,20 @@ export async function getStudentFeedbacks(institutionId: string, status?: string
       },
       orderBy: { submittedAt: "desc" },
     });
-    if (list && list.length > 0) return list;
+    if (list && list.length > 0) {
+      const memList = globalFeedbacksRegistry.get(institutionId) || [];
+      const merged = [...list];
+      for (const m of memList) {
+        if (!merged.some((x) => x.id === m.id)) {
+          merged.push(m);
+        }
+      }
+      merged.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+      if (status && status !== "ALL") {
+        return merged.filter((item) => item.status === status);
+      }
+      return merged;
+    }
   } catch (err: any) {
     console.warn("Feedback database query error:", err.message);
   }
