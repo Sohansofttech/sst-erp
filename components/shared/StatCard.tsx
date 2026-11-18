@@ -165,9 +165,10 @@ export function StatCard({
             className={cn(
               "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
               isDark
-                ? "border-white/10 bg-white/10 text-[#F5A000]"
-                : "border-[#E5E9EF] bg-[#EEF1F5] text-[#123B5A]",
-              TONE_CLASSES[tone]
+                ? tone === "darkNavy"
+                  ? "border-white/15 bg-white/15 text-[#F5A000]"
+                  : "border-white/15 bg-white/10 text-white"
+                : cn("border-[#E5E9EF]", TONE_CLASSES[tone])
             )}
           >
             {icon}
