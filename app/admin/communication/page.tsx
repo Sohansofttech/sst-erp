@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 import { Modal } from "@/components/ui/modal";
-import { MessageSquare, Plus, Send, Bell, Users, Search, Filter, CheckCircle2, ShieldAlert } from "lucide-react";
+import { MessageSquare, Plus, Send, Bell, Users, Search, Filter, CheckCircle2, ShieldAlert, HeartHandshake } from "lucide-react";
 
 export default function CommunicationPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -80,14 +81,25 @@ export default function CommunicationPage() {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          size="sm"
-          leftIcon={<Send className="w-4 h-4" />}
-          onClick={() => setIsModalOpen(true)}
-        >
-          Dispatch Broadcast Notice
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/admin/feedback">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<HeartHandshake className="w-4 h-4 text-[#F5A000]" />}
+            >
+              Student Grievances & Feedback
+            </Button>
+          </Link>
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={<Send className="w-4 h-4" />}
+            onClick={() => setIsModalOpen(true)}
+          >
+            Dispatch Broadcast Notice
+          </Button>
+        </div>
       </div>
 
       {/* Communication KPI Summary Cards */}

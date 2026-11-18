@@ -7,7 +7,21 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
     const url = new URL(req.url);
-    const requestedStudentId = url.searchParams.get("studentId") || session.studentId || session.activeChildId;
+    let requestedStudentId = url.searchParams.get("studentId") || session.studentId || session.activeChildId;
+
+    if (!requestedStudentId && session.role === "STUDENT" && session.userId) {
+      const studentProfile = await db.student.findFirst({
+        where: { userId: session.userId },
+        select: { id: true, institutionId: true },
+      });
+      if (studentProfile) {
+        requestedStudentId = studentProfile.id;
+        session.studentId = studentProfile.id;
+        if (!session.institutionId) {
+          session.institutionId = studentProfile.institutionId;
+        }
+      }
+    }
 
     if (!requestedStudentId) {
       return NextResponse.json({ success: false, error: "Missing student ID" }, { status: 400 });
@@ -23,10 +37,12 @@ export async function GET(req: NextRequest) {
       orderBy: { submittedAt: "desc" },
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       data: feedbackList,
     });
+    res.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    return res;
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message },
@@ -38,8 +54,28 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);
-    if (session.role !== "STUDENT" || !session.studentId) {
+    if (session.role !== "STUDENT") {
       return NextResponse.json({ success: false, error: "Only students may submit feedback" }, { status: 403 });
+    }
+
+    let studentId = session.studentId;
+    let institutionId = session.institutionId;
+
+    if (!studentId && session.userId) {
+      const studentProfile = await db.student.findFirst({
+        where: { userId: session.userId },
+        select: { id: true, institutionId: true },
+      });
+      if (studentProfile) {
+        studentId = studentProfile.id;
+        if (!institutionId) {
+          institutionId = studentProfile.institutionId;
+        }
+      }
+    }
+
+    if (!studentId) {
+      return NextResponse.json({ success: false, error: "Student profile not found" }, { status: 400 });
     }
 
     const { category, subject, message } = await req.json();
@@ -50,11 +86,11 @@ export async function POST(req: NextRequest) {
 
     const feedback = await db.feedback.create({
       data: {
-        institutionId: session.institutionId,
-        studentId: session.studentId,
+        institutionId,
+        studentId,
         category,
-        subject,
-        message,
+        subject: String(subject).trim(),
+        message: String(message).trim(),
         status: "PENDING",
       },
     });

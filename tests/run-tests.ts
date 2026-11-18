@@ -21,6 +21,10 @@ import {
   hashPassword,
   verifyPassword,
 } from "../lib/auth/password-security";
+import {
+  getStudentFeedbacks,
+  updateStudentFeedback,
+} from "../lib/services/institution-admin.service";
 import { SessionUser } from "../types";
 import db from "../lib/db";
 
@@ -753,6 +757,106 @@ async function runAllTests() {
       erpCookie !== undefined && erpCookie.value === "" && sstCookie !== undefined && sstCookie.value === "",
       "Logout clears both erp_session and sst_session cookies simultaneously"
     );
+
+    // ----------------------------------------------------
+    // Row 38: Student Grievances & Feedback End-to-End Lifecycle
+    // ----------------------------------------------------
+    console.log("\n--- Row 38: Student Grievances & Feedback End-to-End Lifecycle ---");
+
+    // 1. Student creates feedback
+    const testFeedback = await prisma.feedback.create({
+      data: {
+        institutionId: studentSession.institutionId,
+        studentId: studentSession.studentId!,
+        category: "ACADEMIC",
+        subject: "Automated Test Grievance: Lab Equipment Calibration",
+        message: "Digital oscilloscope in Electronics Lab 2 requires recalibration.",
+        status: "PENDING",
+      },
+    });
+
+    assert(
+      testFeedback.id !== undefined && testFeedback.status === "PENDING",
+      "Student feedback record successfully created with PENDING status"
+    );
+
+    // 2. Admin queries feedbacks for the institution
+    const adminFeedbacks = await getStudentFeedbacks(studentSession.institutionId);
+    const foundAdminItem = adminFeedbacks.find((f: any) => f.id === testFeedback.id);
+
+    assert(
+      foundAdminItem !== undefined,
+      "Admin Portal retrieves the newly submitted student feedback"
+    );
+    assert(
+      foundAdminItem?.student?.rollNumber === studentUser.studentProfile?.rollNumber,
+      "Admin Portal correctly maps and displays student roll number and profile details"
+    );
+
+    // 3. Admin reviews and resolves grievance with official department response
+    const updatedFeedback = await updateStudentFeedback(
+      studentSession.institutionId,
+      testFeedback.id,
+      {
+        status: "RESOLVED",
+        response: "Electronics department technician recalibrated the equipment. Ready for use.",
+      },
+      adminUser.id
+    );
+
+    assert(
+      updatedFeedback.status === "RESOLVED",
+      "Admin updates feedback status to RESOLVED"
+    );
+    assert(
+      updatedFeedback.response?.includes("recalibrated") === true && updatedFeedback.respondedAt !== null,
+      "Admin provides official department response with recorded respondedAt timestamp"
+    );
+
+    // 4. Student queries their feedback and sees the updated status and official response
+    const studentFeedbackList = await prisma.feedback.findMany({
+      where: {
+        studentId: studentSession.studentId!,
+        institutionId: studentSession.institutionId,
+      },
+      orderBy: { submittedAt: "desc" },
+    });
+    const studentViewItem = studentFeedbackList.find((f: any) => f.id === testFeedback.id);
+
+    assert(
+      studentViewItem?.status === "RESOLVED",
+      "Student sees updated RESOLVED status in Student Portal"
+    );
+    assert(
+      studentViewItem?.response?.includes("recalibrated") === true,
+      "Student sees official department response in Student Portal"
+    );
+
+    // 5. Tenant Isolation: Horizon admin cannot see or update Apex feedback
+    const horizonFeedbacks = await getStudentFeedbacks(horizonStudentUser.institutionId!);
+    const crossTenantItem = horizonFeedbacks.find((f: any) => f.id === testFeedback.id);
+    assert(
+      crossTenantItem === undefined,
+      "Strict tenant isolation: Other institution admin cannot see student feedback from another institution"
+    );
+
+    let crossTenantUpdateBlocked = false;
+    try {
+      await updateStudentFeedback(
+        horizonStudentUser.institutionId!,
+        testFeedback.id,
+        { status: "RESOLVED", response: "Illegal attempt" }
+      );
+    } catch {
+      crossTenantUpdateBlocked = true;
+    }
+    assert(
+      crossTenantUpdateBlocked,
+      "Strict tenant isolation: Cross-tenant update of feedback is prevented"
+    );
+
+    // Clean up test feedback record
+    await prisma.feedback.delete({ where: { id: testFeedback.id } });
   }
 
   console.log("\n========================================================");
