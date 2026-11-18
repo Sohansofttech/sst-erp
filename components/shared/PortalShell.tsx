@@ -227,10 +227,10 @@ function SidebarContent({
                         href={item.href}
                         onClick={onNavigate}
                         className={cn(
-                          "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] transition-all",
+                          "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-xs transition-all",
                           isActive
                             ? "bg-[#F5A000] font-bold text-white shadow-xs"
-                            : "text-white/80 font-medium hover:bg-[#1B4D70] hover:text-white"
+                            : "text-white/80 font-semibold hover:bg-[#1B4D70] hover:text-white"
                         )}
                       >
                         {item.icon && (
@@ -384,7 +384,7 @@ export function PortalShell({
       {/* Main Column */}
       <div className="flex min-h-screen flex-col lg:pl-64">
         {/* Top White Header Bar */}
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-[#E5E9EF] bg-white px-4 sm:px-6 lg:px-8 shadow-xs">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 sm:px-6 lg:px-8 shadow-xs">
           <div className="flex min-w-0 items-center gap-3">
             <Button
               type="button"
@@ -528,7 +528,7 @@ export function PortalShell({
         </header>
 
         {/* Main Content Area (#EEF1F5 canvas) */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 p-4 md:p-6 lg:p-8 space-y-6">
           {children}
         </main>
       </div>
