@@ -17,20 +17,6 @@ export default function ExaminationsPage() {
   const [isAdmitCardOpen, setIsAdmitCardOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("erp_user");
-        if (stored) {
-          const user = JSON.parse(stored);
-          if (user.role === "PARENT") {
-            setIsRestricted(true);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch {}
-    }
-
     const fetchExams = async () => {
       try {
         const res = await fetch("/api/student/examinations", { credentials: "include" });

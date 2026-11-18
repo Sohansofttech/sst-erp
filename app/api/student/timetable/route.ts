@@ -67,6 +67,10 @@ export async function GET(req: NextRequest) {
         dailySchedule,
         weeklySchedule,
       },
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
     });
   } catch (err: any) {
     return NextResponse.json(

@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: hostel,
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
     });
   } catch (err: any) {
     return NextResponse.json(
