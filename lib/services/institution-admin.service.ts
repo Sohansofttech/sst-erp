@@ -2568,3 +2568,138 @@ export async function checkoutVisitorPass(institutionId: string, passId: string)
   globalVisitorPassRegistry.set(institutionId, updated);
   return updated.find((p) => p.id === passId || p.passNumber === passId);
 }
+
+// ----------------------------------------------------------------------------
+// 26. STUDENT GRIEVANCES & INSTITUTIONAL FEEDBACK
+// ----------------------------------------------------------------------------
+export async function getStudentFeedbacks(institutionId: string, status?: string) {
+  try {
+    return await db.feedback.findMany({
+      where: {
+        institutionId,
+        ...(status && status !== "ALL" ? { status } : {}),
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            rollNumber: true,
+            admissionNumber: true,
+            email: true,
+            phone: true,
+            currentDepartment: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+            currentCourse: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+            user: {
+              select: {
+                name: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { submittedAt: "desc" },
+    });
+  } catch (err: any) {
+    console.warn("Feedback database query error:", err.message);
+    return [];
+  }
+}
+
+export async function updateStudentFeedback(
+  institutionId: string,
+  feedbackId: string,
+  data: {
+    status?: string;
+    response?: string;
+  },
+  adminUserId?: string
+) {
+  const existing = await db.feedback.findFirst({
+    where: { id: feedbackId, institutionId },
+    include: {
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          rollNumber: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) {
+    throw new Error("Feedback record not found or does not belong to this institution.");
+  }
+
+  const updatedStatus = data.status || existing.status;
+  const updatedResponse = data.response !== undefined ? data.response : existing.response;
+  const respondedAt =
+    data.response !== undefined && data.response.trim().length > 0
+      ? new Date()
+      : existing.respondedAt;
+
+  const updated = await db.feedback.update({
+    where: { id: feedbackId },
+    data: {
+      status: updatedStatus,
+      response: updatedResponse,
+      respondedAt,
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          fullName: true,
+          rollNumber: true,
+          admissionNumber: true,
+          currentDepartment: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Safely write to audit log
+  try {
+    await createAuditLog({
+      institutionId,
+      userId: adminUserId,
+      action: "UPDATE_FEEDBACK",
+      tableName: "feedback",
+      recordId: feedbackId,
+      oldValues: { status: existing.status, response: existing.response },
+      newValues: { status: updatedStatus, response: updatedResponse },
+    });
+  } catch (auditErr: any) {
+    console.warn("Audit logging for feedback update skipped:", auditErr.message);
+  }
+
+  return updated;
+}
+

@@ -52,6 +52,7 @@ export default function StudentFeedbackPage() {
       const res = await fetch("/api/student/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ category, subject, message }),
       });
       const json = await res.json();
@@ -60,9 +61,12 @@ export default function StudentFeedbackPage() {
         setSubject("");
         setMessage("");
         fetchFeedback();
+      } else {
+        alert(json.error || "Failed to submit feedback.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert(err.message || "Failed to communicate with feedback service.");
     } finally {
       setSubmitting(false);
     }
@@ -166,21 +170,36 @@ export default function StudentFeedbackPage() {
                   },
                   {
                     header: "Status",
-                    cell: (item: any) => (
-                      <Badge
-                        variant={item.status === "RESOLVED" ? "success" : "warning"}
-                        size="sm"
-                      >
-                        {item.status}
-                      </Badge>
-                    ),
+                    cell: (item: any) => {
+                      const variant =
+                        item.status === "RESOLVED"
+                          ? "success"
+                          : item.status === "IN_PROGRESS"
+                          ? "brand"
+                          : item.status === "REJECTED"
+                          ? "error"
+                          : "warning";
+                      return (
+                        <Badge variant={variant as any} size="sm">
+                          {item.status?.replace("_", " ") || "PENDING"}
+                        </Badge>
+                      );
+                    },
                   },
                   {
                     header: "Department Response",
                     cell: (item: any) =>
                       item.response ? (
-                        <div className="p-2 bg-emerald-50 rounded border border-emerald-200 text-xs text-emerald-900">
-                          {item.response}
+                        <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-950">
+                          <p className="font-semibold text-emerald-800 text-[11px] mb-0.5">
+                            Official Resolution Remark
+                            {item.respondedAt && (
+                              <span className="font-normal text-emerald-700/80 ml-1.5">
+                                ({new Date(item.respondedAt).toLocaleDateString()})
+                              </span>
+                            )}
+                          </p>
+                          <p className="leading-relaxed whitespace-pre-wrap">{item.response}</p>
                         </div>
                       ) : (
                         <span className="text-xs text-[#64748B] italic">Awaiting review</span>

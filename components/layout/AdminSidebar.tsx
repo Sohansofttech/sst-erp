@@ -56,6 +56,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { href: "/admin/events", label: "Events & Resources", icon: CalendarDays },
     { href: "/admin/gate-management", label: "Gate Management", icon: Shield },
     { href: "/admin/communication", label: "Communication", icon: MessageSquare },
+    { href: "/admin/feedback", label: "Grievances & Feedback", icon: HeartHandshake },
     { href: "/admin/approvals", label: "Approvals", icon: CheckSquare },
     { href: "/admin/audit-logs", label: "Audit Logs", icon: History },
   ];
