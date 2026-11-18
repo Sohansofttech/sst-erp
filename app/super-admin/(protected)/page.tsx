@@ -2,6 +2,7 @@ import { AdminDashboard } from "@/components/super-admin/admin-dashboard";
 import { getDashboardSummary } from "@/lib/super-admin/dashboard";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { BrandLoadingScreen } from "@/components/shared/BrandLoadingScreen";
 
 export const instant = false;
 
@@ -36,7 +37,7 @@ async function DashboardContent({ searchParams }: { searchParams: DashboardSearc
 }
 
 function DashboardFallback() {
-  return <section className="sa-card sa-dashboard-loading" aria-label="Loading dashboard"><span className="sa-loading-spinner" />Loading live platform analytics...</section>;
+  return <BrandLoadingScreen compact message="LOADING LIVE ANALYTICS..." />;
 }
 
 export default function AdminPage({ searchParams }: { searchParams: DashboardSearchParams }) {

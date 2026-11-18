@@ -23,11 +23,13 @@ const navigationIcons: Record<string, LucideIcon> = {
 
 export function SuperAdminShell({ children, userEmail, developmentMode = false }: { children: React.ReactNode; userEmail: string; developmentMode?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const pathname = usePathname();
   const activeItem = superAdminNavigation.find((item) => item.href === pathname || (item.href !== "/super-admin" && pathname.startsWith(`${item.href}/`))) ?? superAdminNavigation[0];
 
   return (
-    <div className="super-admin">
+    <div className={`super-admin ${sidebarCollapsed ? "sa-sidebar-collapsed" : ""}`}>
       {menuOpen && <button aria-label="Close navigation" className="sa-backdrop" onClick={() => setMenuOpen(false)} />}
       <aside className={`sa-sidebar ${menuOpen ? "sa-sidebar-open" : ""}`} aria-label="Super Admin navigation">
         <div className="sa-brand">
@@ -40,13 +42,13 @@ export function SuperAdminShell({ children, userEmail, developmentMode = false }
             const Icon = navigationIcons[href] ?? LayoutDashboard;
             const isActive = activeItem.href === href;
             return (
-              <Link key={href} href={href} aria-current={isActive ? "page" : undefined} className={`sa-nav-item ${isActive ? "sa-nav-item-active" : ""}`} onClick={() => setMenuOpen(false)}>
-                <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
+              <Link key={href} href={href} aria-current={isActive ? "page" : undefined} className={`sa-nav-item ${isActive ? "sa-nav-item-active" : ""}`} onClick={() => setMenuOpen(false)} title={sidebarCollapsed ? label : undefined}>
+                <Icon size={17} strokeWidth={1.8} /><span className="sa-nav-text">{label}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="sa-sidebar-footer">SST-ERP Platform · Development</div>
+        <div className="sa-sidebar-footer"><span>SST-ERP Platform · {developmentMode ? "Development" : "Production"}</span><button type="button" className="sa-collapse-button" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? "»" : "«"}</button></div>
       </aside>
       <div className="sa-main">
         <header className="sa-header">
@@ -58,14 +60,14 @@ export function SuperAdminShell({ children, userEmail, developmentMode = false }
           </div>
           <div className="sa-header-actions">
             {developmentMode && <span className="sa-dev-mode-indicator" role="status">Development Mode</span>}
-            <button type="button" className="sa-icon-button" aria-label="Notifications (development placeholder)" title="Notifications are not connected yet">
+            <Link href="/super-admin/notifications" className="sa-icon-button" aria-label="Open platform notifications" title="Platform notifications">
               <Bell size={18} /><span className="sa-notification-dot" />
-            </button>
+            </Link>
             <div className="sa-profile" aria-label="Signed-in Super Admin profile">
               <div className="sa-avatar">SA</div>
               <div className="sa-profile-copy"><div className="sa-profile-name">Super Admin</div><div className="sa-profile-role">{userEmail}</div></div>
-              <ChevronDown size={15} className="sa-profile-copy" color="#64748b" />
-              {!developmentMode && <LogoutButton className="sa-logout-button" />}
+              <button type="button" className="sa-profile-toggle" aria-expanded={profileOpen} aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)}><ChevronDown size={15} className="sa-profile-copy" color="#64748b" /></button>
+              {profileOpen && <div className="sa-profile-menu"><strong>Signed in as</strong><span>{userEmail}</span><Link href="/super-admin/settings" onClick={() => setProfileOpen(false)}>Account settings</Link>{!developmentMode && <LogoutButton className="sa-logout-button" />}</div>}
             </div>
           </div>
         </header>

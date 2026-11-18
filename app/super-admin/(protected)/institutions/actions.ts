@@ -19,6 +19,9 @@ const institutionInput = z.object({
   postalCode: z.string().trim().max(20).optional(),
   country: z.string().trim().min(2).max(80),
   website: z.union([z.url().refine((value) => value.startsWith("https://") || value.startsWith("http://")), z.literal("")]).optional(),
+  adminName: z.string().trim().min(2).max(160).optional(),
+  adminEmail: z.email().optional(),
+  adminPhone: z.string().trim().max(40).optional(),
 });
 
 export type InstitutionFormState = { error: string | null; success: string | null };
@@ -34,6 +37,9 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
   const parsed = readInput(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the institution details.", success: null };
   const data = parsed.data;
+  if (!data.adminName || !data.adminEmail) {
+    return { error: "Administrator name and email are required.", success: null };
+  }
 
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
   if (!actor.developmentMode && !auditUserId) {
@@ -77,15 +83,15 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
 
     if (newInstitutionId) {
       await syncInstitutionToAppDb(newInstitutionId);
-      const adminName = formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
-      const adminEmail = formData.get("adminEmail")?.toString().trim() || data.email || undefined;
-      const adminPassword = formData.get("adminPassword")?.toString().trim() || "Admin@2026";
+      const adminName = data.adminName;
+      const adminEmail = data.adminEmail;
+      const adminPhone = data.adminPhone;
 
       const provisionResult = await provisionInstitutionAdmin({
         institutionId: newInstitutionId,
         adminName,
         adminEmail,
-        password: adminPassword,
+        adminPhone,
         actorUserId: auditUserId ?? undefined,
       });
 
@@ -94,6 +100,12 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
         return {
           error: `Institution created, but administrator provisioning failed: ${provisionResult.error || "Unknown error"}`,
           success: null,
+        };
+      }
+      if (provisionResult.invitation && !provisionResult.invitation.sent) {
+        return {
+          error: null,
+          success: "Institution created. Administrator is pending activation, but the invitation email provider did not accept the message.",
         };
       }
     }
@@ -118,14 +130,15 @@ export async function provisionAdminForInstitution(formData: FormData) {
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
   const adminName = formData.get("adminName")?.toString().trim() || undefined;
   const adminEmail = formData.get("adminEmail")?.toString().trim() || undefined;
-  const password = formData.get("password")?.toString().trim() || undefined;
+  const adminPhone = formData.get("adminPhone")?.toString().trim() || undefined;
 
   const result = await provisionInstitutionAdmin({
     institutionId: id.data,
     adminName,
     adminEmail,
-    password,
+    adminPhone,
     actorUserId: auditUserId ?? undefined,
+    resend: true,
   });
 
   if (!result.success) {
@@ -134,6 +147,35 @@ export async function provisionAdminForInstitution(formData: FormData) {
 
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/institutions");
+  revalidatePath(`/super-admin/institutions/${id.data}`);
+}
+
+export async function revokeInstitutionInvitation(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const id = z.uuid().safeParse(formData.get("institutionId"));
+  if (!id.success) throw new Error("Invalid institution ID.");
+  await prisma.$transaction(async (tx) => {
+    await tx.institutionAdminInvitation.updateMany({
+      where: { institutionId: id.data, status: { in: ["PENDING", "SENT", "FAILED"] } },
+      data: { status: "REVOKED", revokedAt: new Date(), failedReason: "Revoked by Super Admin." },
+    });
+    await tx.platformInstitution.update({
+      where: { id: id.data },
+      data: { provisioningStatus: "FAILED" },
+    });
+    if (actor.id) {
+      await tx.platformAuditLog.create({
+        data: {
+          userId: actor.id,
+          institutionId: id.data,
+          action: "INVITATION_REVOKED",
+          entity: "InstitutionAdminInvitation",
+          entityId: id.data,
+          result: "SUCCESS",
+        },
+      });
+    }
+  });
   revalidatePath(`/super-admin/institutions/${id.data}`);
 }
 

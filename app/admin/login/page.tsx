@@ -20,7 +20,6 @@ import {
   AlertCircle,
   ArrowLeft,
   KeyRound,
-  Sparkles,
   School,
   GraduationCap,
   Users,
@@ -42,9 +41,9 @@ function LoginContent() {
   }, [requestedRole, router]);
 
   // Form states for Institution Admin
-  const [institutionCode, setInstitutionCode] = useState("BRIND123");
-  const [usernameOrEmail, setUsernameOrEmail] = useState("contactus@brind.edu.in");
-  const [password, setPassword] = useState("Admin@2026");
+  const [institutionCode, setInstitutionCode] = useState("");
+  const [usernameOrEmail, setUsernameOrEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -60,8 +59,8 @@ function LoginContent() {
 
   // Forgot password modal
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-  const [forgotCode, setForgotCode] = useState("SST-ENG-001");
-  const [forgotEmail, setForgotEmail] = useState("admin@sohansoft.in");
+  const [forgotCode, setForgotCode] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
   const [forgotError, setForgotError] = useState("");
 
@@ -133,9 +132,7 @@ function LoginContent() {
       }
 
       setLoginSuccess(true);
-      setTimeout(() => {
-        window.location.href = "/admin";
-      }, 400);
+      router.replace("/admin");
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : "A network or server error occurred during login. Please try again.";
@@ -143,20 +140,6 @@ function LoginContent() {
     }
   };
 
-  const handleQuickDemoFill = () => {
-    // If currently filling BRIND123, switch to APEX-TECH and vice versa
-    if (institutionCode === "BRIND123") {
-      setInstitutionCode("APEX-TECH");
-      setUsernameOrEmail("admin@apex.edu");
-      setPassword("Admin@2026");
-    } else {
-      setInstitutionCode("BRIND123");
-      setUsernameOrEmail("contactus@brind.edu.in");
-      setPassword("Admin@2026");
-    }
-    setFieldErrors({});
-    setAuthError("");
-  };
 
   const handleForgotPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,7 +201,6 @@ function LoginContent() {
           <div className="lg:col-span-5 bg-gradient-to-br from-[#123B5A] via-[#16466C] to-[#0D2B42] text-white p-6 sm:p-8 flex flex-col justify-between">
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F5A000]/20 border border-[#F5A000]/40 text-[#F5A000] text-xs font-bold">
-                <Sparkles className="w-3.5 h-3.5" />
                 <span>Institution Administration</span>
               </div>
 
@@ -293,19 +275,6 @@ function LoginContent() {
                 <p className="text-xs sm:text-sm text-[#64748B] mt-1">
                   Enter your assigned institutional identifier and administrative credentials to manage your campus.
                 </p>
-              </div>
-
-              {/* Demo Mode Notice */}
-              <div className="p-3.5 rounded-xl bg-[#FEF3C7] border border-[#FDE68A] text-xs text-[#92400E] flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-[#F5A000] shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-[#92400E]">
-                    Prototype Demo Session Mode
-                  </p>
-                  <p className="text-[11px] text-[#B45309] leading-relaxed">
-                    This portal currently operates in local demo mode. Default test credentials have been pre-filled for your review.
-                  </p>
-                </div>
               </div>
 
               {/* Auth Failure Alert */}
@@ -455,18 +424,6 @@ function LoginContent() {
                     {isLoading ? "Validating Session..." : "Sign In to Institution Portal"}
                   </Button>
 
-                  {/* Quick Fill / Reset Helper Button */}
-                  <div className="flex items-center justify-between text-xs text-[#64748B] pt-1">
-                    <span>Testing this prototype?</span>
-                    <button
-                      type="button"
-                      onClick={handleQuickDemoFill}
-                      className="font-semibold text-[#F5A000] hover:text-[#DE9100] hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Quick Fill Demo Credentials</span>
-                    </button>
-                  </div>
                 </div>
               </form>
             </div>

@@ -8,7 +8,7 @@ import { syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, otp, loginType, institutionCode } = await req.json();
+    const { email, password, loginType, institutionCode } = await req.json();
 
     if (!email) {
       return NextResponse.json(
@@ -17,27 +17,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (loginType === "OTP" || otp) {
-      if (!otp) {
-        return NextResponse.json(
-          { success: false, error: "6-digit OTP is required." },
-          { status: 400 }
-        );
-      }
-      // Demo OTP standard verification (123456 or matching dynamic OTP)
-      if (otp !== "123456") {
-        return NextResponse.json(
-          { success: false, error: "Invalid or expired OTP. Please use demo OTP: 123456." },
-          { status: 401 }
-        );
-      }
-    } else {
-      if (!password) {
-        return NextResponse.json(
-          { success: false, error: "Password is required." },
-          { status: 400 }
-        );
-      }
+    if (loginType === "OTP") {
+      return NextResponse.json(
+        { success: false, error: "OTP login is not enabled." },
+        { status: 403 }
+      );
+    }
+    if (!password) {
+      return NextResponse.json(
+        { success: false, error: "Password is required." },
+        { status: 400 }
+      );
     }
 
     // Find institution if code provided, or search by email domain / lookup
@@ -87,7 +77,7 @@ export async function POST(req: NextRequest) {
     // Lookup user using safe select to ensure compatibility with PostgreSQL users table
     const user = await db.user.findFirst({
       where: {
-        email: email.trim().toLowerCase(),
+        email: { equals: email.trim(), mode: "insensitive" },
         ...(institutionId ? { institutionId } : {}),
       },
       select: {
@@ -105,6 +95,8 @@ export async function POST(req: NextRequest) {
             name: true,
             slug: true,
             code: true,
+            status: true,
+            isActive: true,
           },
         },
       },
@@ -118,7 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check password if standard login
-    if (loginType !== "OTP" && !otp) {
+    if (loginType !== "OTP") {
       const isPwValid = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
       if (!isPwValid) {
         return NextResponse.json(
@@ -132,31 +124,42 @@ export async function POST(req: NextRequest) {
     const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
     let redirectUrl = "";
 
+    if (userRole === "ADMIN") {
+      if (!institutionCode) {
+        return NextResponse.json({ success: false, error: "Institution code is required for administrator login." }, { status: 400 });
+      }
+      if (!user.institutionId || !user.institution) {
+        return NextResponse.json({ success: false, error: "Administrator institution association is missing." }, { status: 403 });
+      }
+      if (!user.institution.isActive || user.institution.status !== "ACTIVE") {
+        return NextResponse.json({ success: false, error: "This institution is not currently operational." }, { status: 403 });
+      }
+    }
+
     // Validate active administrator membership for ADMIN role
     if (userRole === "ADMIN" && user.institutionId) {
       try {
         const memberships: any = await db.$queryRaw`
           SELECT m.id, m.status
           FROM "InstitutionMembership" m
-          WHERE (m."userId"::text = ${user.id} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(email) = LOWER(${user.email})))
+          WHERE (m."userId"::text = ${user.id} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(BTRIM(email)) = LOWER(BTRIM(${user.email}))))
             AND m."institutionId"::text = ${user.institutionId}
             AND m.status = 'ACTIVE'
           LIMIT 1
         `;
 
         if (memberships.length === 0) {
-          const totalMemberships: any = await db.$queryRaw`
-            SELECT COUNT(*)::int as count FROM "InstitutionMembership" WHERE "institutionId"::text = ${user.institutionId}
-          `;
-          if (totalMemberships[0]?.count > 0) {
-            return NextResponse.json(
-              { success: false, error: "Access denied: Account does not have an active administrator membership for this institution." },
-              { status: 403 }
-            );
-          }
+          return NextResponse.json(
+            { success: false, error: "Access denied: Account does not have an active administrator membership for this institution." },
+            { status: 403 }
+          );
         }
       } catch (err) {
-        console.warn("Membership validation warning:", err);
+        console.error("Membership validation failed:", err);
+        return NextResponse.json(
+          { success: false, error: "Access denied: Administrator membership could not be verified." },
+          { status: 503 }
+        );
       }
     }
     let studentId: string | undefined;
