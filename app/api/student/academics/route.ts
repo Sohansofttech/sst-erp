@@ -57,6 +57,10 @@ export async function GET(req: NextRequest) {
           completedDate: en.completedDate,
         })),
       },
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
     });
   } catch (err: any) {
     return NextResponse.json(

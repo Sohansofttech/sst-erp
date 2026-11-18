@@ -5,6 +5,7 @@ import { Menu, School, LogOut, Calendar, ChevronDown, KeyRound } from "lucide-re
 import { NotificationDropdown } from "../shared/NotificationDropdown";
 import { Badge } from "../shared/Badge";
 import { ChangePasswordModal } from "../shared/ChangePasswordModal";
+import { clearClientSessionCache } from "@/lib/auth/client-session";
 
 interface HeaderProps {
   portalType: "STUDENT" | "PARENT";
@@ -29,9 +30,12 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleLogout = async () => {
     try {
+      clearClientSessionCache();
       if (typeof window !== "undefined") {
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
+        localStorage.removeItem("erp_institution_name");
+        localStorage.removeItem("erp_active_child_id");
       }
       await fetch("/api/auth/me", { method: "POST", credentials: "include" });
       window.location.href = "/login";

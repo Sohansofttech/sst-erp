@@ -47,6 +47,10 @@ export async function GET(req: NextRequest) {
         description: e.description,
         selectionStatus: e.selections[0]?.status || "AVAILABLE",
       })),
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
     });
   } catch (err: any) {
     return NextResponse.json(

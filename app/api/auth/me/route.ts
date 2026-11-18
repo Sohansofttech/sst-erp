@@ -68,6 +68,10 @@ export async function GET(req: NextRequest) {
         session,
         ...additionalInfo,
       },
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
     });
   } catch (err: any) {
     return NextResponse.json(

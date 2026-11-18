@@ -50,84 +50,91 @@ export async function GET(req: NextRequest) {
     const courseName = activeEnrollment?.course?.name || "";
     const academicYearName = activeEnrollment?.academicYear?.name || "";
 
-    // 2. Attendance summary
-    const allAttendance = await db.attendanceRecord.findMany({
-      where: { studentId, institutionId: session.institutionId },
-      include: { subject: true },
-    });
+    // Execute independent student dashboard queries concurrently to eliminate database waterfalls
+    const currentDay = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][new Date().getDay()];
+
+    const [
+      allAttendance,
+      todaySlots,
+      invoices,
+      upcomingExams,
+      activeAssignments,
+      notifications,
+      allResults,
+    ] = await Promise.all([
+      // 2. Attendance summary
+      db.attendanceRecord.findMany({
+        where: { studentId, institutionId: session.institutionId },
+        include: { subject: true },
+      }),
+      // 3. Timetable for current day
+      db.timetableSlot.findMany({
+        where: {
+          institutionId: session.institutionId,
+          semester: student.currentSemester,
+          section: student.currentSection,
+          dayOfWeek: (currentDay === "SUNDAY" ? "MONDAY" : currentDay) as any,
+        },
+        include: {
+          subject: true,
+          teacher: { include: { user: true } },
+        },
+        orderBy: { startTime: "asc" },
+      }),
+      // 4. Fees summary
+      db.feeInvoice.findMany({
+        where: { studentId, institutionId: session.institutionId },
+      }),
+      // 5. Upcoming Examinations
+      db.examSchedule.findMany({
+        where: {
+          institutionId: session.institutionId,
+          semester: student.currentSemester,
+          isPublished: true,
+        },
+        include: {
+          slots: { orderBy: { examDate: "asc" } },
+          admitCards: { where: { studentId } },
+        },
+        take: 2,
+      }),
+      // 6. Active assignments
+      db.assignment.findMany({
+        where: {
+          institutionId: session.institutionId,
+          subject: { semester: student.currentSemester },
+        },
+        include: {
+          subject: true,
+          submissions: { where: { studentId } },
+        },
+        orderBy: { dueDate: "asc" },
+        take: 5,
+      }),
+      // 7. Recent notifications
+      db.notificationRecipient.findMany({
+        where: {
+          userId: session.userId,
+          isRead: false,
+        },
+        include: { notification: true },
+        orderBy: { notification: { createdAt: "desc" } },
+        take: 5,
+      }),
+      // 8. Exam Results & Dynamic CGPA Calculation (STU-FE-02)
+      db.examResult.findMany({
+        where: { studentId, institutionId: session.institutionId },
+        include: { subject: true },
+        orderBy: { publishedAt: "desc" },
+      }),
+    ]);
 
     const totalClasses = allAttendance.length;
     const attendedClasses = allAttendance.filter((a) => a.status === "PRESENT" || a.status === "EXCUSED").length;
     const attendancePercentage = totalClasses > 0 ? Math.round((attendedClasses / totalClasses) * 100) : 100;
 
-    // 3. Timetable for current day
-    const currentDay = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][new Date().getDay()];
-    const todaySlots = await db.timetableSlot.findMany({
-      where: {
-        institutionId: session.institutionId,
-        semester: student.currentSemester,
-        section: student.currentSection,
-        dayOfWeek: (currentDay === "SUNDAY" ? "MONDAY" : currentDay) as any,
-      },
-      include: {
-        subject: true,
-        teacher: { include: { user: true } },
-      },
-      orderBy: { startTime: "asc" },
-    });
-
-    // 4. Fees summary
-    const invoices = await db.feeInvoice.findMany({
-      where: { studentId, institutionId: session.institutionId },
-    });
     const totalOutstanding = invoices.reduce((acc, inv) => acc + inv.outstandingAmount, 0);
     const totalPaid = invoices.reduce((acc, inv) => acc + inv.paidAmount, 0);
-
-    // 5. Upcoming Examinations
-    const upcomingExams = await db.examSchedule.findMany({
-      where: {
-        institutionId: session.institutionId,
-        semester: student.currentSemester,
-        isPublished: true,
-      },
-      include: {
-        slots: { orderBy: { examDate: "asc" } },
-        admitCards: { where: { studentId } },
-      },
-      take: 2,
-    });
-
-    // 6. Active assignments
-    const activeAssignments = await db.assignment.findMany({
-      where: {
-        institutionId: session.institutionId,
-        subject: { semester: student.currentSemester },
-      },
-      include: {
-        subject: true,
-        submissions: { where: { studentId } },
-      },
-      orderBy: { dueDate: "asc" },
-      take: 5,
-    });
-
-    // 7. Recent notifications
-    const notifications = await db.notificationRecipient.findMany({
-      where: {
-        userId: session.userId,
-        isRead: false,
-      },
-      include: { notification: true },
-      orderBy: { notification: { createdAt: "desc" } },
-      take: 5,
-    });
-
-    // 8. Exam Results & Dynamic CGPA Calculation (STU-FE-02)
-    const allResults = await db.examResult.findMany({
-      where: { studentId, institutionId: session.institutionId },
-      include: { subject: true },
-      orderBy: { publishedAt: "desc" },
-    });
 
     const totalCredits = allResults.reduce((sum, r) => sum + r.credits, 0);
     const totalWeightedPoints = allResults.reduce((sum, r) => sum + r.gradePoint * r.credits, 0);
@@ -209,6 +216,10 @@ export async function GET(req: NextRequest) {
               isPassed: r.isPassed,
             })),
         cgpa: isParent ? undefined : dynamicCgpa,
+      },
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
       },
     });
   } catch (err: any) {

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { clearClientSessionCache } from "@/lib/auth/client-session";
 import {
   LayoutDashboard,
   User,
@@ -117,9 +118,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleLogout = async () => {
     try {
+      clearClientSessionCache();
       if (typeof window !== "undefined") {
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
+        localStorage.removeItem("erp_institution_name");
         localStorage.removeItem("erp_active_child_id");
         document.cookie = "erp_active_child=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
+import { fetchClientSession } from "@/lib/auth/client-session";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -64,14 +65,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     const fetchMe = async () => {
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("erp_token") : null;
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          headers,
-        });
-        const json = await res.json();
+        const json = await fetchClientSession(token);
         if (isMounted && json.success && json.data?.session) {
           const sess = json.data.session;
           const instName = sess.institutionName || "Apex Institute of Technology";

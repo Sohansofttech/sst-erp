@@ -24,42 +24,43 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
 
-    // 1. Study Materials for student's subjects
-    const materials = await db.lmsCourseMaterial.findMany({
-      where: {
-        institutionId: session.institutionId,
-        subject: { semester: student.currentSemester },
-      },
-      include: { subject: true },
-      orderBy: [{ subject: { code: "asc" } }, { uploadedAt: "desc" }],
-    });
-
-    // 2. Assignments
-    const assignments = await db.assignment.findMany({
-      where: {
-        institutionId: session.institutionId,
-        subject: { semester: student.currentSemester },
-      },
-      include: {
-        subject: true,
-        submissions: { where: { studentId } },
-      },
-      orderBy: { dueDate: "asc" },
-    });
-
-    // 3. Quizzes
-    const quizzes = await db.quiz.findMany({
-      where: {
-        institutionId: session.institutionId,
-        subject: { semester: student.currentSemester },
-      },
-      include: {
-        subject: true,
-        questions: true,
-        attempts: { where: { studentId } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    // Fetch materials, assignments, and quizzes concurrently to optimize response time
+    const [materials, assignments, quizzes] = await Promise.all([
+      // 1. Study Materials for student's subjects
+      db.lmsCourseMaterial.findMany({
+        where: {
+          institutionId: session.institutionId,
+          subject: { semester: student.currentSemester },
+        },
+        include: { subject: true },
+        orderBy: [{ subject: { code: "asc" } }, { uploadedAt: "desc" }],
+      }),
+      // 2. Assignments
+      db.assignment.findMany({
+        where: {
+          institutionId: session.institutionId,
+          subject: { semester: student.currentSemester },
+        },
+        include: {
+          subject: true,
+          submissions: { where: { studentId } },
+        },
+        orderBy: { dueDate: "asc" },
+      }),
+      // 3. Quizzes
+      db.quiz.findMany({
+        where: {
+          institutionId: session.institutionId,
+          subject: { semester: student.currentSemester },
+        },
+        include: {
+          subject: true,
+          questions: true,
+          attempts: { where: { studentId } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -104,6 +105,10 @@ export async function GET(req: NextRequest) {
           })),
           attempt: q.attempts[0] || null,
         })),
+      },
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
       },
     });
   } catch (err: any) {
