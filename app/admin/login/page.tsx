@@ -71,9 +71,8 @@ function LoginContent() {
       password?: string;
     } = {};
 
-    if (!institutionCode.trim()) {
-      errors.institutionCode = "Institution ID / Code is required.";
-    }
+    // College Code is optional on client so existing institution admins can log in without it.
+    // The server enforces College Code for newly created institutions.
 
     if (!usernameOrEmail.trim()) {
       errors.usernameOrEmail = "Administrator Email or Username is required.";
@@ -111,7 +110,7 @@ function LoginContent() {
         body: JSON.stringify({
           email: usernameOrEmail.trim().toLowerCase(),
           password,
-          institutionCode: institutionCode.trim(),
+          institutionCode: institutionCode.trim() || undefined,
         }),
       });
 
@@ -304,7 +303,7 @@ function LoginContent() {
                 {/* Field 1: Institution Code */}
                 <div>
                   <Input
-                    label="Institution ID / Code"
+                    label="College Code / Institution Code"
                     id="institutionCode"
                     type="text"
                     value={institutionCode}
@@ -314,10 +313,10 @@ function LoginContent() {
                         setFieldErrors((prev) => ({ ...prev, institutionCode: undefined }));
                       }
                     }}
-                    placeholder="e.g. SST-ENG-001"
+                    placeholder="e.g. CC101 (Required for new institutions, optional for existing)"
                     leftIcon={<Building2 className="w-4 h-4 text-[#64748B]" />}
                     error={fieldErrors.institutionCode}
-                    helperText="Enter your campus tenant identifier"
+                    helperText="Required for newly created institutions. Existing admins may leave blank."
                   />
                 </div>
 

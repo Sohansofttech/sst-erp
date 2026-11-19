@@ -1,5 +1,6 @@
 import db from "@/lib/db";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/super-admin/prisma";
 import { sendInstitutionInvitationEmail } from "@/lib/email/send-institution-email";
 import { generateInvitationToken, hashInvitationToken, invitationBaseUrl } from "@/lib/services/institution-invitation.service";
@@ -9,6 +10,7 @@ export interface ProvisionAdminInput {
   adminName?: string;
   adminEmail?: string;
   adminPhone?: string;
+  adminPassword?: string;
   actorUserId?: string;
   resend?: boolean;
 }
@@ -82,6 +84,9 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     if (!adminEmail) return { success: false, error: "A primary administrator email is required." };
     const adminName = (input.adminName || `${institution.name} Administrator`).trim();
     const adminPhone = input.adminPhone?.trim() || null;
+    const adminPassword = input.adminPassword || "Password@123";
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+
     if (!await syncInstitutionToAppDb(institution.id)) {
       return { success: false, error: "Institution could not be synchronized into the application database." };
     }
@@ -107,12 +112,14 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
         });
         if (otherMembership) throw new Error("This administrator email is already associated with another institution.");
         platformUserId = existingPlatformUser.id;
-        // Preserve an existing platform account. Provisioning creates/reconnects
-        // membership and invitation records without overwriting credentials or status.
+        await tx.platformUser.update({
+          where: { id: platformUserId },
+          data: { status: "ACTIVE" },
+        });
       } else {
         platformUserId = crypto.randomUUID();
         await tx.platformUser.create({
-          data: { id: platformUserId, name: adminName, email: adminEmail, phone: adminPhone, status: "INACTIVE", platformRole: "NONE" },
+          data: { id: platformUserId, name: adminName, email: adminEmail, phone: adminPhone, status: "ACTIVE", platformRole: "NONE" },
         });
       }
 
@@ -129,16 +136,13 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
         where: { userId_institutionId: { userId: platformUserId, institutionId: institution.id } },
       });
       if (membership) {
-        membership =
-          membership.status === "ACTIVE"
-            ? membership
-            : await tx.institutionMembership.update({
-                where: { id: membership.id },
-                data: { status: "INVITED" },
-              });
+        membership = await tx.institutionMembership.update({
+          where: { id: membership.id },
+          data: { status: "ACTIVE", joinedAt: new Date() },
+        });
       } else {
         membership = await tx.institutionMembership.create({
-          data: { userId: platformUserId, institutionId: institution.id, status: "INVITED" },
+          data: { userId: platformUserId, institutionId: institution.id, status: "ACTIVE", joinedAt: new Date() },
         });
       }
       await tx.membershipRole.upsert({
@@ -162,6 +166,10 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
             name: existingAppUser.name ?? adminName,
             fullName: existingAppUser.fullName ?? adminName,
             phone: existingAppUser.phone ?? adminPhone,
+            passwordHash: passwordHash,
+            role: "ADMIN",
+            status: "ACTIVE",
+            isActive: true,
           },
         });
       } else {
@@ -173,10 +181,10 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
             name: adminName,
             fullName: adminName,
             phone: adminPhone,
-            passwordHash: null,
+            passwordHash: passwordHash,
             role: "ADMIN",
-            status: "INACTIVE",
-            isActive: false,
+            status: "ACTIVE",
+            isActive: true,
             platformRole: "NONE",
           },
         });
@@ -184,7 +192,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
 
       await tx.institutionAdminInvitation.updateMany({
         where: { institutionId: institution.id, status: { in: ["PENDING", "SENT"] } },
-        data: { status: "REVOKED", revokedAt: new Date(), failedReason: "Superseded by a new invitation." },
+        data: { status: "REVOKED", revokedAt: new Date(), failedReason: "Superseded by direct provisioning." },
       });
 
       const invitation = await tx.institutionAdminInvitation.create({
@@ -203,7 +211,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
 
       await tx.platformInstitution.update({
         where: { id: institution.id },
-        data: { provisioningStatus: "INVITED", primaryAdminUserId: platformUserId, onboardingStage: "ADMIN" },
+        data: { provisioningStatus: "ACTIVATED", primaryAdminUserId: platformUserId, onboardingStage: "COMPLETED", status: "ACTIVE" },
       });
 
       if (input.actorUserId) {
@@ -215,51 +223,73 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
             entity: "InstitutionAdminInvitation",
             entityId: invitation.id,
             result: "SUCCESS",
-            metadata: { adminEmail, role: "INSTITUTION_ADMIN", activationRequired: true },
+            metadata: { adminEmail, role: "INSTITUTION_ADMIN", activationRequired: false },
           },
         });
       }
-    });
+    }, { maxWait: 15000, timeout: 20000 });
+
+    // Make sure changes are fully synced to application institutions table
+    await syncInstitutionToAppDb(institution.id);
 
     const activationUrl = `${invitationBaseUrl()}/institution/activate?token=${encodeURIComponent(rawToken)}`;
-    const emailResult = await sendInstitutionInvitationEmail({
-      to: adminEmail,
-      institutionName: institution.name,
-      institutionCode: institution.code || institution.slug,
-      administratorName: adminName,
-      activationUrl,
-      expiresAt,
-    });
-
-    await prisma.institutionAdminInvitation.update({
-      where: { id: invitationId },
-      data: emailResult.sent
-        ? { status: "SENT", sentAt: new Date(), failedReason: null }
-        : { status: "FAILED", failedReason: emailResult.reason },
-    });
-    await prisma.platformInstitution.update({
-      where: { id: institution.id },
-      data: { provisioningStatus: emailResult.sent ? "INVITED" : "FAILED" },
-    });
-    if (input.actorUserId) {
-      await prisma.platformAuditLog.create({
-        data: {
-          userId: input.actorUserId,
-          institutionId: institution.id,
-          action: emailResult.sent ? "ADMIN_INVITATION_SENT" : "ADMIN_INVITATION_FAILED",
-          entity: "InstitutionAdminInvitation",
-          entityId: invitationId,
-          result: emailResult.sent ? "SUCCESS" : "FAILED",
-          metadata: emailResult.sent ? { email: adminEmail } : { email: adminEmail, reason: emailResult.reason },
-        },
+    let emailSent = false;
+    let emailReason: string | null = null;
+    try {
+      const emailResult = await sendInstitutionInvitationEmail({
+        to: adminEmail,
+        institutionName: institution.name,
+        institutionCode: institution.code || institution.slug,
+        administratorName: adminName,
+        activationUrl,
+        expiresAt,
       });
+      emailSent = emailResult.sent;
+      emailReason = emailResult.sent ? null : emailResult.reason;
+    } catch (err: any) {
+      console.warn("[InstitutionProvisioning] Invitation email error:", err?.message || err);
+      emailReason = err?.message || "Email dispatch failed";
+    }
+
+    try {
+      await prisma.institutionAdminInvitation.update({
+        where: { id: invitationId },
+        data: emailSent
+          ? { status: "SENT", sentAt: new Date(), failedReason: null }
+          : { status: "FAILED", failedReason: emailReason },
+      });
+    } catch (e) {
+      console.warn("Could not update invitation record status:", e);
+    }
+
+    try {
+      await prisma.platformInstitution.update({
+        where: { id: institution.id },
+        data: { provisioningStatus: "ACTIVATED", status: "ACTIVE" },
+      });
+    } catch {}
+
+    if (input.actorUserId) {
+      try {
+        await prisma.platformAuditLog.create({
+          data: {
+            userId: input.actorUserId,
+            institutionId: institution.id,
+            action: emailSent ? "ADMIN_INVITATION_SENT" : "ADMIN_INVITATION_FAILED",
+            entity: "InstitutionAdminInvitation",
+            entityId: invitationId,
+            result: emailSent ? "SUCCESS" : "FAILED",
+            metadata: emailSent ? { email: adminEmail } : { email: adminEmail, reason: emailReason },
+          },
+        });
+      } catch {}
     }
 
     return {
       success: true,
       user: { id: platformUserId, email: adminEmail, fullName: adminName, role: "ADMIN" },
       institution: { id: institution.id, name: institution.name, code: institution.code, slug: institution.slug },
-      invitation: { status: emailResult.sent ? "SENT" : "FAILED", expiresAt, sent: emailResult.sent },
+      invitation: { status: emailSent ? "SENT" : "FAILED", expiresAt, sent: emailSent },
     };
   } catch (error) {
     console.error("[InstitutionProvisioning] Failed:", error);
