@@ -105,6 +105,31 @@ export default function DashboardPage() {
     }
   };
 
+  // Fast client-side check to redirect non-student/parent users immediately
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const storedUser = localStorage.getItem("erp_user");
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          if (u.role === "ADMIN") {
+            router.replace("/admin");
+            return;
+          }
+          if (u.role === "SUPER_ADMIN") {
+            router.replace("/super-admin");
+            return;
+          }
+          if (u.role === "TEACHER") {
+            const slug = (u.institutionSlug || u.institutionCode || "vidyaniketan").toLowerCase();
+            router.replace(`/campus/${slug}/teacher`);
+            return;
+          }
+        }
+      }
+    } catch {}
+  }, [router]);
+
   // 1. Initial Session Authentication
   useEffect(() => {
     let isMounted = true;
@@ -117,6 +142,24 @@ export default function DashboardPage() {
 
         if (json.success && json.data?.session) {
           const sess = json.data.session;
+
+          // Role Redirection Guard:
+          // /dashboard is exclusively for STUDENT and PARENT.
+          // Other roles must be directed to their respective portals:
+          if (sess.role === "ADMIN") {
+            router.replace("/admin");
+            return;
+          }
+          if (sess.role === "SUPER_ADMIN") {
+            router.replace("/super-admin");
+            return;
+          }
+          if (sess.role === "TEACHER") {
+            const slug = (sess.institutionSlug || sess.institutionCode || "vidyaniketan").toLowerCase();
+            router.replace(`/campus/${slug}/teacher`);
+            return;
+          }
+
           setSession(sess);
 
           if (json.data.student) {
@@ -178,8 +221,20 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // 3. Initiate dashboard data fetch immediately on mount in parallel with session verification
+  // 3. Initiate dashboard data fetch only for student/parent roles
   useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("erp_user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (u.role && u.role !== "STUDENT" && u.role !== "PARENT") {
+            return; // Do not fetch student dashboard for admin/teacher/super-admin
+          }
+        }
+      }
+    } catch {}
+
     fetchDashboardData();
   }, [fetchDashboardData]);
 
@@ -189,7 +244,7 @@ export default function DashboardPage() {
     fetchDashboardData(selectedChildId);
   }, [session, selectedChildId, fetchDashboardData]);
 
-  // 4. Listen for activeChildChanged global event from Header ChildSelector
+  // 5. Listen for activeChildChanged global event from Header ChildSelector
   useEffect(() => {
     const handleChildChanged = (e: any) => {
       if (e.detail?.childId) {
@@ -215,6 +270,17 @@ export default function DashboardPage() {
   }
 
   if (!session) return null;
+
+  if (session.role !== "STUDENT" && session.role !== "PARENT") {
+    return (
+      <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-xs font-semibold text-[#64748B]">Redirecting to your authorized portal...</p>
+        </div>
+      </div>
+    );
+  }
 
   const isParent = session.role === "PARENT";
   const {
@@ -314,13 +380,14 @@ export default function DashboardPage() {
       },
     ];
 
-    const subjectList: any[] = subjectWiseAttendance || [];
+    const subjectList: any[] = Array.isArray(subjectWiseAttendance) ? subjectWiseAttendance : [];
 
     return baseCourses.map((c) => {
       const matched = subjectList.find(
         (s: any) =>
-          s.subjectCode?.toLowerCase() === c.code.toLowerCase() ||
-          s.subjectName?.toLowerCase() === c.name.toLowerCase()
+          s &&
+          ((s.subjectCode && s.subjectCode.toLowerCase() === c.code.toLowerCase()) ||
+            (s.subjectName && s.subjectName.toLowerCase() === c.name.toLowerCase()))
       );
 
       const actualAttendance = matched && matched.percentage !== null && matched.percentage !== undefined ? matched.percentage : null;
@@ -455,11 +522,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {todaySchedule?.length ?? 4}
+                  {Array.isArray(todaySchedule) ? todaySchedule.length : 0}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                {todaySchedule && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "No classes today"}
+                {Array.isArray(todaySchedule) && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "No classes today"}
               </span>
             </div>
 
@@ -475,11 +542,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[26px] font-extrabold text-[#1E293B] tracking-tight truncate">
-                  {feeSummary?.totalOutstanding > 0 ? `₹${(feeSummary.totalOutstanding / 1000).toFixed(1)}k` : "Settled"}
+                  {feeSummary && Number(feeSummary.totalOutstanding) > 0 ? `₹${(Number(feeSummary.totalOutstanding) / 1000).toFixed(1)}k` : "Settled"}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                {feeSummary?.totalOutstanding > 0 ? "Semester 5 balance" : "All tuition cleared"}
+                {feeSummary && Number(feeSummary.totalOutstanding) > 0 ? "Semester balance due" : "All tuition cleared"}
               </span>
             </div>
 
@@ -495,11 +562,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2 flex items-baseline gap-1.5">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {cgpa !== undefined && cgpa > 0 ? cgpa : "9.5"}
+                  {cgpa !== undefined && cgpa !== null && Number(cgpa) > 0 ? cgpa : "N/A"}
                 </span>
               </div>
               <span className="text-[11px] text-emerald-600 font-semibold truncate">
-                Grade A+ • Distinction
+                {cgpa !== undefined && cgpa !== null && Number(cgpa) > 0 ? "Cumulative Performance" : "Records Pending"}
               </span>
             </div>
 
@@ -515,11 +582,13 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {upcomingExams?.length ?? 1}
+                  {Array.isArray(upcomingExams) ? upcomingExams.length : 0}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                {upcomingExams?.[0]?.hasHallTicket ? "Hall Ticket Ready" : "Semester Finals"}
+                {Array.isArray(upcomingExams) && upcomingExams.length > 0
+                  ? (upcomingExams[0]?.hasHallTicket ? "Hall Ticket Ready" : "Upcoming Schedule")
+                  : "No upcoming exams"}
               </span>
             </div>
 
@@ -535,11 +604,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {assignments?.filter((a: any) => !a.isSubmitted).length ?? assignments?.length ?? 2}
+                  {Array.isArray(assignments) ? assignments.filter((a: any) => !a?.isSubmitted).length : 0}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                Coursework due soon
+                {Array.isArray(assignments) && assignments.filter((a: any) => !a?.isSubmitted).length > 0 ? "Coursework due soon" : "No pending tasks"}
               </span>
             </div>
           </div>
@@ -667,7 +736,7 @@ export default function DashboardPage() {
                   </Link>
                 }
               >
-                {todaySchedule?.length === 0 ? (
+                {!Array.isArray(todaySchedule) || todaySchedule.length === 0 ? (
                   <div className="py-8 text-center text-sm text-[#64748B]">
                     <Calendar className="w-8 h-8 text-[#64748B]/40 mx-auto mb-2" />
                     <p className="font-medium text-[#1E293B]">No lectures scheduled for today</p>
@@ -675,7 +744,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {todaySchedule?.map((slot: any) => (
+                    {todaySchedule.map((slot: any) => (
                       <div
                         key={slot.id}
                         className="p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#123B5A]/40 bg-white hover:shadow-xs flex items-center justify-between transition-all"
@@ -726,35 +795,39 @@ export default function DashboardPage() {
                   </Link>
                 }
               >
-                {assignments?.length === 0 ? (
+                {!Array.isArray(assignments) || assignments.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No active coursework assignments pending.</p>
                 ) : (
                   <div className="space-y-3">
-                    {assignments?.map((item: any) => (
-                      <div
-                        key={item.id}
-                        className="p-3.5 rounded-xl border border-[#E2E8F0] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
-                            <BookOpen className="w-4 h-4" />
+                    {assignments.map((item: any) => {
+                      const dueDate = item?.dueDate ? new Date(item.dueDate) : null;
+                      const dueStr = dueDate && !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString() : "TBD";
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3.5 rounded-xl border border-[#E2E8F0] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-xs"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
+                              <BookOpen className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-[#1E293B]">{item.title}</h4>
+                              <p className="text-xs text-[#64748B]">{item.subjectName}</p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="text-sm font-semibold text-[#1E293B]">{item.title}</h4>
-                            <p className="text-xs text-[#64748B]">{item.subjectName}</p>
+                          <div className="text-right">
+                            <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
+                              {item.isSubmitted ? "Submitted" : "Pending"}
+                            </Badge>
+                            <div className="flex items-center gap-1 text-[11px] text-[#64748B] mt-1">
+                              <Clock className="w-3 h-3 text-[#64748B]" />
+                              <span>Due {dueStr}</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
-                            {item.isSubmitted ? "Submitted" : "Pending"}
-                          </Badge>
-                          <div className="flex items-center gap-1 text-[11px] text-[#64748B] mt-1">
-                            <Clock className="w-3 h-3 text-[#64748B]" />
-                            <span>Due {new Date(item.dueDate).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Card>
@@ -778,11 +851,11 @@ export default function DashboardPage() {
                   </div>
                 }
               >
-                {recentResults?.length === 0 ? (
+                {!Array.isArray(recentResults) || recentResults.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No recent published exam results.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {recentResults?.map((res: any) => (
+                    {recentResults.map((res: any) => (
                       <div
                         key={res.id}
                         className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs flex items-center justify-between"
@@ -825,36 +898,40 @@ export default function DashboardPage() {
                   </Link>
                 }
               >
-                {upcomingExams?.length === 0 ? (
+                {!Array.isArray(upcomingExams) || upcomingExams.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No upcoming examinations scheduled.</p>
                 ) : (
                   <div className="space-y-3">
-                    {upcomingExams?.map((exam: any) => (
-                      <div key={exam.id} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white shadow-xs hover:border-[#123B5A]/30 transition-all">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <Badge variant="error" size="sm">{exam.examType}</Badge>
-                          <span className="text-xs font-medium text-[#64748B]">{exam.slotsCount} papers</span>
+                    {upcomingExams.map((exam: any) => {
+                      const startDate = exam?.startDate ? new Date(exam.startDate) : null;
+                      const startStr = startDate && !isNaN(startDate.getTime()) ? startDate.toLocaleDateString() : "TBD";
+                      return (
+                        <div key={exam.id} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white shadow-xs hover:border-[#123B5A]/30 transition-all">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <Badge variant="error" size="sm">{exam.examType || "EXAM"}</Badge>
+                            <span className="text-xs font-medium text-[#64748B]">{exam.slotsCount || 0} papers</span>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#1E293B] mt-1">{exam.title}</h4>
+                          <p className="text-[11px] text-[#64748B] mt-1 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
+                            <span>Starts: {startStr}</span>
+                          </p>
+                          {exam.hasHallTicket && (
+                            <Link href="/student/examinations">
+                              <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#16466C] text-white rounded-md shadow-xs">
+                                Download Admit Card
+                              </Button>
+                            </Link>
+                          )}
                         </div>
-                        <h4 className="text-xs font-bold text-[#1E293B] mt-1">{exam.title}</h4>
-                        <p className="text-[11px] text-[#64748B] mt-1 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
-                          <span>Starts: {new Date(exam.startDate).toLocaleDateString()}</span>
-                        </p>
-                        {exam.hasHallTicket && (
-                          <Link href="/student/examinations">
-                            <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#16466C] text-white rounded-md shadow-xs">
-                              Download Admit Card
-                            </Button>
-                          </Link>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Card>
 
               {/* Quick Institutional Fee Alert */}
-              {feeSummary?.totalOutstanding > 0 && (
+              {feeSummary && Number(feeSummary.totalOutstanding) > 0 && (
                 <div className="p-4 rounded-xl border border-[#F5A000]/30 bg-gradient-to-br from-[#FFFBEB] to-[#FEF3C7]/40 text-[#92400E] shadow-xs">
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-[#F5A000]/20 flex items-center justify-center shrink-0 mt-0.5">
@@ -863,7 +940,7 @@ export default function DashboardPage() {
                     <div className="flex-1">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-[#92400E]">Tuition Fee Reminder</h4>
                       <p className="text-xs mt-1 leading-relaxed text-[#78350F]">
-                        Outstanding balance of <span className="font-extrabold text-[#92400E]">₹{feeSummary.totalOutstanding.toLocaleString()}</span> is due for Semester 5.
+                        Outstanding balance of <span className="font-extrabold text-[#92400E]">₹{Number(feeSummary.totalOutstanding).toLocaleString("en-IN")}</span> is due for Semester 5.
                       </p>
                       <Link href="/student/fees">
                         <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs rounded-md">
@@ -885,31 +962,35 @@ export default function DashboardPage() {
                 }
                 subtitle="Campus notices & academic updates"
               >
-                {notifications?.length === 0 ? (
+                {!Array.isArray(notifications) || notifications.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No recent campus notices.</p>
                 ) : (
                   <div className="space-y-2.5">
-                    {notifications?.slice(0, 3).map((item: any) => (
-                      <div
-                        key={item.id}
-                        className="p-3 rounded-lg border border-[#E2E8F0] bg-white hover:border-[#F5A000] transition-colors shadow-xs"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
-                            {item.category}
-                          </span>
-                          <span className="text-[10px] text-[#64748B]">
-                            {new Date(item.createdAt).toLocaleDateString()}
-                          </span>
+                    {notifications.slice(0, 3).map((item: any) => {
+                      const createdDate = item?.createdAt ? new Date(item.createdAt) : null;
+                      const dateStr = createdDate && !isNaN(createdDate.getTime()) ? createdDate.toLocaleDateString() : "Recent";
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3 rounded-lg border border-[#E2E8F0] bg-white hover:border-[#F5A000] transition-colors shadow-xs"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
+                              {item.category || "Notice"}
+                            </span>
+                            <span className="text-[10px] text-[#64748B]">
+                              {dateStr}
+                            </span>
+                          </div>
+                          <h5 className="text-xs font-semibold text-[#1E293B] line-clamp-1">
+                            {item.title}
+                          </h5>
+                          <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-2">
+                            {item.message}
+                          </p>
                         </div>
-                        <h5 className="text-xs font-semibold text-[#1E293B] line-clamp-1">
-                          {item.title}
-                        </h5>
-                        <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-2">
-                          {item.message}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Card>
