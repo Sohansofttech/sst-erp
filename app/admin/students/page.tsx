@@ -314,6 +314,7 @@ export default function StudentsPage() {
               fullName: `${firstName.trim()} ${lastName.trim()}`,
               email: email.trim(),
               rollNumber: genRoll,
+              admissionNumber: genAdm,
               phone: phone.trim(),
               gender,
               dateOfBirth: dob,
@@ -321,6 +322,16 @@ export default function StudentsPage() {
               academicYearId: selectedAYId || undefined,
               classId: selectedClassId || undefined,
               sectionId: selectedSectionId || undefined,
+              departmentId: selectedDeptId || undefined,
+              bloodGroup,
+              category,
+              addressLine: addressLine.trim() || undefined,
+              city: city.trim() || undefined,
+              state: state.trim() || undefined,
+              postalCode: postalCode.trim() || undefined,
+              admissionDate: admissionDate || undefined,
+              batch: batch || undefined,
+              status: status || undefined,
             }),
           });
           const json = await res.json();
@@ -373,6 +384,9 @@ export default function StudentsPage() {
           portalAccess: false,
           portalEmail: email.trim(),
         });
+
+        // Sync with API so any server-derived status is up to date
+        loadStudentsFromApi();
       }
 
       setIsFormModalOpen(false);
@@ -1293,11 +1307,11 @@ export default function StudentsPage() {
         maxWidth="2xl"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsFormModalOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsFormModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={handleSubmitForm}>
-              {editingStudent ? "Save Changes" : "Create Student Record"}
+            <Button variant="primary" size="sm" onClick={handleSubmitForm} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : (editingStudent ? "Save Changes" : "Create Student Record")}
             </Button>
           </>
         }
