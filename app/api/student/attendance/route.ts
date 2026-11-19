@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
 import { authorizeStudentOrParentAccess } from "@/lib/security/authorize";
 import db from "@/lib/db";
+import {
+  calculateAttendance,
+  calculateSubjectWiseAttendance,
+  calculateMonthlyAttendance,
+  normalizeAttendanceStatus,
+  RawAttendanceRecord,
+} from "@/lib/services/attendance-calculator";
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,87 +22,83 @@ export async function GET(req: NextRequest) {
 
     const { studentId } = await authorizeStudentOrParentAccess(session, requestedStudentId);
 
-    // Retrieve attendance records scoped by student and institution
+    // Extract optional academic period and range filters
+    const academicYearId = url.searchParams.get("academicYearId") || undefined;
+    const semesterParam = url.searchParams.get("semester");
+    const semester = semesterParam ? parseInt(semesterParam, 10) : undefined;
+    const subjectId = url.searchParams.get("subjectId") || undefined;
+    const startDate = url.searchParams.get("startDate") || undefined;
+    const endDate = url.searchParams.get("endDate") || undefined;
+
+    // Construct robust Prisma query where clause
+    const whereClause: any = {
+      studentId,
+      institutionId: session.institutionId,
+    };
+
+    if (subjectId) {
+      whereClause.subjectId = subjectId;
+    }
+
+    if (startDate || endDate) {
+      whereClause.date = {};
+      if (startDate) {
+        whereClause.date.gte = new Date(startDate);
+      }
+      if (endDate) {
+        whereClause.date.lte = new Date(endDate);
+      }
+    }
+
+    if (academicYearId || semester) {
+      whereClause.enrollment = {};
+      if (academicYearId) {
+        whereClause.enrollment.academicYearId = academicYearId;
+      }
+      if (semester && !isNaN(semester)) {
+        whereClause.enrollment.semester = semester;
+      }
+    }
+
+    // Retrieve attendance records scoped by student, tenant and filters
     const records = await db.attendanceRecord.findMany({
-      where: {
-        studentId,
-        institutionId: session.institutionId,
-      },
+      where: whereClause,
       include: {
         subject: true,
       },
       orderBy: { date: "desc" },
     });
 
-    const totalClasses = records.length;
-    const attendedClasses = records.filter(
-      (r) => r.status === "PRESENT" || r.status === "EXCUSED"
-    ).length;
-    const absentClasses = records.filter((r) => r.status === "ABSENT").length;
-    const lateClasses = records.filter((r) => r.status === "LATE").length;
-    const overallPercentage = totalClasses > 0 ? Math.round((attendedClasses / totalClasses) * 100) : 100;
-
-    // Group by subject
-    const subjectMap = new Map<string, { code: string; name: string; total: number; attended: number }>();
-
-    records.forEach((r) => {
-      const existing = subjectMap.get(r.subjectId) || {
-        code: r.subject.code || "",
-        name: r.subject.name,
-        total: 0,
-        attended: 0,
-      };
-      existing.total += 1;
-      if (r.status === "PRESENT" || r.status === "EXCUSED") {
-        existing.attended += 1;
-      }
-      subjectMap.set(r.subjectId, existing);
-    });
-
-    const subjectWise = Array.from(subjectMap.entries()).map(([subId, stats]) => ({
-      subjectId: subId,
-      subjectCode: stats.code,
-      subjectName: stats.name,
-      totalClasses: stats.total,
-      attendedClasses: stats.attended,
-      percentage: stats.total > 0 ? Math.round((stats.attended / stats.total) * 100) : 100,
+    // Map database records to normalized calculation items
+    const rawItems: RawAttendanceRecord[] = records.map((r) => ({
+      id: r.id,
+      studentId: r.studentId,
+      institutionId: r.institutionId,
+      subjectId: r.subjectId,
+      subjectCode: r.subject?.code || "SUB",
+      subjectName: r.subject?.name || "Subject",
+      date: r.date,
+      status: r.status,
+      remarks: r.remarks,
+      recordedAt: r.recordedAt,
     }));
 
-    // Group by Month (STU-FE-06)
-    const monthMap = new Map<string, { month: string; year: number; total: number; attended: number }>();
-    records.forEach((r) => {
-      const d = new Date(r.date);
-      const monthYear = d.toLocaleString("default", { month: "long", year: "numeric" });
-      const existing = monthMap.get(monthYear) || {
-        month: d.toLocaleString("default", { month: "long" }),
-        year: d.getFullYear(),
-        total: 0,
-        attended: 0,
-      };
-      existing.total += 1;
-      if (r.status === "PRESENT" || r.status === "EXCUSED") {
-        existing.attended += 1;
-      }
-      monthMap.set(monthYear, existing);
-    });
+    // Centralized calculations
+    const calc = calculateAttendance(rawItems);
+    const subjectWise = calculateSubjectWiseAttendance(rawItems);
+    const monthlyAttendance = calculateMonthlyAttendance(rawItems);
 
-    const monthlyAttendance = Array.from(monthMap.entries()).map(([monthYear, stats]) => ({
-      monthYear,
-      month: stats.month,
-      year: stats.year,
-      totalClasses: stats.total,
-      attendedClasses: stats.attended,
-      absentClasses: stats.total - stats.attended,
-      percentage: stats.total > 0 ? Math.round((stats.attended / stats.total) * 100) : 100,
-    }));
-
+    // Absence history - only legitimate unexcused absences and late arrivals
     const absenceHistory = records
-      .filter((r) => r.status === "ABSENT" || r.status === "LATE")
+      .filter((r) => {
+        const norm = normalizeAttendanceStatus(r.status);
+        return norm.standardStatus === "ABSENT" || norm.standardStatus === "LATE";
+      })
       .map((r) => ({
         id: r.id,
         date: r.date,
-        subjectCode: r.subject.code,
-        subjectName: r.subject.name,
+        subjectCode: r.subject?.code || "SUB",
+        subjectName: r.subject?.name || "Subject",
         status: r.status,
         remarks: r.remarks || "No remarks logged",
       }));
@@ -104,19 +107,30 @@ export async function GET(req: NextRequest) {
       success: true,
       data: {
         summary: {
-          totalClasses,
-          attendedClasses,
-          absentClasses,
-          lateClasses,
-          overallPercentage,
+          totalClasses: calc.countableSessions,
+          totalRecords: calc.totalRecords,
+          attendedClasses: calc.attendedCredits,
+          absentClasses: calc.statusCounts.absent,
+          lateClasses: calc.statusCounts.late,
+          onDutyClasses: calc.statusCounts.onDuty,
+          halfDayClasses: calc.statusCounts.halfDay,
+          excusedClasses: calc.statusCounts.excused,
+          leaveClasses: calc.statusCounts.onLeave,
+          overallPercentage: calc.percentage, // number | null (never defaults to 100)
+          formattedPercentage: calc.formattedPercentage,
+          hasData: calc.hasData,
+          displayState: calc.displayState,
+          displayLabel: calc.displayLabel,
+          isEligible: calc.isEligible,
+          shortfallPercentage: calc.shortfallPercentage,
         },
         subjectWise,
         monthlyAttendance,
         dailyHistory: records.map((r) => ({
           id: r.id,
           date: r.date,
-          subjectCode: r.subject.code,
-          subjectName: r.subject.name,
+          subjectCode: r.subject?.code || "SUB",
+          subjectName: r.subject?.name || "Subject",
           status: r.status,
           remarks: r.remarks,
         })),

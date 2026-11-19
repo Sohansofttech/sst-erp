@@ -111,7 +111,7 @@ async function runVerification() {
 
   // TEST 4: Class 10-A Roster & Demo Metrics
   const students = await getSectionStudents("sec-10a");
-  const avgAtt = Number((students.reduce((a, s) => a + s.attendancePercent, 0) / students.length).toFixed(1));
+  const avgAtt = Number((students.reduce((a, s) => a + (s.attendancePercent ?? 0), 0) / students.length).toFixed(1));
   const avgIA = Number((students.reduce((a, s) => a + s.iaAverage, 0) / students.length).toFixed(1));
 
   results["Test 4.1: Class 10-A strength exactly 18 students"] = students.length === 18;

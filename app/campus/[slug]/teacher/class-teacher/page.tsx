@@ -94,15 +94,29 @@ export default function ClassTeacherDashboardPage() {
   }
 
   const base = `/campus/${slug}/teacher/class-teacher`
-  const defaulters = students.filter((s) => s.attendancePercent < 75)
+  const defaulters = students.filter(
+    (s) => s.attendancePercent !== null && s.attendancePercent < 75
+  )
   const borderline = students.filter(
-    (s) => s.attendancePercent >= 75 && s.attendancePercent < 82
+    (s) =>
+      s.attendancePercent !== null &&
+      s.attendancePercent >= 75 &&
+      s.attendancePercent < 82
   )
   const pendingLeaves = leaveRequests.filter((l) => l.status === "pending")
 
-  const avgAttendance = students.length > 0
-    ? Number((students.reduce((acc, s) => acc + s.attendancePercent, 0) / students.length).toFixed(1))
-    : 91.1
+  const studentsWithAtt = students.filter((s) => s.attendancePercent !== null)
+  const avgAttendance =
+    studentsWithAtt.length > 0
+      ? Number(
+          (
+            studentsWithAtt.reduce(
+              (acc, s) => acc + (s.attendancePercent ?? 0),
+              0
+            ) / studentsWithAtt.length
+          ).toFixed(1)
+        )
+      : null
 
   const avgIA = students.length > 0
     ? Number((students.reduce((acc, s) => acc + s.iaAverage, 0) / students.length).toFixed(1))
@@ -143,7 +157,7 @@ export default function ClassTeacherDashboardPage() {
         />
         <StatCard
           label="Average Attendance"
-          value={`${avgAttendance}%`}
+          value={avgAttendance !== null ? `${avgAttendance}%` : "N/A"}
           icon={<CheckCircle2 />}
           tone="success"
           description="Target ≥85% CBSE norm"
@@ -210,7 +224,8 @@ export default function ClassTeacherDashboardPage() {
                 </TableHeader>
                 <TableBody className="divide-y divide-[#E5E9EF]">
                   {[...defaulters, ...borderline].slice(0, 4).map((s) => {
-                    const isCritical = s.attendancePercent < 75
+                    const isCritical =
+                      s.attendancePercent !== null && s.attendancePercent < 75
                     return (
                       <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
                         <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
@@ -223,10 +238,17 @@ export default function ClassTeacherDashboardPage() {
                           <span
                             className={cn(
                               "font-mono font-bold text-xs",
-                              isCritical ? "text-rose-600" : "text-amber-600"
+                              s.attendancePercent === null
+                                ? "text-[#788391]"
+                                : isCritical
+                                  ? "text-rose-600"
+                                  : "text-amber-600"
                             )}
                           >
-                            {s.attendancePercent}%
+                            {s.attendancePercent !== null &&
+                            s.attendancePercent !== undefined
+                              ? `${s.attendancePercent}%`
+                              : "N/A"}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">

@@ -220,6 +220,7 @@ export default function DashboardPage() {
   const {
     student,
     attendanceSummary,
+    subjectWiseAttendance,
     todaySchedule,
     feeSummary,
     upcomingExams,
@@ -236,87 +237,104 @@ export default function DashboardPage() {
   const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
   const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
 
-  // Student Enrolled Courses for Semester 5
-  const enrolledCourses = [
-    {
-      code: "CS301",
-      name: "Database Management Systems",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 4,
-      attendance: 96,
-      marks: 93,
-      grade: "A+",
-      theoryPct: 75,
-      labPct: 15,
-      pendingTasks: 0,
-      status: "On Track",
-    },
-    {
-      code: "CS302",
-      name: "Operating Systems",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 4,
-      attendance: 92,
-      marks: 86,
-      grade: "A",
-      theoryPct: 72,
-      labPct: 16,
-      pendingTasks: 1,
-      status: "On Track",
-    },
-    {
-      code: "CS303",
-      name: "Computer Networks",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 4,
-      attendance: 95,
-      marks: 90,
-      grade: "A",
-      theoryPct: 74,
-      labPct: 14,
-      pendingTasks: 0,
-      status: "On Track",
-    },
-    {
-      code: "CS304",
-      name: "Software Engineering & Architecture",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 3,
-      attendance: 98,
-      marks: 88,
-      grade: "A+",
-      theoryPct: 78,
-      labPct: 12,
-      pendingTasks: 1,
-      status: "On Track",
-    },
-    {
-      code: "CS305",
-      name: "Web Technologies & Cloud Lab",
-      faculty: "Prof. Sunita Verma",
-      credits: 2,
-      attendance: 100,
-      marks: 95,
-      grade: "O",
-      theoryPct: 82,
-      labPct: 12,
-      pendingTasks: 0,
-      status: "Exemplary",
-    },
-    {
-      code: "CS306",
-      name: "Professional Ethics & Values",
-      faculty: "Dr. Arvind Swamy",
-      credits: 2,
-      attendance: 94,
-      marks: 85,
-      grade: "A",
-      theoryPct: 70,
-      labPct: 15,
-      pendingTasks: 0,
-      status: "On Track",
-    },
-  ];
+  // Student Enrolled Courses with dynamic subject-wise attendance
+  const enrolledCourses = React.useMemo(() => {
+    const baseCourses = [
+      {
+        code: "CS301",
+        name: "Database Management Systems",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 4,
+        marks: 93,
+        grade: "A+",
+        theoryPct: 75,
+        labPct: 15,
+        pendingTasks: 0,
+        status: "On Track",
+      },
+      {
+        code: "CS302",
+        name: "Operating Systems",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 4,
+        marks: 86,
+        grade: "A",
+        theoryPct: 72,
+        labPct: 16,
+        pendingTasks: 1,
+        status: "On Track",
+      },
+      {
+        code: "CS303",
+        name: "Computer Networks",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 4,
+        marks: 90,
+        grade: "A",
+        theoryPct: 74,
+        labPct: 14,
+        pendingTasks: 0,
+        status: "On Track",
+      },
+      {
+        code: "CS304",
+        name: "Software Engineering & Architecture",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 3,
+        marks: 88,
+        grade: "A+",
+        theoryPct: 78,
+        labPct: 12,
+        pendingTasks: 1,
+        status: "On Track",
+      },
+      {
+        code: "CS305",
+        name: "Web Technologies & Cloud Lab",
+        faculty: "Prof. Sunita Verma",
+        credits: 2,
+        marks: 95,
+        grade: "O",
+        theoryPct: 82,
+        labPct: 12,
+        pendingTasks: 0,
+        status: "Exemplary",
+      },
+      {
+        code: "CS306",
+        name: "Professional Ethics & Values",
+        faculty: "Dr. Arvind Swamy",
+        credits: 2,
+        marks: 85,
+        grade: "A",
+        theoryPct: 70,
+        labPct: 15,
+        pendingTasks: 0,
+        status: "On Track",
+      },
+    ];
+
+    const subjectList: any[] = subjectWiseAttendance || [];
+
+    return baseCourses.map((c) => {
+      const matched = subjectList.find(
+        (s: any) =>
+          s.subjectCode?.toLowerCase() === c.code.toLowerCase() ||
+          s.subjectName?.toLowerCase() === c.name.toLowerCase()
+      );
+
+      const actualAttendance = matched && matched.percentage !== null && matched.percentage !== undefined ? matched.percentage : null;
+
+      return {
+        ...c,
+        attendance: actualAttendance,
+        attendanceLabel:
+          actualAttendance !== null
+            ? `${actualAttendance}% Attended`
+            : "No sessions",
+      };
+    });
+  }, [subjectWiseAttendance]);
 
   return (
     <PortalLayout
@@ -413,11 +431,15 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-white tracking-tight">
-                  {attendanceSummary?.attendancePercentage ?? 95}%
+                  {attendanceSummary?.attendancePercentage !== null && attendanceSummary?.attendancePercentage !== undefined
+                    ? `${attendanceSummary.attendancePercentage}%`
+                    : "N/A"}
                 </span>
               </div>
               <span className="text-[11px] text-white/70 truncate">
-                {attendanceSummary?.attendedClasses ?? 57}/{attendanceSummary?.totalClasses ?? 60} classes
+                {attendanceSummary?.hasData
+                  ? `${attendanceSummary.attendedClasses}/${attendanceSummary.totalClasses} classes`
+                  : "No attendance data"}
               </span>
             </div>
 
@@ -580,7 +602,7 @@ export default function DashboardPage() {
                       </div>
                       <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
                         {activeTab === "attendance"
-                          ? `${course.attendance}% Attended`
+                          ? course.attendanceLabel
                           : activeTab === "marks"
                           ? `${course.marks}/100 (${course.grade})`
                           : activeTab === "coursework"
@@ -589,7 +611,7 @@ export default function DashboardPage() {
                             : "Submitted"
                           : activeTab === "credits"
                           ? `${course.credits} Credits`
-                          : `${course.attendance}% Attended`}
+                          : course.attendanceLabel}
                       </span>
                     </div>
 

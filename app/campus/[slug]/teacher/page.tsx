@@ -754,7 +754,9 @@ export default function TeacherDashboardPage() {
                     <div className="flex shrink-0 items-center gap-3">
                       <div className="text-right">
                         <p className="text-[15px] font-extrabold text-rose-600">
-                          {student.attendancePercent}%
+                          {student.attendancePercent !== null && student.attendancePercent !== undefined
+                            ? `${student.attendancePercent}%`
+                            : "N/A"}
                         </p>
                         <p className="text-[11px] text-[#788391]">
                           IA Avg: {student.iaAverage}%

@@ -184,7 +184,12 @@ export default function TeacherClassesPage() {
   )
 
   const filteredRoster = roster.filter((student) => {
-    if (onlyLowAttendance && student.attendancePercent >= 75) {
+    if (
+      onlyLowAttendance &&
+      (student.attendancePercent === null ||
+        student.attendancePercent === undefined ||
+        student.attendancePercent >= 75)
+    ) {
       return false
     }
     const q = searchQuery.trim().toLowerCase()
@@ -266,7 +271,10 @@ export default function TeacherClassesPage() {
                     <div>
                       <p className="text-[#788391] font-medium">Avg Att.</p>
                       <p className="mt-0.5 text-[14px] font-extrabold text-emerald-700">
-                        {classAllocation.averageAttendancePercent}%
+                        {classAllocation.averageAttendancePercent !== null &&
+                        classAllocation.averageAttendancePercent !== undefined
+                          ? `${classAllocation.averageAttendancePercent}%`
+                          : "N/A"}
                       </p>
                     </div>
                     <div>
@@ -381,11 +389,14 @@ export default function TeacherClassesPage() {
                 <TableBody>
                   {filteredRoster.map((student) => {
                     const attTone =
-                      student.attendancePercent < 75
-                        ? "border-rose-200 bg-rose-50 text-rose-700 font-bold"
-                        : student.attendancePercent < 85
-                          ? "border-amber-200 bg-amber-50 text-amber-700 font-bold"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700 font-bold"
+                      student.attendancePercent === null ||
+                      student.attendancePercent === undefined
+                        ? "border-slate-200 bg-slate-50 text-slate-700 font-medium"
+                        : student.attendancePercent < 75
+                          ? "border-rose-200 bg-rose-50 text-rose-700 font-bold"
+                          : student.attendancePercent < 85
+                            ? "border-amber-200 bg-amber-50 text-amber-700 font-bold"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-700 font-bold"
 
                     return (
                       <TableRow key={student.studentId}>
@@ -427,7 +438,10 @@ export default function TeacherClassesPage() {
                               attTone
                             )}
                           >
-                            {student.attendancePercent}%
+                            {student.attendancePercent !== null &&
+                            student.attendancePercent !== undefined
+                              ? `${student.attendancePercent}%`
+                              : "N/A"}
                           </span>
                         </TableCell>
                         <TableCell className="font-bold text-[#202936]">
@@ -490,17 +504,26 @@ export default function TeacherClassesPage() {
                     <p
                       className={cn(
                         "mt-1 text-2xl font-bold",
-                        activeStudent.attendancePercent < 75
-                          ? "text-error"
-                          : "text-success"
+                        activeStudent.attendancePercent === null ||
+                          activeStudent.attendancePercent === undefined
+                          ? "text-muted-foreground"
+                          : activeStudent.attendancePercent < 75
+                            ? "text-error"
+                            : "text-success"
                       )}
                     >
-                      {activeStudent.attendancePercent}%
+                      {activeStudent.attendancePercent !== null &&
+                      activeStudent.attendancePercent !== undefined
+                        ? `${activeStudent.attendancePercent}%`
+                        : "N/A"}
                     </p>
                     <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-                      {activeStudent.attendancePercent < 75
-                        ? "Below 75% threshold"
-                        : "Meets requirement"}
+                      {activeStudent.attendancePercent === null ||
+                      activeStudent.attendancePercent === undefined
+                        ? "No attendance records"
+                        : activeStudent.attendancePercent < 75
+                          ? "Below 75% threshold"
+                          : "Meets requirement"}
                     </p>
                   </div>
 
