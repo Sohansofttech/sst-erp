@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
+import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import {
   School,
   Lock,
@@ -15,12 +17,89 @@ import {
   BookOpen,
   ShieldCheck,
   Sparkles,
-  CheckCircle,
 } from "lucide-react";
 
+type PortalRole = "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN";
+
+const portalConfigs: Record<
+  PortalRole,
+  {
+    title: string;
+    badge: string;
+    welcome: string;
+    subtitle: string;
+    emailLabel: string;
+    emailPlaceholder: string;
+    helperText: string;
+    buttonText: string;
+    icon: LucideIcon;
+  }
+> = {
+  STUDENT: {
+    title: "Student Portal",
+    badge: "STUDENT PORTAL",
+    welcome: "Welcome, Student",
+    subtitle: "Access courses, attendance, examinations, fees, and campus services.",
+    emailLabel: "Student Email",
+    emailPlaceholder: "e.g. student.name@apex.edu",
+    helperText: "Use your institution-issued student email to continue.",
+    buttonText: "Sign In to Student Portal",
+    icon: GraduationCap,
+  },
+  TEACHER: {
+    title: "Teacher Portal",
+    badge: "TEACHER PORTAL",
+    welcome: "Welcome, Faculty",
+    subtitle: "Manage classes, attendance, assessments, and student academic records.",
+    emailLabel: "Faculty Email",
+    emailPlaceholder: "e.g. faculty.name@apex.edu",
+    helperText: "Use your institution-issued faculty email to continue.",
+    buttonText: "Sign In to Teacher Portal",
+    icon: BookOpen,
+  },
+  ADMIN: {
+    title: "Institution Admin Portal",
+    badge: "INSTITUTION ADMIN PORTAL",
+    welcome: "Institution Administration",
+    subtitle: "Manage academic operations, staff, students, finance, and institutional services.",
+    emailLabel: "Institution Admin Email",
+    emailPlaceholder: "e.g. admin@apex.edu",
+    helperText: "Use your Institution Admin account email to continue.",
+    buttonText: "Sign In to Institution Admin Portal",
+    icon: Building2,
+  },
+  SUPER_ADMIN: {
+    title: "Super Admin Portal",
+    badge: "SUPER ADMIN PORTAL",
+    welcome: "Welcome, Super Admin",
+    subtitle: "Govern institutions, platform users, subscriptions, security, and global operations.",
+    emailLabel: "Super Admin Email",
+    emailPlaceholder: "e.g. superadmin@sohansofttech.com",
+    helperText: "Use an active Super Admin platform account.",
+    buttonText: "Sign In to Super Admin Portal",
+    icon: ShieldCheck,
+  },
+};
+
+const demoAccounts: Array<{
+  role: PortalRole;
+  label: string;
+  email: string;
+  icon: LucideIcon;
+}> = [
+  { role: "STUDENT", label: "Student", email: "john.doe@student.apex.edu", icon: GraduationCap },
+  { role: "TEACHER", label: "Teacher", email: "prof.sharma@apex.edu", icon: BookOpen },
+  { role: "ADMIN", label: "Institution Admin", email: "admin@apex.edu", icon: Building2 },
+  { role: "SUPER_ADMIN", label: "Super Admin", email: "superadmin@sohansofttech.com", icon: ShieldCheck },
+];
+
 function LoginForm() {
+  const [selectedRole, setSelectedRole] = useState<PortalRole>("ADMIN");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [institutionCode, setInstitutionCode] = useState("");
+  const [showCollegeCode, setShowCollegeCode] = useState(false);
+  const emailInputRef = React.useRef<HTMLInputElement>(null);
+  const collegeCodeInputRef = React.useRef<HTMLInputElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,19 +145,31 @@ function LoginForm() {
     setSuccessMessage(null);
 
     try {
+      const formData = new FormData(e.currentTarget as HTMLFormElement);
+      const submittedEmail = String(formData.get("email") || email).trim().toLowerCase();
+      const submittedPassword = String(formData.get("password") || "");
+      const submittedCollegeCode = String(formData.get("institutionCode") || institutionCode || "").trim();
+
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
+          email: submittedEmail,
+          password: submittedPassword,
+          institutionCode: submittedCollegeCode || undefined,
         }),
       });
 
       const json = await res.json();
 
       if (!res.ok || !json.success) {
+        if (json.error && json.error.toLowerCase().includes("college code")) {
+          setShowCollegeCode(true);
+          setTimeout(() => {
+            collegeCodeInputRef.current?.focus();
+          }, 100);
+        }
         throw new Error(json.error || "Invalid email or password.");
       }
 
@@ -111,12 +202,22 @@ function LoginForm() {
     }
   };
 
-  const handleDemoFill = (demoEmail: string, demoPw: string) => {
+  const handleDemoFill = (role: PortalRole, demoEmail: string) => {
+    setSelectedRole(role);
     setEmail(demoEmail);
-    setPassword(demoPw);
+    if (emailInputRef.current) {
+      emailInputRef.current.value = demoEmail;
+    }
+    setInstitutionCode("");
+    if (collegeCodeInputRef.current) {
+      collegeCodeInputRef.current.value = "";
+    }
     setError(null);
     setSuccessMessage(null);
   };
+
+  const portal = portalConfigs[selectedRole];
+  const PortalIcon = portal.icon;
 
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#EEF1F5] text-[#202936] font-sans">
@@ -133,7 +234,6 @@ function LoginForm() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#123B5A] via-[#123B5A]/75 to-[#123B5A]/55" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#123B5A]/90 via-transparent to-[#123B5A]/50" />
         </div>
-
         {/* Top Branding Bar on Hero */}
         <div className="relative z-10 flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg shrink-0">
@@ -219,21 +319,24 @@ function LoginForm() {
           {/* Header & Badging */}
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#123B5A] text-white shadow-md border-2 border-white mb-3">
-              <School className="w-7 h-7 text-[#F5A000]" />
+              <PortalIcon className="w-7 h-7 text-[#F5A000]" />
             </div>
 
             <div className="flex justify-center mb-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#123B5A]/10 text-[#123B5A] text-[11px] font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" />
-                <span>Institution Portal</span>
+                <span>{portal.badge}</span>
               </div>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#123B5A]">
-              Institution Portal
+              {portal.title}
             </h1>
             <p className="text-xs sm:text-sm font-medium text-[#788391] mt-1">
-              Sign in to continue
+              {portal.welcome}
+            </p>
+            <p className="text-[11px] text-[#94A3B8] mt-1 max-w-sm mx-auto">
+              {portal.subtitle}
             </p>
           </div>
 
@@ -253,14 +356,73 @@ function LoginForm() {
               </div>
             )}
 
-            <form className="space-y-4" onSubmit={handleSubmit}>
+            <form
+              className="space-y-4"
+              autoComplete="on"
+              onSubmit={handleSubmit}
+            >
+              {/* College Code / Institution Code Input */}
+              {(selectedRole === "ADMIN" || showCollegeCode) && (
+                <div className="animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="institutionCode"
+                      className="block text-xs font-bold text-[#202936] uppercase tracking-wider"
+                    >
+                      College Code
+                    </label>
+                    <span className="text-[10px] text-[#788391] font-semibold">
+                      Required for New Institutions
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#788391]">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="institutionCode"
+                      ref={collegeCodeInputRef}
+                      name="institutionCode"
+                      type="text"
+                      autoComplete="organization"
+                      value={institutionCode}
+                      onChange={(e) => {
+                        setInstitutionCode(e.target.value);
+                        if (error) setError(null);
+                      }}
+                      placeholder="Enter College Code (e.g. AIT2026)"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-xs sm:text-sm bg-[#F8FAFC] focus:bg-white border border-[#E5E9EF] rounded-xl text-[#202936] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#123B5A] focus:border-transparent transition-all"
+                    />
+                  </div>
+                  <p className="text-[10px] text-[#94A3B8] mt-1">
+                    Enter your assigned College Code. Existing admins (Apex) may leave this blank.
+                  </p>
+                </div>
+              )}
+
+              {/* Enter College Code option for students/teachers when hidden */}
+              {!showCollegeCode && selectedRole !== "ADMIN" && selectedRole !== "SUPER_ADMIN" && (
+                <div className="text-right -mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCollegeCode(true);
+                      setTimeout(() => collegeCodeInputRef.current?.focus(), 50);
+                    }}
+                    className="text-[11px] font-semibold text-[#123B5A] hover:text-[#F5A000] transition-colors cursor-pointer"
+                  >
+                    + Enter College Code (if required)
+                  </button>
+                </div>
+              )}
+
               {/* Email Address */}
               <div>
                 <label
                   htmlFor="email"
                   className="block text-xs font-bold text-[#202936] uppercase tracking-wider mb-1.5"
                 >
-                  Email Address
+                  {portal.emailLabel}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#788391]">
@@ -268,13 +430,13 @@ function LoginForm() {
                   </div>
                   <input
                     id="email"
+                    ref={emailInputRef}
                     name="email"
                     type="email"
-                    autoComplete="email"
+                    autoComplete="username"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. yourname@apex.edu"
+                    defaultValue={email}
+                    placeholder={portal.emailPlaceholder}
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs sm:text-sm bg-[#F8FAFC] focus:bg-white border border-[#E5E9EF] rounded-xl text-[#202936] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#123B5A] focus:border-transparent transition-all"
                   />
                 </div>
@@ -298,8 +460,6 @@ function LoginForm() {
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     className="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm bg-[#F8FAFC] focus:bg-white border border-[#E5E9EF] rounded-xl text-[#202936] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#123B5A] focus:border-transparent transition-all"
                   />
@@ -311,6 +471,14 @@ function LoginForm() {
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
+                </div>
+                <div className="flex items-center justify-end mt-1.5">
+                  <Link
+                    href="/forgot-password"
+                    className="text-[11px] font-semibold text-[#123B5A] hover:text-[#F5A000] transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
                 </div>
               </div>
 
@@ -328,7 +496,7 @@ function LoginForm() {
                     </>
                   ) : (
                     <>
-                      <span>Sign In to Portal</span>
+                      <span>{portal.buttonText}</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -342,40 +510,16 @@ function LoginForm() {
                 Quick Demo Access (Click to auto-fill)
               </p>
               <div className="grid grid-cols-2 gap-2 text-left">
-                {[
-                  {
-                    role: "Student",
-                    email: "john.doe@student.apex.edu",
-                    pw: "Student@123",
-                    icon: GraduationCap,
-                  },
-                  {
-                    role: "Teacher",
-                    email: "prof.sharma@apex.edu",
-                    pw: "Password@123",
-                    icon: BookOpen,
-                  },
-                  {
-                    role: "Institution Admin",
-                    email: "admin@apex.edu",
-                    pw: "Password@123",
-                    icon: Building2,
-                  },
-                  {
-                    role: "Super Admin",
-                    email: "superadmin@sohansofttech.com",
-                    pw: "SuperAdmin@123",
-                    icon: ShieldCheck,
-                  },
-                ].map((account) => {
+                {demoAccounts.map((account) => {
                   const Icon = account.icon;
-                  const isSelected = email.trim().toLowerCase() === account.email.toLowerCase();
+                  const isSelected = selectedRole === account.role;
 
                   return (
                     <button
                       key={account.role}
                       type="button"
-                      onClick={() => handleDemoFill(account.email, account.pw)}
+                      onClick={() => handleDemoFill(account.role, account.email)}
+                      aria-pressed={isSelected}
                       className={`p-2.5 rounded-xl border transition-all text-[11px] group cursor-pointer text-left ${
                         isSelected
                           ? "border-[#F5A000] bg-[#FFFBEB] shadow-xs ring-1 ring-[#F5A000]/50"
@@ -390,7 +534,7 @@ function LoginForm() {
                         }`}
                       >
                         <Icon className="w-3.5 h-3.5 text-[#F5A000]" />
-                        <span>{account.role}</span>
+                        <span>{account.label}</span>
                       </div>
                       <span
                         className={`text-[10px] block truncate mt-0.5 ${
@@ -403,6 +547,9 @@ function LoginForm() {
                   );
                 })}
               </div>
+              <p className="mt-2 text-[10px] text-center text-[#94A3B8]">
+                {portal.helperText}
+              </p>
             </div>
           </div>
 

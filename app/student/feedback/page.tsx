@@ -85,10 +85,12 @@ export default function StudentFeedbackPage() {
       const res = await fetch("/api/student/queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           category,
           subject: subject.trim(),
           description: description.trim(),
+          message: description.trim(),
           priority,
         }),
       });
@@ -257,15 +259,47 @@ export default function StudentFeedbackPage() {
                   },
                   {
                     header: "Administration Response",
-                    cell: (item: any) =>
-                      item.adminRemarks ? (
-                        <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-950 space-y-1">
-                          <span className="font-semibold block text-[11px] text-emerald-800">
-                            Official Response:
-                          </span>
-                          <p className="leading-relaxed">{item.adminRemarks}</p>
+                    cell: (item: any) => {
+                      const responseText = item.response || item.adminRemarks;
+                      return responseText ? (
+                        <div
+                          className={`p-2.5 rounded-lg border text-xs ${
+                            item.status === "RESOLVED"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-950"
+                              : item.status === "IN_PROGRESS"
+                              ? "bg-blue-50 border-blue-200 text-blue-950"
+                              : item.status === "REJECTED"
+                              ? "bg-rose-50 border-rose-200 text-rose-950"
+                              : "bg-slate-50 border-slate-200 text-slate-950"
+                          }`}
+                        >
+                          <p
+                            className={`font-semibold text-[11px] mb-0.5 ${
+                              item.status === "RESOLVED"
+                                ? "text-emerald-800"
+                                : item.status === "IN_PROGRESS"
+                                ? "text-blue-800"
+                                : item.status === "REJECTED"
+                                ? "text-rose-800"
+                                : "text-slate-800"
+                            }`}
+                          >
+                            {item.status === "RESOLVED"
+                              ? "Official Resolution Remark"
+                              : item.status === "IN_PROGRESS"
+                              ? "Official Department Note"
+                              : item.status === "REJECTED"
+                              ? "Official Decision Remark (Rejected)"
+                              : "Department Response"}
+                            {item.respondedAt && (
+                              <span className="font-normal opacity-80 ml-1.5">
+                                ({new Date(item.respondedAt).toLocaleDateString()})
+                              </span>
+                            )}
+                          </p>
+                          <p className="leading-relaxed whitespace-pre-wrap">{responseText}</p>
                           {item.reviewedByName && (
-                            <span className="text-[10px] text-emerald-700 block font-medium">
+                            <span className="text-[10px] text-emerald-700 block font-medium mt-1">
                               Reviewed by: {item.reviewedByName}
                             </span>
                           )}
@@ -274,7 +308,8 @@ export default function StudentFeedbackPage() {
                         <span className="text-xs text-[#64748B] italic flex items-center gap-1">
                           <Clock className="w-3 h-3 text-[#F5A000]" /> Awaiting Admin Review
                         </span>
-                      ),
+                      );
+                    },
                   },
                 ]}
                 data={queryList}

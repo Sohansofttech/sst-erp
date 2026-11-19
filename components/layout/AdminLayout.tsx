@@ -6,6 +6,7 @@ import { InstitutionProvider, useInstitution } from "@/lib/store";
 import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
+import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
 
 const AdminLayoutInner: React.FC<{
   sidebarOpen: boolean;
@@ -48,6 +49,7 @@ const AdminLayoutInner: React.FC<{
         <Suspense fallback={<header className="h-16 bg-white border-b border-[#E2E8F0] shrink-0" />}>
           <AdminHeader onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
         </Suspense>
+        <MustChangePasswordBanner />
         <main
           className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8"
           style={{ backgroundColor: activeTheme.workspaceBackground }}

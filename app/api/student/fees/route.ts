@@ -15,30 +15,30 @@ export async function GET(req: NextRequest) {
 
     const { studentId } = await authorizeStudentOrParentAccess(session, requestedStudentId);
 
-    // Invoices with line items
-    const invoices = await db.feeInvoice.findMany({
-      where: {
-        studentId,
-        institutionId: session.institutionId,
-      },
-      include: {
-        items: true,
-      },
-      orderBy: { dueDate: "asc" },
-    });
-
-    // Payment history with receipts
-    const payments = await db.feePayment.findMany({
-      where: {
-        studentId,
-        institutionId: session.institutionId,
-      },
-      include: {
-        receipt: true,
-        invoice: { select: { invoiceNumber: true, title: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    // Fetch invoices and payments concurrently to optimize response time
+    const [invoices, payments] = await Promise.all([
+      db.feeInvoice.findMany({
+        where: {
+          studentId,
+          institutionId: session.institutionId,
+        },
+        include: {
+          items: true,
+        },
+        orderBy: { dueDate: "asc" },
+      }),
+      db.feePayment.findMany({
+        where: {
+          studentId,
+          institutionId: session.institutionId,
+        },
+        include: {
+          receipt: true,
+          invoice: { select: { invoiceNumber: true, title: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
     const totalFees = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
     const totalPaid = invoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
@@ -77,6 +77,10 @@ export async function GET(req: NextRequest) {
           receiptNumber: p.receipt?.receiptNumber,
           receiptPdfUrl: p.receipt?.pdfUrl,
         })),
+      },
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
       },
     });
   } catch (err: any) {

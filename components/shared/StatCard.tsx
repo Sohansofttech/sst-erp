@@ -74,10 +74,10 @@ export function StatCard({
     <Card
       onClick={onClick}
       className={cn(
-        "gap-0 rounded-2xl py-5 shadow-xs transition-all hover:shadow-md",
+        "gap-0 rounded-xl py-5 shadow-xs transition-all hover:shadow-md",
         isDark
           ? "border-0 bg-[#123B5A] text-white hover:bg-[#16466C]"
-          : "border-[#E5E9EF] bg-white text-[#202936]",
+          : "border-[#E2E8F0] bg-white text-[#1E293B]",
         onClick && (isDark ? "cursor-pointer hover:ring-2 hover:ring-[#F5A000]" : "cursor-pointer hover:border-[#F5A000]"),
         className
       )}
@@ -87,7 +87,7 @@ export function StatCard({
           <p
             className={cn(
               "truncate text-[13px] font-semibold tracking-normal",
-              isDark ? "text-white/80" : "text-[#788391]"
+              isDark ? "text-white/80" : "text-[#64748B]"
             )}
             title={displayTitle}
           >
@@ -97,7 +97,7 @@ export function StatCard({
             <p
               className={cn(
                 "text-2xl font-bold tracking-tight sm:text-[28px]",
-                isDark ? "text-white" : "text-[#202936]"
+                isDark ? "text-white" : "text-[#1E293B]"
               )}
             >
               {value}
@@ -125,7 +125,7 @@ export function StatCard({
                         ? "bg-emerald-50 text-emerald-700"
                         : direction === "down"
                           ? "bg-rose-50 text-rose-700"
-                          : "bg-[#EEF1F5] text-[#788391]"
+                          : "bg-[#EEF1F5] text-[#64748B]"
                   )}
                 >
                   {direction === "up" ? (
@@ -138,7 +138,7 @@ export function StatCard({
                     <span
                       className={cn(
                         "font-normal",
-                        isDark ? "text-white/70" : "text-[#788391]"
+                        isDark ? "text-white/70" : "text-[#64748B]"
                       )}
                     >
                       {trend.label}
@@ -150,7 +150,7 @@ export function StatCard({
                 <span
                   className={cn(
                     "text-xs truncate",
-                    isDark ? "text-white/70" : "text-[#788391]"
+                    isDark ? "text-white/70" : "text-[#64748B]"
                   )}
                 >
                   {displaySubtitle}
@@ -163,11 +163,12 @@ export function StatCard({
         {icon && (
           <div
             className={cn(
-              "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
+              "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border",
               isDark
-                ? "border-white/10 bg-white/10 text-[#F5A000]"
-                : "border-[#E5E9EF] bg-[#EEF1F5] text-[#123B5A]",
-              TONE_CLASSES[tone]
+                ? tone === "darkNavy"
+                  ? "border-white/15 bg-white/15 text-[#F5A000]"
+                  : "border-white/15 bg-white/10 text-white"
+                : cn("border-[#E2E8F0]", TONE_CLASSES[tone])
             )}
           >
             {icon}

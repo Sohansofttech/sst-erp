@@ -8,6 +8,7 @@ import { Card } from "@/components/shared/Card";
 import { StatCard } from "@/components/shared/StatCard";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
+import { fetchClientSession } from "@/lib/auth/client-session";
 import {
   CheckCircle2,
   Calendar,
@@ -110,14 +111,7 @@ export default function DashboardPage() {
     const fetchSession = async () => {
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("erp_token") : null;
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          headers,
-        });
-        const json = await res.json();
+        const json = await fetchClientSession(token);
 
         if (!isMounted) return;
 
@@ -184,14 +178,15 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // 3. Trigger data fetch when session is established or selectedChildId changes
+  // 3. Initiate dashboard data fetch immediately on mount in parallel with session verification
   useEffect(() => {
-    if (!session) return;
-    if (session.role === "PARENT") {
-      fetchDashboardData(selectedChildId);
-    } else {
-      fetchDashboardData();
-    }
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // 4. Refetch when parent changes active child
+  useEffect(() => {
+    if (!session || session.role !== "PARENT" || !selectedChildId) return;
+    fetchDashboardData(selectedChildId);
   }, [session, selectedChildId, fetchDashboardData]);
 
   // 4. Listen for activeChildChanged global event from Header ChildSelector

@@ -36,6 +36,23 @@ enum PlatformRole {
   SUPER_ADMIN
 }
 
+enum ProvisioningStatus {
+  PENDING
+  PROVISIONING
+  INVITED
+  FAILED
+  ACTIVATED
+}
+
+enum InvitationStatus {
+  PENDING
+  SENT
+  FAILED
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
 model Institution {
   id        String            @id @default(uuid()) @db.Uuid
   name      String
@@ -3030,6 +3047,9 @@ model PlatformInstitution {
   postalCode String?
   country   String            @default("India")
   website   String?
+  provisioningStatus ProvisioningStatus @default(PENDING)
+  primaryAdminUserId String? @db.Uuid
+  primaryAdminUser PlatformUser? @relation("InstitutionPrimaryAdmin", fields: [primaryAdminUserId], references: [id], onDelete: SetNull)
   archivedAt DateTime?
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
@@ -3047,11 +3067,38 @@ model PlatformInstitution {
   supportAccessSessions SupportAccessSession[]
   notificationTargets PlatformNotificationTarget[]
   deletionRequests InstitutionDeletionRequest[]
+  invitations InstitutionAdminInvitation[]
 
   @@index([status])
   @@index([type])
 
   @@map("Institution")
+}
+
+model InstitutionAdminInvitation {
+  id             String           @id @default(uuid()) @db.Uuid
+  institutionId  String           @db.Uuid
+  platformUserId String           @db.Uuid
+  email          String
+  tokenHash      String           @unique
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  sentAt         DateTime?
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  failedReason   String?
+  attemptCount   Int              @default(0)
+  lastAttemptAt  DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  institution PlatformInstitution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  platformUser PlatformUser @relation("InstitutionAdminInvitationUser", fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId, status])
+  @@index([platformUserId, status])
+  @@index([expiresAt])
+  @@map("InstitutionAdminInvitation")
 }
 
 model PlatformUser {
@@ -3080,6 +3127,8 @@ model PlatformUser {
   deletionRequestsCreated InstitutionDeletionRequest[] @relation("DeletionRequester")
   deletionRequestsApproved InstitutionDeletionRequest[] @relation("DeletionApprover")
   platformSettingsUpdated PlatformSetting[] @relation("PlatformSettingUpdater")
+  primaryAdminInstitutions PlatformInstitution[] @relation("InstitutionPrimaryAdmin")
+  adminInvitations InstitutionAdminInvitation[] @relation("InstitutionAdminInvitationUser")
 
   @@index([status])
   @@index([platformRole])

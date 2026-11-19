@@ -34,7 +34,6 @@ export default function ExaminationsPage() {
         if (storedInst) setInstitutionName(storedInst);
       } catch {}
     }
-
     const fetchExams = async () => {
       try {
         const res = await fetch("/api/student/examinations", { credentials: "include" });

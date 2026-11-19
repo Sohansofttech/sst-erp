@@ -1,20 +1,33 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import db from "@/lib/db";
 import { requireAuth } from "@/lib/auth/session";
 import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "@/lib/auth/jwt";
 import { SessionUser } from "@/types";
+import {
+  validatePasswordStrength,
+  checkPwnedPassword,
+  hashPassword,
+  verifyPassword,
+} from "@/lib/auth/password-security";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { currentPassword, newPassword, confirmPassword } = body;
 
-    if (!currentPassword || !newPassword) {
+    // 1. Basic presence validation
+    if (!currentPassword) {
       return NextResponse.json(
-        { success: false, error: "Current password and new password are required." },
+        { success: false, error: "Current password is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!newPassword) {
+      return NextResponse.json(
+        { success: false, error: "New password is required." },
         { status: 400 }
       );
     }
@@ -26,60 +39,86 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (newPassword.length < 8) {
-      return NextResponse.json(
-        { success: false, error: "New password must be at least 8 characters long." },
-        { status: 400 }
-      );
-    }
-
     if (currentPassword === newPassword) {
       return NextResponse.json(
-        { success: false, error: "New password must be different from your current temporary password." },
+        { success: false, error: "New password must be different from current password." },
         { status: 400 }
       );
     }
 
+    // 2. Fetch user's current password hash from database
     const user = await db.user.findUnique({
       where: { id: session.userId },
-      select: { id: true, passwordHash: true, email: true, institutionId: true },
+      select: { id: true, email: true, fullName: true, passwordHash: true, institutionId: true },
     });
 
     if (!user || !user.passwordHash) {
       return NextResponse.json(
-        { success: false, error: "User account not found or has no credentials set." },
+        { success: false, error: "User account not found or has no password set." },
         { status: 404 }
       );
     }
 
-    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!isMatch) {
+    // 3. Verify current password
+    const isCurrentValid = await verifyPassword(currentPassword, user.passwordHash);
+    if (!isCurrentValid) {
       return NextResponse.json(
         { success: false, error: "Current password is incorrect." },
+        { status: 401 }
+      );
+    }
+
+    // 4. Validate new password strength
+    const strengthResult = validatePasswordStrength(newPassword, {
+      email: user.email,
+      fullName: user.fullName || session.fullName,
+    });
+
+    if (!strengthResult.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: strengthResult.errors[0] || "Password does not meet complexity requirements.",
+          details: strengthResult.errors,
+        },
         { status: 400 }
       );
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
+    // 5. Privacy-preserving compromised password check (k-Anonymity)
+    const pwnedResult = await checkPwnedPassword(newPassword);
+    if (pwnedResult.compromised) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This password has been exposed in public data breaches. Please choose a more secure, unique password.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 6. Hash new password with bcrypt
+    const newHash = await hashPassword(newPassword);
     const updatedSig = computePasswordSignature(newHash);
     const now = new Date();
 
+    // 7. Update database
     await db.user.update({
-      where: { id: session.userId },
+      where: { id: user.id },
       data: {
         passwordHash: newHash,
         lastLoginAt: now,
       },
     });
 
-    // Record PASSWORD_CHANGED in audit_logs to permanently clear temporary-password state
+    // 8. Log audit trail safely
     try {
       const auditId = crypto.randomUUID();
       await db.$executeRawUnsafe(
         `INSERT INTO audit_logs (id, "institutionId", "userId", "actorUserId", action, "entityType", "entityId", "newValuesJson", "createdAt")
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
         auditId,
-        user.institutionId || session.institutionId,
+        user.institutionId || session.institutionId || "",
         user.id,
         user.id,
         "PASSWORD_CHANGED",
@@ -87,12 +126,11 @@ export async function POST(req: NextRequest) {
         user.id,
         JSON.stringify({ status: "SUCCESS" })
       );
-    } catch (auditErr) {
-      console.warn("Failed to record PASSWORD_CHANGED audit log:", auditErr);
+    } catch {
+      // Non-critical audit log
     }
 
-    // Issue refreshed session token with mustChangePassword = false and updated passwordSig
-    // (This immediately invalidates all previous sessions while allowing the new session to work)
+    // 9. Re-issue updated session token with mustChangePassword cleared and updated signature
     const updatedSession: SessionUser = {
       ...session,
       mustChangePassword: false,
@@ -115,16 +153,29 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24,
+    });
+
+    response.cookies.set({
+      name: "sst_session",
+      value: newToken,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
     });
 
     return response;
   } catch (error: any) {
     if (error.name === "UnauthorizedError") {
-      return NextResponse.json({ success: false, error: error.message }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: "Authentication required to change password." },
+        { status: 401 }
+      );
     }
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to change password." },
+      { success: false, error: error.message || "Failed to update password. Please try again." },
       { status: 500 }
     );
   }

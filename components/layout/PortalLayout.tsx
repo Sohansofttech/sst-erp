@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
+import { fetchClientSession } from "@/lib/auth/client-session";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -63,14 +65,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     const fetchMe = async () => {
       try {
         const token = typeof window !== "undefined" ? localStorage.getItem("erp_token") : null;
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          headers,
-        });
-        const json = await res.json();
+        const json = await fetchClientSession(token);
         if (isMounted && json.success && json.data?.session) {
           const sess = json.data.session;
           const instName = sess.institutionName || "Campus Portal";
@@ -125,6 +120,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
           onSelectChild={handleSelect}
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}
         />
+
+        <MustChangePasswordBanner />
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl w-full mx-auto space-y-6">

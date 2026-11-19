@@ -2,8 +2,9 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, LoaderCircle, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn } from "lucide-react";
 import { signIn, type LoginState } from "@/app/super-admin/login/actions";
+import { InlineBrandSpinner } from "@/components/shared/BrandLoadingScreen";
 
 const initialState: LoginState = { error: null };
 
@@ -31,7 +32,7 @@ export function LoginForm() {
       </div>
       {state.error && <p className="sa-login-error" role="alert">{state.error}</p>}
       <button className="sa-login-submit" type="submit" disabled={pending}>
-        {pending ? <LoaderCircle size={17} className="sa-spinner" /> : <LogIn size={17} />}
+        {pending ? <InlineBrandSpinner size={17} /> : <LogIn size={17} />}
           {pending ? "Signing in…" : "Sign In"}
       </button>
     </form>

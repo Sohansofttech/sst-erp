@@ -90,6 +90,10 @@ export async function GET(req: NextRequest) {
         session: safeSession,
         ...additionalInfo,
       },
+    }, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -107,6 +111,13 @@ export async function POST() {
 
   response.cookies.set({
     name: AUTH_COOKIE_NAME,
+    value: "",
+    path: "/",
+    expires: new Date(0),
+  });
+
+  response.cookies.set({
+    name: "sst_session",
     value: "",
     path: "/",
     expires: new Date(0),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { InlineBrandSpinner } from "@/components/shared/BrandLoadingScreen";
 import { createInstitution, type InstitutionFormState } from "@/app/super-admin/(protected)/institutions/actions";
 
 const initial: InstitutionFormState = { error: null, success: null };
@@ -12,12 +13,12 @@ export function CreateInstitutionForm() {
       <summary>Create institution</summary>
       <form className="sa-form-grid" action={action}>
         <label>Name<input name="name" required minLength={2} maxLength={160} /></label>
-        <label>Code<input name="code" maxLength={40} /></label>
+        <label>College Code / Institution Code<input name="code" placeholder="e.g. CC101 (Auto-generated if empty)" maxLength={40} /></label>
         <label>Slug<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxLength={80} /></label>
         <label>Type
-          <select name="type" defaultValue="SCHOOL">
-            <option value="SCHOOL">School</option>
+          <select name="type" defaultValue="COLLEGE">
             <option value="COLLEGE">College</option>
+            <option value="SCHOOL">School</option>
             <option value="OTHER">Other</option>
           </select>
         </label>
@@ -29,12 +30,14 @@ export function CreateInstitutionForm() {
         <label>Postal code<input name="postalCode" maxLength={20} /></label>
         <label>Country<input name="country" defaultValue="India" required maxLength={80} /></label>
         <label>Website<input name="website" type="url" /></label>
-        <label>Admin email (optional)<input name="adminEmail" type="email" placeholder="Default: uses contact email" /></label>
-        <label>Admin initial password (optional)<input name="adminPassword" defaultValue="Admin@2026" minLength={6} placeholder="Default: Admin@2026" /></label>
+        <label>Administrator full name<input name="adminName" required minLength={2} maxLength={160} /></label>
+        <label>Administrator email<input name="adminEmail" type="email" required /></label>
+        <label>Administrator password<input name="adminPassword" type="password" required minLength={6} placeholder="Min 6 characters" defaultValue="Password@123" /></label>
+        <label>Administrator phone<input name="adminPhone" maxLength={40} /></label>
         {state.error && <p className="sa-form-message sa-form-error" role="alert">{state.error}</p>}
         {state.success && <p className="sa-form-message sa-form-success" role="status">{state.success}</p>}
         <button className="sa-button sa-button-primary" disabled={pending}>
-          {pending ? "Saving…" : "Create institution"}
+          {pending ? <><InlineBrandSpinner size={14} /> Saving…</> : "Create institution"}
         </button>
       </form>
     </details>

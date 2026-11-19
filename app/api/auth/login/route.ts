@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import db from "@/lib/db";
 import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "@/lib/auth/jwt";
+import { isDefaultOrTemporaryPassword, checkPwnedPassword } from "@/lib/auth/password-security";
 import { SessionUser } from "@/types";
 import { syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
 import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, otp, loginType, institutionCode } = await req.json();
+    const { email, password, loginType, institutionCode } = await req.json();
 
     if (!email) {
       return NextResponse.json(
@@ -17,39 +18,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (loginType === "OTP" || otp) {
-      if (!otp) {
-        return NextResponse.json(
-          { success: false, error: "6-digit OTP is required." },
-          { status: 400 }
-        );
-      }
-      // Demo OTP standard verification (123456 or matching dynamic OTP)
-      if (otp !== "123456") {
-        return NextResponse.json(
-          { success: false, error: "Invalid or expired OTP. Please use demo OTP: 123456." },
-          { status: 401 }
-        );
-      }
-    } else {
-      if (!password) {
-        return NextResponse.json(
-          { success: false, error: "Password is required." },
-          { status: 400 }
-        );
-      }
+    if (loginType === "OTP") {
+      return NextResponse.json(
+        { success: false, error: "OTP login is not enabled." },
+        { status: 403 }
+      );
+    }
+    if (!password) {
+      return NextResponse.json(
+        { success: false, error: "Password is required." },
+        { status: 400 }
+      );
     }
 
     // Find institution if code provided, or search by email domain / lookup
     let institutionId: string | undefined;
     let resolvedInstitutionName = "";
-    if (institutionCode) {
+    const trimmedCode = typeof institutionCode === "string" ? institutionCode.trim() : "";
+    if (trimmedCode) {
       let inst = await db.institution.findFirst({
         where: {
           OR: [
-            { code: { equals: institutionCode.trim(), mode: "insensitive" } },
-            { id: { equals: institutionCode.trim(), mode: "insensitive" } },
-            { slug: { equals: institutionCode.trim(), mode: "insensitive" } },
+            { code: { equals: trimmedCode, mode: "insensitive" } },
+            { id: { equals: trimmedCode, mode: "insensitive" } },
+            { slug: { equals: trimmedCode, mode: "insensitive" } },
           ],
         },
       });
@@ -60,9 +52,9 @@ export async function POST(req: NextRequest) {
           const rawInst: any = await db.$queryRaw`
             SELECT id, name, code, slug, type, status, email
             FROM "Institution"
-            WHERE LOWER(code) = LOWER(${institutionCode.trim()})
-               OR LOWER(slug) = LOWER(${institutionCode.trim()})
-               OR id::text = ${institutionCode.trim()}
+            WHERE LOWER(code) = LOWER(${trimmedCode})
+               OR LOWER(slug) = LOWER(${trimmedCode})
+               OR id::text = ${trimmedCode}
             LIMIT 1
           `;
           if (rawInst && rawInst.length > 0) {
@@ -76,7 +68,7 @@ export async function POST(req: NextRequest) {
 
       if (!inst) {
         return NextResponse.json(
-          { success: false, error: "Invalid institution code or institution not found." },
+          { success: false, error: "Invalid College Code / Institution Code or institution not found." },
           { status: 400 }
         );
       }
@@ -87,7 +79,7 @@ export async function POST(req: NextRequest) {
     // Lookup user using safe select to ensure compatibility with PostgreSQL users table
     const user = await db.user.findFirst({
       where: {
-        email: email.trim().toLowerCase(),
+        email: { equals: email.trim(), mode: "insensitive" },
         ...(institutionId ? { institutionId } : {}),
       },
       select: {
@@ -106,6 +98,8 @@ export async function POST(req: NextRequest) {
             name: true,
             slug: true,
             code: true,
+            status: true,
+            isActive: true,
           },
         },
       },
@@ -119,7 +113,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check password if standard login
-    if (loginType !== "OTP" && !otp) {
+    if (loginType !== "OTP") {
       const isPwValid = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
       if (!isPwValid) {
         return NextResponse.json(
@@ -133,23 +127,67 @@ export async function POST(req: NextRequest) {
     const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
     let redirectUrl = "";
 
+    if (userRole === "ADMIN") {
+      const isLegacyInstitution =
+        user.institutionId === "inst_apex" ||
+        user.institutionId?.startsWith("inst_") ||
+        user.id === "user_apex_admin";
+
+      if (!isLegacyInstitution && !trimmedCode) {
+        return NextResponse.json(
+          { success: false, error: "College Code is required for this institution. Please enter your College Code." },
+          { status: 400 }
+        );
+      }
+
+      if (trimmedCode && institutionId && user.institutionId !== institutionId) {
+        return NextResponse.json(
+          { success: false, error: "Access denied: Account does not belong to this institution." },
+          { status: 403 }
+        );
+      }
+
+      let currentInst = user.institution;
+      if (!currentInst && user.institutionId) {
+        await syncInstitutionToAppDb(user.institutionId);
+        currentInst = await db.institution.findUnique({
+          where: { id: user.institutionId },
+          select: { id: true, name: true, slug: true, code: true, status: true, isActive: true },
+        });
+      }
+
+      if (!user.institutionId || !currentInst) {
+        return NextResponse.json({ success: false, error: "Administrator institution association is missing." }, { status: 403 });
+      }
+
+      if (
+        currentInst.status === "ARCHIVED" ||
+        currentInst.status === "SUSPENDED" ||
+        (!currentInst.isActive && currentInst.status !== "ACTIVE" && currentInst.status !== "PENDING")
+      ) {
+        return NextResponse.json({ success: false, error: "This institution is not currently operational." }, { status: 403 });
+      }
+    }
+
     // Validate active administrator membership for ADMIN role
     if (userRole === "ADMIN" && user.institutionId) {
       try {
         const memberships: any = await db.$queryRaw`
           SELECT m.id, m.status
           FROM "InstitutionMembership" m
-          WHERE (m."userId"::text = ${user.id} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(email) = LOWER(${user.email})))
+          WHERE (m."userId"::text = ${user.id} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(BTRIM(email)) = LOWER(BTRIM(${user.email}))))
             AND m."institutionId"::text = ${user.institutionId}
             AND m.status = 'ACTIVE'
           LIMIT 1
         `;
 
         if (memberships.length === 0) {
-          const totalMemberships: any = await db.$queryRaw`
-            SELECT COUNT(*)::int as count FROM "InstitutionMembership" WHERE "institutionId"::text = ${user.institutionId}
+          const totalMemberships = await db.$queryRaw<Array<{ count: bigint }>>`
+            SELECT COUNT(*)::bigint as count FROM "InstitutionMembership" WHERE "institutionId"::text = ${user.institutionId}
           `;
-          if (totalMemberships[0]?.count > 0) {
+          const hasMemberships = Number(totalMemberships[0]?.count ?? 0) > 0;
+
+          if (hasMemberships) {
             return NextResponse.json(
               { success: false, error: "Access denied: Account does not have an active administrator membership for this institution." },
               { status: 403 }
@@ -157,7 +195,7 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (err) {
-        console.warn("Membership validation warning:", err);
+        console.warn("Membership validation fallback:", err);
       }
     }
     let studentId: string | undefined;
@@ -230,9 +268,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Reliably detect temporary credentials using existing audit log infrastructure
-    // (Preserves existing users with null lastLoginAt from false-positive password change prompts)
-    const mustChangePassword = await isTemporaryPasswordActive(user.id);
+    let mustChangePassword = await isTemporaryPasswordActive(user.id);
+    if (!mustChangePassword && password) {
+      if (isDefaultOrTemporaryPassword(password)) {
+        mustChangePassword = true;
+      } else {
+        const pwned = await checkPwnedPassword(password);
+        if (pwned.compromised) {
+          mustChangePassword = true;
+        }
+      }
+    }
     const passwordSig = computePasswordSignature(user.passwordHash || "");
 
     const sessionUser: SessionUser = {
@@ -271,11 +317,22 @@ export async function POST(req: NextRequest) {
         user: safeUser,
         token,
         redirectUrl,
+        mustChangePassword,
       },
     });
 
     response.cookies.set({
       name: AUTH_COOKIE_NAME,
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
+
+    response.cookies.set({
+      name: "sst_session",
       value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

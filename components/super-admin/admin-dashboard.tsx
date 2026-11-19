@@ -1,4 +1,4 @@
-import { Activity, Building2, CreditCard, GraduationCap, RefreshCw, Users } from "lucide-react";
+import { Activity, AlertTriangle, Building2, CreditCard, GraduationCap, RefreshCw, Users } from "lucide-react";
 import Link from "next/link";
 import { DashboardAnalytics } from "@/components/super-admin/dashboard-analytics";
 import type { DashboardSummary } from "@/lib/super-admin/dashboard";
@@ -70,6 +70,23 @@ export function AdminDashboard({
       </section>
 
       <DashboardAnalytics summary={summary} />
+
+      <section className="sa-dashboard-widgets" aria-label="Platform operations">
+        <article className="sa-card sa-panel">
+          <div className="sa-panel-heading"><div><h3>Recent institution registrations</h3><div className="sa-panel-subtitle">Latest institutions added to the platform</div></div><Link className="sa-small-link" href="/super-admin/institutions">View all</Link></div>
+          <div className="sa-widget-list">
+            {summary.recentInstitutions.length === 0 ? <p className="sa-chart-empty">No recent registrations.</p> : summary.recentInstitutions.map((institution) => <Link className="sa-widget-row" href={`/super-admin/institutions/${institution.id}`} key={institution.id}><span className="sa-widget-icon"><Building2 size={15} /></span><span><strong>{institution.name}</strong><small>{institution.type} · {institution.status}</small></span><time>{institution.createdAt.toLocaleDateString("en-IN")}</time></Link>)}
+          </div>
+        </article>
+        <article className="sa-card sa-panel">
+          <div className="sa-panel-heading"><div><h3>Platform alerts</h3><div className="sa-panel-subtitle">Items requiring administrator attention</div></div><AlertTriangle size={19} /></div>
+          <div className="sa-alert-list">
+            <Link href="/super-admin/billing" className="sa-alert-row"><AlertTriangle size={16} /><span><strong>{summary.failedPayments} failed payments</strong><small>Review payment exceptions</small></span></Link>
+            <Link href="/super-admin/support" className="sa-alert-row"><Activity size={16} /><span><strong>{summary.openSupportTickets} open support tickets</strong><small>Track unresolved requests</small></span></Link>
+            <Link href="/super-admin/billing" className="sa-alert-row"><CreditCard size={16} /><span><strong>{summary.expiringSubscriptions.length} subscriptions expiring soon</strong><small>Next 30 days</small></span></Link>
+          </div>
+        </article>
+      </section>
     </div>
   );
 }

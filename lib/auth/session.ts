@@ -12,13 +12,13 @@ export async function getSession(req?: NextRequest): Promise<SessionUser | null>
     if (authHeader && authHeader.startsWith("Bearer ")) {
       token = authHeader.substring(7);
     } else {
-      token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
+      token = req.cookies.get(AUTH_COOKIE_NAME)?.value || req.cookies.get("sst_session")?.value;
     }
 
     if (!token) {
       const rawCookie = req.headers.get("cookie");
       if (rawCookie) {
-        const match = rawCookie.match(new RegExp(`(?:^|; )${AUTH_COOKIE_NAME}=([^;]*)`));
+        const match = rawCookie.match(new RegExp(`(?:^|; )(?:${AUTH_COOKIE_NAME}|sst_session)=([^;]*)`));
         if (match) token = decodeURIComponent(match[1]);
       }
     }
@@ -27,7 +27,7 @@ export async function getSession(req?: NextRequest): Promise<SessionUser | null>
   if (!token) {
     try {
       const cookieStore = await cookies();
-      token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+      token = cookieStore.get(AUTH_COOKIE_NAME)?.value || cookieStore.get("sst_session")?.value;
     } catch {
       // In non-request contexts
     }

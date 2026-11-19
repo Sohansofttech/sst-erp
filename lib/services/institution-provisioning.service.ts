@@ -1,13 +1,19 @@
 import db from "@/lib/db";
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/super-admin/prisma";
+import { sendInstitutionInvitationEmail } from "@/lib/email/send-institution-email";
+import { generateInvitationToken, hashInvitationToken, invitationBaseUrl } from "@/lib/services/institution-invitation.service";
 
 export interface ProvisionAdminInput {
   institutionId: string;
   adminName?: string;
   adminEmail?: string;
+  adminPhone?: string;
+  adminPassword?: string;
   password?: string;
   actorUserId?: string;
+  resend?: boolean;
 }
 
 export interface ProvisionAdminResult {
@@ -17,8 +23,8 @@ export interface ProvisionAdminResult {
     email: string;
     fullName: string;
     role: string;
-    status: string;
-    isActive: boolean;
+    status?: string;
+    isActive?: boolean;
   };
   institution?: {
     id: string;
@@ -29,369 +35,326 @@ export interface ProvisionAdminResult {
   invitationSent?: boolean;
   previewUrl?: string | false;
   invitationError?: string | null;
+  invitation?: { status: string; expiresAt: Date; sent: boolean };
   error?: string;
 }
 
-/**
- * Synchronizes an institution record from table "Institution" (PlatformInstitution)
- * into table "institutions" (App Academic Institution) so all foreign keys and
- * academic queries resolve seamlessly.
- */
 export async function syncInstitutionToAppDb(institutionId: string): Promise<boolean> {
   try {
-    const rows: any = await db.$queryRaw`
+    const rows = await db.$queryRaw<Array<{
+      id: string;
+      name: string;
+      code: string | null;
+      slug: string | null;
+      type: string | null;
+      status: string | null;
+      email: string | null;
+      phone: string | null;
+      address: string | null;
+      city: string | null;
+      state: string | null;
+      postalCode: string | null;
+      country: string | null;
+      website: string | null;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+    }>>`
       SELECT id, name, code, slug, type, status, email, phone, address, city, state, "postalCode", country, website, "createdAt", "updatedAt"
-      FROM "Institution"
-      WHERE id::text = ${institutionId}
-      LIMIT 1
+      FROM "Institution" WHERE id::text = ${institutionId} LIMIT 1
     `;
-
-    if (!rows || rows.length === 0) return false;
+    if (!rows.length) return false;
     const inst = rows[0];
-
     await db.$executeRaw`
       INSERT INTO institutions (
         id, code, name, slug, type, status, address, phone, email, website, "isActive", "createdAt", "updatedAt", city, state, country
       ) VALUES (
-        ${inst.id},
-        ${inst.code || inst.slug || "INST-" + inst.id.slice(0, 6)},
-        ${inst.name},
-        ${inst.slug || null},
-        ${inst.type || "COLLEGE"},
-        ${inst.status || "ACTIVE"},
-        ${inst.address || null},
-        ${inst.phone || null},
-        ${inst.email || null},
-        ${inst.website || null},
-        ${inst.status !== "ARCHIVED" && inst.status !== "SUSPENDED"},
-        ${inst.createdAt || new Date()},
-        ${inst.updatedAt || new Date()},
-        ${inst.city || null},
-        ${inst.state || null},
-        ${inst.country || "India"}
+        ${inst.id}, ${inst.code || inst.slug || "INST-" + inst.id.slice(0, 6)}, ${inst.name}, ${inst.slug},
+        ${inst.type || "COLLEGE"}, ${inst.status || "PENDING"}, ${inst.address || null}, ${inst.phone || null},
+        ${inst.email || null}, ${inst.website || null}, ${inst.status !== "ARCHIVED" && inst.status !== "SUSPENDED"},
+        ${inst.createdAt || new Date()}, ${inst.updatedAt || new Date()}, ${inst.city || null}, ${inst.state || null}, ${inst.country || "India"}
       )
       ON CONFLICT (id) DO UPDATE SET
-        code = EXCLUDED.code,
-        name = EXCLUDED.name,
-        slug = EXCLUDED.slug,
-        type = EXCLUDED.type,
-        status = EXCLUDED.status,
-        address = EXCLUDED.address,
-        phone = EXCLUDED.phone,
-        email = EXCLUDED.email,
-        website = EXCLUDED.website,
-        "isActive" = EXCLUDED."isActive",
-        "updatedAt" = NOW(),
-        city = EXCLUDED.city,
-        state = EXCLUDED.state,
-        country = EXCLUDED.country
+        code = EXCLUDED.code, name = EXCLUDED.name, slug = EXCLUDED.slug, type = EXCLUDED.type,
+        status = EXCLUDED.status, address = EXCLUDED.address, phone = EXCLUDED.phone, email = EXCLUDED.email,
+        website = EXCLUDED.website, "isActive" = EXCLUDED."isActive", "updatedAt" = NOW(),
+        city = EXCLUDED.city, state = EXCLUDED.state, country = EXCLUDED.country
     `;
-
     return true;
-  } catch (err) {
-    console.error("Error syncing institution to app db:", err);
+  } catch (error) {
+    console.error("[InstitutionProvisioning] Sync failed:", error);
     return false;
   }
 }
 
-/**
- * Provisions an Institution Admin account, creates the system Role,
- * adds the user to PlatformUser ("User"), links via InstitutionMembership,
- * assigns MembershipRole, and creates the record in "users" table for ERP login.
- */
 export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Promise<ProvisionAdminResult> {
-  const { institutionId, actorUserId } = input;
-
   try {
-    // 1. Fetch institution from "Institution" table
-    const instRows: any = await db.$queryRaw`
-      SELECT id, name, code, slug, email FROM "Institution" WHERE id::text = ${institutionId} LIMIT 1
-    `;
-    if (!instRows || instRows.length === 0) {
-      return { success: false, error: "Institution not found in platform database." };
-    }
-    const inst = instRows[0];
-
-    // Ensure it exists in table "institutions"
-    await syncInstitutionToAppDb(institutionId);
-
-    // 2. Determine admin details
-    const adminEmail = (input.adminEmail || inst.email || `admin@${inst.slug || "institution"}.edu.in`).trim().toLowerCase();
-    const adminName = (input.adminName || `${inst.name} Administrator`).trim();
-
-    // 3. Ensure system Role "INSTITUTION_ADMIN" exists for this institution
-    let roleId: string;
-    const existingRoles: any = await db.$queryRaw`
-      SELECT id FROM "Role" WHERE "institutionId"::text = ${institutionId} AND code = 'INSTITUTION_ADMIN' LIMIT 1
-    `;
-    if (existingRoles.length > 0) {
-      roleId = existingRoles[0].id;
-    } else {
-      roleId = crypto.randomUUID();
-      await db.$executeRaw`
-        INSERT INTO "Role" (id, "institutionId", name, code, description, "isSystem", "createdAt", "updatedAt")
-        VALUES (
-          ${roleId}::uuid,
-          ${institutionId}::uuid,
-          'Institution Administrator',
-          'INSTITUTION_ADMIN',
-          'Primary administrator for institution portal',
-          true,
-          NOW(),
-          NOW()
-        )
-      `;
-    }
-
-    // 4. Ensure PlatformUser exists in table "User" (INACTIVE until invitation setup)
-    let platformUserId: string;
-    const existingPlatformUsers: any = await db.$queryRaw`
-      SELECT id, status FROM "User" WHERE LOWER(email) = LOWER(${adminEmail}) LIMIT 1
-    `;
-    if (existingPlatformUsers.length > 0) {
-      platformUserId = existingPlatformUsers[0].id;
-    } else {
-      platformUserId = crypto.randomUUID();
-      await db.$executeRaw`
-        INSERT INTO "User" (id, name, email, status, "platformRole", "createdAt", "updatedAt")
-        VALUES (
-          ${platformUserId}::uuid,
-          ${adminName},
-          ${adminEmail},
-          'INACTIVE'::"UserStatus",
-          'NONE'::"PlatformRole",
-          NOW(),
-          NOW()
-        )
-      `;
-    }
-
-    // 5. Ensure InstitutionMembership exists in table "InstitutionMembership" (INVITED status)
-    let membershipId: string;
-    const existingMemberships: any = await db.$queryRaw`
-      SELECT id, status FROM "InstitutionMembership"
-      WHERE "userId"::text = ${platformUserId} AND "institutionId"::text = ${institutionId}
-      LIMIT 1
-    `;
-    if (existingMemberships.length > 0) {
-      membershipId = existingMemberships[0].id;
-    } else {
-      membershipId = crypto.randomUUID();
-      await db.$executeRaw`
-        INSERT INTO "InstitutionMembership" (id, "userId", "institutionId", status, "joinedAt", "createdAt", "updatedAt")
-        VALUES (
-          ${membershipId}::uuid,
-          ${platformUserId}::uuid,
-          ${institutionId}::uuid,
-          'INVITED'::"MembershipStatus",
-          NOW(),
-          NOW(),
-          NOW()
-        )
-      `;
-    }
-
-    // 6. Ensure MembershipRole link exists
-    await db.$executeRaw`
-      INSERT INTO "MembershipRole" ("membershipId", "roleId", "institutionId", "assignedAt")
-      VALUES (
-        ${membershipId}::uuid,
-        ${roleId}::uuid,
-        ${institutionId}::uuid,
-        NOW()
-      )
-      ON CONFLICT ("membershipId", "roleId") DO NOTHING
-    `;
-
-    // 7. Ensure record exists in table "users" for ERP authentication (DORMANT, NO STATIC PASSWORD)
-    let appUserId: string;
-    const existingAppUsers: any = await db.$queryRaw`
-      SELECT id, "passwordHash", "isActive", status FROM users WHERE LOWER(email) = LOWER(${adminEmail}) AND "institutionId" = ${institutionId} LIMIT 1
-    `;
-    if (existingAppUsers.length > 0) {
-      appUserId = existingAppUsers[0].id;
-      const isAlreadyActive = Boolean(existingAppUsers[0].isActive && existingAppUsers[0].passwordHash);
-      await db.$executeRaw`
-        UPDATE users
-        SET "fullName" = ${adminName},
-            name = ${adminName},
-            role = 'ADMIN',
-            "isActive" = ${isAlreadyActive},
-            status = ${isAlreadyActive ? 'ACTIVE' : 'INACTIVE'},
-            "updatedAt" = NOW()
-        WHERE id = ${appUserId}
-      `;
-    } else {
-      appUserId = platformUserId; // Use same ID for consistency across User and users
-      await db.$executeRaw`
-        INSERT INTO users (
-          id, "institutionId", email, "passwordHash", role, "fullName", name, "isActive", status, "platformRole", "createdAt", "updatedAt"
-        ) VALUES (
-          ${appUserId},
-          ${institutionId},
-          ${adminEmail},
-          NULL,
-          'ADMIN',
-          ${adminName},
-          ${adminName},
-          false,
-          'INACTIVE',
-          'NONE',
-          NOW(),
-          NOW()
-        )
-        ON CONFLICT (id) DO UPDATE SET
-          "institutionId" = EXCLUDED."institutionId",
-          role = 'ADMIN',
-          "fullName" = EXCLUDED."fullName",
-          name = EXCLUDED.name,
-          "isActive" = false,
-          status = 'INACTIVE',
-          "updatedAt" = NOW()
-      `;
-    }
-
-    // 8. Generate secure single-use password setup token & dispatch invitation email
-    const { signPasswordSetupToken } = await import("@/lib/auth/jwt");
-    const { sendPasswordSetupInvitation, getAppBaseUrl } = await import("@/lib/services/email.service");
-
-    const setupToken = await signPasswordSetupToken({
-      userId: appUserId,
-      email: adminEmail,
-      institutionId,
-      passwordHash: null,
+    const institution = await prisma.platformInstitution.findUnique({
+      where: { id: input.institutionId },
+      select: { id: true, name: true, code: true, slug: true, email: true, phone: true, status: true, archivedAt: true },
     });
-
-    const appUrl = getAppBaseUrl();
-    const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
-
-    let invitationSent = false;
-    let invitationPreviewUrl: string | false = false;
-    let invitationError: string | null = null;
-
-    try {
-      const emailRes = await sendPasswordSetupInvitation(
-        { email: adminEmail, name: adminName },
-        {
-          setupUrl,
-          institutionName: inst.name || "Campus Administration",
-          expiresIn: "24 hours",
-          loginUrl: `${appUrl}/admin`,
-        }
-      );
-      invitationSent = emailRes.success;
-      invitationPreviewUrl = emailRes.previewUrl || false;
-      if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
-    } catch (emailErr: any) {
-      console.warn("[provisionInstitutionAdmin] Invitation dispatch warning:", emailErr.message);
-      invitationError = emailErr.message;
+    if (!institution || institution.archivedAt) {
+      return { success: false, error: "Institution not found or archived." };
     }
 
-    // 9. Transactional Audit Logging (Setup tokens and passwords are NEVER logged)
-    try {
-      const auditId = crypto.randomUUID();
-      await db.$executeRawUnsafe(
-        `INSERT INTO audit_logs (
-          "id", "institutionId", "userId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt"
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-        auditId,
-        institutionId,
-        appUserId,
-        actorUserId || null,
-        invitationSent ? "INVITATION_SENT" : "INVITATION_FAILED",
-        "ADMIN_CREDENTIALS",
-        appUserId,
-        JSON.stringify({
-          recipient: adminEmail,
-          previewUrl: invitationPreviewUrl || undefined,
-          error: invitationError || undefined,
-        })
-      );
-    } catch (auditErr: any) {
-      console.warn("[provisionInstitutionAdmin] Audit log write warning:", auditErr.message);
+    const adminEmail = (input.adminEmail || institution.email || "").trim().toLowerCase();
+    if (!adminEmail) return { success: false, error: "A primary administrator email is required." };
+    const adminName = (input.adminName || `${institution.name} Administrator`).trim();
+    const adminPhone = input.adminPhone?.trim() || null;
+    const adminPassword = input.adminPassword || input.password || "Password@123";
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+
+    if (!await syncInstitutionToAppDb(institution.id)) {
+      return { success: false, error: "Institution could not be synchronized into the application database." };
     }
 
-    if (actorUserId) {
-      try {
-        await db.$executeRaw`
-          INSERT INTO "AuditLog" (id, "institutionId", "userId", action, entity, "entityId", metadata, result, "createdAt")
-          VALUES (
-            gen_random_uuid(),
-            ${institutionId}::uuid,
-            ${actorUserId}::uuid,
-            'ADMIN_MEMBERSHIP_PROVISIONED',
-            'InstitutionMembership',
-            ${membershipId},
-            ${JSON.stringify({ adminEmail, role: "INSTITUTION_ADMIN", invitationSent })}::jsonb,
-            'SUCCESS',
-            NOW()
-          )
-        `;
-      } catch {
-        // Audit log table non-critical
+    const rawToken = generateInvitationToken();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    let platformUserId = "";
+    let invitationId = "";
+
+    await prisma.$transaction(async (tx) => {
+      await tx.platformInstitution.update({
+        where: { id: institution.id },
+        data: { provisioningStatus: "PROVISIONING" },
+      });
+
+      const existingPlatformUser = await tx.platformUser.findFirst({
+        where: { email: { equals: adminEmail, mode: "insensitive" } },
+      });
+      if (existingPlatformUser) {
+        const otherMembership = await tx.institutionMembership.findFirst({
+          where: { userId: existingPlatformUser.id, institutionId: { not: institution.id } },
+          select: { id: true },
+        });
+        if (otherMembership) throw new Error("This administrator email is already associated with another institution.");
+        platformUserId = existingPlatformUser.id;
+        await tx.platformUser.update({
+          where: { id: platformUserId },
+          data: { status: "ACTIVE" },
+        });
+      } else {
+        platformUserId = crypto.randomUUID();
+        await tx.platformUser.create({
+          data: { id: platformUserId, name: adminName, email: adminEmail, phone: adminPhone, status: "ACTIVE", platformRole: "NONE" },
+        });
       }
+
+      let role = await tx.role.findUnique({
+        where: { institutionId_code: { institutionId: institution.id, code: "INSTITUTION_ADMIN" } },
+      });
+      if (!role) {
+        role = await tx.role.create({
+          data: { institutionId: institution.id, name: "Institution Administrator", code: "INSTITUTION_ADMIN", description: "Primary administrator", isSystem: true },
+        });
+      }
+
+      let membership = await tx.institutionMembership.findUnique({
+        where: { userId_institutionId: { userId: platformUserId, institutionId: institution.id } },
+      });
+      if (membership) {
+        membership = await tx.institutionMembership.update({
+          where: { id: membership.id },
+          data: { status: "ACTIVE", joinedAt: new Date() },
+        });
+      } else {
+        membership = await tx.institutionMembership.create({
+          data: { userId: platformUserId, institutionId: institution.id, status: "ACTIVE", joinedAt: new Date() },
+        });
+      }
+      await tx.membershipRole.upsert({
+        where: { membershipId_roleId: { membershipId: membership.id, roleId: role.id } },
+        create: { membershipId: membership.id, roleId: role.id, institutionId: institution.id },
+        update: { institutionId: institution.id },
+      });
+
+      const existingAppUser = await tx.user.findFirst({
+        where: { email: { equals: adminEmail, mode: "insensitive" } },
+      });
+      if (existingAppUser?.institutionId && existingAppUser.institutionId !== institution.id) {
+        throw new Error("This administrator email is already associated with another institution.");
+      }
+
+      if (existingAppUser) {
+        await tx.user.update({
+          where: { id: existingAppUser.id },
+          data: {
+            institutionId: institution.id,
+            name: existingAppUser.name ?? adminName,
+            fullName: existingAppUser.fullName ?? adminName,
+            phone: existingAppUser.phone ?? adminPhone,
+            passwordHash: passwordHash,
+            role: "ADMIN",
+            status: "ACTIVE",
+            isActive: true,
+          },
+        });
+      } else {
+        await tx.user.create({
+          data: {
+            id: platformUserId,
+            institutionId: institution.id,
+            email: adminEmail,
+            name: adminName,
+            fullName: adminName,
+            phone: adminPhone,
+            passwordHash: passwordHash,
+            role: "ADMIN",
+            status: "ACTIVE",
+            isActive: true,
+            platformRole: "NONE",
+          },
+        });
+      }
+
+      await tx.institutionAdminInvitation.updateMany({
+        where: { institutionId: institution.id, status: { in: ["PENDING", "SENT"] } },
+        data: { status: "REVOKED", revokedAt: new Date(), failedReason: "Superseded by direct provisioning." },
+      });
+
+      const invitation = await tx.institutionAdminInvitation.create({
+        data: {
+          institutionId: institution.id,
+          platformUserId,
+          email: adminEmail,
+          tokenHash: hashInvitationToken(rawToken),
+          status: "PENDING",
+          expiresAt,
+          attemptCount: 1,
+          lastAttemptAt: new Date(),
+        },
+      });
+      invitationId = invitation.id;
+
+      await tx.platformInstitution.update({
+        where: { id: institution.id },
+        data: { provisioningStatus: "ACTIVATED", primaryAdminUserId: platformUserId, onboardingStage: "COMPLETED", status: "ACTIVE" },
+      });
+
+      if (input.actorUserId) {
+        await tx.platformAuditLog.create({
+          data: {
+            userId: input.actorUserId,
+            institutionId: institution.id,
+            action: "ADMIN_MEMBERSHIP_PROVISIONED",
+            entity: "InstitutionAdminInvitation",
+            entityId: invitation.id,
+            result: "SUCCESS",
+            metadata: { adminEmail, role: "INSTITUTION_ADMIN", activationRequired: false },
+          },
+        });
+      }
+    }, { maxWait: 15000, timeout: 20000 });
+
+    // Make sure changes are fully synced to application institutions table
+    await syncInstitutionToAppDb(institution.id);
+
+    const activationUrl = `${invitationBaseUrl()}/institution/activate?token=${encodeURIComponent(rawToken)}`;
+    let emailSent = false;
+    let emailReason: string | null = null;
+    try {
+      const emailResult = await sendInstitutionInvitationEmail({
+        to: adminEmail,
+        institutionName: institution.name,
+        institutionCode: institution.code || institution.slug,
+        administratorName: adminName,
+        activationUrl,
+        expiresAt,
+      });
+      emailSent = emailResult.sent;
+      emailReason = emailResult.sent ? null : emailResult.reason;
+    } catch (err: any) {
+      console.warn("[InstitutionProvisioning] Invitation email error:", err?.message || err);
+      emailReason = err?.message || "Email dispatch failed";
+    }
+
+    try {
+      await prisma.institutionAdminInvitation.update({
+        where: { id: invitationId },
+        data: emailSent
+          ? { status: "SENT", sentAt: new Date(), failedReason: null }
+          : { status: "FAILED", failedReason: emailReason },
+      });
+    } catch (e) {
+      console.warn("Could not update invitation record status:", e);
+    }
+
+    try {
+      await prisma.platformInstitution.update({
+        where: { id: institution.id },
+        data: { provisioningStatus: "ACTIVATED", status: "ACTIVE" },
+      });
+    } catch {}
+
+    if (input.actorUserId) {
+      try {
+        await prisma.platformAuditLog.create({
+          data: {
+            userId: input.actorUserId,
+            institutionId: institution.id,
+            action: emailSent ? "ADMIN_INVITATION_SENT" : "ADMIN_INVITATION_FAILED",
+            entity: "InstitutionAdminInvitation",
+            entityId: invitationId,
+            result: emailSent ? "SUCCESS" : "FAILED",
+            metadata: emailSent ? { email: adminEmail } : { email: adminEmail, reason: emailReason },
+          },
+        });
+      } catch {}
     }
 
     return {
       success: true,
       user: {
-        id: appUserId,
+        id: platformUserId,
         email: adminEmail,
         fullName: adminName,
         role: "ADMIN",
-        status: "INACTIVE",
-        isActive: false,
+        status: "ACTIVE",
+        isActive: true,
       },
       institution: {
-        id: inst.id,
-        name: inst.name,
-        code: inst.code,
-        slug: inst.slug,
+        id: institution.id,
+        name: institution.name,
+        code: institution.code,
+        slug: institution.slug,
       },
-      invitationSent,
-      previewUrl: invitationPreviewUrl,
-      invitationError,
+      invitationSent: emailSent,
+      invitation: { status: emailSent ? "SENT" : "FAILED", expiresAt, sent: emailSent },
+      invitationError: emailReason,
     };
-  } catch (err: any) {
-    console.error("Error provisioning institution admin:", err);
-    return { success: false, error: err.message || "Failed to provision institution admin." };
+  } catch (error) {
+    console.error("[InstitutionProvisioning] Failed:", error);
+    try {
+      await prisma.platformInstitution.update({
+        where: { id: input.institutionId },
+        data: { provisioningStatus: "FAILED" },
+      });
+    } catch {}
+    return { success: false, error: error instanceof Error ? error.message : "Failed to provision institution administrator." };
   }
 }
 
-/**
- * Syncs all active PlatformInstitutions into table "institutions" and provisions
- * admin accounts if not already present.
- */
 export async function syncAllPlatformInstitutions(): Promise<{ synced: number; provisioned: number }> {
   let synced = 0;
   let provisioned = 0;
-
-  try {
-    const platformInsts: any = await db.$queryRaw`
-      SELECT id, name, code, slug, email FROM "Institution" WHERE "archivedAt" IS NULL
-    `;
-
-    for (const inst of platformInsts) {
-      const ok = await syncInstitutionToAppDb(inst.id);
-      if (ok) synced++;
-
-      // Check if admin user exists in users table
-      const adminUsers: any = await db.$queryRaw`
-        SELECT id FROM users WHERE "institutionId" = ${inst.id} AND role = 'ADMIN' LIMIT 1
-      `;
-      if (adminUsers.length === 0) {
-        const provRes = await provisionInstitutionAdmin({
-          institutionId: inst.id,
-          adminEmail: inst.email || undefined,
-          adminName: `${inst.name} Administrator`,
-        });
-        if (provRes.success) provisioned++;
-      }
+  const institutions = await prisma.platformInstitution.findMany({
+    where: { archivedAt: null },
+    select: { id: true, name: true, code: true, slug: true, email: true },
+  });
+  for (const institution of institutions) {
+    if (await syncInstitutionToAppDb(institution.id)) synced++;
+    const appAdmin = await prisma.user.findFirst({
+      where: { institutionId: institution.id, role: "ADMIN" },
+      select: { id: true },
+    });
+    if (!appAdmin) {
+      const result = await provisionInstitutionAdmin({
+        institutionId: institution.id,
+        adminEmail: institution.email || undefined,
+        adminName: `${institution.name} Administrator`,
+      });
+      if (result.success) provisioned++;
     }
-  } catch (err) {
-    console.error("syncAllPlatformInstitutions error:", err);
   }
-
   return { synced, provisioned };
 }
 
