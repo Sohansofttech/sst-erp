@@ -4430,7 +4430,7 @@ export async function reviewStudentLeaveRequest(
       const student = store.students.find(
         (s: StudentRosterItem) => s.studentId === leaveReq.studentId || s.rollNo === leaveReq.rollNo
       )
-      if (student && student.attendancePercent < 98) {
+      if (student && student.attendancePercent !== null && student.attendancePercent < 98) {
         student.attendancePercent = Math.min(100, student.attendancePercent + 2)
       }
     }
@@ -4646,7 +4646,6 @@ export async function getDepartmentFacultyLoad(): Promise<
   const map = new Map<string, DepartmentFacultyLoad>()
   for (const l of baseline) {
     map.set(l.teacherId, l)
-  }
   }
 
   // Update names from DB if available
