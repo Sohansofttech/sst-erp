@@ -33,14 +33,28 @@ export interface PasswordSetupTemplateOptions {
   loginUrl?: string;
 }
 
+export type SupportedRole =
+  | "STUDENT"
+  | "TEACHER"
+  | "FACULTY"
+  | "PARENT"
+  | "GUARDIAN"
+  | "HOD"
+  | "ADMIN"
+  | "INSTITUTION_ADMIN"
+  | "STAFF"
+  | "SUPER_ADMIN"
+  | string;
+
 export interface RoleCredentialInvitationTemplateOptions {
   name?: string;
-  role: "STUDENT" | "TEACHER" | "PARENT" | "STAFF" | "ADMIN";
+  role: SupportedRole;
   setupUrl: string;
   loginUrl?: string;
   username?: string;
   institutionName?: string;
   expiresIn?: string;
+  departmentName?: string;
 }
 
 export interface DirectMessageTemplateOptions {
@@ -304,14 +318,36 @@ export function renderRoleCredentialInvitationEmail(options: RoleCredentialInvit
   const safeLoginUrl = options.loginUrl ? escapeHtml(options.loginUrl) : "";
   const safeExpires = escapeHtml(options.expiresIn || "24 hours");
 
+  const roleUpper = (options.role || "STAFF").toString().toUpperCase();
+
   const roleLabels: Record<string, string> = {
     STUDENT: "Student Portal Access",
     TEACHER: "Teaching Faculty Portal Access",
+    FACULTY: "Teaching Faculty Portal Access",
+    HOD: "Head of Department (HOD) Portal Access",
     PARENT: "Parent & Guardian Portal Access",
-    STAFF: "Administrative Staff Access",
+    GUARDIAN: "Parent & Guardian Portal Access",
     ADMIN: "Institution Administrator Access",
+    INSTITUTION_ADMIN: "Institution Administrator Access",
+    STAFF: "Administrative Staff Access",
+    SUPER_ADMIN: "Platform Super Administrator Access",
   };
-  const roleLabel = roleLabels[options.role] || "Portal Access";
+  const roleLabel = roleLabels[roleUpper] || `${options.role} Portal Access`;
+
+  const roleDescriptions: Record<string, string> = {
+    STUDENT: "Your Student Portal grants you secure access to your dynamic lecture timetable, real-time attendance tracking, examination admit cards, semester results, fee payment receipts, and digital course study materials.",
+    TEACHER: "Your Faculty Workspace enables you to record daily class attendance, plan curriculum deliveries, administer internal assessments, grade student submissions, and view your teaching timetable.",
+    FACULTY: "Your Faculty Workspace enables you to record daily class attendance, plan curriculum deliveries, administer internal assessments, grade student submissions, and view your teaching timetable.",
+    HOD: "Your Departmental Leadership Workspace enables you to oversee departmental academic planning, review and lock internal assessment (IA) marks, manage faculty workload allocations, review leave requests, and assign timetable substitutions.",
+    PARENT: "Your Parent & Guardian Portal allows you to monitor your ward's daily attendance records, track academic progress and assessment results, view fee payment schedules and receipts, and receive direct campus notices.",
+    GUARDIAN: "Your Parent & Guardian Portal allows you to monitor your ward's daily attendance records, track academic progress and assessment results, view fee payment schedules and receipts, and receive direct campus notices.",
+    ADMIN: "Your Institutional Administration Portal grants you comprehensive access to student admissions, academic structure, timetable matrices, faculty appointments, fee management, statutory reports, and institutional governance.",
+    INSTITUTION_ADMIN: "Your Institutional Administration Portal grants you comprehensive access to student admissions, academic structure, timetable matrices, faculty appointments, fee management, statutory reports, and institutional governance.",
+    STAFF: "Your Administrative Staff Portal allows you to manage campus records, student inquiries, logistical operations, and administrative workflows.",
+    SUPER_ADMIN: "Your Platform Administration Console provides global multi-tenant governance, institution provisioning, tenant security oversight, and comprehensive platform audit logs.",
+  };
+  const roleDescription = roleDescriptions[roleUpper] || "Your portal grants you authenticated access to institutional campus workflows, records, and services.";
+
   const subject = `Welcome to ${institution} — Set Up Your ${roleLabel}`;
 
   const html = `<!DOCTYPE html>
@@ -344,9 +380,14 @@ export function renderRoleCredentialInvitationEmail(options: RoleCredentialInvit
               <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
                 Hello, ${safeName}
               </h1>
-              <p style="color: #334155; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+              <p style="color: #334155; font-size: 14px; line-height: 1.6; margin: 0 0 16px 0;">
                 Your account for <strong>${safeInstitution}</strong> has been provisioned with <strong>${roleLabel}</strong>. To complete your onboarding and choose your private password, please follow the steps below:
               </p>
+              <div style="background-color: #F8FAFC; border-left: 3px solid #123B5A; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px;">
+                <p style="margin: 0; color: #475569; font-size: 13px; line-height: 1.6;">
+                  ${escapeHtml(roleDescription)}
+                </p>
+              </div>
 
               <!-- Account Credentials Box -->
               <table role="presentation" width="100%" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
@@ -444,6 +485,8 @@ export function renderRoleCredentialInvitationEmail(options: RoleCredentialInvit
 Hello ${options.name || "Member"},
 
 Your account for ${institution} has been provisioned with ${roleLabel}.
+
+${roleDescription}
 
 ACCOUNT CREDENTIALS:
 - Username / Login ID: ${options.username || options.name || "Your registered email"}

@@ -13,21 +13,21 @@ import {
 } from "@/lib/services/credential-management.service";
 import db from "@/lib/db";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
-import { sendPasswordSetupInvitation, getAppBaseUrl } from "@/lib/services/email.service";
+import { sendPasswordSetupInvitation, sendRoleCredentialInvitation, getAppBaseUrl } from "@/lib/services/email.service";
 
 async function dispatchSetupEmailSafe(
   institutionId: string,
-  user: { id: string; email: string; name?: string }
+  user: { id: string; email: string; name?: string; role?: string }
 ) {
   if (!user.email || !user.email.includes("@")) return;
   try {
     const dbUser = await db.user.findUnique({
       where: { id: user.id },
-      select: { passwordHash: true, fullName: true, name: true },
+      select: { passwordHash: true, fullName: true, name: true, role: true },
     });
     const inst = await db.institution.findUnique({
       where: { id: institutionId },
-      select: { name: true },
+      select: { name: true, slug: true },
     });
 
     const setupToken = await signPasswordSetupToken({
@@ -40,12 +40,24 @@ async function dispatchSetupEmailSafe(
     const appUrl = getAppBaseUrl();
     const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
 
-    await sendPasswordSetupInvitation(
+    const resolvedRole = (user.role || dbUser?.role || "STUDENT").toUpperCase();
+    let portalLoginUrl = `${appUrl}/login`;
+    if (resolvedRole === "STUDENT") portalLoginUrl = `${appUrl}/student`;
+    else if (resolvedRole === "TEACHER" || resolvedRole === "FACULTY") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher`;
+    else if (resolvedRole === "HOD") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher/hod`;
+    else if (resolvedRole === "PARENT" || resolvedRole === "GUARDIAN") portalLoginUrl = `${appUrl}/parent`;
+    else if (resolvedRole === "ADMIN" || resolvedRole === "STAFF") portalLoginUrl = `${appUrl}/admin`;
+    else if (resolvedRole === "SUPER_ADMIN") portalLoginUrl = `${appUrl}/super-admin`;
+
+    await sendRoleCredentialInvitation(
       { email: user.email, name: user.name || dbUser?.fullName || dbUser?.name || "Member" },
       {
         setupUrl,
         institutionName: inst?.name || "Campus Administration",
         expiresIn: "24 hours",
+        role: resolvedRole as any,
+        loginUrl: portalLoginUrl,
+        username: user.email,
       }
     );
   } catch (err: any) {
@@ -58,7 +70,7 @@ export async function GET(req: NextRequest) {
     const { institutionId } = await resolveAdminContext(req);
     const searchParams = req.nextUrl.searchParams;
     const type = searchParams.get("type") || "status";
-    const entityType = searchParams.get("entityType") as "STUDENT" | "TEACHER" | "PARENT" | null;
+    const entityType = searchParams.get("entityType") as "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | "HOD" | "STAFF" | null;
     const entityId = searchParams.get("entityId");
 
     // Single entity credential status
@@ -343,7 +355,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (result.userId && result.email) {
-          dispatchSetupEmailSafe(institutionId, { id: result.userId, email: result.email });
+          dispatchSetupEmailSafe(institutionId, { id: result.userId, email: result.email, role: "STUDENT" });
         }
 
         return NextResponse.json({
@@ -397,7 +409,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (result.userId && result.email) {
-          dispatchSetupEmailSafe(institutionId, { id: result.userId, email: result.email });
+          dispatchSetupEmailSafe(institutionId, { id: result.userId, email: result.email, role: "TEACHER" });
         }
 
         return NextResponse.json({
@@ -443,7 +455,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (result.userId && result.email) {
-          dispatchSetupEmailSafe(institutionId, { id: result.userId, email: result.email, name: fullName });
+          dispatchSetupEmailSafe(institutionId, { id: result.userId, email: result.email, name: fullName, role: "PARENT" });
         }
 
         return NextResponse.json({

@@ -993,12 +993,15 @@ export async function createGuardian(
     };
   }, { maxWait: 15000, timeout: 30000 });
 
-  // 5. Post-Transaction Automation: Invitation Email & Notification ONLY if relationship is verified
+  // 5. Post-Transaction Automation: Invitation Email & Notification for Guardian Onboarding
   let invitationSent = false;
   let invitationPreviewUrl: string | false = false;
   let invitationError: string | null = null;
 
-  if (isAuthorized) {
+  // Invite guardian if link is verified OR if account was newly provisioned by an admin
+  const shouldInviteGuardian = isAuthorized || !user.passwordHash || user.status === "INACTIVE";
+
+  if (shouldInviteGuardian) {
     try {
       const setupToken = await signPasswordSetupToken({
         userId: user.id,
@@ -1109,7 +1112,7 @@ export async function createStaff(
   data: {
     fullName: string;
     email: string;
-    role: "TEACHER" | "ADMIN";
+    role: "TEACHER" | "ADMIN" | "STAFF" | "HOD";
     phone?: string;
     designation?: string;
     departmentId?: string;
@@ -1118,6 +1121,8 @@ export async function createStaff(
 ) {
   const email = data.email.trim().toLowerCase();
   const fullName = data.fullName.trim();
+  const isFacultyRole = data.role === "TEACHER" || data.role === "HOD";
+  const userRole = data.role === "HOD" ? "TEACHER" : data.role;
 
   // 1. Database Transaction: Atomic Staff & User Account Provisioning
   const { user, teacher } = await db.$transaction(async (tx) => {
@@ -1130,7 +1135,7 @@ export async function createStaff(
       if (userRecord.institutionId && userRecord.institutionId !== institutionId) {
         throw new Error("Email is already registered under another institution.");
       }
-      if (data.role === "TEACHER" && userRecord.teacherProfile) {
+      if (isFacultyRole && userRecord.teacherProfile) {
         throw new Error("A faculty profile is already linked to this email address.");
       }
       userRecord = await tx.user.update({
@@ -1138,7 +1143,7 @@ export async function createStaff(
         data: {
           institutionId,
           fullName,
-          role: data.role,
+          role: userRole,
           phone: data.phone?.trim() || userRecord.phone || undefined,
         },
         include: { teacherProfile: true },
@@ -1149,7 +1154,7 @@ export async function createStaff(
           institutionId,
           email,
           fullName,
-          role: data.role,
+          role: userRole,
           phone: data.phone?.trim(),
           isActive: false, // Dormant until password setup
           status: "INACTIVE",
@@ -1160,13 +1165,13 @@ export async function createStaff(
     }
 
     let teacherRecord: any = null;
-    if (data.role === "TEACHER") {
+    if (isFacultyRole) {
       teacherRecord = await tx.teacher.create({
         data: {
           institutionId,
           userId: userRecord.id,
           department: data.departmentId || "General Academics",
-          designation: data.designation || "Assistant Professor",
+          designation: data.designation || (data.role === "HOD" ? "Professor & HOD" : "Assistant Professor"),
           employeeId: data.employeeId || `FAC-${Date.now().toString().slice(-4)}`,
         },
       });
@@ -1176,7 +1181,7 @@ export async function createStaff(
       institutionId,
       userId: userRecord.id,
       action: "STAFF_CREATED",
-      entityType: data.role === "TEACHER" ? "TEACHER" : "STAFF",
+      entityType: isFacultyRole ? (data.role === "HOD" ? "HOD" : "TEACHER") : (data.role === "ADMIN" ? "ADMIN" : "STAFF"),
       entityId: teacherRecord?.id || userRecord.id,
       newValuesJson: JSON.stringify({
         email,
@@ -1188,69 +1193,99 @@ export async function createStaff(
     return { user: userRecord, teacher: teacherRecord };
   }, { maxWait: 15000, timeout: 30000 });
 
-  // 2. Post-Transaction Automation: Non-blocking Invitation for Teaching Faculty
+  // 2. Post-Transaction Automation: Non-blocking Invitation for Staff/Faculty/HOD/Admin
   let invitationSent = false;
   let invitationPreviewUrl: string | false = false;
   let invitationError: string | null = null;
 
-  if (data.role === "TEACHER") {
-    try {
-      const setupToken = await signPasswordSetupToken({
-        userId: user.id,
-        email: user.email,
-        institutionId,
-        passwordHash: user.passwordHash || null,
-      });
+  try {
+    const rawRole = (data.role || "STAFF").toUpperCase();
+    const designationUpper = (data.designation || "").toUpperCase();
+    const isHod =
+      rawRole === "HOD" ||
+      designationUpper.includes("HOD") ||
+      designationUpper.includes("HEAD OF DEPARTMENT");
 
-      const appUrl = getAppBaseUrl();
-      const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
-      const inst = await db.institution.findUnique({
-        where: { id: institutionId },
-        select: { name: true, slug: true },
-      });
-
-      const emailRes = await sendRoleCredentialInvitation(
-        { email: user.email, name: fullName },
-        {
-          setupUrl,
-          institutionName: inst?.name || "Campus Administration",
-          expiresIn: "24 hours",
-          role: "TEACHER",
-          loginUrl: `${appUrl}/campus/${inst?.slug || "portal"}/teacher`,
-          username: user.email,
-        }
-      );
-
-      invitationSent = emailRes.success;
-      invitationPreviewUrl = emailRes.previewUrl || false;
-      if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
-
-      await recordAuditLog(db, {
-        institutionId,
-        userId: user.id,
-        action: emailRes.success ? "INVITATION_SENT" : "INVITATION_FAILED",
-        entityType: "TEACHER",
-        entityId: teacher?.id || user.id,
-        newValuesJson: JSON.stringify({
-          recipient: user.email,
-          previewUrl: invitationPreviewUrl || undefined,
-          error: invitationError || undefined,
-        }),
-      });
-    } catch (err: any) {
-      console.warn("[createStaff] Post-creation invitation error (non-blocking):", err.message);
-      invitationError = err.message;
+    let invitationRole: string = rawRole;
+    if (isHod) {
+      invitationRole = "HOD";
+    } else if (rawRole === "TEACHER") {
+      invitationRole = "TEACHER";
+    } else if (rawRole === "ADMIN") {
+      invitationRole = "ADMIN";
+    } else {
+      invitationRole = "STAFF";
     }
 
-    // In-App Notification for Faculty Member
+    const setupToken = await signPasswordSetupToken({
+      userId: user.id,
+      email: user.email,
+      institutionId,
+      passwordHash: user.passwordHash || null,
+    });
+
+    const appUrl = getAppBaseUrl();
+    const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+    const inst = await db.institution.findUnique({
+      where: { id: institutionId },
+      select: { name: true, slug: true },
+    });
+
+    let portalLoginUrl = `${appUrl}/login`;
+    if (invitationRole === "HOD") {
+      portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher/hod`;
+    } else if (invitationRole === "TEACHER") {
+      portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher`;
+    } else if (invitationRole === "ADMIN" || invitationRole === "STAFF") {
+      portalLoginUrl = `${appUrl}/admin`;
+    }
+
+    const emailRes = await sendRoleCredentialInvitation(
+      { email: user.email, name: fullName },
+      {
+        setupUrl,
+        institutionName: inst?.name || "Campus Administration",
+        expiresIn: "24 hours",
+        role: invitationRole as any,
+        loginUrl: portalLoginUrl,
+        username: user.email,
+        departmentName: data.departmentId || undefined,
+      }
+    );
+
+    invitationSent = emailRes.success;
+    invitationPreviewUrl = emailRes.previewUrl || false;
+    if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
+
+    await recordAuditLog(db, {
+      institutionId,
+      userId: user.id,
+      action: emailRes.success ? "INVITATION_SENT" : "INVITATION_FAILED",
+      entityType: invitationRole,
+      entityId: teacher?.id || user.id,
+      newValuesJson: JSON.stringify({
+        recipient: user.email,
+        role: invitationRole,
+        previewUrl: invitationPreviewUrl || undefined,
+        error: invitationError || undefined,
+      }),
+    });
+
+    // In-App Notification for Member
     try {
+      const notifTitles: Record<string, string> = {
+        HOD: "Welcome to SST-ERP Departmental Leadership Workspace",
+        TEACHER: "Welcome to SST-ERP Faculty Portal",
+        ADMIN: "Welcome to SST-ERP Institution Administration Portal",
+        STAFF: "Welcome to SST-ERP Administrative Staff Portal",
+      };
       await db.notification.create({
         data: {
           institutionId,
-          title: "Welcome to SST-ERP Faculty Portal",
-          message: `Welcome, ${fullName}! Your faculty portal account has been provisioned. Please complete your security profile.`,
+          title: notifTitles[invitationRole] || "Welcome to SST-ERP Portal",
+          message: `Welcome, ${fullName}! Your ${invitationRole} account has been provisioned. Please complete your security profile.`,
           category: "ACADEMIC",
-          audienceRole: "TEACHER",
+          audienceRole: (invitationRole === "HOD" ? "TEACHER" : invitationRole) as any,
           recipients: {
             create: {
               userId: user.id,
@@ -1262,6 +1297,9 @@ export async function createStaff(
     } catch (notifErr: any) {
       console.warn("[createStaff] Post-creation notification error (non-blocking):", notifErr.message);
     }
+  } catch (err: any) {
+    console.warn("[createStaff] Post-creation invitation error (non-blocking):", err.message);
+    invitationError = err.message;
   }
 
   return {
@@ -1396,10 +1434,17 @@ export async function getDepartments(institutionId: string) {
 
 export async function createDepartment(
   institutionId: string,
-  data: { name: string; code: string; description?: string }
+  data: {
+    name: string;
+    code: string;
+    description?: string;
+    hodName?: string;
+    hodEmail?: string;
+  }
 ) {
+  let createdDept: any = null;
   try {
-    return await db.department.create({
+    createdDept = await db.department.create({
       data: {
         institutionId,
         name: data.name,
@@ -1408,7 +1453,7 @@ export async function createDepartment(
       },
     });
   } catch {
-    return {
+    createdDept = {
       id: `dept_${Date.now()}`,
       institutionId,
       name: data.name,
@@ -1418,6 +1463,23 @@ export async function createDepartment(
       staff: [],
     };
   }
+
+  // If HOD details are provided during department creation, provision and invite HOD
+  if (data.hodEmail && data.hodEmail.includes("@")) {
+    try {
+      await createStaff(institutionId, {
+        fullName: data.hodName?.trim() || `HOD ${data.name}`,
+        email: data.hodEmail.trim().toLowerCase(),
+        role: "TEACHER",
+        designation: `Professor & HOD (${data.code.toUpperCase()})`,
+        departmentId: data.name,
+      });
+    } catch (hodErr: any) {
+      console.warn("[createDepartment] HOD provisioning warning:", hodErr.message);
+    }
+  }
+
+  return createdDept;
 }
 
 export async function getCourses(institutionId: string) {

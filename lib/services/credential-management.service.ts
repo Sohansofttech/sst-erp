@@ -1214,7 +1214,7 @@ async function resolveInvitationStatus(userId: string | null): Promise<"PENDING"
  */
 export async function getUserCredentialStatus(
   institutionId: string,
-  entityType: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN",
+  entityType: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | "HOD" | "STAFF",
   entityId: string
 ): Promise<CredentialStatusResult> {
   let user: any = null;
@@ -1257,7 +1257,7 @@ export async function getUserCredentialStatus(
         }
       }
     }
-  } else if (entityType === "TEACHER") {
+  } else if (entityType === "TEACHER" || entityType === "HOD") {
     const teacherOrFilters: any[] = [];
     if (isValidUuid(entityId)) {
       teacherOrFilters.push({ id: entityId });
@@ -1320,18 +1320,18 @@ export async function getUserCredentialStatus(
       resolvedEntity = guardian;
       user = guardian.user;
     }
-  } else if (entityType === "ADMIN") {
+  } else if (entityType === "ADMIN" || entityType === "STAFF") {
     user = await db.user.findFirst({
       where: {
         institutionId,
-        role: "ADMIN",
+        role: entityType === "ADMIN" ? "ADMIN" : { in: ["STAFF", "ADMIN"] },
         ...(isValidUuid(entityId) ? { OR: [{ id: entityId }, { email: entityId }] } : { email: entityId }),
       },
     });
     if (user) {
       resolvedEntity = {
         id: user.id,
-        fullName: user.fullName || user.name || "Administrator",
+        fullName: user.fullName || user.name || (entityType === "ADMIN" ? "Administrator" : "Staff Member"),
         email: user.email,
         userId: user.id,
       };
@@ -1427,7 +1427,7 @@ export async function getUserCredentialStatus(
  */
 export async function resendInvitation(options: {
   institutionId: string;
-  entityType: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN";
+  entityType: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | "HOD" | "STAFF";
   entityId: string;
   actorUserId?: string | null;
 }): Promise<{
@@ -1470,10 +1470,11 @@ export async function resendInvitation(options: {
   const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
 
   let portalLoginUrl = `${appUrl}/login`;
-  if (entityType === "STUDENT") portalLoginUrl = `${appUrl}/login`;
+  if (entityType === "STUDENT") portalLoginUrl = `${appUrl}/student`;
   if (entityType === "TEACHER") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher`;
-  if (entityType === "PARENT") portalLoginUrl = `${appUrl}/login`;
-  if (entityType === "ADMIN") portalLoginUrl = `${appUrl}/admin`;
+  if (entityType === "HOD") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher/hod`;
+  if (entityType === "PARENT") portalLoginUrl = `${appUrl}/parent`;
+  if (entityType === "ADMIN" || entityType === "STAFF") portalLoginUrl = `${appUrl}/admin`;
 
   // 4. Dispatch setup invitation
   const emailRes = await sendRoleCredentialInvitation(
@@ -1482,7 +1483,7 @@ export async function resendInvitation(options: {
       setupUrl,
       institutionName: inst?.name || "Campus Administration",
       expiresIn: "24 hours",
-      role: entityType,
+      role: entityType as any,
       loginUrl: portalLoginUrl,
       username: statusRes.email || dbUser?.email || undefined,
     }

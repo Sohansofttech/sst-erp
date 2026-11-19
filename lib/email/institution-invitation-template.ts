@@ -26,5 +26,7 @@ export function institutionInvitationEmail(input: InvitationEmailInput) {
         </td></tr>
       </table>
     </div>`;
-  return { subject, html };
+  const text = `Welcome, ${input.administratorName}\n\nYour primary administrator account for ${input.institutionName} (${input.institutionCode}) is ready.\n\nActivate it to create your password and access the Institution Admin Portal:\n${input.activationUrl}\n\nThis secure activation link expires on ${expires}.\n\nIf you did not expect this invitation, do not activate the account and contact SOHAN SOFT TECH support.\n\nSOHAN SOFT TECH ERP Support`;
+
+  return { subject, html, text };
 }

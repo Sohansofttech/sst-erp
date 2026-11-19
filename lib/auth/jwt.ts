@@ -64,6 +64,7 @@ export async function verifyPasswordSetupToken(token: string): Promise<{
   email: string;
   institutionId?: string;
   sig: string;
+  exp?: number;
 } | null> {
   try {
     const { payload } = await jwtVerify(token, key);
@@ -73,6 +74,7 @@ export async function verifyPasswordSetupToken(token: string): Promise<{
       email: payload.email as string,
       institutionId: payload.institutionId as string | undefined,
       sig: payload.sig as string,
+      exp: payload.exp as number | undefined,
     };
   } catch {
     return null;
