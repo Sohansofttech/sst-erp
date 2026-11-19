@@ -302,6 +302,13 @@ export interface StudentItem {
 
   // Source Admission Application Link (if converted)
   sourceApplicationId?: string;
+
+  // Portal Credential Management
+  portalAccess?: boolean;
+  portalStatus?: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED";
+  portalUserId?: string;
+  portalEmail?: string;
+  lastLoginAt?: string | null;
 }
 
 // -------------------------------------------------------------
@@ -329,6 +336,14 @@ export interface GuardianItem {
   // Linked Students (Many-to-Many IDs)
   studentIds: string[];
   createdAt: string;
+
+  // Portal Credential Management
+  portalAccess?: boolean;
+  portalStatus?: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" | "UNVERIFIED";
+  hasVerifiedRelationship?: boolean;
+  portalUserId?: string;
+  portalEmail?: string;
+  lastLoginAt?: string | null;
 }
 
 // -------------------------------------------------------------
@@ -358,6 +373,14 @@ export interface StaffItem {
   dob?: string;
   addressLine?: string;
   specialization?: string;
+
+  // Portal Credential Management
+  portalAccess?: boolean;
+  portalStatus?: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" | "INELIGIBLE";
+  isTeachingFaculty?: boolean;
+  portalUserId?: string;
+  portalEmail?: string;
+  lastLoginAt?: string | null;
 }
 
 // -------------------------------------------------------------

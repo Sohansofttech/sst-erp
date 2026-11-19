@@ -32,11 +32,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isCurr = body.isCurrent ?? body.isActive;
     const ay = await createAcademicYear(institutionId, {
       name: body.name,
       startDate: new Date(body.startDate),
       endDate: new Date(body.endDate),
-      isCurrent: body.isCurrent,
+      isCurrent: isCurr,
       terms: body.terms?.map((t: any, index: number) => ({
         name: t.name,
         termNumber: t.termNumber || index + 1,
@@ -59,29 +60,74 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
-    const { id, isCurrent, name, startDate, endDate } = await req.json();
+    const body = await req.json();
+    const { id, isCurrent, isActive, name, startDate, endDate, terms } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: "Academic Year ID required." }, { status: 400 });
     }
 
-    if (isCurrent) {
-      await db.academicYear.updateMany({
-        where: { institutionId },
-        data: { isCurrent: false },
-      });
-    }
+    const currentFlag = typeof isCurrent === "boolean" ? isCurrent : (typeof isActive === "boolean" ? isActive : undefined);
 
-    const updated = await db.academicYear.update({
-      where: { id },
+    const result = await db.academicYear.updateMany({
+      where: { id, institutionId },
       data: {
         ...(name ? { name } : {}),
         ...(startDate ? { startDate: new Date(startDate) } : {}),
         ...(endDate ? { endDate: new Date(endDate) } : {}),
-        ...(typeof isCurrent === "boolean" ? { isCurrent } : {}),
+        ...(typeof currentFlag === "boolean" ? { isCurrent: currentFlag } : {}),
       },
-      include: { terms: true },
     });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Academic year not found or access denied." },
+        { status: 404 }
+      );
+    }
+
+    if (currentFlag) {
+      await db.academicYear.updateMany({
+        where: { institutionId, id: { not: id } },
+        data: { isCurrent: false },
+      });
+    }
+
+    // Safely update terms if provided
+    if (terms && Array.isArray(terms)) {
+      try {
+        await db.academicTerm.deleteMany({
+          where: { academicYearId: id, institutionId },
+        });
+        if (terms.length > 0) {
+          await db.academicTerm.createMany({
+            data: terms.map((t: any, index: number) => ({
+              institutionId,
+              academicYearId: id,
+              name: t.name,
+              termNumber: t.termNumber || index + 1,
+              startDate: new Date(t.startDate || startDate || Date.now()),
+              endDate: new Date(t.endDate || endDate || Date.now()),
+              isCurrent: !!t.isCurrent,
+            })),
+          });
+        }
+      } catch (termErr: any) {
+        console.warn("AcademicTerm update fallback:", termErr?.message);
+      }
+    }
+
+    let updated: any = null;
+    try {
+      updated = await db.academicYear.findFirst({
+        where: { id, institutionId },
+        include: { terms: true },
+      });
+    } catch {
+      updated = await db.academicYear.findFirst({
+        where: { id, institutionId },
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -102,9 +148,16 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Academic Year ID required." }, { status: 400 });
     }
 
-    await db.academicYear.delete({
-      where: { id },
+    const result = await db.academicYear.deleteMany({
+      where: { id, institutionId },
     });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Academic year not found or access denied." },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

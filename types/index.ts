@@ -10,6 +10,8 @@ export interface SessionUser {
   studentId?: string; // Present if role is STUDENT
   guardianId?: string; // Present if role is PARENT
   activeChildId?: string; // Currently active child for PARENT
+  mustChangePassword?: boolean;
+  passwordSig?: string; // Full SHA-256 fingerprint of passwordHash for zero-migration session revocation
 }
 
 export interface ApiResponse<T = any> {

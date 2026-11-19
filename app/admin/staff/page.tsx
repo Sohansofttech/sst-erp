@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -36,8 +36,12 @@ import {
   CheckCircle2,
   X,
   Award,
+  KeyRound,
 } from "lucide-react";
 import { StaffItem, StaffEmploymentType, StaffStatus } from "@/types/institution";
+import { CredentialManagementModal } from "@/components/admin/CredentialManagementModal";
+import { EmailDispatchModal } from "@/components/admin/EmailDispatchModal";
+import { isTeachingFacultyTitle, PortalAccountStatus } from "@/lib/utils/credential-helpers";
 
 export default function StaffPage() {
   const {
@@ -60,6 +64,101 @@ export default function StaffPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffItem | null>(null);
   const [viewingStaff, setViewingStaff] = useState<StaffItem | null>(null);
+
+  const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
+  const [credentialStaff, setCredentialStaff] = useState<StaffItem | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailStaff, setEmailStaff] = useState<StaffItem | null>(null);
+
+  const getStaffPortalBadge = (st: StaffItem) => {
+    const isEligible = st.isTeachingFaculty !== undefined ? st.isTeachingFaculty : isTeachingFacultyTitle(st.designation, st.assignedRoleName);
+    if (!isEligible || st.portalStatus === "INELIGIBLE") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+          Ineligible (Non-Teaching)
+        </span>
+      );
+    }
+    const status = st.portalStatus || (st.portalAccess ? "ACTIVE" : "NOT_CREATED");
+    switch (status) {
+      case "ACTIVE":
+        return <Badge variant="success" size="sm">Active Portal</Badge>;
+      case "DISABLED":
+        return <Badge variant="error" size="sm">Disabled</Badge>;
+      case "NOT_CREATED":
+      default:
+        return <Badge variant="neutral" size="sm">No Account</Badge>;
+    }
+  };
+
+  const handleOpenCredentialModal = (st: StaffItem) => {
+    setCredentialStaff(st);
+    setIsCredentialModalOpen(true);
+  };
+
+  const updateStaffRef = useRef(updateStaff);
+  useEffect(() => {
+    updateStaffRef.current = updateStaff;
+  });
+
+  const refreshBatchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/credentials?type=batch&entityType=TEACHER");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && json.data) {
+        Object.entries(json.data as Record<string, any>).forEach(([id, statusInfo]) => {
+          updateStaffRef.current(id, {
+            portalStatus: statusInfo.portalStatus,
+            portalAccess: statusInfo.isActive,
+            isTeachingFaculty: statusInfo.isTeachingFaculty,
+            portalUserId: statusInfo.userId,
+            portalEmail: statusInfo.email || undefined,
+            lastLoginAt: statusInfo.lastLoginAt,
+          });
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to fetch batch staff credential status:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshBatchStatus();
+  }, [refreshBatchStatus]);
+
+  const handleCredentialStatusUpdated = (entityId: string, updatedStatus: PortalAccountStatus, userId?: string) => {
+    updateStaff(entityId, {
+      portalStatus: updatedStatus as any,
+      portalAccess: updatedStatus === "ACTIVE",
+      portalUserId: userId,
+    });
+    if (viewingStaff && viewingStaff.id === entityId) {
+      setViewingStaff((prev) =>
+        prev
+          ? {
+              ...prev,
+              portalStatus: updatedStatus as any,
+              portalAccess: updatedStatus === "ACTIVE",
+              portalUserId: userId,
+            }
+          : null
+      );
+    }
+    if (credentialStaff && credentialStaff.id === entityId) {
+      setCredentialStaff((prev) =>
+        prev
+          ? {
+              ...prev,
+              portalStatus: updatedStatus as any,
+              portalAccess: updatedStatus === "ACTIVE",
+              portalUserId: userId,
+            }
+          : null
+      );
+    }
+    refreshBatchStatus();
+  };
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<{
@@ -175,7 +274,7 @@ export default function StaffPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSaveStaff = (e: React.FormEvent) => {
+  const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
@@ -186,6 +285,21 @@ export default function StaffPage() {
     const roleName = roleObj ? roleObj.name : "Faculty Member";
 
     if (editingStaff) {
+      try {
+        await fetch("/api/admin/staff", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingStaff.portalUserId || editingStaff.id,
+            fullName: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+            phone: formData.phone.trim(),
+            role: "TEACHER",
+          }),
+        });
+      } catch (err) {
+        console.warn("PUT /api/admin/staff error:", err);
+      }
+
       updateStaff(editingStaff.id, {
         employeeId: formData.employeeId.trim(),
         firstName: formData.firstName.trim(),
@@ -209,7 +323,34 @@ export default function StaffPage() {
       });
       showToast("success", `Staff record for "${formData.firstName} ${formData.lastName}" updated.`);
     } else {
+      let createdServerStaff: any = null;
+      try {
+        const res = await fetch("/api/admin/staff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullName: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+            email: formData.email.trim().toLowerCase(),
+            phone: formData.phone.trim(),
+            role: "TEACHER",
+            designation: formData.designation.trim(),
+            departmentId: formData.departmentId,
+            employeeId: formData.employeeId.trim(),
+          }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          createdServerStaff = json.data;
+        }
+      } catch (err) {
+        console.warn("POST /api/admin/staff error:", err);
+      }
+
+      const realStaffId = createdServerStaff?.teacher?.id || createdServerStaff?.id;
+      const realUserId = createdServerStaff?.user?.id || createdServerStaff?.id;
+
       const created = addStaff({
+        id: realStaffId,
         employeeId: formData.employeeId.trim(),
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
@@ -230,7 +371,16 @@ export default function StaffPage() {
         status: formData.status,
         addressLine: formData.addressLine.trim() || undefined,
       });
-      showToast("success", `Staff member added successfully with Employee ID: ${created.employeeId}`);
+
+      if (realUserId) {
+        updateStaff(created.id, {
+          portalUserId: realUserId,
+          portalStatus: "PENDING_SETUP",
+          portalAccess: false,
+        });
+      }
+
+      showToast("success", `Staff member provisioned with Employee ID: ${created.employeeId}`);
     }
 
     setIsFormModalOpen(false);
@@ -491,13 +641,14 @@ export default function StaffPage() {
                 <TableHead>Assigned Role</TableHead>
                 <TableHead>Contact Details</TableHead>
                 <TableHead>Joining Date</TableHead>
+                <TableHead className="text-center">Portal Access</TableHead>
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredStaff.length === 0 ? (
-                <TableEmpty colSpan={9} message="No staff records match your criteria." />
+                <TableEmpty colSpan={10} message="No staff records match your criteria." />
               ) : (
                 filteredStaff.map((st) => (
                   <TableRow key={st.id} className="hover:bg-slate-50/60 transition-colors">
@@ -590,6 +741,11 @@ export default function StaffPage() {
                       })}
                     </TableCell>
 
+                    {/* Portal Access */}
+                    <TableCell className="text-center">
+                      {getStaffPortalBadge(st)}
+                    </TableCell>
+
                     {/* Status */}
                     <TableCell className="text-center">
                       <Badge
@@ -608,6 +764,29 @@ export default function StaffPage() {
                     {/* Actions */}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenCredentialModal(st)}
+                          title="Manage Portal Credentials & Access"
+                          className="h-8 w-8 p-0 text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEmailStaff(st);
+                            setIsEmailModalOpen(true);
+                          }}
+                          title="Send Direct Email / Onboarding Invitation"
+                          className="h-8 w-8 p-0 text-[#123B5A] hover:bg-[#EFF6FF]"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1118,6 +1297,67 @@ export default function StaffPage() {
               </div>
             </div>
 
+            {/* Portal Access & Security Card */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5 text-[#F5A000]" />
+                  Portal Access & Authentication Status
+                </h4>
+                {getStaffPortalBadge(viewingStaff)}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-slate-500 block mb-0.5">Faculty Teaching Eligibility:</span>
+                  <span className="font-semibold text-slate-800">
+                    {isTeachingFacultyTitle(viewingStaff.designation, viewingStaff.assignedRoleName)
+                      ? "Eligible Teaching Faculty (TEACHER Role)"
+                      : "Non-Teaching Staff (Portal Ineligible)"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block mb-0.5">Portal Destination:</span>
+                  <span className="font-semibold text-slate-800">
+                    /campus/[slug]/teacher (Faculty Portal)
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-1 flex items-center justify-between">
+                <span className="text-slate-500 text-[11px]">
+                  Requires mandatory password change on initial login.
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      const st = viewingStaff;
+                      setViewingStaff(null);
+                      handleOpenCredentialModal(st);
+                    }}
+                    leftIcon={<KeyRound className="h-3.5 w-3.5" />}
+                  >
+                    Manage Credentials
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const st = viewingStaff;
+                      setViewingStaff(null);
+                      setEmailStaff(st);
+                      setIsEmailModalOpen(true);
+                    }}
+                    leftIcon={<Mail className="h-3.5 w-3.5 text-[#123B5A]" />}
+                  >
+                    Send Email / Invitation
+                  </Button>
+                </div>
+              </div>
+            </div>
+
             {/* Modal Footer */}
             <div className="flex items-center justify-between pt-4 border-t border-slate-200">
               <Button
@@ -1145,6 +1385,53 @@ export default function StaffPage() {
           </div>
         </Modal>
       )}
+
+      {/* ================================================================= */}
+      {/* FACULTY PORTAL CREDENTIAL MANAGEMENT MODAL                       */}
+      {/* ================================================================= */}
+      <CredentialManagementModal
+        isOpen={isCredentialModalOpen}
+        onClose={() => setIsCredentialModalOpen(false)}
+        entityType="TEACHER"
+        entity={credentialStaff ? {
+          id: credentialStaff.id,
+          fullName: credentialStaff.fullName,
+          email: credentialStaff.email,
+          employeeId: credentialStaff.employeeId,
+          designation: credentialStaff.designation,
+          departmentName: credentialStaff.departmentName,
+          role: credentialStaff.assignedRoleName,
+          userId: credentialStaff.portalUserId,
+          portalStatus: credentialStaff.portalStatus,
+          portalAccess: credentialStaff.portalAccess,
+          lastLoginAt: credentialStaff.lastLoginAt,
+        } : null}
+        onStatusUpdated={handleCredentialStatusUpdated}
+      />
+
+      {/* Staff Email Dispatcher Modal */}
+      <EmailDispatchModal
+        isOpen={isEmailModalOpen}
+        onClose={() => {
+          setIsEmailModalOpen(false);
+          setEmailStaff(null);
+        }}
+        initialRole="TEACHER"
+        allowedRoles={["TEACHER"]}
+        lockRole={true}
+        preselectedRecipients={
+          emailStaff
+            ? [
+                {
+                  id: emailStaff.portalUserId || emailStaff.id,
+                  name: emailStaff.fullName,
+                  email: emailStaff.email,
+                  role: emailStaff.assignedRoleName || "TEACHER",
+                },
+              ]
+            : []
+        }
+      />
     </div>
   );
 }

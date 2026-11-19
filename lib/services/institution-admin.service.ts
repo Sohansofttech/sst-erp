@@ -1,4 +1,7 @@
+import crypto from "crypto";
 import db from "@/lib/db";
+import { sendAnnouncementNotification, sendPasswordSetupInvitation, sendRoleCredentialInvitation } from "./email.service";
+import { signPasswordSetupToken } from "@/lib/auth/jwt";
 
 // ============================================================================
 // SST-ERP INSTITUTION ADMIN BACKEND SERVICE
@@ -9,6 +12,38 @@ export interface AdminContext {
   institutionId: string;
   userId?: string;
   userRole?: string;
+}
+
+export async function recordAuditLog(
+  client: any,
+  data: {
+    institutionId?: string | null;
+    userId?: string | null;
+    actorUserId?: string | null;
+    action: string;
+    entityType?: string | null;
+    entityId?: string | null;
+    newValuesJson?: string | null;
+  }
+) {
+  try {
+    const id = crypto.randomUUID();
+    await client.$executeRawUnsafe(
+      `INSERT INTO audit_logs (
+        "id", "institutionId", "userId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt"
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      id,
+      data.institutionId || null,
+      data.userId || null,
+      data.actorUserId || null,
+      data.action,
+      data.entityType || null,
+      data.entityId || null,
+      data.newValuesJson || null
+    );
+  } catch (err: any) {
+    console.warn("[recordAuditLog] Warning recording audit:", err.message);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -282,11 +317,18 @@ export async function updateAdmissionStatus(
   status: "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "ENROLLED" | "CANCELLED",
   remarks?: string
 ) {
-  return await db.admissionApplication.update({
-    where: { id: applicationId },
+  const result = await db.admissionApplication.updateMany({
+    where: { id: applicationId, institutionId },
     data: {
       status,
+      ...(remarks !== undefined ? { remarks } : {}),
     },
+  });
+  if (result.count === 0) {
+    throw new Error("Admission application not found or access denied.");
+  }
+  return await db.admissionApplication.findFirst({
+    where: { id: applicationId, institutionId },
   });
 }
 
@@ -329,11 +371,12 @@ export async function getStudents(institutionId: string, options?: { search?: st
           : {}),
       },
       include: {
+        user: true,
         currentCourse: true,
         currentAcademicYear: true,
         currentClass: true,
-        guardians: {
-          include: { guardian: true },
+        guardianLinks: {
+          include: { guardianAccount: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -376,36 +419,113 @@ export async function createStudent(
     sectionId?: string;
   }
 ) {
-  return await db.$transaction(async (tx) => {
-    const parts = data.fullName.trim().split(" ");
+  const email = data.email.trim().toLowerCase();
+  const fullName = data.fullName.trim();
+  const rollNumber = data.rollNumber.trim();
+
+  // 1. Database Transaction: Atomic Student & User Account Provisioning
+  const { student, user } = await db.$transaction(async (tx) => {
+    // Validate roll number uniqueness within this institution
+    const existingByRoll = await tx.student.findFirst({
+      where: { rollNumber, institutionId },
+    });
+    if (existingByRoll) {
+      throw new Error(`Student with roll number '${rollNumber}' already exists in this institution.`);
+    }
+
+    // Resolve or provision User login account
+    let userRecord = await tx.user.findFirst({
+      where: { email },
+      include: { studentProfile: true },
+    });
+
+    if (userRecord) {
+      if (userRecord.institutionId && userRecord.institutionId !== institutionId) {
+        throw new Error("Email is already registered under another institution.");
+      }
+      if (userRecord.studentProfile && userRecord.studentProfile.id) {
+        throw new Error("A student account is already linked to this email address.");
+      }
+      if (userRecord.role && userRecord.role !== "STUDENT") {
+        throw new Error(`Email is already associated with an account of role '${userRecord.role}'.`);
+      }
+      userRecord = await tx.user.update({
+        where: { id: userRecord.id },
+        data: {
+          institutionId,
+          fullName,
+          phone: data.phone?.trim() || userRecord.phone || undefined,
+          role: "STUDENT",
+        },
+        include: { studentProfile: true },
+      });
+    } else {
+      userRecord = await tx.user.create({
+        data: {
+          institutionId,
+          email,
+          fullName,
+          phone: data.phone?.trim(),
+          role: "STUDENT",
+          isActive: false, // Dormant until credentials or setup link accepted
+          status: "INACTIVE",
+          passwordHash: null,
+        },
+        include: { studentProfile: true },
+      });
+    }
+
+    const parts = fullName.split(" ");
     const firstName = parts[0] || "Student";
     const lastName = parts.slice(1).join(" ") || "Enrolled";
 
-    const student = await tx.student.create({
-      data: {
-        institutionId,
-        firstName,
-        lastName,
-        fullName: data.fullName,
-        email: data.email.toLowerCase(),
-        rollNumber: data.rollNumber,
-        admissionNumber: data.rollNumber,
-        phone: data.phone,
-        gender: data.gender || "MALE",
-        dateOfBirth: data.dateOfBirth,
-        currentCourseId: data.courseId,
-        currentAcademicYearId: data.academicYearId,
-        currentClassId: data.classId,
-        currentSectionId: data.sectionId,
-        status: "ACTIVE",
-      },
-    });
+    const studentId = crypto.randomUUID();
+    const dob = data.dateOfBirth ? new Date(data.dateOfBirth) : new Date("2002-01-01");
+    const rawGender = (data.gender || "MALE").toString().toUpperCase();
+    const genderStr = ["MALE", "FEMALE", "OTHER"].includes(rawGender) ? rawGender : "MALE";
+    const statusStr = "ACTIVE";
+
+    // Direct SQL INSERT avoids Prisma client casting to non-existent public.Gender / public.StudentStatus PostgreSQL enums
+    const insertResult: any = await tx.$queryRawUnsafe(`
+      INSERT INTO students (
+        "id", "institutionId", "userId", "firstName", "lastName", "fullName",
+        "email", "rollNumber", "admissionNumber", "phone", "gender", "status",
+        "dateOfBirth", "currentCourseId", "currentAcademicYearId", "currentClassId", "currentSectionId",
+        "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10, $11, $12,
+        $13, $14, $15, $16, $17,
+        NOW(), NOW()
+      )
+      RETURNING *
+    `,
+      studentId,
+      institutionId,
+      userRecord.id,
+      firstName,
+      lastName,
+      fullName,
+      email,
+      rollNumber,
+      rollNumber,
+      data.phone?.trim() || null,
+      genderStr,
+      statusStr,
+      dob,
+      data.courseId || null,
+      data.academicYearId || null,
+      data.classId || null,
+      data.sectionId || null
+    );
+
+    const newStudent = insertResult[0];
 
     if (data.academicYearId && data.classId) {
       await tx.studentEnrollmentHistory.create({
         data: {
           institutionId,
-          studentId: student.id,
+          studentId: newStudent.id,
           academicYearId: data.academicYearId,
           classId: data.classId,
           sectionId: data.sectionId,
@@ -416,8 +536,104 @@ export async function createStudent(
       });
     }
 
-    return student;
+    // Write audit log inside transaction
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: userRecord.id,
+      action: "STUDENT_CREATED",
+      entityType: "STUDENT",
+      entityId: newStudent.id,
+      newValuesJson: JSON.stringify({
+        rollNumber: newStudent.rollNumber,
+        email: newStudent.email,
+        provisionedLogin: true,
+      }),
+    });
+
+    return { student: newStudent, user: userRecord };
   });
+
+  // 2. Post-Transaction Automation: Non-blocking Invitation Email & In-App Notification
+  let invitationSent = false;
+  let invitationPreviewUrl: string | false = false;
+  let invitationError: string | null = null;
+
+  try {
+    const setupToken = await signPasswordSetupToken({
+      userId: user.id,
+      email: user.email,
+      institutionId,
+      passwordHash: user.passwordHash || null,
+    });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+    const inst = await db.institution.findUnique({
+      where: { id: institutionId },
+      select: { name: true },
+    });
+
+    const emailRes = await sendRoleCredentialInvitation(
+      { email: user.email, name: student.fullName || undefined },
+      {
+        setupUrl,
+        institutionName: inst?.name || "Campus Administration",
+        expiresIn: "24 hours",
+        role: "STUDENT",
+        loginUrl: `${appUrl}/login`,
+        username: user.email,
+      }
+    );
+
+    invitationSent = emailRes.success;
+    invitationPreviewUrl = emailRes.previewUrl || false;
+    if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
+
+    await recordAuditLog(db, {
+      institutionId,
+      userId: user.id,
+      action: emailRes.success ? "INVITATION_SENT" : "INVITATION_FAILED",
+      entityType: "STUDENT",
+      entityId: student.id,
+      newValuesJson: JSON.stringify({
+        recipient: user.email,
+        previewUrl: invitationPreviewUrl || undefined,
+        error: invitationError || undefined,
+      }),
+    });
+  } catch (emailErr: any) {
+    console.warn("[createStudent] Post-creation invitation error (non-blocking):", emailErr.message);
+    invitationError = emailErr.message;
+  }
+
+  // 3. Post-Transaction Automation: Generate In-App Notification in PostgreSQL
+  try {
+    await db.notification.create({
+      data: {
+        institutionId,
+        title: "Welcome to SST-ERP Student Portal",
+        message: `Welcome, ${student.fullName}! Your student portal account has been provisioned. Please complete your security profile.`,
+        category: "ACADEMIC",
+        audienceRole: "STUDENT",
+        recipients: {
+          create: {
+            userId: user.id,
+            isRead: false,
+          },
+        },
+      },
+    });
+  } catch (notifErr: any) {
+    console.warn("[createStudent] Post-creation notification error (non-blocking):", notifErr.message);
+  }
+
+  return {
+    ...student,
+    user,
+    invitationSent,
+    previewUrl: invitationPreviewUrl,
+    invitationError,
+  };
 }
 
 export async function updateStudent(
@@ -431,9 +647,15 @@ export async function updateStudent(
     status: any;
   }>
 ) {
-  return await db.student.update({
-    where: { id: studentId },
+  const result = await db.student.updateMany({
+    where: { id: studentId, institutionId },
     data,
+  });
+  if (result.count === 0) {
+    throw new Error("Student not found or access denied.");
+  }
+  return await db.student.findFirst({
+    where: { id: studentId, institutionId },
   });
 }
 
@@ -441,15 +663,40 @@ export async function updateStudent(
 // 3. GUARDIANS
 // ----------------------------------------------------------------------------
 export async function getGuardians(institutionId: string) {
-  return await db.guardian.findMany({
-    where: { institutionId },
-    include: {
-      students: {
-        include: { student: true },
+  try {
+    const accounts = await db.guardianAccount.findMany({
+      where: { institutionId },
+      include: {
+        guardianLinks: {
+          include: { student: true },
+        },
+        user: true,
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+    });
+    if (accounts) {
+      return accounts.map((ga) => ({
+        id: ga.id,
+        guardianUniqueId: `GRD-${ga.id.slice(-4)}`,
+        fullName: ga.fullName,
+        phone: ga.phone,
+        email: ga.user?.email || null,
+        occupation: ga.occupation,
+        relationship: ga.relationship,
+        students: ga.guardianLinks.map((gl) => ({
+          studentId: gl.studentId,
+          student: gl.student,
+          isVerified: gl.isVerified,
+          canAccessPortal: gl.canAccessPortal,
+          relationship: gl.relationship,
+        })),
+        createdAt: ga.createdAt,
+      }));
+    }
+  } catch (err: any) {
+    console.warn("GuardianAccount lookup error:", err.message);
+  }
+  return [];
 }
 
 export async function createGuardian(
@@ -461,35 +708,234 @@ export async function createGuardian(
     email?: string;
     occupation?: string;
     studentId?: string;
+    isVerified?: boolean;
+    canAccessPortal?: boolean;
   }
 ) {
-  return await db.$transaction(async (tx) => {
-    const count = await tx.guardian.count({ where: { institutionId } });
-    const uniqueId = `GRD-${String(count + 1).padStart(4, "0")}`;
+  const email = data.email?.trim().toLowerCase();
+  if (!email) {
+    throw new Error("Guardian email is required to register a parent account.");
+  }
 
-    const guardian = await tx.guardian.create({
-      data: {
-        institutionId,
-        guardianUniqueId: uniqueId,
-        fullName: data.fullName,
-        phone: data.phone,
-        email: data.email?.toLowerCase(),
-        occupation: data.occupation,
-      },
+  const { guardianAccount, user, isAuthorized } = await db.$transaction(async (tx) => {
+    // 1. If studentId provided, verify student belongs to this tenant
+    if (data.studentId) {
+      const student = await tx.student.findFirst({
+        where: { id: data.studentId, institutionId },
+      });
+      if (!student) {
+        throw new Error("Student not found or access denied.");
+      }
+    }
+
+    // 2. Resolve or create User account (dormant until credentials issued)
+    let userRecord = await tx.user.findFirst({
+      where: { email },
+      include: { guardianAccount: true },
     });
 
-    if (data.studentId) {
-      await tx.studentGuardian.create({
+    if (userRecord) {
+      if (userRecord.institutionId && userRecord.institutionId !== institutionId) {
+        throw new Error("Email is already registered under another institution.");
+      }
+      if (userRecord.role && userRecord.role !== "PARENT" && userRecord.role !== "GUARDIAN") {
+        throw new Error(`User already exists with an incompatible role: ${userRecord.role}.`);
+      }
+    } else {
+      userRecord = await tx.user.create({
         data: {
           institutionId,
-          studentId: data.studentId,
-          guardianId: guardian.id,
+          email,
+          fullName: data.fullName.trim(),
+          phone: data.phone.trim(),
+          role: "PARENT",
+          isActive: false,
+          status: "INACTIVE",
+          passwordHash: null,
+        },
+        include: { guardianAccount: true },
+      });
+    }
+
+    // 3. Prevent duplicate GuardianAccount records
+    let guardianAccountRecord = userRecord.guardianAccount;
+    if (!guardianAccountRecord) {
+      guardianAccountRecord = await tx.guardianAccount.create({
+        data: {
+          institutionId,
+          userId: userRecord.id,
+          fullName: data.fullName.trim(),
+          phone: data.phone.trim(),
+          relationship: data.relationship || "GUARDIAN",
+          occupation: data.occupation?.trim() || null,
+        },
+      });
+    } else {
+      guardianAccountRecord = await tx.guardianAccount.update({
+        where: { id: guardianAccountRecord.id },
+        data: {
+          fullName: data.fullName.trim(),
+          phone: data.phone.trim(),
+          relationship: data.relationship || guardianAccountRecord.relationship,
+          ...(data.occupation ? { occupation: data.occupation.trim() } : {}),
         },
       });
     }
 
-    return guardian;
+    // 4. Link student if provided (respect isVerified flag; unverified by default)
+    const shouldVerify = data.isVerified === true;
+    const canAccess = data.canAccessPortal !== undefined ? !!data.canAccessPortal : shouldVerify;
+
+    if (data.studentId) {
+      await tx.guardianLink.upsert({
+        where: {
+          guardianAccountId_studentId: {
+            guardianAccountId: guardianAccountRecord.id,
+            studentId: data.studentId,
+          },
+        },
+        update: {
+          relationship: data.relationship || "GUARDIAN",
+          ...(data.isVerified !== undefined ? { isVerified: shouldVerify } : {}),
+          ...(data.canAccessPortal !== undefined ? { canAccessPortal: canAccess } : {}),
+        },
+        create: {
+          institutionId,
+          guardianAccountId: guardianAccountRecord.id,
+          studentId: data.studentId,
+          relationship: data.relationship || "GUARDIAN",
+          isVerified: shouldVerify,
+          canAccessPortal: canAccess,
+          isPrimary: false,
+        },
+      });
+    }
+
+    // Check if guardian has at least one verified relationship
+    let verifiedLink: any = null;
+    if (tx.guardianLink && typeof tx.guardianLink.findFirst === "function") {
+      verifiedLink = await tx.guardianLink.findFirst({
+        where: {
+          guardianAccountId: guardianAccountRecord.id,
+          isVerified: true,
+          canAccessPortal: true,
+        },
+      });
+    } else if (data.isVerified === true) {
+      verifiedLink = { isVerified: true, canAccessPortal: true };
+    }
+
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: userRecord.id,
+      action: "GUARDIAN_CREATED",
+      entityType: "GUARDIAN",
+      entityId: guardianAccountRecord.id,
+      newValuesJson: JSON.stringify({
+        email,
+        studentId: data.studentId,
+        isVerified: !!verifiedLink,
+      }),
+    });
+
+    return {
+      guardianAccount: guardianAccountRecord,
+      user: userRecord,
+      isAuthorized: !!verifiedLink,
+    };
   });
+
+  // 5. Post-Transaction Automation: Invitation Email & Notification ONLY if relationship is verified
+  let invitationSent = false;
+  let invitationPreviewUrl: string | false = false;
+  let invitationError: string | null = null;
+
+  if (isAuthorized) {
+    try {
+      const setupToken = await signPasswordSetupToken({
+        userId: user.id,
+        email: user.email,
+        institutionId,
+        passwordHash: user.passwordHash || null,
+      });
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+      const loginUrl = `${appUrl}/login`;
+      const inst = await db.institution.findUnique({
+        where: { id: institutionId },
+        select: { name: true },
+      });
+
+      const emailRes = await sendRoleCredentialInvitation(
+        { email: user.email, name: guardianAccount.fullName || undefined },
+        {
+          setupUrl,
+          institutionName: inst?.name || "Campus Administration",
+          expiresIn: "24 hours",
+          role: "PARENT",
+          loginUrl,
+          username: user.email,
+        }
+      );
+
+      invitationSent = emailRes.success;
+      invitationPreviewUrl = emailRes.previewUrl || false;
+      if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
+
+      await recordAuditLog(db, {
+        institutionId,
+        userId: user.id,
+        action: emailRes.success ? "INVITATION_SENT" : "INVITATION_FAILED",
+        entityType: "GUARDIAN",
+        entityId: guardianAccount.id,
+        newValuesJson: JSON.stringify({
+          recipient: user.email,
+          previewUrl: invitationPreviewUrl || undefined,
+          error: invitationError || undefined,
+        }),
+      });
+    } catch (emailErr: any) {
+      console.warn("[createGuardian] Post-creation invitation error (non-blocking):", emailErr.message);
+      invitationError = emailErr.message;
+    }
+
+    // In-App Notification in DB
+    try {
+      await db.notification.create({
+        data: {
+          institutionId,
+          title: "Welcome to SST-ERP Parent & Guardian Portal",
+          message: `Welcome, ${guardianAccount.fullName}! Your parent portal account has been authorized. Please complete your security profile.`,
+          category: "GENERAL",
+          audienceRole: "PARENT",
+          recipients: {
+            create: {
+              userId: user.id,
+              isRead: false,
+            },
+          },
+        },
+      });
+    } catch (notifErr: any) {
+      console.warn("[createGuardian] Post-creation notification error (non-blocking):", notifErr.message);
+    }
+  }
+
+  return {
+    id: guardianAccount.id,
+    guardianUniqueId: `GRD-${guardianAccount.id.slice(-4)}`,
+    fullName: guardianAccount.fullName,
+    phone: guardianAccount.phone,
+    email: user.email,
+    occupation: guardianAccount.occupation,
+    relationship: guardianAccount.relationship,
+    createdAt: guardianAccount.createdAt,
+    authorized: isAuthorized,
+    invitationSent,
+    previewUrl: invitationPreviewUrl,
+    invitationError,
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -521,22 +967,55 @@ export async function createStaff(
     employeeId?: string;
   }
 ) {
-  return await db.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        institutionId,
-        email: data.email.toLowerCase(),
-        fullName: data.fullName,
-        role: data.role,
-        phone: data.phone,
-      },
+  const email = data.email.trim().toLowerCase();
+  const fullName = data.fullName.trim();
+
+  // 1. Database Transaction: Atomic Staff & User Account Provisioning
+  const { user, teacher } = await db.$transaction(async (tx) => {
+    let userRecord = await tx.user.findFirst({
+      where: { email },
+      include: { teacherProfile: true },
     });
 
-    if (data.role === "TEACHER") {
-      await tx.teacher.create({
+    if (userRecord) {
+      if (userRecord.institutionId && userRecord.institutionId !== institutionId) {
+        throw new Error("Email is already registered under another institution.");
+      }
+      if (data.role === "TEACHER" && userRecord.teacherProfile) {
+        throw new Error("A faculty profile is already linked to this email address.");
+      }
+      userRecord = await tx.user.update({
+        where: { id: userRecord.id },
         data: {
           institutionId,
-          userId: user.id,
+          fullName,
+          role: data.role,
+          phone: data.phone?.trim() || userRecord.phone || undefined,
+        },
+        include: { teacherProfile: true },
+      });
+    } else {
+      userRecord = await tx.user.create({
+        data: {
+          institutionId,
+          email,
+          fullName,
+          role: data.role,
+          phone: data.phone?.trim(),
+          isActive: false, // Dormant until password setup
+          status: "INACTIVE",
+          passwordHash: null,
+        },
+        include: { teacherProfile: true },
+      });
+    }
+
+    let teacherRecord: any = null;
+    if (data.role === "TEACHER") {
+      teacherRecord = await tx.teacher.create({
+        data: {
+          institutionId,
+          userId: userRecord.id,
           department: data.departmentId || "General Academics",
           designation: data.designation || "Assistant Professor",
           employeeId: data.employeeId || `FAC-${Date.now().toString().slice(-4)}`,
@@ -544,8 +1023,106 @@ export async function createStaff(
       });
     }
 
-    return user;
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: userRecord.id,
+      action: "STAFF_CREATED",
+      entityType: data.role === "TEACHER" ? "TEACHER" : "STAFF",
+      entityId: teacherRecord?.id || userRecord.id,
+      newValuesJson: JSON.stringify({
+        email,
+        role: data.role,
+        employeeId: teacherRecord?.employeeId || data.employeeId,
+      }),
+    });
+
+    return { user: userRecord, teacher: teacherRecord };
   });
+
+  // 2. Post-Transaction Automation: Non-blocking Invitation for Teaching Faculty
+  let invitationSent = false;
+  let invitationPreviewUrl: string | false = false;
+  let invitationError: string | null = null;
+
+  if (data.role === "TEACHER") {
+    try {
+      const setupToken = await signPasswordSetupToken({
+        userId: user.id,
+        email: user.email,
+        institutionId,
+        passwordHash: user.passwordHash || null,
+      });
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+      const inst = await db.institution.findUnique({
+        where: { id: institutionId },
+        select: { name: true, slug: true },
+      });
+
+      const emailRes = await sendRoleCredentialInvitation(
+        { email: user.email, name: fullName },
+        {
+          setupUrl,
+          institutionName: inst?.name || "Campus Administration",
+          expiresIn: "24 hours",
+          role: "TEACHER",
+          loginUrl: `${appUrl}/campus/${inst?.slug || "portal"}/teacher`,
+          username: user.email,
+        }
+      );
+
+      invitationSent = emailRes.success;
+      invitationPreviewUrl = emailRes.previewUrl || false;
+      if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
+
+      await recordAuditLog(db, {
+        institutionId,
+        userId: user.id,
+        action: emailRes.success ? "INVITATION_SENT" : "INVITATION_FAILED",
+        entityType: "TEACHER",
+        entityId: teacher?.id || user.id,
+        newValuesJson: JSON.stringify({
+          recipient: user.email,
+          previewUrl: invitationPreviewUrl || undefined,
+          error: invitationError || undefined,
+        }),
+      });
+    } catch (err: any) {
+      console.warn("[createStaff] Post-creation invitation error (non-blocking):", err.message);
+      invitationError = err.message;
+    }
+
+    // In-App Notification for Faculty Member
+    try {
+      await db.notification.create({
+        data: {
+          institutionId,
+          title: "Welcome to SST-ERP Faculty Portal",
+          message: `Welcome, ${fullName}! Your faculty portal account has been provisioned. Please complete your security profile.`,
+          category: "ACADEMIC",
+          audienceRole: "TEACHER",
+          recipients: {
+            create: {
+              userId: user.id,
+              isRead: false,
+            },
+          },
+        },
+      });
+    } catch (notifErr: any) {
+      console.warn("[createStaff] Post-creation notification error (non-blocking):", notifErr.message);
+    }
+  }
+
+  return {
+    ...user,
+    user,
+    teacher,
+    invitationSent,
+    previewUrl: invitationPreviewUrl,
+    invitationError,
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -638,27 +1215,19 @@ export async function createDepartment(
 }
 
 export async function getCourses(institutionId: string) {
-  try {
-    return await db.course.findMany({
-      where: { institutionId },
-      include: {
-        departmentRel: true,
-        subjects: true,
-        classes: true,
-      },
-      orderBy: { name: "asc" },
-    });
-  } catch {
-    // If Department table does not exist, query without departmentRel
-    return await db.course.findMany({
-      where: { institutionId },
-      include: {
-        subjects: true,
-        classes: true,
-      },
-      orderBy: { name: "asc" },
-    });
-  }
+  // Query supported live PostgreSQL models (subjects exist; classes and departmentRel tables do not exist in live DB)
+  const courses = await db.course.findMany({
+    where: { institutionId },
+    include: {
+      subjects: true,
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return courses.map((c) => ({
+    ...c,
+    departmentName: c.department || undefined,
+  }));
 }
 
 export async function createCourse(
@@ -666,22 +1235,155 @@ export async function createCourse(
   data: {
     name: string;
     code: string;
-    departmentId: string;
+    departmentId?: string | null;
+    department?: string | null;
+    degreeType?: any;
     durationYears: number;
     totalSemesters: number;
+    totalCredits?: number;
     description?: string;
+    status?: any;
   }
 ) {
-  return await db.course.create({
+  const isUuid = (val?: string | null): boolean =>
+    !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+  const existing = await db.course.findFirst({
+    where: { institutionId, code: data.code.toUpperCase() },
+  });
+  if (existing) {
+    const err: any = new Error(`Course with code "${data.code}" already exists.`);
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const deptId = isUuid(data.departmentId) ? data.departmentId : null;
+  const deptName = data.department || (data.departmentId && !isUuid(data.departmentId) ? data.departmentId : null);
+  const id = crypto.randomUUID();
+  const degreeTypeStr = data.degreeType || "UNDERGRADUATE";
+  const statusStr = data.status || "ACTIVE";
+  const credits = data.totalCredits ?? 160;
+
+  try {
+    return await db.course.create({
+      data: {
+        id,
+        institutionId,
+        name: data.name,
+        code: data.code.toUpperCase(),
+        departmentId: deptId,
+        department: deptName,
+        degreeType: degreeTypeStr as any,
+        durationYears: data.durationYears,
+        totalSemesters: data.totalSemesters,
+        totalCredits: credits,
+        description: data.description || null,
+        status: statusStr as any,
+      },
+    });
+  } catch (error: any) {
+    if (
+      error?.code === "42704" ||
+      error?.message?.includes("DegreeType") ||
+      error?.message?.includes('type "public.DegreeType" does not exist')
+    ) {
+      const result: any = await db.$queryRawUnsafe(`
+        INSERT INTO courses (
+          "id", "institutionId", "name", "code", "departmentId", "department",
+          "degreeType", "durationYears", "totalSemesters", "totalCredits",
+          "description", "status", "createdAt", "updatedAt"
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10,
+          $11, $12, NOW(), NOW()
+        ) RETURNING *
+      `,
+        id,
+        institutionId,
+        data.name,
+        data.code.toUpperCase(),
+        deptId,
+        deptName,
+        degreeTypeStr,
+        data.durationYears,
+        data.totalSemesters,
+        credits,
+        data.description || null,
+        statusStr
+      );
+
+      return result[0];
+    }
+    throw error;
+  }
+}
+
+export async function updateCourse(
+  institutionId: string,
+  courseId: string,
+  data: Partial<{
+    name: string;
+    code: string;
+    departmentId: string | null;
+    department: string | null;
+    degreeType: any;
+    durationYears: number;
+    totalSemesters: number;
+    totalCredits: number;
+    description: string | null;
+    status: any;
+  }>
+) {
+  const isUuid = (val?: string | null): boolean =>
+    !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+  if (data.code) {
+    const existing = await db.course.findFirst({
+      where: {
+        institutionId,
+        code: data.code.toUpperCase(),
+        id: { not: courseId },
+      },
+    });
+    if (existing) {
+      const err: any = new Error(`Course with code "${data.code}" already exists.`);
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
+  const deptId = data.departmentId !== undefined
+    ? (isUuid(data.departmentId) ? data.departmentId : null)
+    : undefined;
+  const deptName = data.department !== undefined
+    ? data.department
+    : (data.departmentId && !isUuid(data.departmentId) ? data.departmentId : undefined);
+
+  const result = await db.course.updateMany({
+    where: { id: courseId, institutionId },
     data: {
-      institutionId,
-      name: data.name,
-      code: data.code.toUpperCase(),
-      departmentId: data.departmentId,
-      durationYears: data.durationYears,
-      totalSemesters: data.totalSemesters,
-      description: data.description,
+      ...(data.name ? { name: data.name } : {}),
+      ...(data.code ? { code: data.code.toUpperCase() } : {}),
+      ...(deptId !== undefined ? { departmentId: deptId } : {}),
+      ...(deptName !== undefined ? { department: deptName } : {}),
+      ...(data.degreeType ? { degreeType: data.degreeType } : {}),
+      ...(typeof data.durationYears === "number" ? { durationYears: data.durationYears } : {}),
+      ...(typeof data.totalSemesters === "number" ? { totalSemesters: data.totalSemesters } : {}),
+      ...(typeof data.totalCredits === "number" ? { totalCredits: data.totalCredits } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.status ? { status: data.status } : {}),
     },
+  });
+
+  if (result.count === 0) {
+    const err: any = new Error("Course not found or access denied.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return await db.course.findFirst({
+    where: { id: courseId, institutionId },
+    include: { subjects: true },
   });
 }
 
@@ -720,13 +1422,27 @@ export async function createClass(
 }
 
 export async function getSubjects(institutionId: string, courseId?: string) {
-  return await db.subject.findMany({
+  const subjects = await db.subject.findMany({
     where: {
       institutionId,
       ...(courseId ? { courseId } : {}),
     },
     include: { course: true },
     orderBy: { name: "asc" },
+  });
+
+  return subjects.map((s) => {
+    let teacher = "";
+    if (s.description?.startsWith("Teacher:")) {
+      const parts = s.description.split("|");
+      teacher = parts[0].replace("Teacher:", "").trim();
+    }
+    return {
+      ...s,
+      courseName: s.course?.name || undefined,
+      courseCode: s.course?.code || undefined,
+      allocatedTeacherName: teacher || undefined,
+    };
   });
 }
 
@@ -738,10 +1454,40 @@ export async function createSubject(
     courseId: string;
     semester: number;
     credits: number;
+    hoursPerWeek?: number;
+    type?: any;
     isElective?: boolean;
     syllabus?: string;
+    description?: string;
+    allocatedTeacherName?: string;
   }
 ) {
+  // Validate course belongs to institutionId
+  const course = await db.course.findFirst({
+    where: { id: data.courseId, institutionId },
+  });
+  if (!course) {
+    const err: any = new Error("Referenced course not found or access denied.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  // Validate unique code within institution
+  if (data.code) {
+    const existing = await db.subject.findFirst({
+      where: { institutionId, code: data.code.toUpperCase() },
+    });
+    if (existing) {
+      const err: any = new Error(`Subject with code "${data.code}" already exists.`);
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
+  const desc = data.allocatedTeacherName
+    ? `Teacher: ${data.allocatedTeacherName}${data.description ? ` | ${data.description}` : ""}`
+    : data.description;
+
   return await db.subject.create({
     data: {
       institutionId,
@@ -750,9 +1496,95 @@ export async function createSubject(
       courseId: data.courseId,
       semester: data.semester,
       credits: data.credits,
+      hoursPerWeek: data.hoursPerWeek ?? 3,
+      type: data.type || "CORE_THEORY",
       isElective: !!data.isElective,
       syllabus: data.syllabus,
+      description: desc,
     },
+    include: { course: true },
+  });
+}
+
+export async function updateSubject(
+  institutionId: string,
+  subjectId: string,
+  data: Partial<{
+    name: string;
+    code: string;
+    courseId: string;
+    semester: number;
+    credits: number;
+    hoursPerWeek: number;
+    type: any;
+    isElective: boolean;
+    syllabus: string | null;
+    description: string | null;
+    allocatedTeacherName: string | null;
+    status: any;
+  }>
+) {
+  // If courseId is passed, validate it belongs to institutionId
+  if (data.courseId) {
+    const course = await db.course.findFirst({
+      where: { id: data.courseId, institutionId },
+    });
+    if (!course) {
+      const err: any = new Error("Referenced course not found or access denied.");
+      err.statusCode = 404;
+      throw err;
+    }
+  }
+
+  // If code is changed, check uniqueness
+  if (data.code) {
+    const existing = await db.subject.findFirst({
+      where: {
+        institutionId,
+        code: data.code.toUpperCase(),
+        id: { not: subjectId },
+      },
+    });
+    if (existing) {
+      const err: any = new Error(`Subject with code "${data.code}" already exists.`);
+      err.statusCode = 409;
+      throw err;
+    }
+  }
+
+  let desc = data.description;
+  if (data.allocatedTeacherName !== undefined) {
+    desc = data.allocatedTeacherName
+      ? `Teacher: ${data.allocatedTeacherName}${data.description ? ` | ${data.description}` : ""}`
+      : null;
+  }
+
+  const result = await db.subject.updateMany({
+    where: { id: subjectId, institutionId },
+    data: {
+      ...(data.name ? { name: data.name } : {}),
+      ...(data.code ? { code: data.code.toUpperCase() } : {}),
+      ...(data.courseId ? { courseId: data.courseId } : {}),
+      ...(typeof data.semester === "number" ? { semester: data.semester } : {}),
+      ...(typeof data.credits === "number" ? { credits: data.credits } : {}),
+      ...(typeof data.hoursPerWeek === "number" ? { hoursPerWeek: data.hoursPerWeek } : {}),
+      ...(data.type ? { type: data.type } : {}),
+      ...(typeof data.isElective === "boolean" ? { isElective: data.isElective } : {}),
+      ...(data.syllabus !== undefined ? { syllabus: data.syllabus } : {}),
+      ...(desc !== undefined ? { description: desc } : {}),
+      ...(data.status ? { status: data.status } : {}),
+    },
+  });
+
+  if (result.count === 0) {
+    const err: any = new Error("Subject not found or access denied.");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return await db.subject.findFirst({
+    where: { id: subjectId, institutionId },
+    include: { course: true },
   });
 }
 
@@ -1075,12 +1907,18 @@ export async function getResultBatches(institutionId: string) {
 }
 
 export async function publishResultBatch(institutionId: string, batchId: string) {
-  return await db.resultBatch.update({
-    where: { id: batchId },
+  const result = await db.resultBatch.updateMany({
+    where: { id: batchId, institutionId },
     data: {
       status: "PUBLISHED",
       publishedAt: new Date(),
     },
+  });
+  if (result.count === 0) {
+    throw new Error("Result batch not found or access denied.");
+  }
+  return await db.resultBatch.findFirst({
+    where: { id: batchId, institutionId },
   });
 }
 
@@ -1610,11 +2448,11 @@ export async function createHostelAllocation(
 
 export async function deleteHostelAllocation(institutionId: string, id: string) {
   try {
-    const existing = await db.hostelAllocation.findFirst({
+    const result = await db.hostelAllocation.deleteMany({
       where: { id, institutionId },
     });
-    if (existing) {
-      return await db.hostelAllocation.delete({ where: { id } });
+    if (result.count > 0) {
+      return { success: true };
     }
   } catch (err: any) {
     console.warn("Hostel allocation delete fallback:", err.message);
@@ -1761,11 +2599,11 @@ export async function createTransportAllocation(
 
 export async function deleteTransportAllocation(institutionId: string, id: string) {
   try {
-    const existing = await db.transportAllocation.findFirst({
+    const result = await db.transportAllocation.deleteMany({
       where: { id, institutionId },
     });
-    if (existing) {
-      return await db.transportAllocation.delete({ where: { id } });
+    if (result.count > 0) {
+      return { success: true };
     }
   } catch (err: any) {
     console.warn("Transport allocation delete fallback:", err.message);
@@ -1964,13 +2802,26 @@ export async function updateResourceBookingStatus(
   status: "PENDING" | "APPROVED" | "REJECTED"
 ) {
   try {
-    return await db.resourceBooking.update({
-      where: { id: bookingId },
+    const result = await db.resourceBooking.updateMany({
+      where: { id: bookingId, institutionId },
       data: { status },
     });
+    if (result.count === 0) {
+      throw new Error("Resource booking not found or access denied.");
+    }
+    return await db.resourceBooking.findFirst({
+      where: { id: bookingId, institutionId },
+    });
   } catch (err: any) {
+    if (err.message?.includes("not found or access denied")) {
+      throw err;
+    }
     console.warn("Resource booking status update fallback:", err.message);
     const current = await getResourceBookings(institutionId);
+    const target = current.find((b) => b.id === bookingId);
+    if (!target) {
+      throw new Error("Resource booking not found or access denied.");
+    }
     const updated = current.map((b) => (b.id === bookingId ? { ...b, status } : b));
     globalResourceBookingsRegistry.set(institutionId, updated);
     return updated.find((b) => b.id === bookingId);
@@ -2051,7 +2902,9 @@ export async function broadcastNotification(
   }
 ) {
   try {
-    return await db.$transaction(async (tx) => {
+    let emailRecipients: Array<{ email: string; name?: string }> = [];
+
+    const result = await db.$transaction(async (tx) => {
       const notification = await tx.notification.create({
         data: {
           institutionId,
@@ -2068,10 +2921,14 @@ export async function broadcastNotification(
             ? { role: data.targetRole as any }
             : {}),
         },
-        select: { id: true },
+        select: { id: true, email: true, name: true },
       });
 
       if (users.length > 0) {
+        emailRecipients = users
+          .filter((u) => Boolean(u.email))
+          .map((u) => ({ email: u.email, name: u.name || undefined }));
+
         await tx.notificationRecipient.createMany({
           data: users.map((u) => ({
             notificationId: notification.id,
@@ -2084,6 +2941,28 @@ export async function broadcastNotification(
 
       return notification;
     });
+
+    // Background email dispatch (non-blocking for fast UI responses)
+    if (emailRecipients.length > 0) {
+      db.institution
+        .findUnique({
+          where: { id: institutionId },
+          select: { name: true },
+        })
+        .then((inst) => {
+          sendAnnouncementNotification(emailRecipients, {
+            title: data.title,
+            message: data.message,
+            category: data.category,
+            institutionName: inst?.name || "Campus Administration",
+          }).catch((emailErr) => {
+            console.warn("[broadcastNotification] Background email dispatch warning:", emailErr.message);
+          });
+        })
+        .catch(() => {});
+    }
+
+    return result;
   } catch (err: any) {
     console.warn("Notification broadcast fallback:", err.message);
     const current = await getNotifications(institutionId);
@@ -2195,22 +3074,25 @@ export async function processApprovalRequest(
   }
 
   try {
-    const existing = await db.approvalRequest.findFirst({
+    const result = await db.approvalRequest.updateMany({
+      where: { id: requestId, institutionId, status: "PENDING" },
+      data: {
+        status,
+        adminRemarks,
+        reviewedByUserId: reviewerUserId,
+        reviewedAt: new Date(),
+      },
+    });
+    if (result.count > 0) {
+      return await db.approvalRequest.findFirst({
+        where: { id: requestId, institutionId },
+      });
+    }
+    const check = await db.approvalRequest.findFirst({
       where: { id: requestId, institutionId },
     });
-    if (existing) {
-      if (existing.status !== "PENDING") {
-        throw new Error(`Cannot decide request ${requestId}: status is already ${existing.status}. Only PENDING requests can be adjudicated.`);
-      }
-      return await db.approvalRequest.update({
-        where: { id: requestId },
-        data: {
-          status,
-          adminRemarks,
-          reviewedByUserId: reviewerUserId,
-          reviewedAt: new Date(),
-        },
-      });
+    if (check && check.status !== "PENDING") {
+      throw new Error(`Cannot decide request ${requestId}: status is already ${check.status}. Only PENDING requests can be adjudicated.`);
     }
   } catch (err: any) {
     if (

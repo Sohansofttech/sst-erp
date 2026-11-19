@@ -55,7 +55,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Class ID required." }, { status: 400 });
     }
 
-    await db.class.delete({ where: { id } });
+    const result = await db.class.deleteMany({
+      where: { id, institutionId },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Class not found or access denied." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({ success: true, message: "Class deleted." });
   } catch (error) {
     return handleAdminApiError(error);

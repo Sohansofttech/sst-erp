@@ -88,9 +88,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Exam ID and status are required." }, { status: 400 });
     }
 
-    const updated = await db.examination.update({
-      where: { id },
+    const result = await db.examination.updateMany({
+      where: { id, institutionId },
       data: { status },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Examination not found or access denied." },
+        { status: 404 }
+      );
+    }
+
+    const updated = await db.examination.findFirst({
+      where: { id, institutionId },
     });
 
     return NextResponse.json({

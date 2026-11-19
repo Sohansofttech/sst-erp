@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
+import { computePasswordSignature } from "@/lib/auth/jwt";
 import db from "@/lib/db";
 
 export interface ResolvedAdminContext {
@@ -14,6 +15,44 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
 
   if (session) {
     if (session.role === "ADMIN" || session.role === "SUPER_ADMIN") {
+      // Live account verification and password revocation verification
+      if (session.userId) {
+        const user = await db.user.findUnique({
+          where: { id: session.userId },
+          select: { id: true, isActive: true, status: true, passwordHash: true },
+        });
+
+        if (!user || !user.isActive || user.status !== "ACTIVE") {
+          throw new UnauthorizedError("Account has been deactivated, suspended, or locked.");
+        }
+
+        // Reject legacy tokens without password signature
+        if (!session.passwordSig) {
+          throw new UnauthorizedError("Session has expired or lacks required security signature. Please log in again.");
+        }
+
+        // Invalidate session if database password hash changed
+        const currentSig = computePasswordSignature(user.passwordHash || "");
+        if (session.passwordSig !== currentSig) {
+          throw new UnauthorizedError("Session has been invalidated due to a password reset or change. Please log in with your current credentials.");
+        }
+      }
+
+      // Server-side mandatory password change enforcement
+      if (session.mustChangePassword) {
+        const pathname = req.nextUrl?.pathname || "";
+        const isAllowed =
+          pathname.startsWith("/api/auth/change-password") ||
+          pathname.startsWith("/api/auth/me") ||
+          pathname.startsWith("/api/auth/logout");
+
+        if (!isAllowed) {
+          throw new ForbiddenError(
+            "Password change required: You must change your temporary password before accessing admin features."
+          );
+        }
+      }
+
       // For standard ADMIN, tenant is strictly bound to session.institutionId (spoof prevention)
       let institutionId = session.institutionId;
       // Super Admin may optionally inspect or operate on behalf of a specific institution
@@ -80,37 +119,39 @@ export function handleAdminApiError(error: any) {
   }
   console.error("Admin API error:", error?.message || error);
 
-  let status = 500;
+  let status = error?.statusCode || error?.status || 500;
   const msg = error?.message || "";
 
-  if (
-    error instanceof UnauthorizedError ||
-    error?.name === "UnauthorizedError" ||
-    msg.includes("Authentication required") ||
-    msg.includes("Unauthorized")
-  ) {
-    status = 401;
-  } else if (
-    error instanceof ForbiddenError ||
-    error?.name === "ForbiddenError" ||
-    msg.includes("Forbidden") ||
-    msg.includes("Access denied")
-  ) {
-    status = 403;
-  } else if (
-    error?.name === "ValidationError" ||
-    msg.includes("already") ||
-    msg.includes("Invalid") ||
-    msg.includes("exceeds") ||
-    msg.includes("occupied") ||
-    msg.includes("required") ||
-    msg.includes("not found") ||
-    msg.includes("greater") ||
-    msg.includes("must be") ||
-    msg.includes("Cannot") ||
-    msg.includes("Only PENDING")
-  ) {
-    status = 400;
+  if (!error?.statusCode && !error?.status) {
+    if (
+      error instanceof UnauthorizedError ||
+      error?.name === "UnauthorizedError" ||
+      msg.includes("Authentication required") ||
+      msg.includes("Unauthorized")
+    ) {
+      status = 401;
+    } else if (
+      error instanceof ForbiddenError ||
+      error?.name === "ForbiddenError" ||
+      msg.includes("Forbidden") ||
+      msg.includes("Access denied")
+    ) {
+      status = 403;
+    } else if (
+      error?.name === "ValidationError" ||
+      msg.includes("already") ||
+      msg.includes("Invalid") ||
+      msg.includes("exceeds") ||
+      msg.includes("occupied") ||
+      msg.includes("required") ||
+      msg.includes("not found") ||
+      msg.includes("greater") ||
+      msg.includes("must be") ||
+      msg.includes("Cannot") ||
+      msg.includes("Only PENDING")
+    ) {
+      status = 400;
+    }
   }
 
   return NextResponse.json(

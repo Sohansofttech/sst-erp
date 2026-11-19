@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 import { Modal } from "@/components/ui/modal";
-import { MessageSquare, Plus, Send, Bell, Users, Search, Filter, CheckCircle2, ShieldAlert } from "lucide-react";
+import { MessageSquare, Plus, Send, Bell, Users, Search, Filter, CheckCircle2, ShieldAlert, Mail } from "lucide-react";
+import { EmailDispatchModal } from "@/components/admin/EmailDispatchModal";
 
 export default function CommunicationPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
 
@@ -80,14 +82,24 @@ export default function CommunicationPage() {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          size="sm"
-          leftIcon={<Send className="w-4 h-4" />}
-          onClick={() => setIsModalOpen(true)}
-        >
-          Dispatch Broadcast Notice
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<Mail className="w-4 h-4 text-[#123B5A]" />}
+            onClick={() => setIsEmailModalOpen(true)}
+          >
+            Direct Email & Invites
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={<Send className="w-4 h-4" />}
+            onClick={() => setIsModalOpen(true)}
+          >
+            Dispatch Broadcast Notice
+          </Button>
+        </div>
       </div>
 
       {/* Communication KPI Summary Cards */}
@@ -307,6 +319,15 @@ export default function CommunicationPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Email Dispatcher Modal */}
+      <EmailDispatchModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        initialRole="ALL"
+        allowedRoles={["ALL", "STUDENT", "TEACHER", "PARENT"]}
+        onSuccess={fetchNotifications}
+      />
     </div>
   );
 }

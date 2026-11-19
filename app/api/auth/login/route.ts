@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import db from "@/lib/db";
-import { signToken, AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
+import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "@/lib/auth/jwt";
 import { SessionUser } from "@/types";
 import { syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
+import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
         role: true,
         platformRole: true,
         isActive: true,
+        lastLoginAt: true,
         institutionId: true,
         institution: {
           select: {
@@ -178,7 +180,7 @@ export async function POST(req: NextRequest) {
         studentId = studentRecord.id;
       }
     } else if (userRole === "PARENT" || userRole === "GUARDIAN") {
-      redirectUrl = "/parent/dashboard";
+      redirectUrl = "/dashboard";
       try {
         const guardians = await db.$queryRaw<any[]>`
           SELECT id FROM guardian_accounts WHERE "userId" = ${user.id} LIMIT 1
@@ -228,6 +230,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Reliably detect temporary credentials using existing audit log infrastructure
+    // (Preserves existing users with null lastLoginAt from false-positive password change prompts)
+    const mustChangePassword = await isTemporaryPasswordActive(user.id);
+    const passwordSig = computePasswordSignature(user.passwordHash || "");
+
     const sessionUser: SessionUser = {
       userId: user.id,
       email: user.email,
@@ -238,11 +245,13 @@ export async function POST(req: NextRequest) {
       studentId,
       guardianId,
       activeChildId,
+      mustChangePassword,
+      passwordSig,
     };
 
     const token = await signToken(sessionUser);
 
-    // Update last login
+    // Update last login timestamp without corrupting audit history
     try {
       await db.$executeRaw`
         UPDATE users SET "lastLoginAt" = NOW() WHERE id = ${user.id}
@@ -251,11 +260,15 @@ export async function POST(req: NextRequest) {
       // Non-critical background update
     }
 
+    // Strip internal security signatures from client response
+    const safeUser = { ...sessionUser };
+    delete safeUser.passwordSig;
+
     const response = NextResponse.json({
       success: true,
       message: "Authentication successful.",
       data: {
-        user: sessionUser,
+        user: safeUser,
         token,
         redirectUrl,
       },
