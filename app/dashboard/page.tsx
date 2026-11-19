@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { Card } from "@/components/shared/Card";
-import { StatCard } from "@/components/shared/StatCard";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { fetchClientSession } from "@/lib/auth/client-session";
@@ -19,17 +17,12 @@ import {
   Clock,
   MapPin,
   AlertTriangle,
-  Building2,
-  MessageSquare,
   Bell,
   Users,
-  GraduationCap,
   FileText,
-  Layers,
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [session, setSession] = useState<{
     id?: string;
     userId?: string;
@@ -260,31 +253,6 @@ export default function DashboardPage() {
     };
   }, [fetchDashboardData]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-9 h-9 border-3 border-[#0F2942] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-xs font-semibold text-[#64748B]">Loading Student Portal...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session) return null;
-
-  if (session.role !== "STUDENT" && session.role !== "PARENT" && session.role !== "GUARDIAN") {
-    return (
-      <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-xs font-semibold text-[#64748B]">Redirecting to your authorized portal...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const isParent = session.role === "PARENT" || session.role === "GUARDIAN";
   const {
     student,
     attendanceSummary,
@@ -298,14 +266,8 @@ export default function DashboardPage() {
     cgpa,
   } = data || {};
 
-  const studentName = student?.firstName
-    ? `${student.firstName} ${student.lastName || ""}`.trim()
-    : (student?.fullName || "").trim();
-  const displayName = studentName || (session?.fullName || "").trim() || "Student";
-  const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
-  const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
-
   // Student Enrolled Courses with dynamic subject-wise attendance
+  // MUST be called unconditionally before any early returns to satisfy React Rules of Hooks
   const enrolledCourses = React.useMemo(() => {
     const baseCourses = [
       {
@@ -404,6 +366,39 @@ export default function DashboardPage() {
       };
     });
   }, [subjectWiseAttendance]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-9 h-9 border-3 border-[#0F2942] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-xs font-semibold text-[#64748B]">Loading Student Portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) return null;
+
+  if (session.role !== "STUDENT" && session.role !== "PARENT" && session.role !== "GUARDIAN") {
+    return (
+      <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-xs font-semibold text-[#64748B]">Redirecting to your authorized portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isParent = session.role === "PARENT" || session.role === "GUARDIAN";
+
+  const studentName = student?.firstName
+    ? `${student.firstName} ${student.lastName || ""}`.trim()
+    : (student?.fullName || "").trim();
+  const displayName = studentName || (session?.fullName || "").trim() || "Student";
+  const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
+  const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
 
   return (
     <PortalLayout
