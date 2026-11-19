@@ -42,7 +42,7 @@ export interface ClassAllocation {
   role: "class_teacher" | "co_class_teacher" | "subject_teacher"
   studentCount: number
   roomNo: string
-  averageAttendancePercent: number
+  averageAttendancePercent: number | null
 }
 
 export interface SubjectAllocation {
@@ -82,7 +82,7 @@ export interface StudentRosterItem {
   className: string
   sectionId: string
   section: string
-  attendancePercent: number
+  attendancePercent: number | null
   iaAverage: number
   guardianContact: GuardianContact
   houseOrGroup?: string
@@ -538,7 +538,7 @@ export interface Mentee {
   className: string
   section: string
   photoUrl?: string
-  attendancePercent: number
+  attendancePercent: number | null
   iaAverage: number
   iaTrend?: "up" | "down" | "stable"
   riskLevel: "on_track" | "watch" | "at_risk"
@@ -751,7 +751,7 @@ export interface DepartmentFacultyLoad {
   sectionsCount: number
   weeklyHours: number
   syllabusAveragePercent: number
-  attendanceAveragePercent: number
+  attendanceAveragePercent: number | null
 }
 
 // ---------------------------------------------------------------------------

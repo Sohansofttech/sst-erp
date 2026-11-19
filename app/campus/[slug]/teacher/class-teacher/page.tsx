@@ -91,13 +91,23 @@ type RecommendationType =
   | "Merit Commendation"
 
 function defaultRecommendation(s: StudentRosterItem): RecommendationType {
-  if (s.attendancePercent < 75 || s.iaAverage < 60) {
+  if (
+    (s.attendancePercent !== null && s.attendancePercent < 75) ||
+    s.iaAverage < 60
+  ) {
     return "Parent Conference"
   }
-  if (s.attendancePercent < 82 || s.iaAverage < 70) {
+  if (
+    (s.attendancePercent !== null && s.attendancePercent < 82) ||
+    s.iaAverage < 70
+  ) {
     return "Remedial Support"
   }
-  if (s.attendancePercent >= 95 && s.iaAverage >= 90) {
+  if (
+    s.attendancePercent !== null &&
+    s.attendancePercent >= 95 &&
+    s.iaAverage >= 90
+  ) {
     return "Merit Commendation"
   }
   return "Good Standing"
@@ -189,8 +199,11 @@ export default function ClassTeacherToolsPage() {
     if (student) {
       noticeForm.reset({
         title: `Attendance & Academic Advisory — ${student.fullName} (${student.rollNo})`,
-        priority: student.attendancePercent < 75 ? "urgent" : "important",
-        content: `Dear Parent/Guardian of ${student.fullName} (Roll ${student.rollNo}, Class 10 - A),\n\nCurrent attendance stands at ${student.attendancePercent}% (minimum required: 75%) with an Internal Assessment average of ${student.iaAverage}%. Kindly meet the Class Teacher during PTI hours to review the catch-up plan.`,
+        priority:
+          student.attendancePercent !== null && student.attendancePercent < 75
+            ? "urgent"
+            : "important",
+        content: `Dear Parent/Guardian of ${student.fullName} (Roll ${student.rollNo}, Class 10 - A),\n\nCurrent attendance stands at ${student.attendancePercent !== null ? `${student.attendancePercent}%` : "Pending records"} (minimum required: 75%) with an Internal Assessment average of ${student.iaAverage}%. Kindly meet the Class Teacher during PTI hours to review the catch-up plan.`,
       })
     } else {
       noticeForm.reset({
@@ -246,18 +259,29 @@ export default function ClassTeacherToolsPage() {
     )
   }
 
-  const defaulters = students.filter((s) => s.attendancePercent < 75)
+  const defaulters = students.filter(
+    (s) => s.attendancePercent !== null && s.attendancePercent < 75
+  )
   const borderline = students.filter(
-    (s) => s.attendancePercent >= 75 && s.attendancePercent < 82
+    (s) =>
+      s.attendancePercent !== null &&
+      s.attendancePercent >= 75 &&
+      s.attendancePercent < 82
+  )
+  const studentsWithAttendance = students.filter(
+    (s) => s.attendancePercent !== null && s.attendancePercent !== undefined
   )
   const avgAttendance =
-    students.length > 0
+    studentsWithAttendance.length > 0
       ? Math.round(
-          (students.reduce((sum, s) => sum + s.attendancePercent, 0) /
-            students.length) *
+          (studentsWithAttendance.reduce(
+            (sum, s) => sum + (s.attendancePercent ?? 0),
+            0
+          ) /
+            studentsWithAttendance.length) *
             10
         ) / 10
-      : 0
+      : null
   const avgIA =
     students.length > 0
       ? Math.round(
@@ -267,7 +291,10 @@ export default function ClassTeacherToolsPage() {
         ) / 10
       : 0
   const honorStudents = students.filter(
-    (s) => s.attendancePercent >= 95 && s.iaAverage >= 85
+    (s) =>
+      s.attendancePercent !== null &&
+      s.attendancePercent >= 95 &&
+      s.iaAverage >= 85
   ).length
 
   const filteredStudents = students.filter(
@@ -318,7 +345,7 @@ export default function ClassTeacherToolsPage() {
         />
         <StatCard
           label="Section Avg Attendance"
-          value={`${avgAttendance}%`}
+          value={avgAttendance !== null ? `${avgAttendance}%` : "N/A"}
           icon={<CheckCircle2 />}
           tone="success"
           description="Threshold: 75% mandatory"
@@ -380,7 +407,9 @@ export default function ClassTeacherToolsPage() {
                   </TableHeader>
                   <TableBody>
                     {[...defaulters, ...borderline].map((student) => {
-                      const critical = student.attendancePercent < 75
+                      const critical =
+                        student.attendancePercent !== null &&
+                        student.attendancePercent < 75
                       return (
                         <TableRow key={student.studentId}>
                           <TableCell className="font-medium text-foreground">
@@ -396,7 +425,10 @@ export default function ClassTeacherToolsPage() {
                                 critical ? "text-error" : "text-amber-700"
                               )}
                             >
-                              {student.attendancePercent}%
+                              {student.attendancePercent !== null &&
+                              student.attendancePercent !== undefined
+                                ? `${student.attendancePercent}%`
+                                : "N/A"}
                             </span>
                           </TableCell>
                           <TableCell>{student.iaAverage}%</TableCell>
@@ -442,7 +474,13 @@ export default function ClassTeacherToolsPage() {
                 <div className="flex justify-between">
                   <span className="text-[#788391]">90% and above</span>
                   <span className="font-bold text-emerald-700">
-                    {students.filter((s) => s.attendancePercent >= 90).length}{" "}
+                    {
+                      students.filter(
+                        (s) =>
+                          s.attendancePercent !== null &&
+                          s.attendancePercent >= 90
+                      ).length
+                    }{" "}
                     students
                   </span>
                 </div>
@@ -452,7 +490,9 @@ export default function ClassTeacherToolsPage() {
                     {
                       students.filter(
                         (s) =>
-                          s.attendancePercent >= 75 && s.attendancePercent < 90
+                          s.attendancePercent !== null &&
+                          s.attendancePercent >= 75 &&
+                          s.attendancePercent < 90
                       ).length
                     }{" "}
                     students
@@ -576,14 +616,20 @@ export default function ClassTeacherToolsPage() {
                           <Badge
                             variant="outline"
                             className={cn(
-                              student.attendancePercent < 75
-                                ? "border-error/30 bg-error/10 text-error"
-                                : student.attendancePercent < 82
-                                  ? "border-warning/35 bg-warning/12 text-amber-700"
-                                  : "border-success/25 bg-success/10 text-success"
+                              student.attendancePercent === null ||
+                                student.attendancePercent === undefined
+                                ? "border-slate-200 bg-slate-50 text-slate-700"
+                                : student.attendancePercent < 75
+                                  ? "border-error/30 bg-error/10 text-error"
+                                  : student.attendancePercent < 82
+                                    ? "border-warning/35 bg-warning/12 text-amber-700"
+                                    : "border-success/25 bg-success/10 text-success"
                             )}
                           >
-                            {student.attendancePercent}%
+                            {student.attendancePercent !== null &&
+                            student.attendancePercent !== undefined
+                              ? `${student.attendancePercent}%`
+                              : "N/A"}
                           </Badge>
                         </TableCell>
                         <TableCell>{student.iaAverage}%</TableCell>

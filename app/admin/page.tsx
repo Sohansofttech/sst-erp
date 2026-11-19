@@ -38,8 +38,15 @@ import {
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const { stats, profile, activeAcademicYear, recentActivities, students, departments } =
-    useInstitution();
+  const {
+    stats,
+    profile,
+    activeAcademicYear,
+    recentActivities,
+    students,
+    departments,
+    getClassAttendanceSummaries,
+  } = useInstitution();
 
   const [activeChartTab, setActiveChartTab] = useState<"enrollment" | "finance" | "attendance">("enrollment");
   const [approvals, setApprovals] = useState<any[]>([]);
@@ -432,26 +439,39 @@ export default function DashboardPage() {
 
           {activeChartTab === "attendance" && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 text-center rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                <div className="text-[11px] font-bold text-[#64748B]">1st Year (Semester 1 & 2)</div>
-                <div className="text-xl font-black text-[#16466C] mt-1">96.4%</div>
-                <div className="text-[10px] text-[#64748B] mt-0.5">Optimal attendance</div>
-              </div>
-              <div className="p-3 text-center rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                <div className="text-[11px] font-bold text-[#64748B]">2nd Year (Semester 3 & 4)</div>
-                <div className="text-xl font-black text-[#F5A000] mt-1">94.8%</div>
-                <div className="text-[10px] text-[#64748B] mt-0.5">Optimal attendance</div>
-              </div>
-              <div className="p-3 text-center rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                <div className="text-[11px] font-bold text-[#64748B]">3rd Year (Semester 5 & 6)</div>
-                <div className="text-xl font-black text-[#F5A000] mt-1">93.2%</div>
-                <div className="text-[10px] text-[#64748B] mt-0.5">Optimal attendance</div>
-              </div>
-              <div className="p-3 text-center rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
-                <div className="text-[11px] font-bold text-[#64748B]">Final Year (Semester 7 & 8)</div>
-                <div className="text-xl font-black text-[#F5A000] mt-1">95.0%</div>
-                <div className="text-[10px] text-[#64748B] mt-0.5">Optimal attendance</div>
-              </div>
+              {[
+                { label: "1st Year (Semester 1 & 2)", key: "1" },
+                { label: "2nd Year (Semester 3 & 4)", key: "2" },
+                { label: "3rd Year (Semester 5 & 6)", key: "3" },
+                { label: "Final Year (Semester 7 & 8)", key: "4" },
+              ].map((yr) => {
+                const classAttendanceList = getClassAttendanceSummaries ? getClassAttendanceSummaries() : [];
+                const matchedClass = classAttendanceList.find(
+                  (c) =>
+                    c.className.toLowerCase().includes(`${yr.key}st`) ||
+                    c.className.toLowerCase().includes(`${yr.key}nd`) ||
+                    c.className.toLowerCase().includes(`${yr.key}rd`) ||
+                    c.className.toLowerCase().includes(`${yr.key}th`) ||
+                    c.className.includes(yr.key)
+                );
+                const avgPct = matchedClass?.averagePercentage ?? null;
+                const hasAvg = avgPct !== null && avgPct !== undefined;
+                return (
+                  <div key={yr.key} className="p-3 text-center rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
+                    <div className="text-[11px] font-bold text-[#64748B]">{yr.label}</div>
+                    <div className={`text-xl font-black mt-1 ${hasAvg ? "text-[#16466C]" : "text-[#94A3B8]"}`}>
+                      {hasAvg ? `${avgPct}%` : "N/A"}
+                    </div>
+                    <div className="text-[10px] text-[#64748B] mt-0.5">
+                      {hasAvg
+                        ? avgPct >= 75
+                          ? "Optimal attendance"
+                          : "Attendance shortage"
+                        : "No session records"}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>

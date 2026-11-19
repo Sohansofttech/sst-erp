@@ -501,7 +501,7 @@ export interface StudentAttendanceSummary {
   absentCount: number;
   lateCount: number;
   leaveCount: number;
-  percentage: number;
+  percentage: number | null;
   isBelowThreshold: boolean;
   isWarning: boolean;
   guardianName?: string;
@@ -516,7 +516,7 @@ export interface ClassAttendanceSummary {
   sectionName?: string;
   totalEnrolled: number;
   totalSessions: number;
-  averagePercentage: number;
+  averagePercentage: number | null;
   lowAttendanceCount: number;
 }
 
@@ -605,7 +605,7 @@ export interface ExamEligibilityOverride {
   studentId: string;
   studentName: string;
   rollNumber: string;
-  attendancePercentage: number;
+  attendancePercentage: number | null;
   status: "Approved" | "Rejected";
   reason: string;
   authorizedBy: string;

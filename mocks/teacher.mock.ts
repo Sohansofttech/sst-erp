@@ -1131,19 +1131,21 @@ export const MENTEES_MOCK: Mentee[] = [
         ? ("up" as const)
         : ("stable" as const),
   riskLevel:
-    student.attendancePercent < 75 || student.iaAverage < 60
+    (student.attendancePercent !== null && student.attendancePercent < 75) ||
+    student.iaAverage < 60
       ? "at_risk"
-      : student.attendancePercent < 85 || student.iaAverage < 75
+      : (student.attendancePercent !== null && student.attendancePercent < 85) ||
+          student.iaAverage < 75
         ? "watch"
         : "on_track",
   guardianContact: student.guardianContact,
   lastSessionDate: "2026-11-05",
   notesSummary:
-    student.attendancePercent < 75
+    student.attendancePercent !== null && student.attendancePercent < 75
       ? "Follow up on recent absences & extra doubt-clearing sessions."
       : "Steady progress; encourage participation in Math Olympiad practice.",
   confidentialNotes:
-    student.attendancePercent < 75
+    student.attendancePercent !== null && student.attendancePercent < 75
       ? "Parent shared that student missed 4 school days due to seasonal viral fever; recommended bridge worksheets."
       : undefined,
 }))

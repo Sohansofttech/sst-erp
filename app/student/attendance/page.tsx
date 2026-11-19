@@ -58,10 +58,26 @@ export default function AttendancePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Overall Attendance"
-          value={`${summary?.overallPercentage ?? 0}%`}
-          subtitle="Minimum 75% required"
-          badgeText={summary?.overallPercentage >= 75 ? "Eligible" : "Attendance Shortage"}
-          badgeVariant={summary?.overallPercentage >= 75 ? "success" : "error"}
+          value={
+            summary?.overallPercentage !== null && summary?.overallPercentage !== undefined
+              ? `${summary.overallPercentage}%`
+              : "N/A"
+          }
+          subtitle={summary?.hasData ? "Minimum 75% required" : "No attendance data"}
+          badgeText={
+            !summary?.hasData
+              ? "Pending"
+              : summary?.overallPercentage >= 75
+              ? "Eligible"
+              : "Attendance Shortage"
+          }
+          badgeVariant={
+            !summary?.hasData
+              ? "neutral"
+              : summary?.overallPercentage >= 75
+              ? "success"
+              : "error"
+          }
           variant="dark"
           icon={<CheckCircle2 className="w-5 h-5 text-white" />}
         />
@@ -137,7 +153,9 @@ export default function AttendancePage() {
         <Card title="Subject-Wise Attendance Breakdown">
           <div className="space-y-4">
             {subjectWise?.map((sub: any) => {
-              const isEligible = sub.percentage >= 75;
+              const hasSubData = sub.percentage !== null && sub.percentage !== undefined;
+              const isEligible = hasSubData && sub.percentage >= 75;
+              const barWidth = hasSubData ? Math.min(100, Math.max(0, sub.percentage)) : 0;
               return (
                 <div
                   key={sub.subjectId}
@@ -153,16 +171,18 @@ export default function AttendancePage() {
                       </h4>
                     </div>
                     <p className="text-xs text-[#64748B]">
-                      Attended {sub.attendedClasses} out of {sub.totalClasses} total lectures
+                      {hasSubData
+                        ? `Attended ${sub.attendedClasses} out of ${sub.totalClasses} total lectures`
+                        : "No instructional sessions logged for this subject"}
                     </p>
 
                     {/* Progress Bar */}
                     <div className="mt-2 w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          isEligible ? "bg-[#16A34A]" : "bg-[#DC2626]"
+                          !hasSubData ? "bg-slate-300" : isEligible ? "bg-[#16A34A]" : "bg-[#DC2626]"
                         }`}
-                        style={{ width: `${Math.min(100, sub.percentage)}%` }}
+                        style={{ width: `${barWidth}%` }}
                       />
                     </div>
                   </div>
@@ -170,12 +190,12 @@ export default function AttendancePage() {
                   <div className="flex items-center gap-4 self-end sm:self-center">
                     <div className="text-right">
                       <span className="text-xl font-bold text-[#1E293B] block">
-                        {sub.percentage}%
+                        {hasSubData ? `${sub.percentage}%` : "N/A"}
                       </span>
                       <span className="text-[11px] text-[#64748B]">Attendance</span>
                     </div>
-                    <Badge variant={isEligible ? "success" : "error"}>
-                      {isEligible ? "Exam Eligible" : "Low %"}
+                    <Badge variant={!hasSubData ? "neutral" : isEligible ? "success" : "error"}>
+                      {!hasSubData ? "Pending" : isEligible ? "Exam Eligible" : "Low %"}
                     </Badge>
                   </div>
                 </div>
@@ -286,7 +306,11 @@ export default function AttendancePage() {
                 },
               ]}
               data={absenceHistory || []}
-              emptyMessage="No absences recorded! 100% attendance maintained."
+              emptyMessage={
+                summary?.hasData
+                  ? "No absences recorded in the selected period."
+                  : "No attendance sessions recorded yet."
+              }
             />
           </Card>
         </div>

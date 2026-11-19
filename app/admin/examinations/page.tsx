@@ -45,8 +45,9 @@ interface StudentEligibilityItem {
   rollNumber: string;
   className: string;
   sectionName?: string;
-  attendancePercentage: number;
+  attendancePercentage: number | null;
   isAttendanceEligible: boolean;
+  eligibilityStatus?: "ELIGIBLE" | "DEFAULTER" | "PENDING_RECORDS";
   hasOverride: boolean;
   overrideStatus?: "Approved" | "Rejected";
   overrideReason?: string;
@@ -781,11 +782,11 @@ export default function ExaminationsPage() {
       `"${item.studentName}"`,
       `"${item.className || "-"}"`,
       `"${item.sectionName || "-"}"`,
-      `${item.attendancePercentage.toFixed(1)}%`,
+      item.attendancePercentage !== null ? `${item.attendancePercentage.toFixed(1)}%` : "N/A",
       `${attendanceThreshold.minimumPercentage}%`,
-      item.isAttendanceEligible ? "YES" : "NO",
+      item.eligibilityStatus === "PENDING_RECORDS" ? "PENDING" : item.isAttendanceEligible ? "YES" : "NO",
       item.hasOverride ? "YES" : "NO",
-      item.finalEligible ? "ELIGIBLE" : "DEFAULTER",
+      item.finalEligible ? "ELIGIBLE" : item.eligibilityStatus === "PENDING_RECORDS" ? "PENDING_RECORDS" : "DEFAULTER",
       `"${item.overrideReason || "-"}"`,
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -1986,34 +1987,48 @@ export default function ExaminationsPage() {
                           </p>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`font-black ${
-                                item.attendancePercentage >= attendanceThreshold.minimumPercentage
-                                  ? "text-[#16A34A]"
-                                  : "text-[#DC2626]"
-                              }`}
-                            >
-                              {item.attendancePercentage.toFixed(1)}%
-                            </span>
-                            <div className="w-16 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${
+                          {item.attendancePercentage !== null && item.attendancePercentage !== undefined ? (
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`font-black ${
                                   item.attendancePercentage >= attendanceThreshold.minimumPercentage
-                                    ? "bg-[#16A34A]"
-                                    : "bg-[#DC2626]"
+                                    ? "text-[#16A34A]"
+                                    : "text-[#DC2626]"
                                 }`}
-                                style={{ width: `${Math.min(100, item.attendancePercentage)}%` }}
-                              />
+                              >
+                                {item.attendancePercentage.toFixed(1)}%
+                              </span>
+                              <div className="w-16 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    item.attendancePercentage >= attendanceThreshold.minimumPercentage
+                                      ? "bg-[#16A34A]"
+                                      : "bg-[#DC2626]"
+                                  }`}
+                                  style={{ width: `${Math.min(100, item.attendancePercentage)}%` }}
+                                />
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <span className="text-xs font-semibold text-[#94A3B8]">N/A</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <Badge
-                            variant={item.isAttendanceEligible ? "success" : "error"}
+                            variant={
+                              item.eligibilityStatus === "PENDING_RECORDS"
+                                ? "neutral"
+                                : item.isAttendanceEligible
+                                ? "success"
+                                : "error"
+                            }
                             size="sm"
                           >
-                            {item.isAttendanceEligible ? "Eligible" : "Defaulter"}
+                            {item.eligibilityStatus === "PENDING_RECORDS"
+                              ? "Pending Records"
+                              : item.isAttendanceEligible
+                              ? "Eligible"
+                              : "Defaulter"}
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
@@ -2760,16 +2775,21 @@ export default function ExaminationsPage() {
               </p>
               <p>
                 <strong>Calculated Attendance:</strong>{" "}
-                <span
-                  className={
-                    selectedStudentForOverride.attendancePercentage >=
-                    attendanceThreshold.minimumPercentage
-                      ? "text-[#16A34A] font-bold"
-                      : "text-[#DC2626] font-bold"
-                  }
-                >
-                  {selectedStudentForOverride.attendancePercentage.toFixed(1)}%
-                </span>
+                {selectedStudentForOverride.attendancePercentage !== null &&
+                selectedStudentForOverride.attendancePercentage !== undefined ? (
+                  <span
+                    className={
+                      selectedStudentForOverride.attendancePercentage >=
+                      attendanceThreshold.minimumPercentage
+                        ? "text-[#16A34A] font-bold"
+                        : "text-[#DC2626] font-bold"
+                    }
+                  >
+                    {selectedStudentForOverride.attendancePercentage.toFixed(1)}%
+                  </span>
+                ) : (
+                  <span className="text-[#94A3B8] font-bold">N/A (Pending Records)</span>
+                )}
               </p>
             </div>
           )}

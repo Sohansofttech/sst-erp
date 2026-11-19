@@ -74,8 +74,14 @@ export async function getDashboardMetrics(institutionId: string) {
         WHERE "institutionId" = ${institutionId}
       `,
       db.$queryRaw`
-        SELECT COUNT(*)::int as total,
-               COUNT(*) FILTER (WHERE status = 'PRESENT')::int as present
+        SELECT COUNT(*)::int as total_records,
+               COUNT(*) FILTER (WHERE UPPER(status) IN ('PRESENT', 'LATE', 'ON_DUTY', 'HALF_DAY', 'ABSENT'))::int as countable,
+               (
+                 COUNT(*) FILTER (WHERE UPPER(status) IN ('PRESENT', 'LATE', 'ON_DUTY')) +
+                 0.5 * COUNT(*) FILTER (WHERE UPPER(status) = 'HALF_DAY')
+               )::float as attended_credits,
+               COUNT(*) FILTER (WHERE UPPER(status) = 'ABSENT')::int as absent_count,
+               COUNT(*) FILTER (WHERE UPPER(status) IN ('EXCUSED', 'ON_LEAVE'))::int as excused_count
         FROM attendance_records
         WHERE "institutionId" = ${institutionId}
       `,
@@ -138,13 +144,13 @@ export async function getDashboardMetrics(institutionId: string) {
     }
 
     let attendanceRate = "N/A";
-    let attendanceRateNumber = 0;
+    let attendanceRateNumber: number | null = null;
     if (attRes.status === "fulfilled") {
       const rows = attRes.value as any[];
-      const totalAtt = rows[0]?.total ?? 0;
-      const presentAtt = rows[0]?.present ?? 0;
-      if (totalAtt > 0) {
-        attendanceRateNumber = Math.round((presentAtt / totalAtt) * 100);
+      const countable = rows[0]?.countable ?? 0;
+      const attended = rows[0]?.attended_credits ?? 0;
+      if (countable > 0) {
+        attendanceRateNumber = Math.round((attended / countable) * 1000) / 10;
         attendanceRate = `${attendanceRateNumber}%`;
       }
     }
@@ -811,20 +817,47 @@ export async function createTimetableSlot(
 // ----------------------------------------------------------------------------
 export async function getAttendanceRecords(
   institutionId: string,
-  filters: { studentId?: string; date?: Date }
+  filters: {
+    studentId?: string;
+    subjectId?: string;
+    academicYearId?: string;
+    semester?: number;
+    classId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    date?: Date;
+  }
 ) {
+  const where: any = {
+    institutionId,
+  };
+
+  if (filters.studentId) where.studentId = filters.studentId;
+  if (filters.subjectId) where.subjectId = filters.subjectId;
+  if (filters.date) where.date = filters.date;
+
+  if (filters.startDate || filters.endDate) {
+    where.date = {};
+    if (filters.startDate) where.date.gte = filters.startDate;
+    if (filters.endDate) where.date.lte = filters.endDate;
+  }
+
+  if (filters.academicYearId || filters.semester || filters.classId) {
+    where.enrollment = {};
+    if (filters.academicYearId) where.enrollment.academicYearId = filters.academicYearId;
+    if (filters.semester) where.enrollment.semester = filters.semester;
+    if (filters.classId) where.enrollment.courseId = filters.classId;
+  }
+
   return await db.attendanceRecord.findMany({
-    where: {
-      institutionId,
-      ...(filters.studentId ? { studentId: filters.studentId } : {}),
-      ...(filters.date ? { date: filters.date } : {}),
-    },
+    where,
     include: {
       student: true,
       subject: true,
+      enrollment: true,
     },
     orderBy: { date: "desc" },
-    take: 100,
+    take: 500,
   });
 }
 
@@ -834,7 +867,7 @@ export async function markStudentAttendance(
     studentId: string;
     subjectId: string;
     date: Date;
-    status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
+    status: "PRESENT" | "ABSENT" | "LATE" | "HALF_DAY" | "ON_DUTY" | "EXCUSED" | "ON_LEAVE";
     remarks?: string;
   }[]
 ) {

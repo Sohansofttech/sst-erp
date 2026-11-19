@@ -207,17 +207,20 @@ export default function HodOversightPage() {
   const pendingApprovals = assessments.filter(
     (ia) => ia.status === "submitted" || ia.status === "in_review"
   ).length
+  const facultyWithAtt = facultyLoad.filter(
+    (f) => f.attendanceAveragePercent !== null && f.attendanceAveragePercent !== undefined
+  )
   const deptAvgAttendance =
-    facultyLoad.length > 0
+    facultyWithAtt.length > 0
       ? Math.round(
-          (facultyLoad.reduce(
-            (sum, f) => sum + f.attendanceAveragePercent,
+          (facultyWithAtt.reduce(
+            (sum, f) => sum + (f.attendanceAveragePercent ?? 0),
             0
           ) /
-            facultyLoad.length) *
+            facultyWithAtt.length) *
             10
         ) / 10
-      : 0
+      : null
   const deptAvgSyllabus =
     facultyLoad.length > 0
       ? Math.round(
@@ -272,7 +275,7 @@ export default function HodOversightPage() {
         />
         <StatCard
           label="Dept Avg Attendance"
-          value={`${deptAvgAttendance}%`}
+          value={deptAvgAttendance !== null ? `${deptAvgAttendance}%` : "N/A"}
           icon={<BarChart3 />}
           tone="success"
           description={`Avg syllabus: ${deptAvgSyllabus}%`}
@@ -586,7 +589,9 @@ export default function HodOversightPage() {
                       Attendance Avg
                     </div>
                     <div className="mt-0.5 text-lg font-bold text-[#202936]">
-                      {fac.attendanceAveragePercent}%
+                      {fac.attendanceAveragePercent !== null && fac.attendanceAveragePercent !== undefined
+                        ? `${fac.attendanceAveragePercent}%`
+                        : "N/A"}
                     </div>
                   </div>
                   <div className="rounded-xl bg-[#EEF1F5]/60 border border-[#E5E9EF] p-2.5">

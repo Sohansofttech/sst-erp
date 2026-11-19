@@ -79,6 +79,10 @@ import {
   EligibilityCheckItem,
 } from "@/types/institution";
 import {
+  calculateAttendance,
+  RawAttendanceRecord,
+} from "@/lib/services/attendance-calculator";
+import {
   initialInstitutionProfile,
   initialAcademicYears,
   initialDepartments,
@@ -277,11 +281,17 @@ interface InstitutionContextType {
     sectionId?: string
   ) => {
     totalEnrolled: number;
+    totalSessions: number;
+    totalRecords: number;
     present: number;
     absent: number;
     late: number;
     onLeave: number;
-    percentage: number;
+    onDuty: number;
+    halfDay: number;
+    percentage: number | null;
+    hasData: boolean;
+    displayLabel: string;
   };
 
   // Examination Management (Phase 3)
@@ -359,8 +369,9 @@ interface InstitutionContextType {
     rollNumber: string;
     className: string;
     sectionName?: string;
-    attendancePercentage: number;
+    attendancePercentage: number | null;
     isAttendanceEligible: boolean;
+    eligibilityStatus: "ELIGIBLE" | "DEFAULTER" | "PENDING_RECORDS";
     hasOverride: boolean;
     overrideStatus?: "Approved" | "Rejected";
     overrideReason?: string;
@@ -2249,14 +2260,25 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         studentRecords = studentRecords.filter((r) => r.date <= endDate);
       }
 
-      const totalSessions = studentRecords.length;
-      const presentCount = studentRecords.filter((r) => r.status === "Present").length;
-      const lateCount = studentRecords.filter((r) => r.status === "Late").length;
-      const leaveCount = studentRecords.filter((r) => r.status === "On Leave").length;
-      const absentCount = studentRecords.filter((r) => r.status === "Absent").length;
+      const rawRecords: RawAttendanceRecord[] = studentRecords.map((r) => ({
+        id: r.id,
+        studentId: r.studentId,
+        date: r.date,
+        session: r.session,
+        status: r.status,
+      }));
 
-      const effectiveAttended = presentCount + lateCount;
-      const percentage = totalSessions > 0 ? Math.round((effectiveAttended / totalSessions) * 1000) / 10 : 100;
+      const calc = calculateAttendance(rawRecords, {
+        minThreshold: attendanceThreshold.minimumPercentage,
+        precision: 1,
+      });
+
+      const totalSessions = calc.countableSessions;
+      const presentCount = calc.statusCounts.present;
+      const lateCount = calc.statusCounts.late;
+      const leaveCount = calc.statusCounts.excused; // On Leave / Excused
+      const absentCount = calc.statusCounts.absent;
+      const percentage = calc.percentage;
 
       const primaryGuardianId = student.guardianIds?.[0];
       const primaryGuardian = guardians.find((g) => g.id === primaryGuardianId || g.guardianId === primaryGuardianId);
@@ -2276,9 +2298,10 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         lateCount,
         leaveCount,
         percentage,
-        isBelowThreshold: totalSessions > 0 && percentage < attendanceThreshold.minimumPercentage,
+        isBelowThreshold: totalSessions > 0 && percentage !== null && percentage < attendanceThreshold.minimumPercentage,
         isWarning:
           totalSessions > 0 &&
+          percentage !== null &&
           percentage >= attendanceThreshold.minimumPercentage &&
           percentage <= attendanceThreshold.warningPercentage,
         guardianName: primaryGuardian?.fullName,
@@ -2307,9 +2330,21 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       if (endDate) classRecords = classRecords.filter((r) => r.date <= endDate);
 
       const totalSessions = new Set(classRecords.map((r) => `${r.date}_${r.session}`)).size;
-      const presentOrLate = classRecords.filter((r) => r.status === "Present" || r.status === "Late").length;
-      const averagePercentage =
-        classRecords.length > 0 ? Math.round((presentOrLate / classRecords.length) * 1000) / 10 : 100;
+
+      const rawRecords: RawAttendanceRecord[] = classRecords.map((r) => ({
+        id: r.id,
+        studentId: r.studentId,
+        date: r.date,
+        session: r.session,
+        status: r.status,
+      }));
+
+      const calc = calculateAttendance(rawRecords, {
+        minThreshold: attendanceThreshold.minimumPercentage,
+        precision: 1,
+      });
+
+      const averagePercentage = calc.percentage;
 
       // Count students with low attendance
       const studentSummaries = getStudentAttendanceSummaries(cls.id, undefined, startDate, endDate);
@@ -2352,21 +2387,42 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       enrolledStudents = enrolledStudents.filter((s) => s.sectionId === sectionId);
     }
 
-    const present = filteredRecords.filter((r) => r.status === "Present").length;
-    const late = filteredRecords.filter((r) => r.status === "Late").length;
-    const onLeave = filteredRecords.filter((r) => r.status === "On Leave").length;
-    const absent = filteredRecords.filter((r) => r.status === "Absent").length;
-    const totalRecords = filteredRecords.length;
+    const rawRecords: RawAttendanceRecord[] = filteredRecords.map((r) => ({
+      id: r.id,
+      studentId: r.studentId,
+      date: r.date,
+      session: r.session,
+      status: r.status,
+    }));
 
-    const percentage = totalRecords > 0 ? Math.round(((present + late) / totalRecords) * 1000) / 10 : 92.4;
+    const calc = calculateAttendance(rawRecords, {
+      minThreshold: attendanceThreshold.minimumPercentage,
+      precision: 1,
+    });
+
+    const present = calc.statusCounts.present;
+    const late = calc.statusCounts.late;
+    const onLeave = calc.statusCounts.excused;
+    const absent = calc.statusCounts.absent;
+    const onDuty = calc.statusCounts.onDuty;
+    const halfDay = calc.statusCounts.halfDay;
+    const totalRecords = calc.totalRecords;
+    const countableSessions = calc.countableSessions;
+    const percentage = calc.percentage;
 
     return {
       totalEnrolled: enrolledStudents.length,
+      totalSessions: countableSessions,
+      totalRecords,
       present,
       absent,
       late,
       onLeave,
+      onDuty,
+      halfDay,
       percentage,
+      hasData: calc.hasData,
+      displayLabel: calc.displayLabel,
     };
   };
 
@@ -2843,7 +2899,7 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     recordExamAudit({
       examinationId: override.examinationId,
       action: "ELIGIBILITY_OVERRIDE",
-      details: `Recorded ${override.status.toUpperCase()} eligibility override for ${override.studentName} (${override.rollNumber}, ${override.attendancePercentage}% attendance).`,
+      details: `Recorded ${override.status.toUpperCase()} eligibility override for ${override.studentName} (${override.rollNumber}, ${override.attendancePercentage !== null ? `${override.attendancePercentage}%` : "No records"} attendance).`,
       reason: override.reason,
       performedBy: override.authorizedBy,
     });
@@ -2874,12 +2930,39 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       const studentRecords = attendanceRecords.filter(
         (r) => r.studentId === student.id || r.rollNumber === student.rollNumber
       );
-      const totalSessions = studentRecords.length;
-      const presentCount = studentRecords.filter((r) => r.status === "Present" || r.status === "Late").length;
-      const attendancePercentage =
-        totalSessions > 0 ? Math.round((presentCount / totalSessions) * 1000) / 10 : 100;
 
-      const isAttendanceEligible = totalSessions === 0 || attendancePercentage >= minThreshold;
+      const rawRecords: RawAttendanceRecord[] = studentRecords.map((r) => ({
+        id: r.id,
+        studentId: r.studentId,
+        date: r.date,
+        session: r.session,
+        status: r.status,
+      }));
+
+      const calc = calculateAttendance(rawRecords, {
+        minThreshold,
+        precision: 1,
+      });
+
+      const totalSessions = calc.countableSessions;
+      const attendancePercentage = calc.percentage;
+
+      let isAttendanceEligible = false;
+      let eligibilityStatus: "ELIGIBLE" | "DEFAULTER" | "PENDING_RECORDS" = "PENDING_RECORDS";
+
+      if (totalSessions > 0) {
+        if (attendancePercentage !== null && attendancePercentage >= minThreshold) {
+          isAttendanceEligible = true;
+          eligibilityStatus = "ELIGIBLE";
+        } else {
+          isAttendanceEligible = false;
+          eligibilityStatus = "DEFAULTER";
+        }
+      } else {
+        // Missing records return PENDING_RECORDS, never automatic approval!
+        isAttendanceEligible = false;
+        eligibilityStatus = "PENDING_RECORDS";
+      }
 
       const override = examEligibilityOverrides.find(
         (o) => o.examinationId === examinationId && o.studentId === student.id
@@ -2902,6 +2985,7 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         sectionName: student.sectionName,
         attendancePercentage,
         isAttendanceEligible,
+        eligibilityStatus,
         hasOverride,
         overrideStatus,
         overrideReason,
