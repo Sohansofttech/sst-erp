@@ -1,9 +1,10 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth/session"
-import db from "@/lib/db"
+import { getTeacherSession } from "@/lib/auth/teacher-session"
 import { LoadingState } from "@/components/shared/StateViews"
 import { TeacherPortalShell } from "./teacher-portal-shell"
+import type { TeacherRole } from "@/lib/auth/roles"
 
 function formatInstitutionName(slug: string): string {
   if (slug === "demo-school") return "Vidya Niketan Public School"
@@ -14,6 +15,17 @@ function formatInstitutionName(slug: string): string {
     .join(" ")
 }
 
+function getInitials(name: string): string {
+  if (!name) return "T"
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+}
+
 async function TeacherLayoutResolver({
   params,
   children,
@@ -21,40 +33,43 @@ async function TeacherLayoutResolver({
   params: Promise<{ slug: string }>
   children: React.ReactNode
 }) {
-  const session = await getSession();
-  if (session && session.role === "STUDENT") {
-    redirect("/dashboard");
+  const { slug } = await params
+
+  // 1. Check if user is a student attempting to access faculty portal
+  const erpSession = await getSession()
+  if (erpSession && erpSession.role === "STUDENT") {
+    redirect("/dashboard")
   }
 
-  const { slug } = await params
-  let institutionName = formatInstitutionName(slug)
+  // 2. Resolve teacher session
+  const teacherSession = await getTeacherSession(slug)
 
-  try {
-    const inst = await db.institution.findFirst({
-      where: { slug },
-      select: { name: true },
-    });
-    if (inst?.name) {
-      institutionName = inst.name;
-    } else {
-      const platformInst = await db.platformInstitution.findFirst({
-        where: { slug },
-        select: { name: true },
-      });
-      if (platformInst?.name) {
-        institutionName = platformInst.name;
-      } else if (session?.institutionName) {
-        institutionName = session.institutionName;
-      }
-    }
-  } catch {
-    if (session?.institutionName) {
-      institutionName = session.institutionName;
-    }
+  if (!teacherSession) {
+    redirect(`/login?from=${encodeURIComponent(`/campus/${slug}/teacher`)}&error=unauthorized`)
+  }
+
+  const institutionName = teacherSession.institution?.name || formatInstitutionName(slug)
+  const activeRole: TeacherRole = teacherSession.activeRole || "teacher"
+  const availableRoles: TeacherRole[] = teacherSession.availableRoles || ["teacher"]
+
+  const userContext = {
+    name: teacherSession.profile.fullName,
+    email: teacherSession.profile.email,
+    role: teacherSession.profile.designation,
+    initials: getInitials(teacherSession.profile.fullName),
+    employeeId: teacherSession.profile.employeeCode,
+    department: teacherSession.profile.departmentName,
+    homeroomClass: teacherSession.profile.classTeacherOf,
   }
 
   return (
-    <TeacherPortalShell slug={slug} institutionName={institutionName}>
+    <TeacherPortalShell
+      slug={slug}
+      institutionName={institutionName}
+      initialRole={activeRole}
+      availableRoles={availableRoles}
+      user={userContext}
+    >
       {children}
     </TeacherPortalShell>
   )
@@ -70,11 +85,11 @@ export default function TeacherLayout({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="flex min-h-screen items-center justify-center bg-[#EEF1F5] p-6">
           <div className="w-full max-w-md">
             <LoadingState
-              title="Loading Teacher Portal"
-              description="Initializing campus workspace..."
+              title="Loading Campus Workspace"
+              description="Authenticating session and preparing workspace..."
             />
           </div>
         </div>
@@ -84,4 +99,3 @@ export default function TeacherLayout({
     </Suspense>
   )
 }
-

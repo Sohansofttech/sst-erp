@@ -290,9 +290,9 @@ export default function TeacherLeavePage() {
         subtitle="Apply for faculty leave with class substitution handover, track approvals, and process Class 10-A student leave or on-duty requests."
         action={
           <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
-            <Link href={`/campus/${slug}/teacher/duties`}>
+            <Link href={`/campus/${slug}/teacher/timetable`}>
               <CalendarCheck className="size-4" />
-              View Campus & Exam Duties
+              View Timetable & Schedule
             </Link>
           </Button>
         }

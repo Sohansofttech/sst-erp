@@ -643,7 +643,7 @@ export default function TeacherCommunicationPage() {
                   Notification Center
                 </CardTitle>
                 <CardDescription className="text-sm text-[#788391]">
-                  Timetable updates, student leave escalations, IA deadlines, and exam duty alerts.
+                  Timetable updates, student leave escalations, IA deadlines, and academic announcements.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">

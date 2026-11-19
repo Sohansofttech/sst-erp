@@ -4,11 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import {
   Briefcase,
+  Calendar,
   CalendarClock,
   CheckCircle2,
-  ClipboardCheck,
   MapPin,
   Shield,
+  Clock,
 } from "lucide-react"
 
 import {
@@ -28,36 +29,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { getCampusDuties, getExamDuties } from "@/lib/services/teacher.service"
-import type { CampusDuty, ExamDuty } from "@/types/teacher"
+import { getCampusDuties } from "@/lib/services/teacher.service"
+import type { CampusDuty } from "@/types/teacher"
 import { useTeacherRole } from "../teacher-role-context"
 
-export default function TeacherDutiesPage() {
+function CampusDutiesInner() {
   const { slug } = useTeacherRole()
   const [campusDuties, setCampusDuties] = React.useState<CampusDuty[]>([])
-  const [examDuties, setExamDuties] = React.useState<ExamDuty[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
   const loadData = React.useCallback(() => {
     setLoading(true)
     setError(null)
-    Promise.all([getCampusDuties(), getExamDuties()])
-      .then(([cRes, eRes]) => {
+    getCampusDuties()
+      .then((cRes) => {
         setCampusDuties(cRes)
-        setExamDuties(eRes)
       })
       .catch((err) => {
         setError(
-          err instanceof Error ? err.message : "Failed to load assigned duties."
+          err instanceof Error ? err.message : "Failed to load assigned campus duties."
         )
       })
       .finally(() => {
@@ -66,33 +57,14 @@ export default function TeacherDutiesPage() {
   }, [])
 
   React.useEffect(() => {
-    let active = true
-    Promise.all([getCampusDuties(), getExamDuties()])
-      .then(([cRes, eRes]) => {
-        if (!active) return
-        setCampusDuties(cRes)
-        setExamDuties(eRes)
-      })
-      .catch((err) => {
-        if (!active) return
-        setError(
-          err instanceof Error ? err.message : "Failed to load assigned duties."
-        )
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
+    loadData()
+  }, [loadData])
 
   if (loading) {
     return (
       <LoadingState
         title="Loading duty roster"
-        description="Fetching assigned campus supervision and examination duties..."
+        description="Fetching assigned campus supervision and standing responsibilities..."
       />
     )
   }
@@ -107,26 +79,19 @@ export default function TeacherDutiesPage() {
     )
   }
 
-  const activeCampusCount = campusDuties.filter(
-    (d) => d.status === "active"
-  ).length
-  const upcomingExamCount = examDuties.filter(
-    (d) => d.status === "assigned"
-  ).length
-  const completedTotal =
-    campusDuties.filter((d) => d.status === "completed").length +
-    examDuties.filter((d) => d.status === "completed").length
+  const activeCampusCount = campusDuties.filter((d) => d.status === "active").length
+  const completedTotal = campusDuties.filter((d) => d.status === "completed").length
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Campus & Exam Duties"
-        subtitle="Consolidated roster of institutional responsibilities, assembly supervision, club coordination, and exam invigilation duties."
+        title="Campus Duties"
+        subtitle="Consolidated roster of institutional responsibilities, morning assembly supervision, disciplinary rounds, and student club coordination."
         action={
-          <Button asChild>
-            <Link href={`/campus/${slug}/teacher/exams`}>
-              <ClipboardCheck className="size-4" />
-              Log Exam Hall Attendance
+          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+            <Link href={`/campus/${slug}/teacher/timetable`}>
+              <Calendar className="mr-1.5 size-4 text-[#123B5A]" />
+              View Timetable Schedule
             </Link>
           </Button>
         }
@@ -142,36 +107,36 @@ export default function TeacherDutiesPage() {
           description="Weekly standing assignments"
         />
         <StatCard
-          label="Upcoming Exam Duties"
-          value={upcomingExamCount}
-          icon={<CalendarClock />}
-          tone="warning"
-          description="Invigilation & evaluation"
-        />
-        <StatCard
           label="Completed Duties"
           value={completedTotal}
           icon={<CheckCircle2 />}
           tone="success"
-          description="This term"
+          description="This academic term"
         />
         <StatCard
-          label="Total Duty Roles"
-          value={campusDuties.length + examDuties.length}
+          label="Total Duty Assignments"
+          value={campusDuties.length}
           icon={<Briefcase />}
           tone="primary"
-          description="Campus + Exam Cell"
+          description="Institutional supervision"
+        />
+        <StatCard
+          label="Supervision Time"
+          value="4.5 hrs"
+          icon={<Clock />}
+          tone="brand"
+          description="Weekly allocated duty"
         />
       </div>
 
-      {/* Campus Duties */}
+      {/* Campus Duties Cards */}
       <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
         <CardHeader className="border-b border-[#E5E9EF] pb-4">
           <CardTitle className="text-lg font-bold text-[#202936]">
-            Campus Supervision & Co-Curricular Duties
+            Campus Supervision & Standing Assignments
           </CardTitle>
           <CardDescription className="text-[#788391]">
-            Assigned floor supervision, morning assembly, lab oversight, and student club coordination.
+            Floor supervision, morning assembly monitoring, lab oversight, and student activity coordination.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
@@ -224,75 +189,23 @@ export default function TeacherDutiesPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Exam Duties Summary */}
-      <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-[#E5E9EF] pb-4">
-          <div>
-            <CardTitle className="text-lg font-bold text-[#202936]">
-              Examination Invigilation Roster
-            </CardTitle>
-            <CardDescription className="text-[#788391]">
-              Use the Examination Management workspace to submit hall attendance or malpractice reports.
-            </CardDescription>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/campus/${slug}/teacher/leave`}>
-              Request Substitution
-            </Link>
-          </Button>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Examination</TableHead>
-                <TableHead>Date & Shift</TableHead>
-                <TableHead>Room</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {examDuties.map((duty) => (
-                <TableRow key={duty.id}>
-                  <TableCell>
-                    <div className="font-medium text-foreground">
-                      {duty.examName}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {duty.className
-                        ? `${duty.className} • ${duty.subjectName ?? ""}`
-                        : duty.subjectName ?? "General Duty"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium text-foreground">
-                      {duty.examDate}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {duty.session} ({duty.startTime} – {duty.endTime})
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{duty.roomNo}</Badge>
-                  </TableCell>
-                  <TableCell className="font-medium text-brand">
-                    {duty.dutyRole}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      status={
-                        duty.status === "completed" ? "Approved" : "Pending"
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
+  )
+}
+
+export default function CampusDutiesPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex min-h-[400px] items-center justify-center p-6">
+          <LoadingState
+            title="Loading duty roster"
+            description="Fetching assigned campus supervision..."
+          />
+        </div>
+      }
+    >
+      <CampusDutiesInner />
+    </React.Suspense>
   )
 }
