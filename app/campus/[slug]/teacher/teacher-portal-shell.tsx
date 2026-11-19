@@ -33,6 +33,7 @@ import {
   PortalShell,
   type PortalNavGroup,
 } from "@/components/shared"
+import { NotificationDropdown } from "@/components/shared/NotificationDropdown"
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner"
 import {
   TeacherRoleProvider,
@@ -421,6 +422,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
         toast.info(`Switched academic year to ${year}`)
       }}
       notificationCount={unreadCount}
+      notificationElement={<NotificationDropdown />}
       onNotificationClick={() =>
         toast.info(`${unreadCount} unread notifications`, {
           description:

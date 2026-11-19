@@ -26,7 +26,27 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req);
-    const { notificationRecipientId } = await req.json();
+    const body = await req.json();
+    const { notificationRecipientId, markAll } = body;
+
+    if (markAll) {
+      const db = (await import("@/lib/db")).default;
+      await db.notificationRecipient.updateMany({
+        where: {
+          userId: session.userId,
+          notification: { institutionId: session.institutionId },
+          isRead: false,
+        },
+        data: {
+          isRead: true,
+          readAt: new Date(),
+        },
+      });
+      return NextResponse.json({
+        success: true,
+        message: "All notifications marked as read.",
+      });
+    }
 
     if (!notificationRecipientId) {
       return NextResponse.json({ success: false, error: "Recipient ID required" }, { status: 400 });

@@ -15,14 +15,34 @@ export default function ExaminationsPage() {
   const [loading, setLoading] = useState(true);
   const [isRestricted, setIsRestricted] = useState(false);
   const [isAdmitCardOpen, setIsAdmitCardOpen] = useState(false);
+  const [institutionName, setInstitutionName] = useState<string>("");
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("erp_user");
+        if (stored) {
+          const user = JSON.parse(stored);
+          if (user.institutionName) setInstitutionName(user.institutionName);
+          if (user.role === "PARENT") {
+            setIsRestricted(true);
+            setLoading(false);
+            return;
+          }
+        }
+        const storedInst = localStorage.getItem("erp_institution_name");
+        if (storedInst) setInstitutionName(storedInst);
+      } catch {}
+    }
     const fetchExams = async () => {
       try {
         const res = await fetch("/api/student/examinations", { credentials: "include" });
         const json = await res.json();
         if (json.success) {
           setData(json.data);
+          if (json.data?.institutionName) {
+            setInstitutionName(json.data.institutionName);
+          }
         } else if (res.status === 403 || json.error?.toLowerCase().includes("access restricted")) {
           setIsRestricted(true);
         }
@@ -236,7 +256,7 @@ export default function ExaminationsPage() {
           isOpen={isAdmitCardOpen}
           onClose={() => setIsAdmitCardOpen(false)}
           title="Official Examination Hall Ticket / Admit Card"
-          subtitle="Apex Institute of Technology • Controller of Examinations"
+          subtitle={`${admitCard.institutionName || institutionName || "Campus Examination Center"} • Controller of Examinations`}
           maxWidth="2xl"
           footer={
             <div className="flex justify-between w-full items-center">
@@ -257,8 +277,8 @@ export default function ExaminationsPage() {
           <div className="border border-[#123B5A] rounded-xl p-5 bg-white space-y-4">
             {/* Header */}
             <div className="text-center border-b border-[#E2E8F0] pb-3">
-              <h2 className="text-lg font-bold text-[#123B5A]">APEX INSTITUTE OF TECHNOLOGY</h2>
-              <p className="text-xs text-[#64748B]">Autonomous Institution • Affiliated to Tech University</p>
+              <h2 className="text-lg font-bold text-[#123B5A] uppercase">{admitCard.institutionName || institutionName || "Campus Examination Center"}</h2>
+              <p className="text-xs text-[#64748B]">Autonomous Institution • Controller of Examinations</p>
               <h3 className="text-sm font-semibold text-[#1E293B] mt-1">{admitCard.examTitle}</h3>
             </div>
 

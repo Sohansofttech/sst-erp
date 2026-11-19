@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useInstitution } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -43,9 +44,21 @@ interface AdminSidebarProps {
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
+  const { profile } = useInstitution();
   const [academicsOpen, setAcademicsOpen] = useState(
     pathname.startsWith("/admin/academics") || pathname === "/admin"
   );
+
+  const institutionInitials = React.useMemo(() => {
+    const trimmed = (profile?.name || "").trim();
+    if (!trimmed) return "ERP";
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].substring(0, 3).toUpperCase();
+    const STOP_WORDS = new Set(["OF", "AND", "&", "THE", "FOR", "IN", "AT"]);
+    const meaningfulParts = parts.filter((p) => !STOP_WORDS.has(p.toUpperCase()));
+    const targetParts = meaningfulParts.length >= 2 ? meaningfulParts : parts;
+    return targetParts.slice(0, 3).map((p) => p[0]).join("").toUpperCase();
+  }, [profile?.name]);
 
   const isAcademicsActive = pathname.startsWith("/admin/academics");
 
@@ -81,20 +94,25 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       >
         {/* Brand / Logo Area (Fixed Top) */}
         <div className="flex items-center justify-between h-16 px-5 border-b border-white/10 bg-black/20 shrink-0">
-          <Link href="/admin" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[var(--admin-accent,#F5A000)] flex items-center justify-center font-black text-white text-base shadow-xs">
-              SST
+          <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-[var(--admin-accent,#F5A000)] flex items-center justify-center font-black text-white text-xs shadow-xs shrink-0 overflow-hidden">
+              {profile?.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profile.logoUrl} alt="Logo" className="w-8 h-8 object-cover rounded-lg" />
+              ) : (
+                institutionInitials
+              )}
             </div>
-            <div>
-              <span className="text-sm font-extrabold tracking-wide text-white block leading-tight">
-                SST ERP
+            <div className="min-w-0">
+              <span className="text-sm font-extrabold tracking-wide text-white block leading-tight truncate" title={profile?.name || "Institution Admin"}>
+                {profile?.name || "Institution Admin"}
               </span>
-              <span className="text-[10px] uppercase font-bold text-[#8EA4C2] tracking-wider block">
-                Institution Admin
+              <span className="text-[10px] uppercase font-bold text-[#8EA4C2] tracking-wider block truncate">
+                {profile?.code ? `${profile.code} • Admin` : "Institution Admin"}
               </span>
             </div>
           </Link>
-          <span className="text-[10px] font-semibold bg-[var(--admin-accent,#F5A000)]/30 text-white border border-white/30 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-semibold bg-[var(--admin-accent,#F5A000)]/30 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
             Admin
           </span>
         </div>

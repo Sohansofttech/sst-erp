@@ -9,7 +9,7 @@ globalSettingsRegistry.set("inst_apex", initialInstitutionProfile);
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, institutionName } = await resolveAdminContext(req);
 
     // 1. Try finding in table "institutions"
     try {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       });
       if (inst) {
         const cached = globalSettingsRegistry.get(institutionId);
-        const merged = cached ? { ...inst, ...cached, id: inst.id } : inst;
+        const merged = cached ? { ...cached, ...inst, id: inst.id } : inst;
         return NextResponse.json({
           success: true,
           institutionId,
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         };
 
         const cached = globalSettingsRegistry.get(institutionId);
-        const merged = cached ? { ...mappedProfile, ...cached, id: row.id } : mappedProfile;
+        const merged = cached ? { ...cached, ...mappedProfile, id: row.id } : mappedProfile;
         globalSettingsRegistry.set(institutionId, merged);
 
         return NextResponse.json({
@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
     const cached = globalSettingsRegistry.get(institutionId) || {
       ...initialInstitutionProfile,
       id: institutionId,
+      name: institutionName || initialInstitutionProfile.name,
     };
 
     return NextResponse.json({

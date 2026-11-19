@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,24 +16,57 @@ import {
   Trash2,
   CheckCircle,
   CalendarDays,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { AcademicYear, Term } from "@/types/institution";
 import { formatDate } from "@/lib/utils";
 
+function mapApiToAY(item: any): AcademicYear {
+  const toDateStr = (val: any) => {
+    if (!val) return "";
+    if (typeof val === "string") return val.split("T")[0];
+    try {
+      return new Date(val).toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
+
+  return {
+    id: item.id,
+    name: item.name,
+    startDate: toDateStr(item.startDate),
+    endDate: toDateStr(item.endDate),
+    isActive: Boolean(item.isCurrent),
+    terms: (item.terms || []).map((t: any, idx: number) => ({
+      id: t.id || `term-${idx}`,
+      name: t.name,
+      startDate: toDateStr(t.startDate),
+      endDate: toDateStr(t.endDate),
+      isCurrent: Boolean(t.isCurrent),
+    })),
+    createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+  };
+}
+
 export default function AcademicYearsPage() {
   const {
-    academicYears,
-    activeAcademicYear,
     addAcademicYear,
     updateAcademicYear,
     setActiveAcademicYear,
     deleteAcademicYear,
   } = useInstitution();
 
+  // Data fetching state
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAY, setEditingAY] = useState<AcademicYear | null>(null);
-
-  // Form State
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -43,6 +76,30 @@ export default function AcademicYearsPage() {
     { id: "t2", name: "Even Semester / Spring", startDate: "", endDate: "", isCurrent: false },
   ]);
   const [formError, setFormError] = useState("");
+
+  const loadAcademicYears = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/admin/academics/academic-years");
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to load academic years.");
+      }
+      const mapped = (json.data || []).map(mapApiToAY);
+      setAcademicYears(mapped);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to load academic years from server.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAcademicYears();
+  }, [loadAcademicYears]);
+
+  const activeAcademicYear = academicYears.find((ay) => ay.isActive) || null;
 
   const handleOpenAddModal = () => {
     setEditingAY(null);
@@ -99,7 +156,7 @@ export default function AcademicYearsPage() {
     setTerms((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -125,30 +182,101 @@ export default function AcademicYearsPage() {
       }
     }
 
-    if (editingAY) {
-      updateAcademicYear(editingAY.id, {
-        name,
-        startDate,
-        endDate,
-        isActive,
-        terms,
-      });
-    } else {
-      addAcademicYear({
-        name,
-        startDate,
-        endDate,
-        isActive,
-        terms,
-      });
-    }
+    setIsSubmitting(true);
+    try {
+      if (editingAY) {
+        const res = await fetch("/api/admin/academics/academic-years", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingAY.id,
+            name: name.trim(),
+            startDate,
+            endDate,
+            isCurrent: isActive,
+            terms,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to update academic year.");
+        }
+        updateAcademicYear(editingAY.id, {
+          name,
+          startDate,
+          endDate,
+          isActive,
+          terms,
+        });
+      } else {
+        const res = await fetch("/api/admin/academics/academic-years", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            startDate,
+            endDate,
+            isCurrent: isActive,
+            terms,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to create academic year.");
+        }
+        if (json.data) {
+          addAcademicYear(mapApiToAY(json.data));
+        }
+      }
 
-    setIsModalOpen(false);
+      await loadAcademicYears();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || "An error occurred while saving.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string, ayName: string) => {
-    if (confirm(`Are you sure you want to delete Academic Year "${ayName}"?`)) {
+  const handleSetActive = async (id: string) => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/academics/academic-years", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isCurrent: true }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to set active academic year.");
+      }
+      setActiveAcademicYear(id);
+      await loadAcademicYears();
+    } catch (err: any) {
+      alert(err.message || "Failed to set active academic year.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string, ayName: string) => {
+    if (!confirm(`Are you sure you want to delete Academic Year "${ayName}"?`)) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/academics/academic-years?id=${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to delete academic year.");
+      }
       deleteAcademicYear(id);
+      await loadAcademicYears();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete academic year.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -164,15 +292,45 @@ export default function AcademicYearsPage() {
             Manage academic years, session cycles, and term boundaries.
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleOpenAddModal}
-          leftIcon={<Plus className="w-4 h-4" />}
-        >
-          Create Academic Year
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadAcademicYears}
+            disabled={isLoading || isSubmitting}
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleOpenAddModal}
+            disabled={isSubmitting}
+            leftIcon={<Plus className="w-4 h-4" />}
+          >
+            Create Academic Year
+          </Button>
+        </div>
       </div>
+
+      {/* Error Alert */}
+      {fetchError && (
+        <Alert variant="error" title="Failed to Load Academic Years">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-1">
+            <span className="text-sm">{fetchError}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadAcademicYears}
+              disabled={isLoading}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+            >
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
 
       {/* Current Active Indicator Card */}
       <Card className="border-l-4 border-l-[#16A34A] bg-[#F0FDF4]/40">
@@ -189,7 +347,9 @@ export default function AcademicYearsPage() {
                 AY {activeAcademicYear?.name || "None Selected"}
               </h4>
               <p className="text-xs text-[#64748B]">
-                Valid: {formatDate(activeAcademicYear?.startDate || "")} to {formatDate(activeAcademicYear?.endDate || "")} • {activeAcademicYear?.terms.length || 0} Terms
+                Valid: {activeAcademicYear?.startDate ? formatDate(activeAcademicYear.startDate) : "N/A"} to{" "}
+                {activeAcademicYear?.endDate ? formatDate(activeAcademicYear.endDate) : "N/A"} •{" "}
+                {activeAcademicYear?.terms.length || 0} Terms
               </p>
             </div>
           </div>
@@ -225,77 +385,93 @@ export default function AcademicYearsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {academicYears.map((ay) => (
-                <TableRow key={ay.id}>
-                  <TableCell className="font-bold text-[#123B5A]">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-[#F5A000]" />
-                      <span>AY {ay.name}</span>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-[#64748B]">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#F5A000]" />
+                      <span>Loading academic years...</span>
                     </div>
-                  </TableCell>
-                  <TableCell>{formatDate(ay.startDate)}</TableCell>
-                  <TableCell>{formatDate(ay.endDate)}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ay.terms.map((term) => (
-                        <span
-                          key={term.id}
-                          className={`text-[11px] px-2 py-0.5 rounded font-medium border ${
-                            term.isCurrent
-                              ? "bg-[#EFF6FF] text-[#F5A000] border-[#BFDBFE]"
-                              : "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]"
-                          }`}
-                        >
-                          {term.name} {term.isCurrent && "★"}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {ay.isActive ? (
-                      <Badge variant="success" size="md">
-                        ● Active Calendar
-                      </Badge>
-                    ) : (
-                      <Badge variant="neutral" size="md">
-                        Inactive
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    {!ay.isActive && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setActiveAcademicYear(ay.id)}
-                        className="text-[#F5A000] border-[#F5A000]/30 hover:bg-[#EFF6FF]"
-                      >
-                        Set as Active
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEditModal(ay)}
-                      title="Edit Year"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
-                    </Button>
-                    {!ay.isActive && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(ay.id, ay.name)}
-                        title="Delete Year"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
-                      </Button>
-                    )}
                   </TableCell>
                 </TableRow>
-              ))}
-              {academicYears.length === 0 && (
-                <TableEmpty colSpan={6} message="No academic years configured yet." />
+              ) : (
+                <>
+                  {academicYears.map((ay) => (
+                    <TableRow key={ay.id}>
+                      <TableCell className="font-bold text-[#123B5A]">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-[#F5A000]" />
+                          <span>AY {ay.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{formatDate(ay.startDate)}</TableCell>
+                      <TableCell>{formatDate(ay.endDate)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ay.terms.map((term) => (
+                            <span
+                              key={term.id}
+                              className={`text-[11px] px-2 py-0.5 rounded font-medium border ${
+                                term.isCurrent
+                                  ? "bg-[#EFF6FF] text-[#F5A000] border-[#BFDBFE]"
+                                  : "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]"
+                              }`}
+                            >
+                              {term.name} {term.isCurrent && "★"}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {ay.isActive ? (
+                          <Badge variant="success" size="md">
+                            ● Active Calendar
+                          </Badge>
+                        ) : (
+                          <Badge variant="neutral" size="md">
+                            Inactive
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
+                        {!ay.isActive && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSetActive(ay.id)}
+                            disabled={isSubmitting}
+                            className="text-[#F5A000] border-[#F5A000]/30 hover:bg-[#EFF6FF]"
+                          >
+                            Set as Active
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenEditModal(ay)}
+                          disabled={isSubmitting}
+                          title="Edit Year"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
+                        </Button>
+                        {!ay.isActive && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(ay.id, ay.name)}
+                            disabled={isSubmitting}
+                            title="Delete Year"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {academicYears.length === 0 && (
+                    <TableEmpty colSpan={6} message="No academic years configured yet." />
+                  )}
+                </>
               )}
             </TableBody>
           </Table>
@@ -305,7 +481,7 @@ export default function AcademicYearsPage() {
       {/* Modal: Create / Edit Academic Year */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingAY ? `Edit Academic Year (${editingAY.name})` : "Create New Academic Year"}
         description="Define session duration, terms, and activation status."
         maxWidth="lg"
@@ -316,11 +492,23 @@ export default function AcademicYearsPage() {
               variant="outline"
               size="sm"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="button" variant="primary" size="sm" onClick={handleSubmit}>
-              {editingAY ? "Update Academic Year" : "Save Academic Year"}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              leftIcon={isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : undefined}
+            >
+              {isSubmitting
+                ? "Saving..."
+                : editingAY
+                ? "Update Academic Year"
+                : "Save Academic Year"}
             </Button>
           </>
         }

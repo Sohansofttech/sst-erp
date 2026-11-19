@@ -1,4 +1,5 @@
 import db from "../db";
+import { sendAnnouncementNotification } from "./email.service";
 
 export interface CreateNotificationParams {
   institutionId: string;
@@ -25,18 +26,28 @@ export async function sendNotification(params: CreateNotificationParams) {
   });
 
   let userIds = params.recipientUserIds;
+  let targetUsers: Array<{ id: string; email: string | null; name: string | null }> = [];
+
   if (!userIds || userIds.length === 0) {
     // If not specified, broadcast to relevant roles in this institution
-    const users = await db.user.findMany({
+    targetUsers = await db.user.findMany({
       where: {
         institutionId: params.institutionId,
         ...(params.audienceRole && params.audienceRole !== "ALL"
           ? { role: params.audienceRole }
           : {}),
       },
-      select: { id: true },
+      select: { id: true, email: true, name: true },
     });
-    userIds = users.map((u) => u.id);
+    userIds = targetUsers.map((u) => u.id);
+  } else {
+    targetUsers = await db.user.findMany({
+      where: {
+        id: { in: userIds },
+        institutionId: params.institutionId,
+      },
+      select: { id: true, email: true, name: true },
+    });
   }
 
   if (userIds.length > 0) {
@@ -46,19 +57,62 @@ export async function sendNotification(params: CreateNotificationParams) {
         userId: uid,
         isRead: false,
       })),
+      skipDuplicates: true,
     });
+
+    // Trigger non-blocking background email notification
+    const emailRecipients = targetUsers
+      .filter((u) => Boolean(u.email))
+      .map((u) => ({ email: u.email!, name: u.name || undefined }));
+
+    if (emailRecipients.length > 0) {
+      db.institution
+        .findUnique({
+          where: { id: params.institutionId },
+          select: { name: true },
+        })
+        .then((inst) => {
+          sendAnnouncementNotification(emailRecipients, {
+            title: params.title,
+            message: params.message,
+            category: params.category,
+            institutionName: inst?.name || "Campus Administration",
+          }).catch((err) => {
+            console.warn("[sendNotification] Background email warning:", err.message);
+          });
+        })
+        .catch(() => {});
+    }
   }
 
   return notif;
 }
 
-export async function getUserNotifications(userId: string, institutionId: string) {
+export async function getUserNotifications(
+  userIdOrOptions: string | { userId: string; institutionId?: string },
+  institutionIdParam?: string
+) {
+  let userId: string;
+  let institutionId: string | undefined;
+
+  if (typeof userIdOrOptions === "object" && userIdOrOptions !== null) {
+    userId = userIdOrOptions.userId;
+    institutionId = userIdOrOptions.institutionId;
+  } else {
+    userId = userIdOrOptions;
+    institutionId = institutionIdParam;
+  }
+
   return await db.notificationRecipient.findMany({
     where: {
       userId,
-      notification: {
-        institutionId,
-      },
+      ...(institutionId
+        ? {
+            notification: {
+              institutionId,
+            },
+          }
+        : {}),
     },
     include: {
       notification: true,
@@ -68,7 +122,7 @@ export async function getUserNotifications(userId: string, institutionId: string
         createdAt: "desc",
       },
     },
-    take: 30,
+    take: 50,
   });
 }
 
@@ -77,6 +131,26 @@ export async function markNotificationAsRead(recipientId: string, userId: string
     where: {
       id: recipientId,
       userId,
+    },
+    data: {
+      isRead: true,
+      readAt: new Date(),
+    },
+  });
+}
+
+export async function markAllNotificationsAsRead(userId: string, institutionId?: string) {
+  return await db.notificationRecipient.updateMany({
+    where: {
+      userId,
+      ...(institutionId
+        ? {
+            notification: {
+              institutionId,
+            },
+          }
+        : {}),
+      isRead: false,
     },
     data: {
       isRead: true,

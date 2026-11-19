@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import db from "@/lib/db";
 import { AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
+import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,6 +12,23 @@ export async function GET(req: NextRequest) {
         { success: false, error: "Not authenticated" },
         { status: 401 }
       );
+    }
+
+    // Verify account active status (Safeguard: invalidates disabled sessions immediately)
+    if (session.userId) {
+      const userRecord = await db.user.findUnique({
+        where: { id: session.userId },
+        select: { id: true, isActive: true, status: true },
+      });
+
+      if (!userRecord || !userRecord.isActive || userRecord.status !== "ACTIVE") {
+        return NextResponse.json(
+          { success: false, error: "Account has been deactivated or locked." },
+          { status: 401 }
+        );
+      }
+
+      session.mustChangePassword = await isTemporaryPasswordActive(session.userId);
     }
 
     // Retrieve fresh details
@@ -62,10 +80,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Strip internal security signatures from client session output
+    const safeSession = { ...session };
+    delete safeSession.passwordSig;
+
     return NextResponse.json({
       success: true,
       data: {
-        session,
+        session: safeSession,
         ...additionalInfo,
       },
     }, {

@@ -7,25 +7,56 @@ import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { FormInput } from "@/components/shared/FormInput";
 import { Table } from "@/components/shared/Table";
-import { MessageSquare, Send, CheckCircle2, Clock } from "lucide-react";
+import {
+  MessageSquare,
+  Send,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  UserCheck,
+  Calendar,
+  Layers,
+} from "lucide-react";
 
 export default function StudentFeedbackPage() {
-  const [feedbackList, setFeedbackList] = useState<any[]>([]);
+  const [queryList, setQueryList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form state
   const [category, setCategory] = useState("ACADEMIC");
+  const [priority, setPriority] = useState<"NORMAL" | "URGENT">("NORMAL");
   const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const fetchFeedback = async () => {
+  const fetchQueries = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/student/feedback", { credentials: "include" });
+      // Query dedicated student queries endpoint with fallback to feedback
+      const res = await fetch("/api/student/queries", { credentials: "include" });
       const json = await res.json();
-      if (json.success) setFeedbackList(json.data);
+      if (json.success && Array.isArray(json.data)) {
+        setQueryList(json.data);
+      } else {
+        // Fallback to feedback endpoint
+        const fbRes = await fetch("/api/student/feedback", { credentials: "include" });
+        const fbJson = await fbRes.json();
+        if (fbJson.success && Array.isArray(fbJson.data)) {
+          setQueryList(
+            fbJson.data.map((fb: any) => ({
+              id: fb.id,
+              subject: fb.subject,
+              category: fb.category,
+              description: fb.message,
+              status: fb.status || "PENDING",
+              adminRemarks: fb.response,
+              createdAt: fb.submittedAt || fb.createdAt,
+            }))
+          );
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -34,9 +65,9 @@ export default function StudentFeedbackPage() {
   };
 
   useEffect(() => {
-    fetchFeedback();
+    fetchQueries();
     const handleChildChanged = () => {
-      fetchFeedback();
+      fetchQueries();
     };
     window.addEventListener("activeChildChanged", handleChildChanged);
     return () => {
@@ -48,44 +79,58 @@ export default function StudentFeedbackPage() {
     e.preventDefault();
     setSubmitting(true);
     setSuccessMsg(null);
+    setErrorMsg(null);
+
     try {
-      const res = await fetch("/api/student/feedback", {
+      const res = await fetch("/api/student/queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ category, subject, message }),
+        body: JSON.stringify({
+          category,
+          subject: subject.trim(),
+          description: description.trim(),
+          message: description.trim(),
+          priority,
+        }),
       });
       const json = await res.json();
       if (json.success) {
-        setSuccessMsg("Feedback submitted successfully to institution administration.");
+        setSuccessMsg("Query submitted successfully to campus administration. In-app tracking active.");
         setSubject("");
-        setMessage("");
-        if (json.data) {
-          setFeedbackList((prev) => [
-            json.data,
-            ...prev.filter((item: any) => item.id !== json.data.id),
-          ]);
-        }
-        await fetchFeedback();
+        setDescription("");
+        fetchQueries();
       } else {
-        alert(json.error || "Failed to submit feedback.");
+        setErrorMsg(json.error || "Failed to submit query.");
       }
     } catch (err: any) {
-      console.error(err);
-      alert(err.message || "Failed to communicate with feedback service.");
+      setErrorMsg(err.message || "Network error submitting query.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "RESOLVED":
+        return <Badge variant="success" size="sm">Resolved</Badge>;
+      case "IN_PROGRESS":
+        return <Badge variant="brand" size="sm">In Progress</Badge>;
+      case "REJECTED":
+        return <Badge variant="error" size="sm">Closed</Badge>;
+      default:
+        return <Badge variant="warning" size="sm">Pending Review</Badge>;
+    }
+  };
+
   return (
-    <PortalLayout portalType="STUDENT" pageTitle="Student Grievances & Feedback">
+    <PortalLayout portalType="STUDENT" pageTitle="Student Queries & Grievance Redressal">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form Column */}
         <div>
           <Card
-            title="Submit Institutional Feedback"
-            subtitle="Academics, infrastructure, hostel, or general inquiries"
+            title="Submit Institutional Query"
+            subtitle="Academics, course feedback, infrastructure, hostel, or fee questions"
           >
             {successMsg && (
               <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2">
@@ -94,41 +139,66 @@ export default function StudentFeedbackPage() {
               </div>
             )}
 
+            {errorMsg && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
-                  Category
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
-                >
-                  <option value="ACADEMIC">Academic / Curriculum</option>
-                  <option value="INFRASTRUCTURE">Campus Infrastructure & Wi-Fi</option>
-                  <option value="HOSTEL">Hostel & Dining Facility</option>
-                  <option value="GENERAL">General Suggestion</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
+                  >
+                    <option value="ACADEMIC">Academic & Classes</option>
+                    <option value="EXAMINATION">Examinations & Marks</option>
+                    <option value="INFRASTRUCTURE">Campus Infrastructure</option>
+                    <option value="HOSTEL">Hostel & Dining</option>
+                    <option value="FEE">Fee Clarification</option>
+                    <option value="GENERAL">General Inquiries</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+                    Priority
+                  </label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as any)}
+                    className="w-full px-3 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
+                  >
+                    <option value="NORMAL">Normal</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                </div>
               </div>
 
               <FormInput
-                label="Subject"
+                label="Query Subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="Brief summary of feedback..."
+                placeholder="e.g. Clarification on Semester 4 Elective Form"
                 required
               />
 
               <div>
                 <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
-                  Message / Details
+                  Query Details / Grievance Description
                 </label>
                 <textarea
-                  className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg"
+                  className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#123B5A]"
                   rows={4}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Provide detailed feedback or grievance for administrative review..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Provide complete details, dates, and question for administrative review..."
                   required
                 />
               </div>
@@ -140,7 +210,7 @@ export default function StudentFeedbackPage() {
                 isLoading={submitting}
                 icon={<Send className="w-4 h-4" />}
               >
-                Submit Feedback
+                Submit Query
               </Button>
             </form>
           </Card>
@@ -149,53 +219,49 @@ export default function StudentFeedbackPage() {
         {/* Responses Column */}
         <div className="lg:col-span-2">
           <Card
-            title="Feedback & Official Responses"
-            subtitle="Track resolution and department responses"
+            title="My Submitted Queries & Status"
+            subtitle="Track live status and official responses from campus administration"
           >
             {loading ? (
-              <p className="text-xs text-[#64748B]">Loading feedback history...</p>
+              <p className="text-xs text-[#64748B]">Loading query history...</p>
             ) : (
               <Table
                 columns={[
                   {
                     header: "Date",
-                    cell: (item: any) => new Date(item.submittedAt).toLocaleDateString(),
+                    cell: (item: any) => new Date(item.createdAt).toLocaleDateString(),
                   },
                   {
                     header: "Category",
-                    cell: (item: any) => <Badge variant="brand" size="sm">{item.category}</Badge>,
+                    cell: (item: any) => (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#E2E8F0] text-[#334155]">
+                        {item.category}
+                      </span>
+                    ),
                   },
                   {
-                    header: "Subject & Message",
+                    header: "Subject & Details",
                     cell: (item: any) => (
-                      <div>
-                        <span className="font-bold text-[#1E293B] block">{item.subject}</span>
-                        <span className="text-xs text-[#64748B] line-clamp-1">{item.message}</span>
+                      <div className="max-w-xs">
+                        <span className="font-bold text-[#1E293B] block truncate">{item.subject}</span>
+                        <span className="text-xs text-[#64748B] line-clamp-1">{item.description}</span>
+                        {item.assignedToName && (
+                          <span className="text-[10px] text-[#2563EB] font-medium flex items-center gap-1 mt-0.5">
+                            <UserCheck className="w-3 h-3" /> Assigned: {item.assignedToName}
+                          </span>
+                        )}
                       </div>
                     ),
                   },
                   {
                     header: "Status",
-                    cell: (item: any) => {
-                      const variant =
-                        item.status === "RESOLVED"
-                          ? "success"
-                          : item.status === "IN_PROGRESS"
-                          ? "brand"
-                          : item.status === "REJECTED"
-                          ? "error"
-                          : "warning";
-                      return (
-                        <Badge variant={variant as any} size="sm">
-                          {item.status?.replace("_", " ") || "PENDING"}
-                        </Badge>
-                      );
-                    },
+                    cell: (item: any) => getStatusBadge(item.status),
                   },
                   {
-                    header: "Department Response",
-                    cell: (item: any) =>
-                      item.response ? (
+                    header: "Administration Response",
+                    cell: (item: any) => {
+                      const responseText = item.response || item.adminRemarks;
+                      return responseText ? (
                         <div
                           className={`p-2.5 rounded-lg border text-xs ${
                             item.status === "RESOLVED"
@@ -231,15 +297,23 @@ export default function StudentFeedbackPage() {
                               </span>
                             )}
                           </p>
-                          <p className="leading-relaxed whitespace-pre-wrap">{item.response}</p>
+                          <p className="leading-relaxed whitespace-pre-wrap">{responseText}</p>
+                          {item.reviewedByName && (
+                            <span className="text-[10px] text-emerald-700 block font-medium mt-1">
+                              Reviewed by: {item.reviewedByName}
+                            </span>
+                          )}
                         </div>
                       ) : (
-                        <span className="text-xs text-[#64748B] italic">Awaiting review</span>
-                      ),
+                        <span className="text-xs text-[#64748B] italic flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-[#F5A000]" /> Awaiting Admin Review
+                        </span>
+                      );
+                    },
                   },
                 ]}
-                data={feedbackList}
-                emptyMessage="No feedback submitted."
+                data={queryList}
+                emptyMessage="No queries submitted yet. Use the form on the left to submit an institutional inquiry."
               />
             )}
           </Card>

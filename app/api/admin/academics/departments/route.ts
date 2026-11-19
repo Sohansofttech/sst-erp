@@ -49,7 +49,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Department ID required." }, { status: 400 });
     }
 
-    await db.department.delete({ where: { id } });
+    const result = await db.department.deleteMany({
+      where: { id, institutionId },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Department not found or access denied." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({ success: true, message: "Department deleted." });
   } catch (error) {
     return handleAdminApiError(error);

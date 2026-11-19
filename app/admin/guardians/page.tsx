@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -37,8 +37,12 @@ import {
   GraduationCap,
   Building,
   Users,
+  KeyRound,
 } from "lucide-react";
 import { GuardianItem, GuardianRelationship } from "@/types/institution";
+import { CredentialManagementModal } from "@/components/admin/CredentialManagementModal";
+import { EmailDispatchModal } from "@/components/admin/EmailDispatchModal";
+import { PortalAccountStatus } from "@/lib/utils/credential-helpers";
 
 export default function GuardiansPage() {
   const {
@@ -63,6 +67,102 @@ export default function GuardiansPage() {
   const [viewingGuardian, setViewingGuardian] = useState<GuardianItem | null>(null);
   const [linkingGuardian, setLinkingGuardian] = useState<GuardianItem | null>(null);
   const [selectedStudentToLink, setSelectedStudentToLink] = useState("");
+
+  const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
+  const [credentialGuardian, setCredentialGuardian] = useState<GuardianItem | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailGuardian, setEmailGuardian] = useState<GuardianItem | null>(null);
+
+  const getGuardianPortalBadge = (g: GuardianItem) => {
+    if (!g.studentIds || g.studentIds.length === 0) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+          No Children
+        </span>
+      );
+    }
+    const status = g.portalStatus || (g.portalAccess ? "ACTIVE" : "NOT_CREATED");
+    switch (status) {
+      case "ACTIVE":
+        return <Badge variant="success" size="sm">Active Portal</Badge>;
+      case "DISABLED":
+        return <Badge variant="error" size="sm">Disabled</Badge>;
+      case "UNVERIFIED":
+        return <Badge variant="warning" size="sm">Unverified</Badge>;
+      case "NOT_CREATED":
+      default:
+        return <Badge variant="neutral" size="sm">No Account</Badge>;
+    }
+  };
+
+  const handleOpenCredentialModal = (g: GuardianItem) => {
+    setCredentialGuardian(g);
+    setIsCredentialModalOpen(true);
+  };
+
+  const updateGuardianRef = useRef(updateGuardian);
+  useEffect(() => {
+    updateGuardianRef.current = updateGuardian;
+  });
+
+  const refreshBatchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/credentials?type=batch&entityType=PARENT");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && json.data) {
+        Object.entries(json.data as Record<string, any>).forEach(([id, statusInfo]) => {
+          updateGuardianRef.current(id, {
+            portalStatus: statusInfo.portalStatus,
+            portalAccess: statusInfo.isActive,
+            hasVerifiedRelationship: statusInfo.hasVerifiedRelationship,
+            portalUserId: statusInfo.userId,
+            portalEmail: statusInfo.email || undefined,
+            lastLoginAt: statusInfo.lastLoginAt,
+          });
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to fetch batch guardian credential status:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshBatchStatus();
+  }, [refreshBatchStatus]);
+
+  const handleCredentialStatusUpdated = (entityId: string, updatedStatus: PortalAccountStatus, userId?: string) => {
+    updateGuardian(entityId, {
+      portalStatus: updatedStatus as any,
+      portalAccess: updatedStatus === "ACTIVE",
+      portalUserId: userId,
+    });
+    if (viewingGuardian && viewingGuardian.id === entityId) {
+      setViewingGuardian((prev) =>
+        prev
+          ? {
+              ...prev,
+              portalStatus: updatedStatus as any,
+              portalAccess: updatedStatus === "ACTIVE",
+              portalUserId: userId,
+            }
+          : null
+      );
+    }
+    if (credentialGuardian && credentialGuardian.id === entityId) {
+      setCredentialGuardian((prev) =>
+        prev
+          ? {
+              ...prev,
+              portalStatus: updatedStatus as any,
+              portalAccess: updatedStatus === "ACTIVE",
+              portalUserId: userId,
+            }
+          : null
+      );
+    }
+    refreshBatchStatus();
+  };
 
   // Notification feedback
   const [toastMessage, setToastMessage] = useState<{
@@ -188,7 +288,7 @@ export default function GuardiansPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSaveGuardian = (e: React.FormEvent) => {
+  const handleSaveGuardian = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
@@ -211,7 +311,33 @@ export default function GuardiansPage() {
       showToast("success", `Guardian "${formData.fullName}" updated successfully.`);
     } else {
       const studentIds = formData.initialStudentId ? [formData.initialStudentId] : [];
+      let createdServerGuardian: any = null;
+      try {
+        const res = await fetch("/api/admin/guardians", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullName: formData.fullName.trim(),
+            relationship: formData.relationship,
+            phone: formData.phone.trim(),
+            email: formData.email.trim().toLowerCase(),
+            occupation: formData.occupation.trim(),
+            studentId: formData.initialStudentId || undefined,
+          }),
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          createdServerGuardian = json.data;
+        }
+      } catch (err) {
+        console.warn("POST /api/admin/guardians error:", err);
+      }
+
+      const realGuardianId = createdServerGuardian?.id;
+      const realUserId = createdServerGuardian?.userId;
+
       const created = addGuardian({
+        id: realGuardianId,
         fullName: formData.fullName.trim(),
         relationship: formData.relationship,
         phone: formData.phone.trim(),
@@ -227,6 +353,13 @@ export default function GuardiansPage() {
         status: formData.status,
         studentIds,
       });
+
+      if (realUserId) {
+        updateGuardian(created.id, {
+          portalUserId: realUserId,
+        });
+      }
+
       showToast("success", `Guardian "${created.fullName}" registered with ID: ${created.guardianId}`);
     }
 
@@ -315,6 +448,18 @@ export default function GuardiansPage() {
               View Students
             </Button>
           </Link>
+          <Button
+            onClick={() => {
+              setEmailGuardian(null);
+              setIsEmailModalOpen(true);
+            }}
+            variant="outline"
+            size="sm"
+            className="gap-2 border-[#123B5A]/30 text-[#123B5A] hover:bg-[#123B5A]/5"
+          >
+            <Mail className="h-4 w-4 text-[#123B5A]" />
+            Send Email / Invitations
+          </Button>
           <Button
             onClick={openAddModal}
             className="gap-2 bg-[#F5A000] hover:bg-[#F5A000]/90 text-white shadow-sm"
@@ -493,13 +638,14 @@ export default function GuardiansPage() {
                 <TableHead>Occupation & Company</TableHead>
                 <TableHead>Linked Students</TableHead>
                 <TableHead className="text-center">Emergency</TableHead>
+                <TableHead className="text-center">Portal Access</TableHead>
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredGuardians.length === 0 ? (
-                <TableEmpty colSpan={9} message="No guardian records match your query." />
+                <TableEmpty colSpan={10} message="No guardian records match your query." />
               ) : (
                 filteredGuardians.map((g) => {
                   const linkedStudentList = students.filter(
@@ -617,6 +763,11 @@ export default function GuardiansPage() {
                         )}
                       </TableCell>
 
+                      {/* Portal Access */}
+                      <TableCell className="text-center">
+                        {getGuardianPortalBadge(g)}
+                      </TableCell>
+
                       {/* Status */}
                       <TableCell className="text-center">
                         <Badge variant={g.status === "Active" ? "success" : "neutral"}>
@@ -627,6 +778,29 @@ export default function GuardiansPage() {
                       {/* Actions */}
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenCredentialModal(g)}
+                            title="Manage Portal Credentials & Access"
+                            className="h-8 w-8 p-0 text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEmailGuardian(g);
+                              setIsEmailModalOpen(true);
+                            }}
+                            title="Send Email or Credential Invitation"
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1119,6 +1293,56 @@ export default function GuardiansPage() {
               )}
             </div>
 
+            {/* Parent Portal Access & Security Card */}
+            <div className="border border-slate-200 rounded-lg p-4 bg-white space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h4 className="font-semibold text-slate-900 uppercase tracking-wider text-[11px] text-[#123B5A] flex items-center gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5 text-[#F5A000]" />
+                  Parent Portal Access & Authentication Status
+                </h4>
+                {getGuardianPortalBadge(viewingGuardian)}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-slate-500 block mb-0.5">Parent Portal Username / Email:</span>
+                  <span className="font-semibold text-slate-800">
+                    {viewingGuardian.email || "No email registered"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block mb-0.5">Portal Destination:</span>
+                  <span className="font-semibold text-slate-800">
+                    /dashboard (Parent Dashboard via /login)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded bg-slate-50 border border-slate-200 text-slate-600 text-[11px] leading-relaxed">
+                Parents share the unified <span className="font-bold">/login</span> portal and access
+                the Parent Dashboard at <span className="font-bold">/dashboard</span>. They can seamlessly
+                switch between their verified linked children.
+              </div>
+
+              <div className="pt-1 flex items-center justify-between">
+                <span className="text-slate-500 text-[11px]">
+                  Requires verified relationship before credentials can be generated.
+                </span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    const g = viewingGuardian;
+                    setViewingGuardian(null);
+                    handleOpenCredentialModal(g);
+                  }}
+                  leftIcon={<KeyRound className="h-3.5 w-3.5" />}
+                >
+                  Manage Credentials
+                </Button>
+              </div>
+            </div>
+
             {/* Modal Footer */}
             <div className="flex items-center justify-between pt-4 border-t border-slate-200">
               <Button
@@ -1214,6 +1438,62 @@ export default function GuardiansPage() {
           </div>
         </Modal>
       )}
+
+      {/* =========================================================================
+          MODAL 4: PARENT PORTAL CREDENTIAL MANAGEMENT
+      ========================================================================= */}
+      <CredentialManagementModal
+        isOpen={isCredentialModalOpen}
+        onClose={() => setIsCredentialModalOpen(false)}
+        entityType="PARENT"
+        entity={credentialGuardian ? {
+          id: credentialGuardian.id,
+          fullName: credentialGuardian.fullName,
+          email: credentialGuardian.email,
+          guardianUniqueId: credentialGuardian.guardianId,
+          relationship: credentialGuardian.relationship,
+          userId: credentialGuardian.portalUserId,
+          portalStatus: credentialGuardian.portalStatus,
+          portalAccess: credentialGuardian.portalAccess,
+          lastLoginAt: credentialGuardian.lastLoginAt,
+          linkedChildren: (credentialGuardian.studentIds || []).map((sid) => {
+            const stu = students.find((s) => s.id === sid || s.studentId === sid);
+            return {
+              id: stu?.id || sid,
+              fullName: stu?.fullName || `Student ${sid}`,
+              rollNumber: stu?.rollNumber,
+              isVerified: true,
+            };
+          }),
+        } : null}
+        onStatusUpdated={handleCredentialStatusUpdated}
+      />
+
+      {/* =========================================================================
+          MODAL 5: GUARDIAN EMAIL DISPATCHER MODAL
+      ========================================================================= */}
+      <EmailDispatchModal
+        isOpen={isEmailModalOpen}
+        onClose={() => {
+          setIsEmailModalOpen(false);
+          setEmailGuardian(null);
+        }}
+        initialRole="PARENT"
+        allowedRoles={["PARENT"]}
+        lockRole={true}
+        preselectedRecipients={
+          emailGuardian
+            ? [
+                {
+                  id: emailGuardian.portalUserId || emailGuardian.id,
+                  name: emailGuardian.fullName,
+                  email: emailGuardian.email,
+                  role: "PARENT",
+                },
+              ]
+            : []
+        }
+      />
     </div>
   );
 }

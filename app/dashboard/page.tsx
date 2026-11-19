@@ -31,12 +31,14 @@ import {
 export default function DashboardPage() {
   const router = useRouter();
   const [session, setSession] = useState<{
-    id: string;
+    id?: string;
+    userId?: string;
     fullName: string;
     role: "STUDENT" | "PARENT" | string;
     institutionName: string;
     studentId?: string;
     activeChildId?: string;
+    mustChangePassword?: boolean;
   } | null>(null);
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
@@ -44,6 +46,64 @@ export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
+
+  // First-login password change state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdSuccess, setPwdSuccess] = useState<string | null>(null);
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError(null);
+    setPwdSuccess(null);
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+      setPwdError("Please fill in all password fields.");
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError("New passwords do not match.");
+      return;
+    }
+    if (pwdNew.length < 8) {
+      setPwdError("New password must be at least 8 characters long.");
+      return;
+    }
+
+    try {
+      setPwdLoading(true);
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: pwdCurrent,
+          newPassword: pwdNew,
+          confirmPassword: pwdConfirm,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setPwdError(json.error || "Failed to update password.");
+        return;
+      }
+      setPwdSuccess("Password changed successfully!");
+      setSession((prev) => (prev ? { ...prev, mustChangePassword: false } : null));
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPwdCurrent("");
+        setPwdNew("");
+        setPwdConfirm("");
+        setPwdSuccess(null);
+      }, 1500);
+    } catch {
+      setPwdError("Network error. Please try again.");
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   // 1. Initial Session Authentication
   useEffect(() => {
@@ -270,6 +330,29 @@ export default function DashboardPage() {
         }
       }}
     >
+      {/* First Login Security Notice */}
+      {session?.mustChangePassword && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-900">First-Time Login Security Notice</p>
+              <p className="text-xs text-amber-700">You are currently logged in with a temporary password. Please set a new permanent password to secure your portal account.</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-white border-amber-300 text-amber-800 hover:bg-amber-100 shrink-0 self-start sm:self-auto cursor-pointer"
+            onClick={() => setShowPasswordModal(true)}
+          >
+            Change Password
+          </Button>
+        </div>
+      )}
+
       {/* Top Header Bar matching the Reference Image */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
@@ -857,6 +940,77 @@ export default function DashboardPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900 mb-1">Set New Password</h2>
+            <p className="text-xs text-slate-500 mb-4">Choose a strong password with at least 8 characters.</p>
+
+            {pwdError && (
+              <div className="p-3 mb-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                {pwdError}
+              </div>
+            )}
+            {pwdSuccess && (
+              <div className="p-3 mb-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs">
+                {pwdSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Current / Temporary Password</label>
+                <input
+                  type="password"
+                  value={pwdCurrent}
+                  onChange={(e) => setPwdCurrent(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B5A]"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={pwdNew}
+                  onChange={(e) => setPwdNew(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B5A]"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={pwdConfirm}
+                  onChange={(e) => setPwdConfirm(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B5A]"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowPasswordModal(false)}
+                  disabled={pwdLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-[#123B5A] text-white hover:bg-[#0E2E47]"
+                  disabled={pwdLoading}
+                >
+                  {pwdLoading ? "Updating..." : "Update Password"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </PortalLayout>
   );

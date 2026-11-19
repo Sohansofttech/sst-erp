@@ -4343,7 +4343,7 @@ export async function getNotifications(): Promise<NotificationItem[]> {
 
   let dbRecipients: any[] = []
   try {
-    dbRecipients = await prisma.notification_recipients.findMany({
+    dbRecipients = await prisma.notificationRecipient.findMany({
       where: {
         userId: user.id,
       },
@@ -4391,7 +4391,7 @@ export async function markNotificationRead(
 ): Promise<NotificationItem[]> {
   const { user } = await resolveActiveTeacher()
 
-  await prisma.notification_recipients.updateMany({
+  await prisma.notificationRecipient.updateMany({
     where: { id: notificationId, userId: user.id },
     data: { isRead: true, readAt: new Date() },
   })
@@ -4405,7 +4405,7 @@ export async function markNotificationRead(
 export async function markAllNotificationsRead(): Promise<NotificationItem[]> {
   const { user } = await resolveActiveTeacher()
 
-  await prisma.notification_recipients.updateMany({
+  await prisma.notificationRecipient.updateMany({
     where: { userId: user.id },
     data: { isRead: true, readAt: new Date() },
   })
@@ -4423,7 +4423,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
 
   let dbAnnouncements: any[] = []
   try {
-    dbAnnouncements = await prisma.notifications.findMany({
+    dbAnnouncements = await prisma.notification.findMany({
       where: {
         institutionId: activeTenantId,
         category: "ANNOUNCEMENT",
@@ -4470,7 +4470,7 @@ export async function createAnnouncement(
   const activeTenantId = institutionId
 
   const id = `ann-${Date.now()}`
-  await prisma.notifications.create({
+  await prisma.notification.create({
     data: {
       id,
       institutionId: activeTenantId,
@@ -4482,7 +4482,7 @@ export async function createAnnouncement(
     },
   })
 
-  await prisma.notification_recipients.create({
+  await prisma.notificationRecipient.create({
     data: {
       id: `rec-${id}-${user.id}`,
       notificationId: id,

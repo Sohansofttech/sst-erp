@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch user to validate personal context
     const user = await db.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, fullName: true },
+      select: { id: true, email: true, fullName: true, institutionId: true },
     });
 
     if (!user) {
@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
     try {
       await db.auditLog.create({
         data: {
+          institutionId: user.institutionId || "",
           actorUserId: user.id,
           action: "PASSWORD_RESET_SUCCESS",
           entityType: "User",

@@ -876,6 +876,7 @@ runAllTests()
       e.code === "P1000" ||
       e.code === "P1001" ||
       e.code === "P2039" ||
+      e.code === "ECONNREFUSED" ||
       e.message?.includes("does not exist") ||
       e.message?.includes("Authentication failed against the database server") ||
       e.message?.includes("max clients reached")

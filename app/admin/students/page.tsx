@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useInstitution } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,8 +30,12 @@ import {
   HeartHandshake,
   History,
   ArrowUpDown,
+  KeyRound,
 } from "lucide-react";
 import { StudentItem, StudentStatus } from "@/types/institution";
+import { CredentialManagementModal } from "@/components/admin/CredentialManagementModal";
+import { EmailDispatchModal } from "@/components/admin/EmailDispatchModal";
+import { PortalAccountStatus } from "@/lib/utils/credential-helpers";
 
 export default function StudentsPage() {
   const {
@@ -64,7 +68,12 @@ export default function StudentsPage() {
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentItem | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "academics" | "guardians" | "history">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "academics" | "guardians" | "history" | "credentials">("overview");
+
+  const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
+  const [credentialStudent, setCredentialStudent] = useState<StudentItem | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailStudent, setEmailStudent] = useState<StudentItem | null>(null);
 
   const [isLinkGuardianModalOpen, setIsLinkGuardianModalOpen] = useState(false);
   const [selectedGuardianToLink, setSelectedGuardianToLink] = useState("");
@@ -216,7 +225,8 @@ export default function StudentsPage() {
   };
 
   // Submit Student Form
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -233,85 +243,144 @@ export default function StudentsPage() {
       return;
     }
 
-    const deptObj = departments.find((d) => d.id === selectedDeptId);
-    const courseObj = courses.find((c) => c.id === selectedCourseId);
-    const classObj = classes.find((c) => c.id === selectedClassId);
-    const secObj = sections.find((s) => s.id === selectedSectionId);
-    const ayObj = academicYears.find((ay) => ay.id === selectedAYId);
+    setIsSubmitting(true);
 
-    if (editingStudent) {
-      updateStudent(editingStudent.id, {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        dob,
-        gender,
-        bloodGroup,
-        category,
-        email: email.trim(),
-        phone: phone.trim(),
-        addressLine: addressLine.trim(),
-        city: city.trim(),
-        state: state.trim(),
-        postalCode: postalCode.trim(),
-        academicYearId: selectedAYId,
-        academicYearName: ayObj?.name || "2026-2027",
-        departmentId: selectedDeptId,
-        departmentName: deptObj?.name || "Department",
-        courseId: selectedCourseId,
-        courseName: courseObj?.name || "Course",
-        classId: selectedClassId,
-        className: classObj?.name || "Class",
-        sectionId: selectedSectionId,
-        sectionName: secObj?.name || "Section A",
-        batch,
-        rollNumber: rollNumber.trim() || editingStudent.rollNumber,
-        admissionNumber: admissionNumber.trim() || editingStudent.admissionNumber,
-        admissionDate,
-        status,
-      });
-    } else {
-      const nextIdx = students.length + 1;
-      const deptPrefix = deptObj?.name ? deptObj.name.substring(0, 3).toUpperCase() : "GEN";
-      const genRoll = rollNumber.trim() || `26${deptPrefix}${String(nextIdx).padStart(3, "0")}`;
-      const genAdm = admissionNumber.trim() || `ADM-2026-${String(nextIdx + 100).padStart(4, "0")}`;
-      const genStudentId = `STU-2026-${String(nextIdx).padStart(3, "0")}`;
+    try {
+      const deptObj = departments.find((d) => d.id === selectedDeptId);
+      const courseObj = courses.find((c) => c.id === selectedCourseId);
+      const classObj = classes.find((c) => c.id === selectedClassId);
+      const secObj = sections.find((s) => s.id === selectedSectionId);
+      const ayObj = academicYears.find((ay) => ay.id === selectedAYId);
 
-      addStudent({
-        studentId: genStudentId,
-        admissionNumber: genAdm,
-        rollNumber: genRoll,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        fullName: `${firstName.trim()} ${lastName.trim()}`,
-        dob,
-        gender,
-        bloodGroup,
-        category,
-        email: email.trim(),
-        institutionalEmail: `${firstName.toLowerCase()}.${genStudentId.toLowerCase()}@sst.edu.in`,
-        phone: phone.trim(),
-        addressLine: addressLine.trim(),
-        city: city.trim(),
-        state: state.trim(),
-        postalCode: postalCode.trim(),
-        academicYearId: selectedAYId,
-        academicYearName: ayObj?.name || "2026-2027",
-        departmentId: selectedDeptId,
-        departmentName: deptObj?.name || "Department",
-        courseId: selectedCourseId,
-        courseName: courseObj?.name || "Course",
-        classId: selectedClassId,
-        className: classObj?.name || "Class",
-        sectionId: selectedSectionId,
-        sectionName: secObj?.name || "Section A",
-        batch,
-        admissionDate,
-        status,
-        guardianIds: [],
-      });
+      if (editingStudent) {
+        try {
+          await fetch("/api/admin/students", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: editingStudent.id,
+              fullName: `${firstName.trim()} ${lastName.trim()}`,
+              email: email.trim(),
+              phone: phone.trim(),
+              gender,
+              status,
+            }),
+          });
+        } catch (apiErr) {
+          console.warn("PUT /api/admin/students fallback:", apiErr);
+        }
+
+        updateStudent(editingStudent.id, {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          dob,
+          gender,
+          bloodGroup,
+          category,
+          email: email.trim(),
+          phone: phone.trim(),
+          addressLine: addressLine.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          postalCode: postalCode.trim(),
+          academicYearId: selectedAYId,
+          academicYearName: ayObj?.name || "2026-2027",
+          departmentId: selectedDeptId,
+          departmentName: deptObj?.name || "Department",
+          courseId: selectedCourseId,
+          courseName: courseObj?.name || "Course",
+          classId: selectedClassId,
+          className: classObj?.name || "Class",
+          sectionId: selectedSectionId,
+          sectionName: secObj?.name || "Section A",
+          batch,
+          rollNumber: rollNumber.trim() || editingStudent.rollNumber,
+          admissionNumber: admissionNumber.trim() || editingStudent.admissionNumber,
+          admissionDate,
+          status,
+        });
+      } else {
+        const nextIdx = students.length + 1;
+        const deptPrefix = deptObj?.name ? deptObj.name.substring(0, 3).toUpperCase() : "GEN";
+        const genRoll = rollNumber.trim() || `26${deptPrefix}${String(nextIdx).padStart(3, "0")}`;
+        const genAdm = admissionNumber.trim() || `ADM-2026-${String(nextIdx + 100).padStart(4, "0")}`;
+
+        let createdServerStudent: any = null;
+        try {
+          const res = await fetch("/api/admin/students", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fullName: `${firstName.trim()} ${lastName.trim()}`,
+              email: email.trim(),
+              rollNumber: genRoll,
+              phone: phone.trim(),
+              gender,
+              dateOfBirth: dob,
+              courseId: selectedCourseId || undefined,
+              academicYearId: selectedAYId || undefined,
+              classId: selectedClassId || undefined,
+              sectionId: selectedSectionId || undefined,
+            }),
+          });
+          const json = await res.json();
+          if (res.ok && json.success) {
+            createdServerStudent = json.data;
+          } else {
+            throw new Error(json.error || "Failed to create student on server.");
+          }
+        } catch (apiErr: any) {
+          throw new Error(apiErr.message || "Failed to save student.");
+        }
+
+        const realStudentId = createdServerStudent?.id || `STU-2026-${String(nextIdx).padStart(3, "0")}`;
+        const realUserId = createdServerStudent?.user?.id || createdServerStudent?.userId;
+
+        addStudent({
+          studentId: realStudentId,
+          admissionNumber: genAdm,
+          rollNumber: genRoll,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          fullName: `${firstName.trim()} ${lastName.trim()}`,
+          dob,
+          gender,
+          bloodGroup,
+          category,
+          email: email.trim(),
+          institutionalEmail: `${firstName.toLowerCase()}.${genRoll.toLowerCase()}@sst.edu.in`,
+          phone: phone.trim(),
+          addressLine: addressLine.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          postalCode: postalCode.trim(),
+          academicYearId: selectedAYId,
+          academicYearName: ayObj?.name || "2026-2027",
+          departmentId: selectedDeptId,
+          departmentName: deptObj?.name || "Department",
+          courseId: selectedCourseId,
+          courseName: courseObj?.name || "Course",
+          classId: selectedClassId,
+          className: classObj?.name || "Class",
+          sectionId: selectedSectionId,
+          sectionName: secObj?.name || "Section A",
+          batch,
+          admissionDate,
+          status,
+          guardianIds: [],
+          portalUserId: realUserId,
+          portalStatus: "PENDING_SETUP",
+          portalAccess: false,
+          portalEmail: email.trim(),
+        });
+      }
+
+      setIsFormModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save student.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsFormModalOpen(false);
   };
 
   // Link Guardian Action
@@ -348,6 +417,128 @@ export default function StudentsPage() {
       default:
         return <Badge variant="neutral">{st}</Badge>;
     }
+  };
+
+  const getStudentPortalBadge = (stu: StudentItem) => {
+    const status = stu.portalStatus || (stu.portalAccess ? "ACTIVE" : "NOT_CREATED");
+    switch (status) {
+      case "ACTIVE":
+        return <Badge variant="success" size="sm">Active Portal</Badge>;
+      case "DISABLED":
+        return <Badge variant="error" size="sm">Disabled</Badge>;
+      case "NOT_CREATED":
+      default:
+        return <Badge variant="neutral" size="sm">No Account</Badge>;
+    }
+  };
+
+  const handleOpenCredentialModal = (stu: StudentItem) => {
+    setCredentialStudent(stu);
+    setIsCredentialModalOpen(true);
+  };
+
+  const updateStudentRef = useRef(updateStudent);
+  useEffect(() => {
+    updateStudentRef.current = updateStudent;
+  });
+
+  const refreshBatchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/credentials?type=batch&entityType=STUDENT");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && json.data) {
+        Object.entries(json.data as Record<string, any>).forEach(([id, statusInfo]) => {
+          updateStudentRef.current(id, {
+            portalStatus: statusInfo.portalStatus,
+            portalAccess: statusInfo.isActive,
+            portalUserId: statusInfo.userId,
+            portalEmail: statusInfo.email || undefined,
+            lastLoginAt: statusInfo.lastLoginAt,
+          });
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to fetch batch student credential status:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshBatchStatus();
+  }, [refreshBatchStatus]);
+
+  const loadStudentsFromApi = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/students?take=200");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        json.data.forEach((s: any) => {
+          const hasUser = !!s.user;
+          const hasPassword = !!s.user?.passwordHash && s.user.passwordHash !== "UNPROVISIONED";
+          const isActive = !!s.user?.isActive && s.user?.status === "ACTIVE";
+          const portalStatus = !hasUser
+            ? "NOT_CREATED"
+            : !hasPassword
+            ? "PENDING_SETUP"
+            : isActive
+            ? "ACTIVE"
+            : "DISABLED";
+
+          updateStudentRef.current(s.id, {
+            rollNumber: s.rollNumber,
+            admissionNumber: s.admissionNumber || s.rollNumber,
+            fullName: s.fullName,
+            email: s.email,
+            phone: s.phone || "",
+            portalUserId: s.userId || s.user?.id,
+            portalStatus: portalStatus as any,
+            portalAccess: isActive,
+            portalEmail: s.user?.email || s.email,
+            lastLoginAt: s.user?.lastLoginAt,
+          });
+        });
+      }
+    } catch (err) {
+      console.warn("Could not sync students from server:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStudentsFromApi();
+  }, [loadStudentsFromApi]);
+
+  const handleCredentialStatusUpdated = (entityId: string, updatedStatus: PortalAccountStatus, userId?: string) => {
+    updateStudent(entityId, {
+      portalStatus: updatedStatus as any,
+      portalAccess: updatedStatus === "ACTIVE",
+      portalUserId: userId,
+    });
+    if (selectedStudent && selectedStudent.id === entityId) {
+      setSelectedStudent((prev) =>
+        prev
+          ? {
+              ...prev,
+              portalStatus: updatedStatus as any,
+              portalAccess: updatedStatus === "ACTIVE",
+              portalUserId: userId,
+            }
+          : null
+      );
+    }
+    if (credentialStudent && credentialStudent.id === entityId) {
+      setCredentialStudent((prev) =>
+        prev
+          ? {
+              ...prev,
+              portalStatus: updatedStatus as any,
+              portalAccess: updatedStatus === "ACTIVE",
+              portalUserId: userId,
+            }
+          : null
+      );
+    }
+    refreshBatchStatus();
   };
 
   return (
@@ -529,6 +720,7 @@ export default function StudentsPage() {
                 <TableHead>Cohort Placement</TableHead>
                 <TableHead>Admission No</TableHead>
                 <TableHead>Linked Guardians</TableHead>
+                <TableHead>Portal Access</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -536,7 +728,7 @@ export default function StudentsPage() {
             <TableBody>
               {filteredStudents.length === 0 ? (
                 <TableEmpty
-                  colSpan={7}
+                  colSpan={8}
                   message="No students found matching your search and filter criteria."
                 />
               ) : (
@@ -614,12 +806,34 @@ export default function StudentsPage() {
                         )}
                       </TableCell>
 
+                      {/* Portal Access */}
+                      <TableCell>{getStudentPortalBadge(stu)}</TableCell>
+
                       {/* Status */}
                       <TableCell>{getStudentStatusBadge(stu.status)}</TableCell>
 
                       {/* Actions */}
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleOpenCredentialModal(stu)}
+                            className="p-1.5 rounded text-[#64748B] hover:text-[#123B5A] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
+                            title="Manage Portal Credentials & Access"
+                          >
+                            <KeyRound className="w-4 h-4 text-[#F5A000]" />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setEmailStudent(stu);
+                              setIsEmailModalOpen(true);
+                            }}
+                            className="p-1.5 rounded text-[#64748B] hover:text-[#123B5A] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
+                            title="Send Direct Email / Onboarding Invitation"
+                          >
+                            <Mail className="w-4 h-4 text-[#123B5A]" />
+                          </button>
+
                           <button
                             onClick={() => handleOpenProfile(stu)}
                             className="p-1.5 rounded text-[#64748B] hover:text-[#F5A000] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
@@ -775,6 +989,16 @@ export default function StudentsPage() {
                 }`}
               >
                 Enrollment History
+              </button>
+              <button
+                onClick={() => setActiveTab("credentials")}
+                className={`pb-2.5 transition-colors cursor-pointer border-b-2 ${
+                  activeTab === "credentials"
+                    ? "border-[#F5A000] text-[#F5A000]"
+                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+                }`}
+              >
+                Portal Credentials
               </button>
             </div>
 
@@ -937,6 +1161,69 @@ export default function StudentsPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 5: Portal Credentials */}
+            {activeTab === "credentials" && (
+              <div className="p-4 rounded-xl border border-[#E2E8F0] space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
+                  <h5 className="text-xs font-bold text-[#123B5A] uppercase tracking-wider flex items-center gap-1.5">
+                    <KeyRound className="w-4 h-4 text-[#F5A000]" />
+                    <span>Student Portal Access & Security</span>
+                  </h5>
+                  {getStudentPortalBadge(selectedStudent)}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[#64748B] font-medium block">Portal Username / Email:</span>
+                    <span className="font-semibold text-[#1E293B]">{selectedStudent.email || "No email registered"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#64748B] font-medium block">Portal Destination:</span>
+                    <span className="font-semibold text-[#1E293B]">/dashboard (Student Dashboard via /login)</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#64748B]">Account Status:</span>
+                    <span className="font-bold text-[#1E293B]">
+                      {selectedStudent.portalStatus === "ACTIVE"
+                        ? "Active & Authorized"
+                        : selectedStudent.portalStatus === "DISABLED"
+                        ? "Portal Access Suspended"
+                        : "Account Not Yet Created"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-[#E2E8F0] pt-2">
+                    <span className="text-[#64748B]">Password Policy:</span>
+                    <span className="text-[#123B5A] font-medium">Mandatory change on first login</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleOpenCredentialModal(selectedStudent)}
+                    leftIcon={<KeyRound className="w-3.5 h-3.5" />}
+                  >
+                    Manage Portal Credentials
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEmailStudent(selectedStudent);
+                      setIsEmailModalOpen(true);
+                    }}
+                    leftIcon={<Mail className="w-3.5 h-3.5 text-[#123B5A]" />}
+                  >
+                    Send Email / Setup Link
+                  </Button>
                 </div>
               </div>
             )}
@@ -1259,6 +1546,52 @@ export default function StudentsPage() {
           </div>
         </form>
       </Modal>
+
+      {/* ================================================================= */}
+      {/* 4. STUDENT PORTAL CREDENTIAL MANAGEMENT MODAL                    */}
+      {/* ================================================================= */}
+      <CredentialManagementModal
+        isOpen={isCredentialModalOpen}
+        onClose={() => setIsCredentialModalOpen(false)}
+        entityType="STUDENT"
+        entity={credentialStudent ? {
+          id: credentialStudent.id,
+          fullName: credentialStudent.fullName,
+          email: credentialStudent.email,
+          rollNumber: credentialStudent.rollNumber,
+          admissionNumber: credentialStudent.admissionNumber,
+          departmentName: credentialStudent.departmentName,
+          userId: credentialStudent.portalUserId,
+          portalStatus: credentialStudent.portalStatus,
+          portalAccess: credentialStudent.portalAccess,
+          lastLoginAt: credentialStudent.lastLoginAt,
+        } : null}
+        onStatusUpdated={handleCredentialStatusUpdated}
+      />
+
+      {/* 5. EMAIL DISPATCH MODAL */}
+      <EmailDispatchModal
+        isOpen={isEmailModalOpen}
+        onClose={() => {
+          setIsEmailModalOpen(false);
+          setEmailStudent(null);
+        }}
+        initialRole="STUDENT"
+        allowedRoles={["STUDENT"]}
+        lockRole={true}
+        preselectedRecipients={
+          emailStudent
+            ? [
+                {
+                  id: emailStudent.portalUserId || emailStudent.id,
+                  name: emailStudent.fullName,
+                  email: emailStudent.email,
+                  role: "STUDENT",
+                },
+              ]
+            : []
+        }
+      />
     </div>
   );
 }
