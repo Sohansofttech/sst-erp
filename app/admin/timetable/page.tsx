@@ -830,7 +830,10 @@ export default function TimetablePage() {
                                 key={p.id}
                                 className="p-2 text-center bg-amber-50/30 border-r border-slate-200 align-middle"
                               >
-                                <div className="text-[10px] font-medium text-amber-700 writing-mode-vertical transform rotate-180 inline-block uppercase tracking-wider opacity-60">
+                                <div
+                                  className="text-[10px] font-semibold text-amber-700/80 inline-block uppercase tracking-wider select-none [writing-mode:vertical-rl]"
+                                  style={{ writingMode: "vertical-rl" }}
+                                >
                                   {p.label}
                                 </div>
                               </td>

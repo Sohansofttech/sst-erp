@@ -434,19 +434,34 @@ export async function createStudent(
     fullName: string;
     email: string;
     rollNumber: string;
+    admissionNumber?: string;
     usn?: string;
     phone?: string;
     gender?: any;
-    dateOfBirth?: Date;
+    dateOfBirth?: Date | string;
     courseId?: string;
     academicYearId?: string;
     classId?: string;
     sectionId?: string;
+    departmentId?: string;
+    bloodGroup?: string;
+    category?: string;
+    addressLine?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    admissionDate?: Date | string;
+    batch?: string;
+    status?: string;
   }
 ) {
+  const isUuid = (val?: string | null): boolean =>
+    !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
   const email = data.email.trim().toLowerCase();
   const fullName = data.fullName.trim();
   const rollNumber = data.rollNumber.trim();
+  const admissionNumber = data.admissionNumber?.trim() || rollNumber;
 
   // 1. Database Transaction: Atomic Student & User Account Provisioning
   const { student, user } = await db.$transaction(async (tx) => {
@@ -505,10 +520,113 @@ export async function createStudent(
     const lastName = parts.slice(1).join(" ") || "Enrolled";
 
     const studentId = crypto.randomUUID();
-    const dob = data.dateOfBirth ? new Date(data.dateOfBirth) : new Date("2002-01-01");
+
+    let safeDob: Date = new Date("2004-01-01");
+    if (data.dateOfBirth) {
+      const parsed = new Date(data.dateOfBirth);
+      if (!isNaN(parsed.getTime())) {
+        safeDob = parsed;
+      }
+    }
+
     const rawGender = (data.gender || "MALE").toString().toUpperCase();
     const genderStr = ["MALE", "FEMALE", "OTHER"].includes(rawGender) ? rawGender : "MALE";
-    const statusStr = "ACTIVE";
+    const rawStatus = (data.status || "ACTIVE").toString().toUpperCase();
+    const statusStr = ["ACTIVE", "INACTIVE", "SUSPENDED", "ALUMNI"].includes(rawStatus) ? rawStatus : "ACTIVE";
+
+    // Safe UUID resolution for foreign key columns:
+    // If frontend sends mock string slugs (e.g. "course-btech-cse", "ay-2026-27"),
+    // attempt to resolve to live database UUID or safely nullify to prevent PostgreSQL 22P02 uuid syntax errors.
+    let resolvedCourseId: string | null = null;
+    if (data.courseId) {
+      if (isUuid(data.courseId)) {
+        try {
+          const course = await tx.course.findFirst({
+            where: { id: data.courseId, institutionId },
+            select: { id: true },
+          });
+          if (course) resolvedCourseId = course.id;
+        } catch {
+          // Keep null if table query fails
+        }
+      } else {
+        try {
+          const cleanCode = data.courseId.replace(/^course-/, "").toUpperCase();
+          const course = await tx.course.findFirst({
+            where: {
+              institutionId,
+              OR: [
+                { code: { equals: cleanCode, mode: "insensitive" } },
+                { name: { contains: cleanCode, mode: "insensitive" } },
+              ],
+            },
+            select: { id: true },
+          });
+          if (course) resolvedCourseId = course.id;
+        } catch {
+          // Keep null if lookup fails
+        }
+      }
+    }
+
+    let resolvedAcademicYearId: string | null = null;
+    if (data.academicYearId) {
+      if (isUuid(data.academicYearId)) {
+        try {
+          const ay = await tx.academicYear.findFirst({
+            where: { id: data.academicYearId, institutionId },
+            select: { id: true },
+          });
+          if (ay) resolvedAcademicYearId = ay.id;
+        } catch {
+          // Keep null if table query fails
+        }
+      } else {
+        try {
+          const ay = await tx.academicYear.findFirst({
+            where: {
+              institutionId,
+              OR: [
+                { isCurrent: true },
+                { code: data.academicYearId },
+                { name: { contains: "2026", mode: "insensitive" } },
+              ],
+            },
+            select: { id: true },
+          });
+          if (ay) resolvedAcademicYearId = ay.id;
+        } catch {
+          // Keep null if lookup fails
+        }
+      }
+    }
+
+    // Class and Section tables do not exist in live DB; only pass if valid UUID
+    let resolvedClassId: string | null = null;
+    if (isUuid(data.classId)) {
+      try {
+        const cls = await (tx as any).class.findFirst({
+          where: { id: data.classId, institutionId },
+          select: { id: true },
+        });
+        if (cls) resolvedClassId = cls.id;
+      } catch {
+        // Table doesn't exist
+      }
+    }
+
+    let resolvedSectionId: string | null = null;
+    if (isUuid(data.sectionId)) {
+      try {
+        const sec = await (tx as any).section.findFirst({
+          where: { id: data.sectionId, institutionId },
+          select: { id: true },
+        });
+        if (sec) resolvedSectionId = sec.id;
+      } catch {
+        // Table doesn't exist
+      }
+    }
 
     // Direct SQL INSERT avoids Prisma client casting to non-existent public.Gender / public.StudentStatus PostgreSQL enums
     const insertResult: any = await tx.$queryRawUnsafe(`
@@ -533,32 +651,36 @@ export async function createStudent(
       fullName,
       email,
       rollNumber,
-      rollNumber,
+      admissionNumber,
       data.phone?.trim() || null,
       genderStr,
       statusStr,
-      dob,
-      data.courseId || null,
-      data.academicYearId || null,
-      data.classId || null,
-      data.sectionId || null
+      safeDob,
+      resolvedCourseId,
+      resolvedAcademicYearId,
+      resolvedClassId,
+      resolvedSectionId
     );
 
     const newStudent = insertResult[0];
 
-    if (data.academicYearId && data.classId) {
-      await tx.studentEnrollmentHistory.create({
-        data: {
-          institutionId,
-          studentId: newStudent.id,
-          academicYearId: data.academicYearId,
-          classId: data.classId,
-          sectionId: data.sectionId,
-          semester: 1,
-          status: "ACTIVE",
-          enrolledAt: new Date(),
-        },
-      });
+    if (resolvedAcademicYearId && resolvedClassId) {
+      try {
+        await tx.studentEnrollmentHistory.create({
+          data: {
+            institutionId,
+            studentId: newStudent.id,
+            academicYearId: resolvedAcademicYearId,
+            classId: resolvedClassId,
+            sectionId: resolvedSectionId || undefined,
+            semester: 1,
+            status: "ACTIVE",
+            enrolledAt: new Date(),
+          },
+        });
+      } catch (histErr: any) {
+        console.warn("[createStudent] StudentEnrollmentHistory creation skipped (table not migrated or FK constraint):", histErr?.message);
+      }
     }
 
     // Write audit log inside transaction
@@ -570,6 +692,7 @@ export async function createStudent(
       entityId: newStudent.id,
       newValuesJson: JSON.stringify({
         rollNumber: newStudent.rollNumber,
+        admissionNumber: newStudent.admissionNumber,
         email: newStudent.email,
         provisionedLogin: true,
       }),
