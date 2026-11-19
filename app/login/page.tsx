@@ -96,7 +96,10 @@ const demoAccounts: Array<{
 function LoginForm() {
   const [selectedRole, setSelectedRole] = useState<PortalRole>("ADMIN");
   const [email, setEmail] = useState("");
+  const [institutionCode, setInstitutionCode] = useState("");
+  const [showCollegeCode, setShowCollegeCode] = useState(false);
   const emailInputRef = React.useRef<HTMLInputElement>(null);
+  const collegeCodeInputRef = React.useRef<HTMLInputElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +148,7 @@ function LoginForm() {
       const formData = new FormData(e.currentTarget as HTMLFormElement);
       const submittedEmail = String(formData.get("email") || email).trim().toLowerCase();
       const submittedPassword = String(formData.get("password") || "");
+      const submittedCollegeCode = String(formData.get("institutionCode") || institutionCode || "").trim();
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -153,12 +157,19 @@ function LoginForm() {
         body: JSON.stringify({
           email: submittedEmail,
           password: submittedPassword,
+          institutionCode: submittedCollegeCode || undefined,
         }),
       });
 
       const json = await res.json();
 
       if (!res.ok || !json.success) {
+        if (json.error && json.error.toLowerCase().includes("college code")) {
+          setShowCollegeCode(true);
+          setTimeout(() => {
+            collegeCodeInputRef.current?.focus();
+          }, 100);
+        }
         throw new Error(json.error || "Invalid email or password.");
       }
 
@@ -196,6 +207,10 @@ function LoginForm() {
     setEmail(demoEmail);
     if (emailInputRef.current) {
       emailInputRef.current.value = demoEmail;
+    }
+    setInstitutionCode("");
+    if (collegeCodeInputRef.current) {
+      collegeCodeInputRef.current.value = "";
     }
     setError(null);
     setSuccessMessage(null);
@@ -346,6 +361,61 @@ function LoginForm() {
               autoComplete="on"
               onSubmit={handleSubmit}
             >
+              {/* College Code / Institution Code Input */}
+              {(selectedRole === "ADMIN" || showCollegeCode) && (
+                <div className="animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="institutionCode"
+                      className="block text-xs font-bold text-[#202936] uppercase tracking-wider"
+                    >
+                      College Code
+                    </label>
+                    <span className="text-[10px] text-[#788391] font-semibold">
+                      Required for New Institutions
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#788391]">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="institutionCode"
+                      ref={collegeCodeInputRef}
+                      name="institutionCode"
+                      type="text"
+                      autoComplete="organization"
+                      value={institutionCode}
+                      onChange={(e) => {
+                        setInstitutionCode(e.target.value);
+                        if (error) setError(null);
+                      }}
+                      placeholder="Enter College Code (e.g. AIT2026)"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-xs sm:text-sm bg-[#F8FAFC] focus:bg-white border border-[#E5E9EF] rounded-xl text-[#202936] placeholder-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#123B5A] focus:border-transparent transition-all"
+                    />
+                  </div>
+                  <p className="text-[10px] text-[#94A3B8] mt-1">
+                    Enter your assigned College Code. Existing admins (Apex) may leave this blank.
+                  </p>
+                </div>
+              )}
+
+              {/* Enter College Code option for students/teachers when hidden */}
+              {!showCollegeCode && selectedRole !== "ADMIN" && selectedRole !== "SUPER_ADMIN" && (
+                <div className="text-right -mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCollegeCode(true);
+                      setTimeout(() => collegeCodeInputRef.current?.focus(), 50);
+                    }}
+                    className="text-[11px] font-semibold text-[#123B5A] hover:text-[#F5A000] transition-colors cursor-pointer"
+                  >
+                    + Enter College Code (if required)
+                  </button>
+                </div>
+              )}
+
               {/* Email Address */}
               <div>
                 <label
