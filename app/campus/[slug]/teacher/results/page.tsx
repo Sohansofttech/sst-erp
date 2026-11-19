@@ -412,9 +412,9 @@ export default function TeacherResultsPage() {
         subtitle="Enter final theory & practical examination marks, track moderation status, and publish approved registers."
         action={
           <Button asChild variant="outline">
-            <Link href={`/campus/${slug}/teacher/exams`}>
+            <Link href={`/campus/${slug}/teacher/results`}>
               <ClipboardList className="size-4" />
-              Back to Exam Duties
+              Back to Results Overview
             </Link>
           </Button>
         }
