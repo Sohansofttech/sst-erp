@@ -12,7 +12,7 @@ function SetupPasswordForm() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [userInfo, setUserInfo] = useState<{ email: string; name: string } | null>(null);
+  const [userInfo, setUserInfo] = useState<{ email: string; name: string; institutionName?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -30,7 +30,7 @@ function SetupPasswordForm() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setUserInfo({ email: data.email, name: data.name });
+          setUserInfo({ email: data.email, name: data.name, institutionName: data.institutionName });
         } else {
           setError(data.error || "Invalid or expired setup token.");
         }
@@ -70,9 +70,14 @@ function SetupPasswordForm() {
         setSuccess(true);
         setTimeout(() => {
           if (data.role === "ADMIN" || data.role === "SUPER_ADMIN") {
-            router.push("/admin/dashboard");
+            router.push("/admin");
           } else if (data.role === "TEACHER") {
-            router.push("/campus/demo/teacher");
+            const institutionSlug = (data.institutionSlug || "").trim();
+            if (institutionSlug) {
+              router.push(`/campus/${institutionSlug}/teacher`);
+            } else {
+              router.push("/login");
+            }
           } else {
             router.push("/dashboard");
           }
@@ -97,7 +102,7 @@ function SetupPasswordForm() {
           Set Up Your Account Password
         </h2>
         <p className="mt-1 text-sm text-[#64748B]">
-          SST-ERP Secure Credential Onboarding
+          {userInfo?.institutionName ? `${userInfo.institutionName} • Secure Credential Onboarding` : "SST-ERP Secure Credential Onboarding"}
         </p>
       </div>
 

@@ -79,13 +79,11 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
       await syncInstitutionToAppDb(newInstitutionId);
       const adminName = formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
       const adminEmail = formData.get("adminEmail")?.toString().trim() || data.email || undefined;
-      const adminPassword = formData.get("adminPassword")?.toString().trim() || "Admin@2026";
 
       const provisionResult = await provisionInstitutionAdmin({
         institutionId: newInstitutionId,
         adminName,
         adminEmail,
-        password: adminPassword,
         actorUserId: auditUserId ?? undefined,
       });
 

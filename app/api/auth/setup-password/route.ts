@@ -32,7 +32,17 @@ export async function GET(req: NextRequest) {
 
     const user = await db.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, name: true, fullName: true, passwordHash: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        fullName: true,
+        passwordHash: true,
+        institutionId: true,
+        institution: {
+          select: { name: true, slug: true },
+        },
+      },
     });
 
     if (!user) {
@@ -50,10 +60,30 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    let institutionSlug = (user.institution?.slug || "").trim().toLowerCase();
+    let institutionName = user.institution?.name || "";
+
+    if (!institutionSlug && user.institutionId) {
+      try {
+        const instRows: any = await db.$queryRaw`
+          SELECT slug, name FROM institutions WHERE id = ${user.institutionId}
+          UNION ALL
+          SELECT slug, name FROM "Institution" WHERE id::text = ${user.institutionId}
+          LIMIT 1
+        `;
+        if (instRows && instRows.length > 0) {
+          institutionSlug = (instRows[0].slug || "").trim().toLowerCase();
+          institutionName = instRows[0].name || "";
+        }
+      } catch {}
+    }
+
     return NextResponse.json({
       success: true,
       email: user.email,
       name: user.fullName || user.name || "Member",
+      institutionName: institutionName || undefined,
+      institutionSlug: institutionSlug || undefined,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -104,6 +134,14 @@ export async function POST(req: NextRequest) {
         role: true,
         institutionId: true,
         passwordHash: true,
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            code: true,
+          },
+        },
       },
     });
 
@@ -126,13 +164,56 @@ export async function POST(req: NextRequest) {
     const updatedSig = computePasswordSignature(newHash);
     const now = new Date();
 
+    // Activate user upon successful password setup
     await db.user.update({
       where: { id: user.id },
       data: {
         passwordHash: newHash,
         lastLoginAt: now,
+        isActive: true,
+        status: "ACTIVE",
       },
     });
+
+    // Synchronize membership activation across platform tables
+    if (user.institutionId) {
+      try {
+        await db.$executeRaw`
+          UPDATE "InstitutionMembership"
+          SET status = 'ACTIVE'::"MembershipStatus", "updatedAt" = NOW()
+          WHERE ("userId"::text = ${user.id} OR "userId" IN (SELECT id FROM "User" WHERE LOWER(email) = LOWER(${user.email})))
+            AND "institutionId"::text = ${user.institutionId}
+        `;
+        await db.$executeRaw`
+          UPDATE "User"
+          SET status = 'ACTIVE'::"UserStatus", "updatedAt" = NOW()
+          WHERE id::text = ${user.id} OR LOWER(email) = LOWER(${user.email})
+        `;
+      } catch (membershipErr) {
+        // Platform table update is safe/non-blocking
+      }
+    }
+
+    // Resolve authenticated user's institution slug from trusted database record
+    let institutionSlug = (user.institution?.slug || "").trim().toLowerCase();
+    let institutionName = user.institution?.name || "";
+
+    if (!institutionSlug && user.institutionId) {
+      try {
+        const instRows: any = await db.$queryRaw`
+          SELECT slug, name FROM institutions WHERE id = ${user.institutionId}
+          UNION ALL
+          SELECT slug, name FROM "Institution" WHERE id::text = ${user.institutionId}
+          LIMIT 1
+        `;
+        if (instRows && instRows.length > 0) {
+          institutionSlug = (instRows[0].slug || "").trim().toLowerCase();
+          institutionName = instRows[0].name || "";
+        }
+      } catch (instErr) {
+        console.warn("Failed to lookup institution slug in setup-password:", instErr);
+      }
+    }
 
     // Record PASSWORD_CHANGED audit log
     try {
@@ -160,7 +241,7 @@ export async function POST(req: NextRequest) {
       fullName: user.fullName || user.name || "Member",
       role: (user.role as any) || "STUDENT",
       institutionId: user.institutionId || "",
-      institutionName: "Campus Administration",
+      institutionName: institutionName || "Campus Administration",
       mustChangePassword: false,
       passwordSig: updatedSig,
     };
@@ -170,6 +251,8 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "Password configured successfully! Welcome to SST-ERP.",
       role: user.role,
+      institutionSlug: institutionSlug || undefined,
+      institutionName: institutionName || undefined,
     });
 
     response.cookies.set({

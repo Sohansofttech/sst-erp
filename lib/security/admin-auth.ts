@@ -5,6 +5,7 @@ import db from "@/lib/db";
 
 export interface ResolvedAdminContext {
   institutionId: string;
+  institutionName?: string;
   userId?: string;
   userRole: string;
   isDevFallback: boolean;
@@ -65,6 +66,7 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
 
       return {
         institutionId,
+        institutionName: session.institutionName,
         userId: session.userId,
         userRole: session.role,
         isDevFallback: false,

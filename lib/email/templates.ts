@@ -30,6 +30,7 @@ export interface PasswordSetupTemplateOptions {
   setupUrl: string;
   institutionName?: string;
   expiresIn?: string;
+  loginUrl?: string;
 }
 
 export interface RoleCredentialInvitationTemplateOptions {
@@ -222,6 +223,17 @@ export function renderPasswordSetupEmail(options: PasswordSetupTemplateOptions):
                 </a>
               </div>
 
+              ${options.loginUrl ? `
+              <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 16px; margin: 16px 0; text-align: center;">
+                <span style="color: #64748B; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">
+                  Portal Destination
+                </span>
+                <a href="${escapeHtml(options.loginUrl)}" style="color: #123B5A; font-size: 13px; font-weight: 600; text-decoration: none;">
+                  ${escapeHtml(options.loginUrl)} &rarr;
+                </a>
+              </div>
+              ` : ""}
+
               <!-- Security Information Card -->
               <table role="presentation" width="100%" style="background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 14px 16px; margin-top: 20px;">
                 <tr>
@@ -272,7 +284,7 @@ To set up your password, please visit the following secure link:
 
 ${options.setupUrl}
 
-SECURITY NOTICE:
+${options.loginUrl ? `Portal Destination: ${options.loginUrl}\n` : ""}SECURITY NOTICE:
 - This link is valid for ${options.expiresIn || "24 hours"}.
 - Plaintext passwords are never sent via email for security.
 - If you did not request this account, please contact your institution administrator.

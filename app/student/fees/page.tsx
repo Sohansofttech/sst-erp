@@ -27,13 +27,19 @@ export default function StudentFeesPage() {
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState<any>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [institutionName, setInstitutionName] = useState<string>("");
 
   const fetchFees = async () => {
     try {
       setLoading(true);
       const res = await fetch("/api/student/fees", { credentials: "include" });
       const json = await res.json();
-      if (json.success) setData(json.data);
+      if (json.success) {
+        setData(json.data);
+        if (json.data?.institutionName) {
+          setInstitutionName(json.data.institutionName);
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -42,6 +48,17 @@ export default function StudentFeesPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("erp_user");
+        if (stored) {
+          const user = JSON.parse(stored);
+          if (user.institutionName) setInstitutionName(user.institutionName);
+        }
+        const storedInst = localStorage.getItem("erp_institution_name");
+        if (storedInst) setInstitutionName(storedInst);
+      } catch {}
+    }
     fetchFees();
     const handleChildChanged = () => {
       fetchFees();
@@ -290,7 +307,7 @@ export default function StudentFeesPage() {
           isOpen={!!activeReceipt}
           onClose={() => setActiveReceipt(null)}
           title="Official Fee Payment Receipt"
-          subtitle="Finance & Accounts Division • Apex Institute of Technology"
+          subtitle={`Finance & Accounts Division • ${institutionName || "Campus Finance Division"}`}
           maxWidth="md"
           footer={
             <Button
@@ -305,7 +322,7 @@ export default function StudentFeesPage() {
         >
           <div className="border border-[#123B5A] rounded-xl p-5 bg-white space-y-4 text-xs">
             <div className="text-center border-b border-[#E2E8F0] pb-3">
-              <h3 className="text-base font-bold text-[#123B5A]">APEX INSTITUTE OF TECHNOLOGY</h3>
+              <h3 className="text-base font-bold text-[#123B5A] uppercase">{institutionName || "Campus Fee & Accounts"}</h3>
               <p className="text-[11px] text-[#64748B]">Finance Office • Tax Invoice & Fee Acknowledgment</p>
               <Badge variant="success" size="sm" className="mt-1">
                 Receipt Number: {activeReceipt.receiptNumber}

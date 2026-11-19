@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        institutionName: session.institutionName,
         summary: {
           totalFees,
           totalPaid,

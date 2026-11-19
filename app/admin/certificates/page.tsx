@@ -2201,8 +2201,11 @@ function CertificatesContent() {
               >
                 {/* Institutional Header */}
                 <div className="text-center space-y-1.5 border-b-2 border-[#123B5A] pb-6">
-                  <div className="w-12 h-12 rounded-full border-2 border-[#123B5A] mx-auto flex items-center justify-center font-black text-[#123B5A] text-sm tracking-wider mb-2">
-                    SST
+                  <div
+                    className="w-12 h-12 rounded-full border-2 border-[#123B5A] mx-auto flex items-center justify-center font-black text-[#123B5A] text-xs tracking-wider mb-2 uppercase text-center px-1 truncate"
+                    title={selectedCertForPreview.institutionCode || profile?.code || "SEAL"}
+                  >
+                    {selectedCertForPreview.institutionCode || profile?.code || (profile?.name ? profile.name.trim().split(/\s+/).filter(Boolean).slice(0, 3).map((p) => p[0]).join("").toUpperCase() : "SEAL")}
                   </div>
                   <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-[#123B5A]">
                     {selectedCertForPreview.institutionName}

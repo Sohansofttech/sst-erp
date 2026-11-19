@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth/session"
+import db from "@/lib/db"
 import { LoadingState } from "@/components/shared/StateViews"
 import { TeacherPortalShell } from "./teacher-portal-shell"
 
@@ -26,7 +27,31 @@ async function TeacherLayoutResolver({
   }
 
   const { slug } = await params
-  const institutionName = formatInstitutionName(slug)
+  let institutionName = formatInstitutionName(slug)
+
+  try {
+    const inst = await db.institution.findFirst({
+      where: { slug },
+      select: { name: true },
+    });
+    if (inst?.name) {
+      institutionName = inst.name;
+    } else {
+      const platformInst = await db.platformInstitution.findFirst({
+        where: { slug },
+        select: { name: true },
+      });
+      if (platformInst?.name) {
+        institutionName = platformInst.name;
+      } else if (session?.institutionName) {
+        institutionName = session.institutionName;
+      }
+    }
+  } catch {
+    if (session?.institutionName) {
+      institutionName = session.institutionName;
+    }
+  }
 
   return (
     <TeacherPortalShell slug={slug} institutionName={institutionName}>

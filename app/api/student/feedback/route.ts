@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
 import { authorizeStudentOrParentAccess } from "@/lib/security/authorize";
+import { submitQuery } from "@/lib/services/query-management.service";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -48,21 +49,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing feedback fields" }, { status: 400 });
     }
 
-    const feedback = await db.feedback.create({
-      data: {
-        institutionId: session.institutionId,
-        studentId: session.studentId,
-        category,
-        subject,
-        message,
-        status: "PENDING",
-      },
+    // Submit via unified query management engine (creates feedback and approval request + admin notification)
+    const query = await submitQuery({
+      institutionId: session.institutionId,
+      userId: session.userId,
+      role: "STUDENT",
+      category,
+      subject: subject.trim(),
+      description: message.trim(),
+      studentId: session.studentId,
     });
 
     return NextResponse.json({
       success: true,
       message: "Feedback submitted successfully.",
-      data: feedback,
+      data: query,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

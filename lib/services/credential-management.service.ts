@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import db from "@/lib/db";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
-import { sendPasswordSetupInvitation, sendRoleCredentialInvitation } from "@/lib/services/email.service";
+import { sendPasswordSetupInvitation, sendRoleCredentialInvitation, getAppBaseUrl } from "@/lib/services/email.service";
 
 // ============================================================================
 // Types & Interfaces
@@ -1214,7 +1214,7 @@ async function resolveInvitationStatus(userId: string | null): Promise<"PENDING"
  */
 export async function getUserCredentialStatus(
   institutionId: string,
-  entityType: "STUDENT" | "TEACHER" | "PARENT",
+  entityType: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN",
   entityId: string
 ): Promise<CredentialStatusResult> {
   let user: any = null;
@@ -1320,6 +1320,22 @@ export async function getUserCredentialStatus(
       resolvedEntity = guardian;
       user = guardian.user;
     }
+  } else if (entityType === "ADMIN") {
+    user = await db.user.findFirst({
+      where: {
+        institutionId,
+        role: "ADMIN",
+        ...(isValidUuid(entityId) ? { OR: [{ id: entityId }, { email: entityId }] } : { email: entityId }),
+      },
+    });
+    if (user) {
+      resolvedEntity = {
+        id: user.id,
+        fullName: user.fullName || user.name || "Administrator",
+        email: user.email,
+        userId: user.id,
+      };
+    }
   }
 
   // If entity is not found in the institution at all
@@ -1411,7 +1427,7 @@ export async function getUserCredentialStatus(
  */
 export async function resendInvitation(options: {
   institutionId: string;
-  entityType: "STUDENT" | "TEACHER" | "PARENT";
+  entityType: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN";
   entityId: string;
   actorUserId?: string | null;
 }): Promise<{
@@ -1450,13 +1466,14 @@ export async function resendInvitation(options: {
     passwordHash: dbUser?.passwordHash || null,
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = getAppBaseUrl();
   const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
 
   let portalLoginUrl = `${appUrl}/login`;
   if (entityType === "STUDENT") portalLoginUrl = `${appUrl}/login`;
   if (entityType === "TEACHER") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher`;
   if (entityType === "PARENT") portalLoginUrl = `${appUrl}/login`;
+  if (entityType === "ADMIN") portalLoginUrl = `${appUrl}/admin`;
 
   // 4. Dispatch setup invitation
   const emailRes = await sendRoleCredentialInvitation(

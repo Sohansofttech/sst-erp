@@ -25,7 +25,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [institutionName, setInstitutionName] = useState<string>("Apex Institute of Technology");
+  const [institutionName, setInstitutionName] = useState<string>("Campus Portal");
 
   // Dynamically load the live institution name configured by Super Admin / Admin
   React.useEffect(() => {

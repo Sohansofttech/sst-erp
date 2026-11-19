@@ -7,6 +7,7 @@ import {
   sendAnnouncementNotification,
   previewEmail,
   getEmailServiceStatus,
+  getAppBaseUrl,
 } from "@/lib/services/email.service";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
 
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
         select: { name: true, slug: true },
       });
       const institutionName = inst?.name || "Campus Administration";
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const appUrl = getAppBaseUrl();
 
       let loginUrl = `${appUrl}/login`;
       if (role === "TEACHER") loginUrl = `${appUrl}/campus/${inst?.slug || "demo"}/teacher`;
@@ -240,8 +241,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Institution not found." }, { status: 404 });
     }
 
-    // 2. Strict Tenant Scoping: Verify all recipient IDs belong exclusively to this institution
-    const targetUsers = await db.user.findMany({
+    // 2. Strict Tenant Scoping: Resolve all recipient IDs (supports User.id, Student.id, Teacher.id, GuardianAccount.id)
+    let targetUsers = await db.user.findMany({
       where: {
         id: { in: recipientIds },
         institutionId,
@@ -256,17 +257,94 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (targetUsers.length !== recipientIds.length) {
+    // If some IDs were not matched directly in User table, check if they are Student, Teacher, or Guardian IDs
+    if (targetUsers.length < recipientIds.length) {
+      const foundUserIds = new Set(targetUsers.map((u) => u.id));
+      const unresolvedIds = recipientIds.filter((id) => !foundUserIds.has(id));
+
+      // Check Students
+      const studentUsers = await db.student.findMany({
+        where: { id: { in: unresolvedIds }, institutionId, userId: { not: null } },
+        select: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              fullName: true,
+              name: true,
+              role: true,
+              passwordHash: true,
+            },
+          },
+        },
+      });
+      studentUsers.forEach((s) => {
+        if (s.user && !foundUserIds.has(s.user.id)) {
+          targetUsers.push(s.user);
+          foundUserIds.add(s.user.id);
+        }
+      });
+
+      // Check Teachers
+      const teachers = await db.teacher.findMany({
+        where: { id: { in: unresolvedIds }, institutionId },
+        select: { userId: true },
+      });
+      const teacherUserIds = teachers.map((t) => t.userId).filter((id) => !foundUserIds.has(id));
+      if (teacherUserIds.length > 0) {
+        const users = await db.user.findMany({
+          where: { id: { in: teacherUserIds }, institutionId },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            name: true,
+            role: true,
+            passwordHash: true,
+          },
+        });
+        users.forEach((u) => {
+          targetUsers.push(u);
+          foundUserIds.add(u.id);
+        });
+      }
+
+      // Check Guardian Accounts
+      const guardians = await db.guardianAccount.findMany({
+        where: { id: { in: unresolvedIds }, institutionId },
+        select: { userId: true },
+      });
+      const guardianUserIds = guardians.map((g) => g.userId).filter((id) => !foundUserIds.has(id));
+      if (guardianUserIds.length > 0) {
+        const users = await db.user.findMany({
+          where: { id: { in: guardianUserIds }, institutionId },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            name: true,
+            role: true,
+            passwordHash: true,
+          },
+        });
+        users.forEach((u) => {
+          targetUsers.push(u);
+          foundUserIds.add(u.id);
+        });
+      }
+    }
+
+    if (targetUsers.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: "One or more selected recipients do not belong to your institution or are deactivated.",
+          error: "Selected recipients do not belong to your institution or are deactivated.",
         },
         { status: 403 }
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const appUrl = getAppBaseUrl();
     const results: Array<{ id: string; email: string; success: boolean; previewUrl?: string | false; error?: string }> = [];
 
     // ACTION A: DIRECT MESSAGE TO SELECTED USERS
@@ -359,6 +437,26 @@ export async function POST(req: NextRequest) {
     // ACTION C: ACCOUNT INVITATION & PASSWORD SETUP
     else if (action === "SEND_INVITATION") {
       for (const user of targetUsers) {
+        // Enforce verified parent-child relationship check for Guardian accounts
+        if (user.role === "PARENT" || user.role === "GUARDIAN") {
+          const verifiedLink = await db.guardianLink.findFirst({
+            where: {
+              guardianAccount: { userId: user.id },
+              student: { institutionId },
+              isVerified: true,
+            },
+          });
+          if (!verifiedLink) {
+            results.push({
+              id: user.id,
+              email: user.email,
+              success: false,
+              error: "Cannot issue invitation: Guardian has no verified student relationships in this institution.",
+            });
+            continue;
+          }
+        }
+
         const setupToken = await signPasswordSetupToken({
           userId: user.id,
           email: user.email,
@@ -404,9 +502,18 @@ export async function POST(req: NextRequest) {
     const failedCount = results.filter((r) => !r.success).length;
     const samplePreviewUrl = results.find((r) => r.previewUrl)?.previewUrl;
 
+    const emailStatus = await getEmailServiceStatus();
+    const isEthereal = emailStatus.mode === "ethereal";
+    const isSimulated = emailStatus.mode === "simulated";
+
     return NextResponse.json({
       success: dispatchedCount > 0 || results.length === 0,
-      message: `Dispatched ${dispatchedCount} email(s) successfully.${failedCount > 0 ? ` (${failedCount} failed)` : ""}`,
+      transportMode: emailStatus.mode,
+      message: isEthereal
+        ? `Generated Ethereal test preview for ${dispatchedCount} email(s). (Demonstration Mode — no external emails sent).`
+        : isSimulated
+        ? `Simulated dispatch for ${dispatchedCount} email(s) in sandbox mode.`
+        : `Dispatched ${dispatchedCount} email(s) via live institutional SMTP.${failedCount > 0 ? ` (${failedCount} failed)` : ""}`,
       dispatchedCount,
       failedCount,
       previewUrl: samplePreviewUrl || undefined,

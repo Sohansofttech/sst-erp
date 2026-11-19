@@ -212,28 +212,25 @@ model User {
 }
 
 model AuditLog {
-  id            String   @id @default(uuid()) @db.Uuid
-  institutionId String?  @db.Uuid
+  id            String   @id @default(uuid())
+  institutionId String   @db.Uuid
   userId        String?  @db.Uuid
   action        String
-  entity        String?
-  entityId      String?
-  metadata      Json?
-  actorUserId   String?      @db.Uuid
-  entityType    String?
+  entityType    String
+  entityId      String
+  actorUserId   String?  @db.Uuid
   oldValuesJson String?
   newValuesJson String?
   userAgent     String?
   ipAddress     String?
   createdAt     DateTime @default(now())
 
-  institution Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
-  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  actorUser   User?        @relation("UserAuditActions", fields: [actorUserId], references: [id], onDelete: SetNull)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actorUser   User?       @relation("UserAuditActions", fields: [actorUserId], references: [id], onDelete: SetNull)
 
-  @@index([institutionId, createdAt])
-  @@index([userId, createdAt])
-  @@index([entity, entityId])
+  @@index([institutionId, entityType, entityId])
+  @@index([createdAt])
   @@map("audit_logs")
 }
 

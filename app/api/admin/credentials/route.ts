@@ -13,7 +13,7 @@ import {
 } from "@/lib/services/credential-management.service";
 import db from "@/lib/db";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
-import { sendPasswordSetupInvitation } from "@/lib/services/email.service";
+import { sendPasswordSetupInvitation, getAppBaseUrl } from "@/lib/services/email.service";
 
 async function dispatchSetupEmailSafe(
   institutionId: string,
@@ -37,7 +37,7 @@ async function dispatchSetupEmailSafe(
       passwordHash: dbUser?.passwordHash || null,
     });
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const appUrl = getAppBaseUrl();
     const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
 
     await sendPasswordSetupInvitation(

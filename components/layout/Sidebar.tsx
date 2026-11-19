@@ -42,11 +42,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string>(portalType || "STUDENT");
   const [institutionName, setInstitutionName] = useState<string>(
-    propInstitutionName || "Apex Institute of Technology"
+    propInstitutionName || "Campus Portal"
   );
   const [userInfo, setUserInfo] = useState<{ fullName: string; email: string }>({
-    fullName: userFullName || "John Doe",
-    email: userEmail || "john.doe@student.apex.edu",
+    fullName: userFullName || "User",
+    email: userEmail || "user@campus.portal",
   });
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           if (parsed.fullName) {
             setUserInfo({
               fullName: parsed.fullName,
-              email: parsed.email || "john.doe@student.apex.edu",
+              email: parsed.email || "user@campus.portal",
             });
           }
         }

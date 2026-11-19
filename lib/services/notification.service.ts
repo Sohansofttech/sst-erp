@@ -88,13 +88,31 @@ export async function sendNotification(params: CreateNotificationParams) {
   return notif;
 }
 
-export async function getUserNotifications(userId: string, institutionId: string) {
+export async function getUserNotifications(
+  userIdOrOptions: string | { userId: string; institutionId?: string },
+  institutionIdParam?: string
+) {
+  let userId: string;
+  let institutionId: string | undefined;
+
+  if (typeof userIdOrOptions === "object" && userIdOrOptions !== null) {
+    userId = userIdOrOptions.userId;
+    institutionId = userIdOrOptions.institutionId;
+  } else {
+    userId = userIdOrOptions;
+    institutionId = institutionIdParam;
+  }
+
   return await db.notificationRecipient.findMany({
     where: {
       userId,
-      notification: {
-        institutionId,
-      },
+      ...(institutionId
+        ? {
+            notification: {
+              institutionId,
+            },
+          }
+        : {}),
     },
     include: {
       notification: true,
@@ -104,7 +122,7 @@ export async function getUserNotifications(userId: string, institutionId: string
         createdAt: "desc",
       },
     },
-    take: 30,
+    take: 50,
   });
 }
 
@@ -113,6 +131,26 @@ export async function markNotificationAsRead(recipientId: string, userId: string
     where: {
       id: recipientId,
       userId,
+    },
+    data: {
+      isRead: true,
+      readAt: new Date(),
+    },
+  });
+}
+
+export async function markAllNotificationsAsRead(userId: string, institutionId?: string) {
+  return await db.notificationRecipient.updateMany({
+    where: {
+      userId,
+      ...(institutionId
+        ? {
+            notification: {
+              institutionId,
+            },
+          }
+        : {}),
+      isRead: false,
     },
     data: {
       isRead: true,

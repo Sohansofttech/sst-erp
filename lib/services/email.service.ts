@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import crypto from "crypto";
 import {
   renderAnnouncementEmail,
   renderPasswordSetupEmail,
@@ -27,6 +28,25 @@ export interface EmailSendResult {
   simulated?: boolean;
   recipientCount?: number;
   error?: string;
+}
+
+export interface EmailServiceStatus {
+  mode: "resend" | "smtp" | "ethereal" | "simulated";
+  configured: boolean;
+  host?: string;
+  from: string;
+}
+
+/**
+ * Returns the public application base URL for links, redirects, and invitation emails.
+ * Prioritizes NEXT_PUBLIC_APP_URL, then NEXT_PUBLIC_SITE_URL, falling back to localhost.
+ */
+export function getAppBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "http://localhost:3000"
+  );
 }
 
 // Global cached transporter instance to reuse across requests
@@ -106,16 +126,129 @@ async function getTransporter(): Promise<{ transporter: Transporter; mode: "smtp
 }
 
 /**
+ * Helper to resolve the default sender email address.
+ * Prioritizes INSTITUTION_INVITATION_FROM_EMAIL, then EMAIL_FROM, then system fallback.
+ */
+function resolveDefaultSender(): string {
+  return (
+    process.env.INSTITUTION_INVITATION_FROM_EMAIL ||
+    process.env.EMAIL_FROM ||
+    '"SST-ERP Notifications" <noreply@sst-erp.local>'
+  );
+}
+
+/**
+ * REST API client for Resend transactional email service.
+ * Uses native fetch without external dependencies.
+ * Implements transient retry logic with an Idempotency-Key to prevent duplicate emails.
+ * Failures report real errors without falling back to mock transports.
+ */
+async function sendViaResend(
+  apiKey: string,
+  from: string,
+  toList: string[],
+  options: SendEmailOptions,
+  idempotencyKey: string = crypto.randomUUID()
+): Promise<EmailSendResult> {
+  const payload: Record<string, any> = {
+    from,
+    to: toList,
+    subject: options.subject,
+    html: options.html,
+  };
+  if (options.text) {
+    payload.text = options.text;
+  }
+  if (options.replyTo) {
+    payload.reply_to = options.replyTo;
+  }
+
+  const makeRequest = async () => {
+    return await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify(payload),
+    });
+  };
+
+  let response: Response;
+  try {
+    response = await makeRequest();
+  } catch (netErr: any) {
+    // Transient network failure on first attempt - retry once with identical idempotency key
+    console.warn(`[EmailService/Resend] Transient network issue (${netErr.message}). Retrying once with Idempotency-Key...`);
+    try {
+      response = await makeRequest();
+    } catch (retryErr: any) {
+      console.error(`[EmailService/Resend] Resend retry failed: ${retryErr.message}`);
+      return {
+        success: false,
+        error: `Resend transport network failure: ${retryErr.message}`,
+        recipientCount: toList.length,
+      };
+    }
+  }
+
+  // Handle transient 5xx server errors with 1 retry
+  if (response.status >= 500) {
+    console.warn(`[EmailService/Resend] Server returned HTTP ${response.status}. Retrying once with Idempotency-Key...`);
+    try {
+      response = await makeRequest();
+    } catch (retryErr: any) {
+      return {
+        success: false,
+        error: `Resend server error (${response.status}) and retry failure: ${retryErr.message}`,
+        recipientCount: toList.length,
+      };
+    }
+  }
+
+  let body: any = null;
+  try {
+    body = await response.json();
+  } catch {
+    // Non-JSON response
+  }
+
+  if (!response.ok) {
+    const errorDetail = body?.message || body?.error || `HTTP ${response.status} ${response.statusText}`;
+    console.error(`[EmailService/Resend] Resend API Error (${response.status}):`, errorDetail);
+    return {
+      success: false,
+      error: `Resend API Error: ${errorDetail}`,
+      recipientCount: toList.length,
+    };
+  }
+
+  const messageId = body?.id || `resend_${Date.now()}`;
+  console.log(`[EmailService/Resend] ✉️ Dispatched via Resend: "${options.subject}" to ${toList.length} recipient(s) [ID: ${messageId}]`);
+  return {
+    success: true,
+    messageId,
+    recipientCount: toList.length,
+  };
+}
+
+/**
  * Returns active email service operational status without exposing secrets
  */
-export async function getEmailServiceStatus(): Promise<{
-  mode: "smtp" | "ethereal" | "simulated";
-  configured: boolean;
-  host?: string;
-  from: string;
-}> {
+export async function getEmailServiceStatus(): Promise<EmailServiceStatus> {
+  const defaultFrom = resolveDefaultSender();
+
+  if (process.env.RESEND_API_KEY) {
+    return {
+      mode: "resend",
+      configured: true,
+      host: "api.resend.com",
+      from: defaultFrom,
+    };
+  }
+
   const { mode } = await getTransporter();
-  const defaultFrom = process.env.EMAIL_FROM || '"SST-ERP Notifications" <noreply@sst-erp.local>';
   return {
     mode,
     configured: mode === "smtp",
@@ -128,14 +261,20 @@ export async function getEmailServiceStatus(): Promise<{
  * Core transactional email sender
  */
 export async function sendEmail(options: SendEmailOptions): Promise<EmailSendResult> {
-  const defaultFrom = process.env.EMAIL_FROM || '"SST-ERP Notifications" <noreply@sst-erp.local>';
-  const from = options.from || defaultFrom;
+  const from = options.from || resolveDefaultSender();
   const toList = Array.isArray(options.to) ? options.to : [options.to];
 
   if (toList.length === 0) {
     return { success: false, error: "No recipients provided" };
   }
 
+  // 1. Production Resend Delivery (if RESEND_API_KEY is configured)
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
+    return await sendViaResend(resendApiKey, from, toList, options);
+  }
+
+  // 2. Fallback to Nodemailer (SMTP / Ethereal / Simulated)
   try {
     const { transporter, mode } = await getTransporter();
 
@@ -277,6 +416,7 @@ export async function sendRoleCredentialInvitation(
   const { subject, html, text } = renderRoleCredentialInvitationEmail({
     ...options,
     name: recipient.name || options.name,
+    username: options.username || recipient.email,
   });
 
   return await sendEmail({

@@ -33,6 +33,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
         localStorage.removeItem("erp_institution_name");
+        localStorage.removeItem("sst_erp_inst_admin_profile");
       }
       await fetch("/api/auth/me", { method: "POST", credentials: "include" });
       window.location.href = "/login";

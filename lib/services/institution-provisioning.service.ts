@@ -17,6 +17,8 @@ export interface ProvisionAdminResult {
     email: string;
     fullName: string;
     role: string;
+    status: string;
+    isActive: boolean;
   };
   institution?: {
     id: string;
@@ -24,6 +26,9 @@ export interface ProvisionAdminResult {
     code: string | null;
     slug: string;
   };
+  invitationSent?: boolean;
+  previewUrl?: string | false;
+  invitationError?: string | null;
   error?: string;
 }
 
@@ -113,8 +118,6 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     // 2. Determine admin details
     const adminEmail = (input.adminEmail || inst.email || `admin@${inst.slug || "institution"}.edu.in`).trim().toLowerCase();
     const adminName = (input.adminName || `${inst.name} Administrator`).trim();
-    const plainPassword = input.password || "Admin@2026";
-    const passwordHash = await bcrypt.hash(plainPassword, 10);
 
     // 3. Ensure system Role "INSTITUTION_ADMIN" exists for this institution
     let roleId: string;
@@ -140,10 +143,10 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
       `;
     }
 
-    // 4. Ensure PlatformUser exists in table "User"
+    // 4. Ensure PlatformUser exists in table "User" (INACTIVE until invitation setup)
     let platformUserId: string;
     const existingPlatformUsers: any = await db.$queryRaw`
-      SELECT id FROM "User" WHERE LOWER(email) = LOWER(${adminEmail}) LIMIT 1
+      SELECT id, status FROM "User" WHERE LOWER(email) = LOWER(${adminEmail}) LIMIT 1
     `;
     if (existingPlatformUsers.length > 0) {
       platformUserId = existingPlatformUsers[0].id;
@@ -155,7 +158,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
           ${platformUserId}::uuid,
           ${adminName},
           ${adminEmail},
-          'ACTIVE'::"UserStatus",
+          'INACTIVE'::"UserStatus",
           'NONE'::"PlatformRole",
           NOW(),
           NOW()
@@ -163,20 +166,15 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
       `;
     }
 
-    // 5. Ensure InstitutionMembership exists in table "InstitutionMembership"
+    // 5. Ensure InstitutionMembership exists in table "InstitutionMembership" (INVITED status)
     let membershipId: string;
     const existingMemberships: any = await db.$queryRaw`
-      SELECT id FROM "InstitutionMembership"
+      SELECT id, status FROM "InstitutionMembership"
       WHERE "userId"::text = ${platformUserId} AND "institutionId"::text = ${institutionId}
       LIMIT 1
     `;
     if (existingMemberships.length > 0) {
       membershipId = existingMemberships[0].id;
-      await db.$executeRaw`
-        UPDATE "InstitutionMembership"
-        SET status = 'ACTIVE'::"MembershipStatus", "updatedAt" = NOW()
-        WHERE id = ${membershipId}::uuid
-      `;
     } else {
       membershipId = crypto.randomUUID();
       await db.$executeRaw`
@@ -185,7 +183,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
           ${membershipId}::uuid,
           ${platformUserId}::uuid,
           ${institutionId}::uuid,
-          'ACTIVE'::"MembershipStatus",
+          'INVITED'::"MembershipStatus",
           NOW(),
           NOW(),
           NOW()
@@ -205,21 +203,21 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
       ON CONFLICT ("membershipId", "roleId") DO NOTHING
     `;
 
-    // 7. Ensure record exists in table "users" for ERP authentication
+    // 7. Ensure record exists in table "users" for ERP authentication (DORMANT, NO STATIC PASSWORD)
     let appUserId: string;
     const existingAppUsers: any = await db.$queryRaw`
-      SELECT id FROM users WHERE LOWER(email) = LOWER(${adminEmail}) AND "institutionId" = ${institutionId} LIMIT 1
+      SELECT id, "passwordHash", "isActive", status FROM users WHERE LOWER(email) = LOWER(${adminEmail}) AND "institutionId" = ${institutionId} LIMIT 1
     `;
     if (existingAppUsers.length > 0) {
       appUserId = existingAppUsers[0].id;
+      const isAlreadyActive = Boolean(existingAppUsers[0].isActive && existingAppUsers[0].passwordHash);
       await db.$executeRaw`
         UPDATE users
-        SET "passwordHash" = ${passwordHash},
-            "fullName" = ${adminName},
+        SET "fullName" = ${adminName},
             name = ${adminName},
             role = 'ADMIN',
-            "isActive" = true,
-            status = 'ACTIVE',
+            "isActive" = ${isAlreadyActive},
+            status = ${isAlreadyActive ? 'ACTIVE' : 'INACTIVE'},
             "updatedAt" = NOW()
         WHERE id = ${appUserId}
       `;
@@ -232,29 +230,87 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
           ${appUserId},
           ${institutionId},
           ${adminEmail},
-          ${passwordHash},
+          NULL,
           'ADMIN',
           ${adminName},
           ${adminName},
-          true,
-          'ACTIVE',
+          false,
+          'INACTIVE',
           'NONE',
           NOW(),
           NOW()
         )
         ON CONFLICT (id) DO UPDATE SET
           "institutionId" = EXCLUDED."institutionId",
-          "passwordHash" = EXCLUDED."passwordHash",
           role = 'ADMIN',
           "fullName" = EXCLUDED."fullName",
           name = EXCLUDED.name,
-          "isActive" = true,
-          status = 'ACTIVE',
+          "isActive" = false,
+          status = 'INACTIVE',
           "updatedAt" = NOW()
       `;
     }
 
-    // 8. Record audit log
+    // 8. Generate secure single-use password setup token & dispatch invitation email
+    const { signPasswordSetupToken } = await import("@/lib/auth/jwt");
+    const { sendPasswordSetupInvitation, getAppBaseUrl } = await import("@/lib/services/email.service");
+
+    const setupToken = await signPasswordSetupToken({
+      userId: appUserId,
+      email: adminEmail,
+      institutionId,
+      passwordHash: null,
+    });
+
+    const appUrl = getAppBaseUrl();
+    const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+
+    let invitationSent = false;
+    let invitationPreviewUrl: string | false = false;
+    let invitationError: string | null = null;
+
+    try {
+      const emailRes = await sendPasswordSetupInvitation(
+        { email: adminEmail, name: adminName },
+        {
+          setupUrl,
+          institutionName: inst.name || "Campus Administration",
+          expiresIn: "24 hours",
+          loginUrl: `${appUrl}/admin`,
+        }
+      );
+      invitationSent = emailRes.success;
+      invitationPreviewUrl = emailRes.previewUrl || false;
+      if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
+    } catch (emailErr: any) {
+      console.warn("[provisionInstitutionAdmin] Invitation dispatch warning:", emailErr.message);
+      invitationError = emailErr.message;
+    }
+
+    // 9. Transactional Audit Logging (Setup tokens and passwords are NEVER logged)
+    try {
+      const auditId = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO audit_logs (
+          "id", "institutionId", "userId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        auditId,
+        institutionId,
+        appUserId,
+        actorUserId || null,
+        invitationSent ? "INVITATION_SENT" : "INVITATION_FAILED",
+        "ADMIN_CREDENTIALS",
+        appUserId,
+        JSON.stringify({
+          recipient: adminEmail,
+          previewUrl: invitationPreviewUrl || undefined,
+          error: invitationError || undefined,
+        })
+      );
+    } catch (auditErr: any) {
+      console.warn("[provisionInstitutionAdmin] Audit log write warning:", auditErr.message);
+    }
+
     if (actorUserId) {
       try {
         await db.$executeRaw`
@@ -266,7 +322,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
             'ADMIN_MEMBERSHIP_PROVISIONED',
             'InstitutionMembership',
             ${membershipId},
-            ${JSON.stringify({ adminEmail, role: "INSTITUTION_ADMIN" })}::jsonb,
+            ${JSON.stringify({ adminEmail, role: "INSTITUTION_ADMIN", invitationSent })}::jsonb,
             'SUCCESS',
             NOW()
           )
@@ -283,6 +339,8 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
         email: adminEmail,
         fullName: adminName,
         role: "ADMIN",
+        status: "INACTIVE",
+        isActive: false,
       },
       institution: {
         id: inst.id,
@@ -290,6 +348,9 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
         code: inst.code,
         slug: inst.slug,
       },
+      invitationSent,
+      previewUrl: invitationPreviewUrl,
+      invitationError,
     };
   } catch (err: any) {
     console.error("Error provisioning institution admin:", err);
@@ -332,4 +393,95 @@ export async function syncAllPlatformInstitutions(): Promise<{ synced: number; p
   }
 
   return { synced, provisioned };
+}
+
+/**
+ * Resends an account setup invitation to an Institution Administrator.
+ * Generates a fresh single-use password setup token and dispatches an invitation email.
+ */
+export async function resendInstitutionAdminInvitation(
+  institutionId: string,
+  adminUserId?: string,
+  actorUserId?: string
+): Promise<{
+  success: boolean;
+  message: string;
+  previewUrl?: string | false;
+  email?: string;
+}> {
+  try {
+    const instRows: any = await db.$queryRaw`
+      SELECT id, name, slug FROM "Institution" WHERE id::text = ${institutionId} LIMIT 1
+    `;
+    const inst = instRows?.[0];
+
+    const adminUser = await db.user.findFirst({
+      where: {
+        institutionId,
+        role: "ADMIN",
+        ...(adminUserId ? { id: adminUserId } : {}),
+      },
+      select: { id: true, email: true, fullName: true, name: true, passwordHash: true },
+    });
+
+    if (!adminUser) {
+      return { success: false, message: "No institution admin found for this institution." };
+    }
+
+    const { signPasswordSetupToken } = await import("@/lib/auth/jwt");
+    const { sendPasswordSetupInvitation } = await import("@/lib/services/email.service");
+
+    const setupToken = await signPasswordSetupToken({
+      userId: adminUser.id,
+      email: adminUser.email,
+      institutionId,
+      passwordHash: adminUser.passwordHash || null,
+    });
+
+    const { getAppBaseUrl } = await import("@/lib/services/email.service");
+    const appUrl = getAppBaseUrl();
+    const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+
+    const emailRes = await sendPasswordSetupInvitation(
+      { email: adminUser.email, name: adminUser.fullName || adminUser.name || "Administrator" },
+      {
+        setupUrl,
+        institutionName: inst?.name || "Campus Administration",
+        expiresIn: "24 hours",
+        loginUrl: `${appUrl}/admin`,
+      }
+    );
+
+    try {
+      const auditId = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO audit_logs (
+          "id", "institutionId", "userId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        auditId,
+        institutionId,
+        adminUser.id,
+        actorUserId || null,
+        emailRes.success ? "INVITATION_RESENT" : "INVITATION_FAILED",
+        "ADMIN_CREDENTIALS",
+        adminUser.id,
+        JSON.stringify({
+          recipient: adminUser.email,
+          previewUrl: emailRes.previewUrl || undefined,
+          error: emailRes.error || undefined,
+        })
+      );
+    } catch {}
+
+    return {
+      success: emailRes.success,
+      message: emailRes.success
+        ? `Invitation sent successfully to ${adminUser.email}.`
+        : `Email delivery failed: ${emailRes.error || "Transport failure"}`,
+      previewUrl: emailRes.previewUrl,
+      email: adminUser.email,
+    };
+  } catch (err: any) {
+    return { success: false, message: err.message || "Failed to resend invitation." };
+  }
 }

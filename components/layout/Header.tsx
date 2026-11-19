@@ -19,7 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   portalType,
   userFullName = "User",
   userRole = "STUDENT",
-  institutionName = "Apex Institute of Technology",
+  institutionName = "Campus Portal",
   selectedChildId,
   onSelectChild,
   onMenuToggle,
@@ -29,6 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
       if (typeof window !== "undefined") {
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
+        localStorage.removeItem("erp_institution_name");
+        localStorage.removeItem("erp_active_child_id");
       }
       await fetch("/api/auth/me", { method: "POST", credentials: "include" });
       window.location.href = "/login";

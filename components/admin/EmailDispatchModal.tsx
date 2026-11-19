@@ -78,8 +78,10 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
   const [deliveryResult, setDeliveryResult] = useState<{
     dispatchedCount: number;
     failedCount: number;
+    transportMode?: "smtp" | "ethereal" | "simulated";
     previewUrl?: string;
     message: string;
+    results?: Array<{ id: string; email: string; success: boolean; error?: string }>;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -302,8 +304,10 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
         setDeliveryResult({
           dispatchedCount: data.dispatchedCount,
           failedCount: data.failedCount,
+          transportMode: data.transportMode,
           previewUrl: data.previewUrl,
           message: data.message,
+          results: data.results,
         });
         if (onSuccess) onSuccess();
       } else {
@@ -347,6 +351,25 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
             <h4 className="text-lg font-bold text-[#0F172A]">Email Dispatch Complete!</h4>
             <p className="text-sm text-[#475569] max-w-md mx-auto">{deliveryResult.message}</p>
 
+            {/* Transport Mode Badge */}
+            <div className="flex justify-center">
+              {deliveryResult.transportMode === "smtp" ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC]">
+                  <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
+                  Live SMTP Delivery Mode (Sent to authentic inbox)
+                </div>
+              ) : deliveryResult.transportMode === "ethereal" ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]">
+                  <span className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+                  Ethereal Demonstration Mode (Test Preview Only)
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#F1F5F9] text-[#475569] border border-[#CBD5E1]">
+                  Local Sandbox Mode
+                </div>
+              )}
+            </div>
+
             {deliveryResult.previewUrl && (
               <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 max-w-md mx-auto text-left">
                 <div className="text-xs font-bold text-[#1D4ED8] mb-1 flex items-center gap-1.5">
@@ -362,12 +385,46 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
                   {deliveryResult.previewUrl}
                 </a>
                 <p className="text-[11px] text-[#64748B] mt-2">
-                  Click above to inspect the rendered HTML email and MIME headers in your browser.
+                  Development note: In Ethereal mode, messages are captured in a virtual demonstration inbox. Click above to view the rendered HTML and verify delivery formatting.
                 </p>
               </div>
             )}
 
-            <div className="pt-4">
+            {/* Failed Recipients & Retry Option */}
+            {deliveryResult.failedCount > 0 && (
+              <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-4 max-w-md mx-auto text-left space-y-2">
+                <div className="text-xs font-bold text-[#B91C1C] flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+                  {deliveryResult.failedCount} Failed Delivery Attempt(s):
+                </div>
+                <ul className="text-xs text-[#DC2626] list-disc list-inside space-y-1">
+                  {deliveryResult.results
+                    ?.filter((r) => !r.success)
+                    .map((r) => (
+                      <li key={r.id} className="truncate">
+                        <span className="font-semibold">{r.email}</span>: {r.error || "Failed to dispatch"}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="pt-4 flex justify-center gap-3">
+              {deliveryResult.failedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const failedIds =
+                      deliveryResult.results?.filter((r) => !r.success).map((r) => r.id) || [];
+                    setSelectedIds(failedIds);
+                    setDeliveryResult(null);
+                    setError(null);
+                  }}
+                  className="px-5 py-2.5 rounded-lg border border-[#DC2626] text-[#DC2626] text-sm font-semibold hover:bg-[#FEF2F2] transition cursor-pointer"
+                >
+                  Retry Failed ({deliveryResult.failedCount})
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="px-6 py-2.5 rounded-lg bg-[#123B5A] text-white text-sm font-semibold hover:bg-[#0F2F48] transition cursor-pointer"
