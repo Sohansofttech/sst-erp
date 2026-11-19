@@ -196,11 +196,37 @@ export default function StudentFeedbackPage() {
                     header: "Department Response",
                     cell: (item: any) =>
                       item.response ? (
-                        <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-950">
-                          <p className="font-semibold text-emerald-800 text-[11px] mb-0.5">
-                            Official Resolution Remark
+                        <div
+                          className={`p-2.5 rounded-lg border text-xs ${
+                            item.status === "RESOLVED"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-950"
+                              : item.status === "IN_PROGRESS"
+                              ? "bg-blue-50 border-blue-200 text-blue-950"
+                              : item.status === "REJECTED"
+                              ? "bg-rose-50 border-rose-200 text-rose-950"
+                              : "bg-slate-50 border-slate-200 text-slate-950"
+                          }`}
+                        >
+                          <p
+                            className={`font-semibold text-[11px] mb-0.5 ${
+                              item.status === "RESOLVED"
+                                ? "text-emerald-800"
+                                : item.status === "IN_PROGRESS"
+                                ? "text-blue-800"
+                                : item.status === "REJECTED"
+                                ? "text-rose-800"
+                                : "text-slate-800"
+                            }`}
+                          >
+                            {item.status === "RESOLVED"
+                              ? "Official Resolution Remark"
+                              : item.status === "IN_PROGRESS"
+                              ? "Official Department Note"
+                              : item.status === "REJECTED"
+                              ? "Official Decision Remark (Rejected)"
+                              : "Department Response"}
                             {item.respondedAt && (
-                              <span className="font-normal text-emerald-700/80 ml-1.5">
+                              <span className="font-normal opacity-80 ml-1.5">
                                 ({new Date(item.respondedAt).toLocaleDateString()})
                               </span>
                             )}
