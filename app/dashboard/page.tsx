@@ -106,6 +106,8 @@ export default function DashboardPage() {
   };
 
   // Fast client-side check to redirect non-student/parent users immediately
+  // Hard navigation (window.location.replace) is used across portal layout boundaries
+  // to avoid Next.js App Router client-side layout aborts during mount.
   useEffect(() => {
     try {
       if (typeof window !== "undefined") {
@@ -113,22 +115,22 @@ export default function DashboardPage() {
         if (storedUser) {
           const u = JSON.parse(storedUser);
           if (u.role === "ADMIN") {
-            router.replace("/admin");
+            window.location.replace("/admin");
             return;
           }
           if (u.role === "SUPER_ADMIN") {
-            router.replace("/super-admin");
+            window.location.replace("/super-admin");
             return;
           }
           if (u.role === "TEACHER") {
             const slug = (u.institutionSlug || u.institutionCode || "vidyaniketan").toLowerCase();
-            router.replace(`/campus/${slug}/teacher`);
+            window.location.replace(`/campus/${slug}/teacher`);
             return;
           }
         }
       }
     } catch {}
-  }, [router]);
+  }, []);
 
   // 1. Initial Session Authentication
   useEffect(() => {
@@ -144,19 +146,19 @@ export default function DashboardPage() {
           const sess = json.data.session;
 
           // Role Redirection Guard:
-          // /dashboard is exclusively for STUDENT and PARENT.
+          // /dashboard is exclusively for STUDENT and PARENT/GUARDIAN.
           // Other roles must be directed to their respective portals:
           if (sess.role === "ADMIN") {
-            router.replace("/admin");
+            window.location.replace("/admin");
             return;
           }
           if (sess.role === "SUPER_ADMIN") {
-            router.replace("/super-admin");
+            window.location.replace("/super-admin");
             return;
           }
           if (sess.role === "TEACHER") {
             const slug = (sess.institutionSlug || sess.institutionCode || "vidyaniketan").toLowerCase();
-            router.replace(`/campus/${slug}/teacher`);
+            window.location.replace(`/campus/${slug}/teacher`);
             return;
           }
 
@@ -166,7 +168,7 @@ export default function DashboardPage() {
             setData((prev: any) => (prev ? { ...prev, student: prev.student || json.data.student } : { student: json.data.student }));
           }
 
-          if (sess.role === "PARENT") {
+          if (sess.role === "PARENT" || sess.role === "GUARDIAN") {
             const stored = typeof window !== "undefined" ? localStorage.getItem("erp_active_child_id") : null;
             const initialChildId = stored || sess.activeChildId || "";
             if (initialChildId) {
@@ -174,12 +176,12 @@ export default function DashboardPage() {
             }
           }
         } else {
-          router.replace("/login");
+          window.location.replace("/login");
         }
       } catch (err) {
         if (!isMounted) return;
         console.error("Session verification failed", err);
-        router.replace("/login");
+        window.location.replace("/login");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -189,7 +191,7 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, []);
 
   // 2. Fetch Dashboard Data for current student / selected child
   const fetchDashboardData = useCallback(async (childId?: string) => {
@@ -228,7 +230,7 @@ export default function DashboardPage() {
         const stored = localStorage.getItem("erp_user");
         if (stored) {
           const u = JSON.parse(stored);
-          if (u.role && u.role !== "STUDENT" && u.role !== "PARENT") {
+          if (u.role && u.role !== "STUDENT" && u.role !== "PARENT" && u.role !== "GUARDIAN") {
             return; // Do not fetch student dashboard for admin/teacher/super-admin
           }
         }
@@ -240,7 +242,7 @@ export default function DashboardPage() {
 
   // 4. Refetch when parent changes active child
   useEffect(() => {
-    if (!session || session.role !== "PARENT" || !selectedChildId) return;
+    if (!session || (session.role !== "PARENT" && session.role !== "GUARDIAN") || !selectedChildId) return;
     fetchDashboardData(selectedChildId);
   }, [session, selectedChildId, fetchDashboardData]);
 
@@ -271,7 +273,7 @@ export default function DashboardPage() {
 
   if (!session) return null;
 
-  if (session.role !== "STUDENT" && session.role !== "PARENT") {
+  if (session.role !== "STUDENT" && session.role !== "PARENT" && session.role !== "GUARDIAN") {
     return (
       <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
         <div className="text-center">
@@ -282,7 +284,7 @@ export default function DashboardPage() {
     );
   }
 
-  const isParent = session.role === "PARENT";
+  const isParent = session.role === "PARENT" || session.role === "GUARDIAN";
   const {
     student,
     attendanceSummary,
