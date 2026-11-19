@@ -441,14 +441,40 @@ export default function AdminFeedbackPage() {
                       {/* Department Response */}
                       <TableCell>
                         {item.response ? (
-                          <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-950">
-                            <p className="font-semibold text-emerald-800 text-[11px] mb-0.5 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
-                              Official Resolution
+                          <div
+                            className={`p-2 rounded-lg border text-xs ${
+                              item.status === "RESOLVED"
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-950"
+                                : item.status === "IN_PROGRESS"
+                                ? "bg-blue-50 border-blue-200 text-blue-950"
+                                : item.status === "REJECTED"
+                                ? "bg-rose-50 border-rose-200 text-rose-950"
+                                : "bg-slate-50 border-slate-200 text-slate-950"
+                            }`}
+                          >
+                            <p
+                              className={`font-semibold text-[11px] mb-0.5 flex items-center gap-1 ${
+                                item.status === "RESOLVED"
+                                  ? "text-emerald-800"
+                                  : item.status === "IN_PROGRESS"
+                                  ? "text-blue-800"
+                                  : item.status === "REJECTED"
+                                  ? "text-rose-800"
+                                  : "text-slate-800"
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                              {item.status === "RESOLVED"
+                                ? "Official Resolution"
+                                : item.status === "IN_PROGRESS"
+                                ? "Department Note"
+                                : item.status === "REJECTED"
+                                ? "Rejection Remark"
+                                : "Response"}
                             </p>
                             <p className="line-clamp-2 leading-relaxed">{item.response}</p>
                             {item.respondedAt && (
-                              <span className="text-[10px] text-emerald-700/80 block mt-1">
+                              <span className="text-[10px] opacity-80 block mt-1">
                                 {new Date(item.respondedAt).toLocaleDateString()}
                               </span>
                             )}

@@ -1,4 +1,9 @@
 import db from "@/lib/db";
+import {
+  loadAllPersistedFeedbacks,
+  addOrUpdatePersistedFeedback,
+  updatePersistedFeedbackStatus,
+} from "./feedback-storage";
 
 // ============================================================================
 // SST-ERP INSTITUTION ADMIN BACKEND SERVICE
@@ -2605,10 +2610,11 @@ function getInitialFeedbacks(institutionId: string): any[] {
 }
 
 export async function getStudentFeedbacks(institutionId: string, status?: string) {
+  let dbList: any[] = [];
   try {
     const list = await db.feedback.findMany({
       where: {
-        institutionId,
+        ...(institutionId ? { institutionId } : {}),
         ...(status && status !== "ALL" ? { status } : {}),
       },
       include: {
@@ -2622,20 +2628,6 @@ export async function getStudentFeedbacks(institutionId: string, status?: string
             admissionNumber: true,
             email: true,
             phone: true,
-            currentDepartment: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-              },
-            },
-            currentCourse: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-              },
-            },
             user: {
               select: {
                 name: true,
@@ -2648,35 +2640,55 @@ export async function getStudentFeedbacks(institutionId: string, status?: string
       },
       orderBy: { submittedAt: "desc" },
     });
-    if (list && list.length > 0) {
-      const memList = globalFeedbacksRegistry.get(institutionId) || [];
-      const merged = [...list];
-      for (const m of memList) {
-        if (!merged.some((x) => x.id === m.id)) {
-          merged.push(m);
-        }
-      }
-      merged.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-      if (status && status !== "ALL") {
-        return merged.filter((item) => item.status === status);
-      }
-      return merged;
-    }
+    if (list) dbList = list;
   } catch (err: any) {
     console.warn("Feedback database query error:", err.message);
   }
 
-  // Fallback to in-memory registry for local dev or offline resiliency
-  let list = globalFeedbacksRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialFeedbacks(institutionId);
-    globalFeedbacksRegistry.set(institutionId, list);
+  // Load from persistent disk storage (ensures feedbacks survive server restarts)
+  const persistedList = loadAllPersistedFeedbacks();
+  const memList = globalFeedbacksRegistry.get(institutionId) || [];
+
+  const merged: any[] = [...dbList];
+
+  const upsertItem = (item: any) => {
+    // Strict tenant isolation: verify institution match
+    if (institutionId && item.institutionId && item.institutionId !== institutionId) {
+      return;
+    }
+
+    const idx = merged.findIndex((m) => m.id === item.id);
+    if (idx >= 0) {
+      if (item.status !== "PENDING" || item.response || !merged[idx].response) {
+        merged[idx] = {
+          ...merged[idx],
+          ...item,
+          status: item.status || merged[idx].status,
+          response: item.response !== undefined ? item.response : merged[idx].response,
+          respondedAt: item.respondedAt || merged[idx].respondedAt,
+        };
+      }
+    } else {
+      merged.push(item);
+    }
+  };
+
+  for (const item of persistedList) {
+    upsertItem(item);
+  }
+  for (const item of memList) {
+    upsertItem(item);
   }
 
+  merged.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
+  // Keep in-memory cache synchronized for this institution
+  globalFeedbacksRegistry.set(institutionId, merged);
+
   if (status && status !== "ALL") {
-    return list.filter((item) => item.status === status);
+    return merged.filter((item) => item.status === status);
   }
-  return list;
+  return merged;
 }
 
 export async function updateStudentFeedback(
@@ -2688,9 +2700,42 @@ export async function updateStudentFeedback(
   },
   adminUserId?: string
 ) {
+  const updatedStatus = data.status || "RESOLVED";
+  const updatedResponse = data.response !== undefined ? data.response : null;
+  const respondedAt =
+    data.response !== undefined && data.response.trim().length > 0
+      ? new Date().toISOString()
+      : null;
+
+  // Tenant Isolation Guard: Verify target feedback does not belong to another institution in DB
+  try {
+    const checkDb = await db.feedback.findUnique({
+      where: { id: feedbackId },
+      select: { id: true, institutionId: true },
+    });
+    if (checkDb && institutionId && checkDb.institutionId !== institutionId) {
+      throw new Error("Unauthorized: Access denied to feedback belonging to another institution.");
+    }
+  } catch (err: any) {
+    if (err.message.includes("Unauthorized")) {
+      throw err;
+    }
+  }
+
+  // Tenant Isolation Guard: Verify target feedback does not belong to another institution on disk
+  const persistedCheck = loadAllPersistedFeedbacks().find((f) => f.id === feedbackId);
+  if (persistedCheck && institutionId && persistedCheck.institutionId !== institutionId) {
+    throw new Error("Unauthorized: Access denied to feedback belonging to another institution.");
+  }
+
+  let updatedRecord: any = null;
+
   try {
     const existing = await db.feedback.findFirst({
-      where: { id: feedbackId, institutionId },
+      where: {
+        id: feedbackId,
+        ...(institutionId ? { institutionId } : {}),
+      },
       include: {
         student: {
           select: {
@@ -2699,25 +2744,26 @@ export async function updateStudentFeedback(
             lastName: true,
             fullName: true,
             rollNumber: true,
+            admissionNumber: true,
           },
         },
       },
     });
 
     if (existing) {
-      const updatedStatus = data.status || existing.status;
-      const updatedResponse = data.response !== undefined ? data.response : existing.response;
-      const respondedAt =
+      const dbUpdatedStatus = data.status || existing.status;
+      const dbUpdatedResponse = data.response !== undefined ? data.response : existing.response;
+      const dbRespondedAt =
         data.response !== undefined && data.response.trim().length > 0
           ? new Date()
           : existing.respondedAt;
 
-      const updated = await db.feedback.update({
+      updatedRecord = await db.feedback.update({
         where: { id: feedbackId },
         data: {
-          status: updatedStatus,
-          response: updatedResponse,
-          respondedAt,
+          status: dbUpdatedStatus,
+          response: dbUpdatedResponse,
+          respondedAt: dbRespondedAt,
         },
         include: {
           student: {
@@ -2728,13 +2774,6 @@ export async function updateStudentFeedback(
               fullName: true,
               rollNumber: true,
               admissionNumber: true,
-              currentDepartment: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                },
-              },
             },
           },
         },
@@ -2749,41 +2788,46 @@ export async function updateStudentFeedback(
           tableName: "feedback",
           recordId: feedbackId,
           oldValues: { status: existing.status, response: existing.response },
-          newValues: { status: updatedStatus, response: updatedResponse },
+          newValues: { status: dbUpdatedStatus, response: dbUpdatedResponse },
         });
       } catch (auditErr: any) {
         console.warn("Audit logging for feedback update skipped:", auditErr.message);
       }
-
-      return updated;
     }
   } catch (err: any) {
-    console.warn("Feedback database update bypassed to memory registry:", err.message);
+    if (err.message.includes("Unauthorized")) {
+      throw err;
+    }
+    console.warn("Feedback database update bypassed to persistent storage:", err.message);
   }
 
-  // Fallback update in in-memory registry
-  const current = await getStudentFeedbacks(institutionId);
-  const target = current.find((f: any) => f.id === feedbackId);
-  if (!target) {
-    throw new Error("Feedback record not found or does not belong to this institution.");
-  }
-
-  const updatedStatus = data.status || target.status;
-  const updatedResponse = data.response !== undefined ? data.response : target.response;
-  const respondedAt =
-    data.response !== undefined && data.response.trim().length > 0
-      ? new Date().toISOString()
-      : target.respondedAt;
-
-  const updated = {
-    ...target,
-    status: updatedStatus,
-    response: updatedResponse,
+  // ALWAYS persist resolution to disk so it survives all server restarts
+  const diskUpdated = updatePersistedFeedbackStatus(
+    feedbackId,
+    updatedStatus,
+    updatedResponse !== null ? updatedResponse : undefined,
     respondedAt,
-  };
+    institutionId
+  );
 
-  const updatedList = current.map((f: any) => (f.id === feedbackId ? updated : f));
+  if (!updatedRecord && diskUpdated) {
+    updatedRecord = diskUpdated;
+  }
+
+  if (!updatedRecord) {
+    throw new Error("Feedback record not found.");
+  }
+
+  // Mirror across in-memory registry for this institution
+  const current = globalFeedbacksRegistry.get(institutionId) || [];
+  const updatedList = current.map((f: any) =>
+    f.id === feedbackId ? { ...f, status: updatedStatus, response: updatedResponse, respondedAt } : f
+  );
+  if (!updatedList.some((f: any) => f.id === feedbackId)) {
+    updatedList.unshift(updatedRecord);
+  }
   globalFeedbacksRegistry.set(institutionId, updatedList);
-  return updated;
+
+  return updatedRecord;
 }
 

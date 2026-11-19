@@ -6,6 +6,10 @@ import {
   getStudentFeedbacks,
   globalFeedbacksRegistry,
 } from "@/lib/services/institution-admin.service";
+import {
+  loadAllPersistedFeedbacks,
+  addOrUpdatePersistedFeedback,
+} from "@/lib/services/feedback-storage";
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,10 +38,13 @@ export async function GET(req: NextRequest) {
       requestedStudentId = session.studentId || "student_john_doe";
     }
 
+    const effectiveInst = resolvedInstitutionId || session.institutionId || "inst_apex";
+
     let feedbackList: any[] = [];
     try {
       feedbackList = await db.feedback.findMany({
         where: {
+          institutionId: effectiveInst || undefined,
           OR: [
             { studentId: requestedStudentId },
             ...(session.studentId && session.studentId !== requestedStudentId ? [{ studentId: session.studentId }] : []),
@@ -53,7 +60,8 @@ export async function GET(req: NextRequest) {
               fullName: true,
               rollNumber: true,
               admissionNumber: true,
-              currentDepartment: { select: { id: true, name: true, code: true } },
+              email: true,
+              phone: true,
             },
           },
         },
@@ -63,12 +71,18 @@ export async function GET(req: NextRequest) {
       console.warn("Feedback database lookup fallback:", dbErr.message);
     }
 
-    // Always merge in-memory registry feedbacks so newly submitted feedback is never lost in history
-    const effectiveInst = resolvedInstitutionId || session.institutionId || "inst_apex";
+    // Merge persistent disk storage and in-memory registry so submitted and resolved feedbacks survive all restarts
+    const persistedList = loadAllPersistedFeedbacks();
     const memList = globalFeedbacksRegistry.get(effectiveInst) || [];
 
     const merged = [...(feedbackList || [])];
-    for (const item of memList) {
+
+    const upsertItem = (item: any) => {
+      // Strict tenant isolation: verify institution
+      if (effectiveInst && item.institutionId && item.institutionId !== effectiveInst) {
+        return;
+      }
+
       const match =
         !item.studentId ||
         item.studentId === requestedStudentId ||
@@ -77,9 +91,29 @@ export async function GET(req: NextRequest) {
         item.category === "INFRASTRUCTURE" ||
         (session.userId && item.student?.userId === session.userId);
 
-      if (match && !merged.some((x) => x.id === item.id)) {
+      if (!match) return;
+
+      const idx = merged.findIndex((x) => x.id === item.id);
+      if (idx >= 0) {
+        if (item.status !== "PENDING" || item.response || !merged[idx].response) {
+          merged[idx] = {
+            ...merged[idx],
+            ...item,
+            status: item.status || merged[idx].status,
+            response: item.response !== undefined ? item.response : merged[idx].response,
+            respondedAt: item.respondedAt || merged[idx].respondedAt,
+          };
+        }
+      } else {
         merged.push(item);
       }
+    };
+
+    for (const item of persistedList) {
+      upsertItem(item);
+    }
+    for (const item of memList) {
+      upsertItem(item);
     }
 
     // Default seeded record fallback if both DB and registry are empty
@@ -114,35 +148,15 @@ export async function POST(req: NextRequest) {
     let studentId = session.studentId;
     let institutionId = session.institutionId;
 
-    if (session.userId) {
+    if (session.userId && (!studentId || !institutionId)) {
       try {
         const studentProfile = await db.student.findFirst({
           where: { userId: session.userId },
           select: { id: true, institutionId: true },
         });
         if (studentProfile) {
-          studentId = studentProfile.id;
-          if (!institutionId || institutionId === "inst_apex") {
-            institutionId = studentProfile.institutionId;
-          }
-        }
-      } catch {}
-    }
-
-    // Query primary student record from DB to resolve valid UUIDs for Postgres
-    if (!studentId || !institutionId || studentId === "student_john_doe" || institutionId === "inst_apex") {
-      try {
-        const fallbackStudent = await db.student.findFirst({
-          select: { id: true, institutionId: true },
-          orderBy: { createdAt: "asc" },
-        });
-        if (fallbackStudent) {
-          if (!studentId || studentId === "student_john_doe") {
-            studentId = fallbackStudent.id;
-          }
-          if (!institutionId || institutionId === "inst_apex") {
-            institutionId = fallbackStudent.institutionId;
-          }
+          if (!studentId) studentId = studentProfile.id;
+          if (!institutionId) institutionId = studentProfile.institutionId;
         }
       } catch {}
     }
@@ -178,33 +192,12 @@ export async function POST(req: NextRequest) {
               admissionNumber: true,
               email: true,
               phone: true,
-              currentDepartment: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                },
-              },
-              currentCourse: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                },
-              },
-              user: {
-                select: {
-                  name: true,
-                  email: true,
-                  phone: true,
-                },
-              },
             },
           },
         },
       });
     } catch (err: any) {
-      console.warn("Direct feedback DB creation bypassed, saving to in-memory registry:", err.message);
+      console.warn("Direct feedback DB creation fallback:", err.message);
       feedback = {
         id: `fb_${Date.now()}`,
         institutionId,
@@ -223,17 +216,20 @@ export async function POST(req: NextRequest) {
           fullName: "John Doe",
           rollNumber: "23CS089",
           admissionNumber: "ADM-2023-CS089",
-          currentDepartment: { id: "dept_cse", name: "Computer Science and Engineering", code: "CSE" },
         },
       };
     }
 
-    // Always mirror in globalFeedbacksRegistry so both Student and Admin Portals see it immediately
+    // ALWAYS write to persistent file storage so submitted feedbacks survive all server restarts
+    addOrUpdatePersistedFeedback(feedback);
+
+    // Mirror in globalFeedbacksRegistry for this institution
     const current = await getStudentFeedbacks(institutionId);
-    globalFeedbacksRegistry.set(institutionId, [
+    const updatedList = [
       feedback,
       ...current.filter((item: any) => item.id !== feedback.id),
-    ]);
+    ];
+    globalFeedbacksRegistry.set(institutionId, updatedList);
 
     return NextResponse.json({
       success: true,

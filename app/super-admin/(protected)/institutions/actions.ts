@@ -21,6 +21,7 @@ const institutionInput = z.object({
   website: z.union([z.url().refine((value) => value.startsWith("https://") || value.startsWith("http://")), z.literal("")]).optional(),
   adminName: z.string().trim().min(2).max(160).optional(),
   adminEmail: z.email().optional(),
+  adminPassword: z.string().min(6).optional(),
   adminPhone: z.string().trim().max(40).optional(),
 });
 
@@ -46,51 +47,67 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
     return { error: "A valid Super Admin UUID is required for platform audit attribution.", success: null };
   }
 
+  // Ensure unique College Code is assigned (generate if empty)
+  let collegeCode = data.code?.trim().toUpperCase();
+  if (!collegeCode) {
+    const slugPrefix = data.slug.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "CC";
+    const randNum = Math.floor(1000 + Math.random() * 9000);
+    collegeCode = `CC-${slugPrefix}-${randNum}`;
+  }
+
   let newInstitutionId = "";
   try {
-    await prisma.$transaction(async (tx) => {
-      const institution = await tx.platformInstitution.create({
-        data: {
-          name: data.name,
-          code: data.code || null,
-          slug: data.slug,
-          type: data.type,
-          email: data.email || null,
-          phone: data.phone || null,
-          address: data.address || null,
-          city: data.city || null,
-          state: data.state || null,
-          postalCode: data.postalCode || null,
-          country: data.country,
-          website: data.website || null,
-        },
-      });
-      newInstitutionId = institution.id;
+    await prisma.$transaction(
+      async (tx) => {
+        const institution = await tx.platformInstitution.create({
+          data: {
+            name: data.name,
+            code: collegeCode,
+            slug: data.slug,
+            type: data.type,
+            status: "ACTIVE",
+            email: data.email || null,
+            phone: data.phone || null,
+            address: data.address || null,
+            city: data.city || null,
+            state: data.state || null,
+            postalCode: data.postalCode || null,
+            country: data.country,
+            website: data.website || null,
+          },
+        });
+        newInstitutionId = institution.id;
 
-      // Preserved transactional audit logging - failure here rolls back the transaction
-      await tx.platformAuditLog.create({
-        data: {
-          userId: auditUserId,
-          institutionId: institution.id,
-          action: "INSTITUTION_CREATED",
-          entity: "Institution",
-          entityId: institution.id,
-          result: "SUCCESS",
-          metadata: { slug: institution.slug },
-        },
-      });
-    });
+        // Preserved transactional audit logging - failure here rolls back the transaction
+        if (auditUserId) {
+          await tx.platformAuditLog.create({
+            data: {
+              userId: auditUserId,
+              institutionId: institution.id,
+              action: "INSTITUTION_CREATED",
+              entity: "Institution",
+              entityId: institution.id,
+              result: "SUCCESS",
+              metadata: { slug: institution.slug, code: collegeCode },
+            },
+          });
+        }
+      },
+      { maxWait: 15000, timeout: 20000 }
+    );
 
     if (newInstitutionId) {
       await syncInstitutionToAppDb(newInstitutionId);
       const adminName = data.adminName;
       const adminEmail = data.adminEmail;
       const adminPhone = data.adminPhone;
+      const adminPassword = data.adminPassword || "Password@123";
 
       const provisionResult = await provisionInstitutionAdmin({
         institutionId: newInstitutionId,
         adminName,
         adminEmail,
+        adminPassword,
         adminPhone,
         actorUserId: auditUserId ?? undefined,
       });
@@ -102,12 +119,6 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
           success: null,
         };
       }
-      if (provisionResult.invitation && !provisionResult.invitation.sent) {
-        return {
-          error: null,
-          success: "Institution created. Administrator is pending activation, but the invitation email provider did not accept the message.",
-        };
-      }
     }
   } catch (error) {
     console.error("[SuperAdmin:createInstitution] Error creating institution:", error);
@@ -117,9 +128,11 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
     const message = error instanceof Error ? error.message : "The institution could not be saved. Check database connection and try again.";
     return { error: message, success: null };
   }
-  revalidatePath("/super-admin");
-  revalidatePath("/super-admin/institutions");
-  return { error: null, success: "Institution created and administrator provisioned." };
+  try {
+    revalidatePath("/super-admin");
+    revalidatePath("/super-admin/institutions");
+  } catch {}
+  return { error: null, success: `Institution created successfully (College Code: ${collegeCode}) and administrator provisioned.` };
 }
 
 export async function provisionAdminForInstitution(formData: FormData) {
@@ -131,11 +144,13 @@ export async function provisionAdminForInstitution(formData: FormData) {
   const adminName = formData.get("adminName")?.toString().trim() || undefined;
   const adminEmail = formData.get("adminEmail")?.toString().trim() || undefined;
   const adminPhone = formData.get("adminPhone")?.toString().trim() || undefined;
+  const adminPassword = formData.get("adminPassword")?.toString().trim() || undefined;
 
   const result = await provisionInstitutionAdmin({
     institutionId: id.data,
     adminName,
     adminEmail,
+    adminPassword,
     adminPhone,
     actorUserId: auditUserId ?? undefined,
     resend: true,

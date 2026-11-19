@@ -1,0 +1,113 @@
+[
+  {
+    "id": "fb_today_books_20261119",
+    "institutionId": "inst_apex",
+    "studentId": "student_john_doe",
+    "category": "ACADEMIC",
+    "subject": "about books",
+    "message": "i dont get required semester reference textbooks from library. Need updated editions for computer networks and operating systems.",
+    "status": "PENDING",
+    "response": null,
+    "submittedAt": "2026-11-19T04:30:00.000Z",
+    "respondedAt": null,
+    "student": {
+      "id": "student_john_doe",
+      "firstName": "John",
+      "lastName": "Doe",
+      "fullName": "John Doe",
+      "rollNumber": "23CS089",
+      "admissionNumber": "ADM-2023-CS089",
+      "email": "john.doe@student.apex.edu",
+      "phone": "+91 98765 43210",
+      "currentDepartment": {
+        "id": "dept_cse",
+        "name": "Computer Science and Engineering",
+        "code": "CSE"
+      },
+      "currentCourse": {
+        "id": "crs_btech",
+        "name": "B.Tech Computer Science and Engineering",
+        "code": "CS"
+      },
+      "user": {
+        "name": "John Doe",
+        "email": "john.doe@student.apex.edu",
+        "phone": "+91 98765 43210"
+      }
+    }
+  },
+  {
+    "id": "fb_today_food_20261119",
+    "institutionId": "inst_apex",
+    "studentId": "student_john_doe",
+    "category": "HOSTEL",
+    "subject": "about food",
+    "message": "food is not hot during lunch hours in Block B mess. Please improve food quality and hygiene standards.",
+    "status": "PENDING",
+    "response": null,
+    "submittedAt": "2026-11-19T04:35:00.000Z",
+    "respondedAt": null,
+    "student": {
+      "id": "student_john_doe",
+      "firstName": "John",
+      "lastName": "Doe",
+      "fullName": "John Doe",
+      "rollNumber": "23CS089",
+      "admissionNumber": "ADM-2023-CS089",
+      "email": "john.doe@student.apex.edu",
+      "phone": "+91 98765 43210",
+      "currentDepartment": {
+        "id": "dept_cse",
+        "name": "Computer Science and Engineering",
+        "code": "CSE"
+      },
+      "currentCourse": {
+        "id": "crs_btech",
+        "name": "B.Tech Computer Science and Engineering",
+        "code": "CS"
+      },
+      "user": {
+        "name": "John Doe",
+        "email": "john.doe@student.apex.edu",
+        "phone": "+91 98765 43210"
+      }
+    }
+  },
+  {
+    "id": "18585eb9-3592-4738-b44f-0a2b855942d2",
+    "institutionId": "inst_apex",
+    "studentId": "student_john_doe",
+    "category": "INFRASTRUCTURE",
+    "subject": "Wi-Fi Coverage in Library Reading Hall 3",
+    "message": "The 5GHz signal drops frequently near the west wing cubicles in Library Hall 3.",
+    "status": "RESOLVED",
+    "response": "IT Network team has installed an additional Cisco access point in West Wing. Tested and operational at 150 Mbps.",
+    "submittedAt": "2026-11-13T09:00:00.000Z",
+    "respondedAt": "2026-11-14T11:30:00.000Z",
+    "student": {
+      "id": "student_john_doe",
+      "firstName": "John",
+      "lastName": "Doe",
+      "fullName": "John Doe",
+      "rollNumber": "23CS089",
+      "admissionNumber": "ADM-2023-CS089",
+      "email": "john.doe@student.apex.edu",
+      "phone": "+91 98765 43210",
+      "currentDepartment": {
+        "id": "dept_cse",
+        "name": "Computer Science and Engineering",
+        "code": "CSE"
+      },
+      "currentCourse": {
+        "id": "crs_btech",
+        "name": "B.Tech Computer Science and Engineering",
+        "code": "CS"
+      },
+      "user": {
+        "name": "John Doe",
+        "email": "john.doe@student.apex.edu",
+        "phone": "+91 98765 43210"
+      }
+    }
+  }
+]
