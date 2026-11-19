@@ -1,15 +1,47 @@
+import crypto from "crypto"
+import { cookies } from "next/headers"
+import { NextRequest } from "next/server"
+import { SignJWT, jwtVerify } from "jose"
 import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
+import db from "@/lib/db"
 import { getSession } from "@/lib/auth/session"
 import type { Institution, AcademicYear, Teacher, User } from "@prisma/client"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 import type { Institution as CommonInstitution, AcademicYear as CommonAcademicYear, TenantContext } from "@/types/common"
 import type { TeacherProfile } from "@/types/teacher"
+import {
+  type TeacherRole,
+  DETERMINISTIC_TEST_ACCOUNTS,
+  findDeterministicAccount,
+} from "./roles"
 
 type institutions = Institution
 type academic_years = AcademicYear
 type teachers = Teacher
 type users = User
+
+export const TEACHER_AUTH_COOKIE = "sst_teacher_session"
+const JWT_SECRET = process.env.JWT_SECRET || "erp-secret-super-secure-key-32-chars-long!"
+const jwtKey = new TextEncoder().encode(JWT_SECRET)
+
+export interface TeacherSessionPayload {
+  userId: string
+  teacherId: string
+  institutionId: string
+  institutionSlug: string
+  email: string
+  fullName: string
+  employeeId: string
+  designation: string
+  department: string
+  homeroomClass?: string
+  activeRole: TeacherRole
+  availableRoles: TeacherRole[]
+  issuedAt: number
+  expiresAt: number
+  lastActivity: number
+}
 
 export interface TeacherSession {
   institution: institutions
@@ -21,6 +53,9 @@ export interface TeacherSession {
   tenantContext: TenantContext
   supabaseUser?: SupabaseUser | null
   isDemoFallback?: boolean
+  activeRole: TeacherRole
+  availableRoles: TeacherRole[]
+  sessionPayload?: TeacherSessionPayload
 }
 
 export type TeacherAuthErrorCode =
@@ -30,6 +65,8 @@ export type TeacherAuthErrorCode =
   | "USER_INACTIVE"
   | "NOT_A_TEACHER"
   | "TEACHER_RECORD_NOT_FOUND"
+  | "FORBIDDEN"
+  | "TENANT_MISMATCH"
 
 export class TeacherAuthError extends Error {
   constructor(
@@ -39,6 +76,107 @@ export class TeacherAuthError extends Error {
   ) {
     super(message)
     this.name = "TeacherAuthError"
+  }
+}
+
+/**
+ * Sign a secure teacher session JWT
+ */
+export async function signTeacherSession(payload: TeacherSessionPayload): Promise<string> {
+  return await new SignJWT({ ...payload })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("24h")
+    .sign(jwtKey)
+}
+
+/**
+ * Verify teacher session JWT
+ */
+export async function verifyTeacherSession(token: string): Promise<TeacherSessionPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, jwtKey)
+    return payload as unknown as TeacherSessionPayload
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Computes sha256 hash of a session token for secure database storage and lookup
+ */
+export function hashSessionToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex")
+}
+
+/**
+ * Creates a server session record in the PostgreSQL teacher_portal_sessions table
+ */
+export async function createDbSessionRecord(params: {
+  id?: string
+  tokenHash: string
+  userId: string
+  institutionId: string
+  activeRole: TeacherRole
+  expiresAt: Date
+}): Promise<string> {
+  const sessionId = params.id || crypto.randomUUID()
+  await db.$executeRaw`
+    INSERT INTO teacher_portal_sessions (
+      id,
+      token_hash,
+      user_id,
+      institution_id,
+      active_role,
+      expires_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      ${sessionId},
+      ${params.tokenHash},
+      ${params.userId},
+      ${params.institutionId},
+      ${params.activeRole},
+      ${params.expiresAt},
+      NOW(),
+      NOW()
+    )
+  `
+  return sessionId
+}
+
+/**
+ * Marks a teacher portal session as revoked in PostgreSQL
+ */
+export async function revokeDbSession(token: string): Promise<void> {
+  const tokenHash = hashSessionToken(token)
+  await db.$executeRaw`
+    UPDATE teacher_portal_sessions
+    SET revoked_at = NOW(), updated_at = NOW()
+    WHERE token_hash = ${tokenHash}
+  `
+}
+
+/**
+ * Reads the raw session token from cookies or request
+ */
+export async function getTeacherSessionToken(req?: NextRequest): Promise<string | undefined> {
+  if (req) {
+    const cookieVal = req.cookies.get(TEACHER_AUTH_COOKIE)?.value
+    if (cookieVal) return cookieVal
+
+    const rawCookie = req.headers.get("cookie")
+    if (rawCookie) {
+      const match = rawCookie.match(new RegExp(`(?:^|; )${TEACHER_AUTH_COOKIE}=([^;]*)`))
+      if (match) return decodeURIComponent(match[1])
+    }
+  }
+
+  try {
+    const cookieStore = await cookies()
+    return cookieStore.get(TEACHER_AUTH_COOKIE)?.value
+  } catch {
+    return undefined
   }
 }
 
@@ -119,7 +257,6 @@ export function mapDbTeacherToProfile(
 // In-memory caches for fast tenant resolution and zero pool churn
 const institutionCache = new Map<string, { inst: institutions; timestamp: number }>()
 const inFlightInstitutions = new Map<string, Promise<institutions | null>>()
-const demoSessionCache = new Map<string, { session: TeacherSession; timestamp: number }>()
 
 /**
  * Resolves an active institution from the database by slug or institution code / id.
@@ -141,13 +278,16 @@ export async function resolveInstitution(slug: string): Promise<institutions | n
 
   const promise = (async () => {
     try {
+      const searchTerms = [trimmed, trimmed.toLowerCase(), trimmed.toUpperCase()]
+      if (lower === "vidyaniketan" || lower === "demo-school") {
+        searchTerms.push("demo-school", "vidyaniketan", "inst_demo_school")
+      }
       const inst = await prisma.institutions.findFirst({
         where: {
           OR: [
-            { code: trimmed },
-            { code: trimmed.toLowerCase() },
-            { code: trimmed.toUpperCase() },
-            { id: trimmed },
+            ...searchTerms.map(t => ({ code: t })),
+            ...searchTerms.map(t => ({ id: t })),
+            ...searchTerms.map(t => ({ slug: t })),
           ],
           isActive: true,
         },
@@ -157,6 +297,7 @@ export async function resolveInstitution(slug: string): Promise<institutions | n
         institutionCache.set(lower, entry)
         institutionCache.set(inst.id.toLowerCase(), entry)
         if (inst.code) institutionCache.set(inst.code.toLowerCase(), entry)
+        if (inst.slug) institutionCache.set(inst.slug.toLowerCase(), entry)
       }
       return inst
     } catch (err) {
@@ -236,19 +377,17 @@ export async function getAuthenticatedUser(): Promise<SupabaseUser | null> {
 }
 
 export interface TeacherSessionOptions {
-  /**
-   * If true (default in non-production or for 'demo-school'), returns the default
-   * seeded teacher profile when no active Supabase Auth cookie is present.
-   */
-  allowDemoFallback?: boolean
+  req?: NextRequest
 }
 
 /**
  * Resolves tenant and authenticated teacher session.
  * 1. Resolves institution by slug
- * 2. Checks Supabase auth cookie
- * 3. Matches DB user & teacher record within the institution
- * 4. Falls back to baseline seeded teacher profile for demo-school when not authenticated
+ * 2. Reads & verifies `sst_teacher_session` cookie against JWT & DB session table
+ * 3. Checks tenant alignment
+ * 4. Loads DB user & teacher records
+ * 5. Dynamically re-loads user's roles from DB on every request
+ * NO silent login or allowDemoFallback permitted in any environment.
  */
 export async function getTeacherSession(
   slug: string,
@@ -259,39 +398,17 @@ export async function getTeacherSession(
     return null
   }
 
-  // Check demo session cache before any remote DB calls
-  const cachedDemo = demoSessionCache.get(institution.id)
-  const now = Date.now()
-
   let dbYears: any[] = []
-  let supabaseUser: SupabaseUser | null = null
-
   try {
-    const [years, user] = await Promise.all([
-      prisma.academic_years.findMany({
-        where: { institutionId: institution.id },
-        orderBy: { startDate: "desc" },
-      }),
-      getAuthenticatedUser(),
-    ])
-    dbYears = years
-    supabaseUser = user
+    dbYears = await prisma.academic_years.findMany({
+      where: { institutionId: institution.id },
+      orderBy: { startDate: "desc" },
+    })
   } catch (err) {
-    console.warn("[getTeacherSession] AY or auth check error:", err)
-    try {
-      supabaseUser = await getAuthenticatedUser()
-    } catch {
-      supabaseUser = null
-    }
-  }
-
-  // If user is not authenticated via Supabase cookie and we have a valid cached demo session, return it immediately
-  if (!supabaseUser && cachedDemo && now - cachedDemo.timestamp < 60_000) {
-    return cachedDemo.session
+    console.warn("[getTeacherSession] AY query error:", err)
   }
 
   const currentAcademicYear = dbYears.find((y: any) => y.isCurrent) ?? dbYears[0] ?? null
-
   const academicYearsCommon = dbYears.map(mapDbAcademicYearToCommon)
   const currentAcademicYearCommon = currentAcademicYear
     ? mapDbAcademicYearToCommon(currentAcademicYear)
@@ -308,8 +425,112 @@ export async function getTeacherSession(
     currentAcademicYear: currentAcademicYearCommon,
   }
 
-  // 1. Try to find the teacher from trusted ERP session (cookie sst_session)
-  const erpSession = await getSession()
+  // 1. Check primary teacher session cookie (sst_teacher_session)
+  const teacherToken = await getTeacherSessionToken(options.req)
+  if (teacherToken) {
+    const payload = await verifyTeacherSession(teacherToken)
+    if (payload) {
+      // Validate that session institution matches requested slug
+      const slugNorm = slug.toLowerCase()
+      const instSlugNorm = (institution.code || institution.slug || institution.id).toLowerCase()
+      if (
+        payload.institutionSlug.toLowerCase() !== slugNorm &&
+        payload.institutionId !== institution.id &&
+        instSlugNorm !== slugNorm
+      ) {
+        return null
+      }
+
+      // Validate session in PostgreSQL teacher_portal_sessions table
+      const tokenHash = hashSessionToken(teacherToken)
+      let dbSessionRecord: any = null
+      try {
+        const sessions: any[] = await db.$queryRaw`
+          SELECT id, user_id, institution_id, active_role, expires_at, revoked_at
+          FROM teacher_portal_sessions
+          WHERE token_hash = ${tokenHash}
+            AND revoked_at IS NULL
+            AND expires_at > NOW()
+          LIMIT 1
+        `
+        dbSessionRecord = sessions[0] || null
+      } catch (err) {
+        console.warn("[getTeacherSession] DB session lookup error:", err)
+      }
+
+      // If token is revoked or not found in teacher_portal_sessions, reject immediately
+      if (!dbSessionRecord) {
+        return null
+      }
+
+      // Re-load user & teacher record from DB on every request
+      let user: any = null
+      try {
+        user = await prisma.users.findFirst({
+          where: {
+            id: dbSessionRecord.user_id,
+            isActive: true,
+          },
+          include: {
+            teacherProfile: true,
+          },
+        })
+      } catch (err) {
+        console.warn("[getTeacherSession] User DB lookup error:", err)
+      }
+
+      if (!user || !user.isActive) {
+        return null
+      }
+
+      // Re-load user's roles from DB & test accounts dynamically
+      const testAccount = findDeterministicAccount(user.email) || findDeterministicAccount(user.id)
+      const availableRoles: TeacherRole[] = testAccount?.roles || ["teacher"]
+      const homeroomClass = testAccount?.homeroomClass || (user.teacherProfile?.designation?.includes("Class Teacher") ? "Class 10 - A" : undefined)
+      let activeRole = (dbSessionRecord.active_role as TeacherRole) || payload.activeRole || "teacher"
+      if (!availableRoles.includes(activeRole)) {
+        activeRole = "teacher"
+      }
+
+      let teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
+      if (!teacherObj && testAccount) {
+        teacherObj = {
+          id: payload.teacherId || `teacher_${user.id}`,
+          institutionId: institution.id,
+          userId: user.id,
+          employeeId: testAccount.employeeId,
+          department: testAccount.department,
+          designation: testAccount.designation,
+          createdAt: new Date(),
+        }
+      }
+
+      if (teacherObj) {
+        const profile = mapDbTeacherToProfile(teacherObj, user, {
+          isClassTeacher: availableRoles.includes("class_teacher"),
+          classTeacherOf: homeroomClass ?? "Class 10 - A",
+        })
+
+        return {
+          institution,
+          user,
+          teacher: teacherObj,
+          academicYears: dbYears,
+          currentAcademicYear,
+          profile,
+          tenantContext,
+          supabaseUser: null,
+          isDemoFallback: false,
+          activeRole,
+          availableRoles,
+          sessionPayload: payload,
+        }
+      }
+    }
+  }
+
+  // 2. Check general ERP session (sst_session / erp_session)
+  const erpSession = await getSession(options.req)
   if (erpSession && (erpSession.role === "TEACHER" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
     const user = await prisma.users.findFirst({
       where: {
@@ -334,92 +555,23 @@ export async function getTeacherSession(
         tenantContext,
         supabaseUser: null,
         isDemoFallback: false,
+        activeRole: "teacher",
+        availableRoles: ["teacher"],
       }
     }
   }
 
-  // 2. Try to find the teacher from Supabase Auth credentials
-  if (supabaseUser) {
-    try {
-      const user = await prisma.users.findFirst({
-        where: {
-          institutionId: institution.id,
-          isActive: true,
-          OR: [
-            { id: supabaseUser.id },
-            ...(supabaseUser.email ? [{ email: supabaseUser.email }] : []),
-          ],
-        },
-        include: {
-          teacherProfile: true,
-        },
-      })
-
-      const teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
-      if (user && teacherObj && (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "FACULTY")) {
-        const profile = mapDbTeacherToProfile(teacherObj, user)
-        return {
-          institution,
-          user,
-          teacher: teacherObj,
-          academicYears: dbYears,
-          currentAcademicYear,
-          profile,
-          tenantContext,
-          supabaseUser,
-          isDemoFallback: false,
-        }
-      }
-    } catch (err) {
-      console.warn("[getTeacherSession] DB user query error:", err)
-    }
-  }
-
-  // 2. Demo fallback check
-  const allowFallback =
-    options.allowDemoFallback ??
-    (slug === "demo-school" || institution.code === "demo-school" || process.env.NODE_ENV !== "production")
-
-  if (allowFallback) {
-    // Find the first active teacher for this institution (e.g. seeded Dr. Ananya Sharma)
-    let demoTeacher: any = null
-    try {
-      demoTeacher = await prisma.teachers.findFirst({
-        where: { institutionId: institution.id },
-        include: { user: true },
-        orderBy: { createdAt: "asc" },
-      })
-    } catch (err) {
-      console.warn("[getTeacherSession] Demo teacher query error:", err)
-    }
-
-    const teacherUser = (demoTeacher as any)?.user || (demoTeacher as any)?.users
-    if (demoTeacher && teacherUser && teacherUser.isActive) {
-      const profile = mapDbTeacherToProfile(demoTeacher, teacherUser)
-      const sessionResult: TeacherSession = {
-        institution,
-        user: teacherUser,
-        teacher: demoTeacher,
-        academicYears: dbYears,
-        currentAcademicYear,
-        profile,
-        tenantContext,
-        supabaseUser: null,
-        isDemoFallback: true,
-      }
-      demoSessionCache.set(institution.id, { session: sessionResult, timestamp: Date.now() })
-      return sessionResult
-    }
-  }
-
+  // No demo fallback. Unauthenticated requests return null.
   return null
 }
 
 /**
- * Strict version of getTeacherSession that throws TeacherAuthError if not authenticated.
+ * Strict version of getTeacherSession that throws TeacherAuthError if not authenticated
+ * or if role authorization fails.
  */
 export async function requireTeacherSession(
   slug: string,
+  allowedRoles?: TeacherRole[],
   options: TeacherSessionOptions = {}
 ): Promise<TeacherSession> {
   const institution = await resolveInstitution(slug)
@@ -440,6 +592,15 @@ export async function requireTeacherSession(
     )
   }
 
+  if (allowedRoles && allowedRoles.length > 0) {
+    if (!allowedRoles.includes(session.activeRole)) {
+      throw new TeacherAuthError(
+        `Access forbidden: Active role '${session.activeRole}' is not authorized for this workspace. Required: ${allowedRoles.join(", ")}`,
+        "FORBIDDEN",
+        403
+      )
+    }
+  }
+
   return session
 }
-

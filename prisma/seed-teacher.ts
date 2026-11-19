@@ -301,7 +301,7 @@ async function main() {
       id: "user_teacher_demo_042",
       institutionId: institution.id,
       email: "ananya.sharma@vidyaniketan.edu.in",
-      passwordHash: "$2a$10$.rEfnifd6F9H7QBeSS2mF.869UASvZHg0.1azQMbnr.eMRTzUR0t6",
+      passwordHash: "$2a$10$Ay4Wg3GqdeVT4ls7Z88/2e08Km5OecjLhRpT27wtww/BI.xbkl.0K",
       role: "TEACHER",
       fullName: "Dr. Ananya Sharma",
       phone: "+91 98450 21478",
@@ -317,7 +317,7 @@ async function main() {
     },
     update: {
       department: "Mathematics",
-      designation: "Senior PGT — Mathematics",
+      designation: "Senior PGT — Mathematics & HoD",
       employeeId: "VNPS-TCH-042",
     },
     create: {
@@ -326,11 +326,64 @@ async function main() {
       userId: teacherUser.id,
       employeeId: "VNPS-TCH-042",
       department: "Mathematics",
-      designation: "Senior PGT — Mathematics",
+      designation: "Senior PGT — Mathematics & HoD",
     },
   })
   console.log(
     `✅ Test teacher profile seeded: ${teacherUser.fullName} (${teacherProfile.employeeId}, ${teacherProfile.department})`
+  )
+
+  // ---------------------------------------------------------------------------
+  // 5b. Second Test Teacher User (Prof. Rajesh Verma) - Teacher role only
+  // ---------------------------------------------------------------------------
+  const rajeshUser = await prisma.users.upsert({
+    where: {
+      institutionId_email: {
+        institutionId: institution.id,
+        email: "rajesh.verma@vidyaniketan.edu.in",
+      },
+    },
+    update: {
+      fullName: "Prof. Rajesh Verma",
+      role: "TEACHER",
+      phone: "+91 98450 33901",
+      isActive: true,
+      updatedAt: new Date(),
+    },
+    create: {
+      id: "user_teacher_demo_089",
+      institutionId: institution.id,
+      email: "rajesh.verma@vidyaniketan.edu.in",
+      passwordHash: "$2a$10$Ay4Wg3GqdeVT4ls7Z88/2e08Km5OecjLhRpT27wtww/BI.xbkl.0K",
+      role: "TEACHER",
+      fullName: "Prof. Rajesh Verma",
+      phone: "+91 98450 33901",
+      avatarUrl: null,
+      isActive: true,
+      updatedAt: new Date(),
+    },
+  })
+
+  const rajeshProfile = await prisma.teachers.upsert({
+    where: {
+      userId: rajeshUser.id,
+    },
+    update: {
+      department: "Mathematics",
+      designation: "PGT — Mathematics",
+      employeeId: "VNPS-TCH-089",
+    },
+    create: {
+      id: "teacher_demo_089",
+      institutionId: institution.id,
+      userId: rajeshUser.id,
+      employeeId: "VNPS-TCH-089",
+      department: "Mathematics",
+      designation: "PGT — Mathematics",
+    },
+  })
+  console.log(
+    `✅ Second test teacher seeded: ${rajeshUser.fullName} (${rajeshProfile.employeeId}, ${rajeshProfile.department})`
   )
 
   // ---------------------------------------------------------------------------

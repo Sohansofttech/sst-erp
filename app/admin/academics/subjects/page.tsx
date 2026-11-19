@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,119 @@ import {
   Trash2,
   UserCheck,
   Filter,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
-import { SubjectItem, SubjectType } from "@/types/institution";
+import { SubjectItem, SubjectType, Course, DegreeType } from "@/types/institution";
+
+const DEFAULT_DEPARTMENTS = [
+  { id: "dept-cse", name: "Computer Science & Engineering", code: "CSE" },
+  { id: "dept-ece", name: "Electronics & Communication Engineering", code: "ECE" },
+  { id: "dept-mech", name: "Mechanical Engineering", code: "MECH" },
+  { id: "dept-civil", name: "Civil Engineering", code: "CIVIL" },
+  { id: "dept-mgmt", name: "Management Studies", code: "MBA" },
+];
+
+function toUiSubjectType(val?: string): SubjectType {
+  switch (val) {
+    case "PRACTICAL_LAB":
+      return "Practical / Lab";
+    case "DEPARTMENT_ELECTIVE":
+      return "Department Elective";
+    case "OPEN_ELECTIVE":
+      return "Open Elective";
+    case "PROJECT_SEMINAR":
+      return "Project / Seminar";
+    default:
+      return "Core Theory";
+  }
+}
+
+function toDbSubjectType(val?: string): string {
+  switch (val) {
+    case "Practical / Lab":
+      return "PRACTICAL_LAB";
+    case "Department Elective":
+      return "DEPARTMENT_ELECTIVE";
+    case "Open Elective":
+      return "OPEN_ELECTIVE";
+    case "Project / Seminar":
+      return "PROJECT_SEMINAR";
+    default:
+      return "CORE_THEORY";
+  }
+}
+
+function toUiDegreeType(val?: string): DegreeType {
+  switch (val?.toUpperCase()) {
+    case "POSTGRADUATE":
+      return "Postgraduate";
+    case "DIPLOMA":
+      return "Diploma";
+    case "DOCTORAL":
+      return "Doctoral";
+    case "CERTIFICATE":
+      return "Certificate";
+    default:
+      return "Undergraduate";
+  }
+}
+
+function mapApiToCourse(c: any): Course {
+  return {
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    degreeType: toUiDegreeType(c.degreeType),
+    departmentId: c.departmentId || "",
+    departmentName: c.departmentName || c.department || "General",
+    durationYears: c.durationYears ?? 4,
+    totalSemesters: c.totalSemesters ?? 8,
+    totalCredits: c.totalCredits ?? 160,
+    status: c.status === "INACTIVE" ? "Inactive" : "Active",
+    description: c.description || "",
+  };
+}
+
+function mapApiToSubject(s: any): SubjectItem {
+  let teacher = s.allocatedTeacherName || "";
+  if (!teacher && s.description?.startsWith("Teacher:")) {
+    teacher = s.description.substring(8).split("|")[0].trim();
+  }
+
+  return {
+    id: s.id,
+    code: s.code || "",
+    name: s.name,
+    credits: s.credits ?? 3,
+    hoursPerWeek: s.hoursPerWeek ?? 3,
+    type: toUiSubjectType(s.type),
+    courseId: s.courseId || "",
+    courseName: s.courseName || s.course?.name || "General",
+    classId: s.classId || "",
+    className: s.className || undefined,
+    departmentId: s.departmentId || "",
+    departmentName: s.departmentName || "General",
+    semester: s.semester ?? 1,
+    allocatedTeacherName: teacher || undefined,
+    status: s.status === "INACTIVE" ? "Inactive" : "Active",
+  };
+}
 
 export default function SubjectsPage() {
-  const { subjects, courses, classes, departments, addSubject, updateSubject, deleteSubject } =
-    useInstitution();
+  const {
+    classes,
+    departments,
+    addSubject,
+    updateSubject: updateStoreSubject,
+    deleteSubject: deleteStoreSubject,
+  } = useInstitution();
+
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<SubjectItem | null>(null);
@@ -44,6 +151,39 @@ export default function SubjectsPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterCourse, setFilterCourse] = useState<string>("all");
 
+  const effectiveDepts = departments && departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
+
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const [subRes, crsRes] = await Promise.all([
+        fetch("/api/admin/academics/subjects"),
+        fetch("/api/admin/academics/courses"),
+      ]);
+
+      const [subJson, crsJson] = await Promise.all([subRes.json(), crsRes.json()]);
+
+      if (!subRes.ok || !subJson.success) {
+        throw new Error(subJson.error || "Failed to load subjects.");
+      }
+
+      if (crsRes.ok && crsJson.success && crsJson.data) {
+        setCourses(crsJson.data.map(mapApiToCourse));
+      }
+
+      setSubjects((subJson.data || []).map(mapApiToSubject));
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to load data from server.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   const handleOpenAddModal = () => {
     setEditingSubject(null);
     setName("");
@@ -53,7 +193,7 @@ export default function SubjectsPage() {
     setType("Core Theory");
     setCourseId(courses[0]?.id || "");
     setClassId(classes[0]?.id || "");
-    setDepartmentId(departments[0]?.id || "");
+    setDepartmentId(effectiveDepts[0]?.id || "");
     setSemester(5);
     setAllocatedTeacherName("");
     setFormError("");
@@ -69,14 +209,14 @@ export default function SubjectsPage() {
     setType(subj.type);
     setCourseId(subj.courseId);
     setClassId(subj.classId || "");
-    setDepartmentId(subj.departmentId);
+    setDepartmentId(subj.departmentId || effectiveDepts[0]?.id || "");
     setSemester(subj.semester);
     setAllocatedTeacherName(subj.allocatedTeacherName || "");
     setFormError("");
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -93,41 +233,93 @@ export default function SubjectsPage() {
       return;
     }
 
-    if (editingSubject) {
-      updateSubject(editingSubject.id, {
-        name,
-        code: code.toUpperCase(),
-        credits: Number(credits),
-        hoursPerWeek: Number(hoursPerWeek),
-        type,
-        courseId,
-        classId,
-        departmentId,
-        semester: Number(semester),
-        allocatedTeacherName,
-      });
-    } else {
-      addSubject({
-        name,
-        code: code.toUpperCase(),
-        credits: Number(credits),
-        hoursPerWeek: Number(hoursPerWeek),
-        type,
-        courseId,
-        classId,
-        departmentId,
-        semester: Number(semester),
-        allocatedTeacherName,
-        status: "Active",
-      });
-    }
+    setIsSubmitting(true);
+    try {
+      if (editingSubject) {
+        const res = await fetch("/api/admin/academics/subjects", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingSubject.id,
+            name: name.trim(),
+            code: code.trim().toUpperCase(),
+            credits: Number(credits),
+            hoursPerWeek: Number(hoursPerWeek),
+            type: toDbSubjectType(type),
+            courseId,
+            semester: Number(semester),
+            allocatedTeacherName: allocatedTeacherName.trim() || undefined,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to update subject.");
+        }
+        updateStoreSubject(editingSubject.id, {
+          name,
+          code: code.toUpperCase(),
+          credits: Number(credits),
+          hoursPerWeek: Number(hoursPerWeek),
+          type,
+          courseId,
+          classId,
+          departmentId,
+          semester: Number(semester),
+          allocatedTeacherName,
+        });
+      } else {
+        const res = await fetch("/api/admin/academics/subjects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            code: code.trim().toUpperCase(),
+            credits: Number(credits),
+            hoursPerWeek: Number(hoursPerWeek),
+            type: toDbSubjectType(type),
+            courseId,
+            semester: Number(semester),
+            allocatedTeacherName: allocatedTeacherName.trim() || undefined,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to create subject.");
+        }
+        if (json.data) {
+          addSubject(mapApiToSubject(json.data));
+        }
+      }
 
-    setIsModalOpen(false);
+      await loadData();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || "An unexpected error occurred while saving.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string, subjName: string) => {
-    if (confirm(`Are you sure you want to delete subject "${subjName}"?`)) {
-      deleteSubject(id);
+  const handleDelete = async (id: string, subjName: string) => {
+    if (!confirm(`Are you sure you want to delete subject "${subjName}"?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/academics/subjects?id=${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to delete subject.");
+      }
+      deleteStoreSubject(id);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete subject.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -144,7 +336,7 @@ export default function SubjectsPage() {
     })),
   ];
 
-  const deptOptions = departments.map((d) => ({
+  const deptOptions = effectiveDepts.map((d) => ({
     value: d.id,
     label: `${d.name} (${d.code})`,
   }));
@@ -175,15 +367,45 @@ export default function SubjectsPage() {
             Configure curriculum subjects, credits, syllabus types, and faculty allocations.
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleOpenAddModal}
-          leftIcon={<Plus className="w-4 h-4" />}
-        >
-          Create Subject
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadData}
+            disabled={isLoading || isSubmitting}
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleOpenAddModal}
+            disabled={isSubmitting}
+            leftIcon={<Plus className="w-4 h-4" />}
+          >
+            Create Subject
+          </Button>
+        </div>
       </div>
+
+      {/* Error Alert */}
+      {fetchError && (
+        <Alert variant="error" title="Failed to Load Subjects">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-1">
+            <span className="text-sm">{fetchError}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadData}
+              disabled={isLoading}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+            >
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
 
       {/* Filter Controls Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white rounded-xl border border-[#E2E8F0] shadow-xs">
@@ -244,77 +466,92 @@ export default function SubjectsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSubjects.map((subj) => (
-                <TableRow key={subj.id}>
-                  <TableCell>
-                    <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded">
-                      {subj.code}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-bold text-[#1E293B]">
-                    {subj.name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        subj.type === "Core Theory"
-                          ? "navy"
-                          : subj.type === "Practical / Lab"
-                          ? "teal"
-                          : "info"
-                      }
-                      size="sm"
-                    >
-                      {subj.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-semibold text-[#123B5A]">
-                      {subj.credits} Credits ({subj.hoursPerWeek} hrs/wk)
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs space-y-0.5">
-                      <span className="font-medium text-[#F5A000] block">
-                        {subj.courseName || "General"}
-                      </span>
-                      <span className="text-[11px] text-[#64748B]">
-                        Semester {subj.semester}
-                      </span>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-[#64748B]">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#F5A000]" />
+                      <span>Loading subjects...</span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <UserCheck className="w-3.5 h-3.5 text-[#16A34A]" />
-                      <span className="font-semibold text-[#1E293B]">
-                        {subj.allocatedTeacherName || (
-                          <span className="text-[#DC2626] font-normal italic">Unallocated</span>
-                        )}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right space-x-1.5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEditModal(subj)}
-                      title="Edit Subject"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(subj.id, subj.name)}
-                      title="Delete Subject"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
-                    </Button>
                   </TableCell>
                 </TableRow>
-              ))}
-              {filteredSubjects.length === 0 && (
-                <TableEmpty colSpan={7} message="No subjects match selected filters." />
+              ) : (
+                <>
+                  {filteredSubjects.map((subj) => (
+                    <TableRow key={subj.id}>
+                      <TableCell>
+                        <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded">
+                          {subj.code}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-bold text-[#1E293B]">
+                        {subj.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            subj.type === "Core Theory"
+                              ? "navy"
+                              : subj.type === "Practical / Lab"
+                              ? "teal"
+                              : "info"
+                          }
+                          size="sm"
+                        >
+                          {subj.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs font-semibold text-[#123B5A]">
+                          {subj.credits} Credits ({subj.hoursPerWeek} hrs/wk)
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs space-y-0.5">
+                          <span className="font-medium text-[#F5A000] block">
+                            {subj.courseName || "General"}
+                          </span>
+                          <span className="text-[11px] text-[#64748B]">
+                            Semester {subj.semester}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <UserCheck className="w-3.5 h-3.5 text-[#16A34A]" />
+                          <span className="font-semibold text-[#1E293B]">
+                            {subj.allocatedTeacherName || (
+                              <span className="text-[#DC2626] font-normal italic">Unallocated</span>
+                            )}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right space-x-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenEditModal(subj)}
+                          disabled={isSubmitting}
+                          title="Edit Subject"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(subj.id, subj.name)}
+                          disabled={isSubmitting}
+                          title="Delete Subject"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredSubjects.length === 0 && (
+                    <TableEmpty colSpan={7} message="No subjects match selected filters." />
+                  )}
+                </>
               )}
             </TableBody>
           </Table>
@@ -324,7 +561,7 @@ export default function SubjectsPage() {
       {/* Modal: Create / Edit Subject */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingSubject ? `Edit Subject (${editingSubject.code})` : "Create Academic Subject"}
         description="Define course curriculum subject, weekly load, credits, and teaching assignment."
         maxWidth="lg"
@@ -335,11 +572,23 @@ export default function SubjectsPage() {
               variant="outline"
               size="sm"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="button" variant="primary" size="sm" onClick={handleSubmit}>
-              {editingSubject ? "Update Subject" : "Save Subject"}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              leftIcon={isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : undefined}
+            >
+              {isSubmitting
+                ? "Saving..."
+                : editingSubject
+                ? "Update Subject"
+                : "Save Subject"}
             </Button>
           </>
         }

@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BookOpen,
+  Calendar,
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
@@ -400,14 +401,14 @@ export default function TeacherDashboardPage() {
           description="Submissions awaiting grading"
         />
         <StatCard
-          label="Upcoming Exam Duties"
-          value={dashboard.upcomingExamDuties.length}
-          icon={<CalendarClock />}
+          label="Today's Lectures"
+          value={dashboard.todayTimetable.length}
+          icon={<Calendar />}
           tone="brand"
           description={
-            dashboard.upcomingExamDuties[0]
-              ? `Next: ${dashboard.upcomingExamDuties[0].examDate}`
-              : "No duties scheduled"
+            dashboard.todayTimetable[0]
+              ? `Next: ${dashboard.todayTimetable[0].startTime} · Room ${dashboard.todayTimetable[0].room}`
+              : "All scheduled lectures completed"
           }
         />
       </section>

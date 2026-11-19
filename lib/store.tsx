@@ -189,7 +189,7 @@ interface InstitutionContextType {
 
   // Student Management
   students: StudentItem[];
-  addStudent: (data: Omit<StudentItem, "id" | "enrollmentHistory">) => StudentItem;
+  addStudent: (data: Omit<StudentItem, "id" | "enrollmentHistory"> & { id?: string }) => StudentItem;
   updateStudent: (id: string, data: Partial<StudentItem>) => void;
   deactivateStudent: (id: string) => void;
   linkGuardianToStudent: (studentId: string, guardianId: string) => boolean;
@@ -197,7 +197,7 @@ interface InstitutionContextType {
 
   // Guardian Management
   guardians: GuardianItem[];
-  addGuardian: (data: Omit<GuardianItem, "id" | "guardianId" | "createdAt">) => GuardianItem;
+  addGuardian: (data: Omit<GuardianItem, "id" | "guardianId" | "createdAt"> & { id?: string }) => GuardianItem;
   updateGuardian: (id: string, data: Partial<GuardianItem>) => void;
   deactivateGuardian: (id: string) => void;
   linkStudentToGuardian: (guardianId: string, studentId: string) => boolean;
@@ -205,7 +205,7 @@ interface InstitutionContextType {
 
   // Staff Management
   staff: StaffItem[];
-  addStaff: (data: Omit<StaffItem, "id">) => StaffItem;
+  addStaff: (data: Omit<StaffItem, "id"> & { id?: string }) => StaffItem;
   updateStaff: (id: string, data: Partial<StaffItem>) => void;
   deactivateStaff: (id: string) => void;
 
@@ -1429,9 +1429,9 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
   // =========================================================================
   // Student Management Handlers
   // =========================================================================
-  const addStudent = (data: Omit<StudentItem, "id" | "enrollmentHistory">): StudentItem => {
+  const addStudent = (data: Omit<StudentItem, "id" | "enrollmentHistory"> & { id?: string }): StudentItem => {
     const nextIdx = students.length + 1;
-    const studentId = data.studentId || `STU-2026-${String(nextIdx).padStart(3, "0")}`;
+    const studentId = data.id || data.studentId || `STU-2026-${String(nextIdx).padStart(3, "0")}`;
     const today = new Date().toISOString().split("T")[0];
     const newStudent: StudentItem = {
       ...data,
@@ -1587,12 +1587,12 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
   // =========================================================================
   // Guardian Management Handlers
   // =========================================================================
-  const addGuardian = (data: Omit<GuardianItem, "id" | "guardianId" | "createdAt">): GuardianItem => {
+  const addGuardian = (data: Omit<GuardianItem, "id" | "guardianId" | "createdAt"> & { id?: string }): GuardianItem => {
     const nextIdx = guardians.length + 1;
     const guardianId = `GRD-${String(nextIdx).padStart(3, "0")}`;
     const newGrd: GuardianItem = {
       ...data,
-      id: `grd-${Date.now()}`,
+      id: data.id || `grd-${Date.now()}`,
       guardianId,
       createdAt: new Date().toISOString(),
       studentIds: data.studentIds || [],
@@ -1686,13 +1686,13 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
   // =========================================================================
   // Staff Management Handlers
   // =========================================================================
-  const addStaff = (data: Omit<StaffItem, "id">): StaffItem => {
+  const addStaff = (data: Omit<StaffItem, "id"> & { id?: string }): StaffItem => {
     const nextIdx = staff.length + 1;
     const deptPrefix = data.departmentName ? data.departmentName.substring(0, 3).toUpperCase() : "GEN";
     const empId = data.employeeId || `EMP-${deptPrefix}-${String(nextIdx).padStart(3, "0")}`;
     const newStaff: StaffItem = {
       ...data,
-      id: `staff-${Date.now()}`,
+      id: data.id || `staff-${Date.now()}`,
       employeeId: empId,
       fullName: `${data.firstName} ${data.lastName}`.trim(),
     };

@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import db from "@/lib/db";
-import { signToken, AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
+import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "@/lib/auth/jwt";
 import { isDefaultOrTemporaryPassword, checkPwnedPassword } from "@/lib/auth/password-security";
 import { SessionUser } from "@/types";
 import { syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
+import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
+import {
+  signTeacherSession,
+  hashSessionToken,
+  createDbSessionRecord,
+  TEACHER_AUTH_COOKIE,
+  type TeacherSessionPayload,
+} from "@/lib/auth/teacher-session";
+import {
+  findDeterministicAccount,
+  type TeacherRole,
+} from "@/lib/auth/roles";
 
 export async function POST(req: NextRequest) {
   try {
@@ -89,6 +101,7 @@ export async function POST(req: NextRequest) {
         role: true,
         platformRole: true,
         isActive: true,
+        lastLoginAt: true,
         institutionId: true,
         institution: {
           select: {
@@ -199,6 +212,7 @@ export async function POST(req: NextRequest) {
     let studentId: string | undefined;
     let guardianId: string | undefined;
     let activeChildId: string | undefined;
+    let teacherToken: string | undefined;
 
     if (userRole === "STUDENT") {
       redirectUrl = "/dashboard";
@@ -216,7 +230,7 @@ export async function POST(req: NextRequest) {
         studentId = studentRecord.id;
       }
     } else if (userRole === "PARENT" || userRole === "GUARDIAN") {
-      redirectUrl = "/parent/dashboard";
+      redirectUrl = "/dashboard";
       try {
         const guardians = await db.$queryRaw<any[]>`
           SELECT id FROM guardian_accounts WHERE "userId" = ${user.id} LIMIT 1
@@ -236,8 +250,74 @@ export async function POST(req: NextRequest) {
         console.warn("Raw guardian lookup error:", err);
       }
     } else if (userRole === "TEACHER") {
-      const instSlug = (user.institution?.slug || user.institution?.code || "demo-school").toLowerCase();
+      let instSlug = (user.institution?.slug || user.institution?.code || "").toLowerCase();
+      if (!instSlug && user.institutionId) {
+        try {
+          const insts: any[] = await db.$queryRaw`
+            SELECT slug, code FROM institutions WHERE id = ${user.institutionId} LIMIT 1
+          `;
+          if (insts.length > 0) {
+            instSlug = (insts[0].slug || insts[0].code || "").toLowerCase();
+          }
+        } catch {}
+      }
+      if (!instSlug) instSlug = "vidyaniketan";
       redirectUrl = `/campus/${instSlug}/teacher`;
+
+      // Resolve teacher record from DB
+      let teacherRecord: any = null;
+      try {
+        const teachers: any[] = await db.$queryRaw`
+          SELECT id, "employeeId", department, designation
+          FROM teachers
+          WHERE "userId" = ${user.id}
+          LIMIT 1
+        `;
+        teacherRecord = teachers[0] || null;
+      } catch (err) {
+        console.warn("[Login] Teacher lookup error:", err);
+      }
+
+      // Check deterministic test account configuration or DB record
+      const testAccount = findDeterministicAccount(user.email) || findDeterministicAccount(user.id);
+      const availableRoles: TeacherRole[] = testAccount?.roles || ["teacher"];
+      const activeRole: TeacherRole = testAccount?.defaultRole || "teacher";
+      const homeroomClass = testAccount?.homeroomClass || (teacherRecord?.designation?.includes("Class Teacher") ? "Class 10-A" : undefined);
+
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const teacherPayload: TeacherSessionPayload = {
+        userId: user.id,
+        teacherId: teacherRecord?.id || `teacher_${user.id}`,
+        institutionId: user.institutionId || user.institution?.id || "inst_demo_school",
+        institutionSlug: instSlug,
+        email: user.email,
+        fullName: user.fullName || "Faculty Member",
+        employeeId: teacherRecord?.employeeId || testAccount?.employeeId || "VNPS-TCH-001",
+        designation: teacherRecord?.designation || testAccount?.designation || "Faculty",
+        department: teacherRecord?.department || testAccount?.department || "Mathematics",
+        homeroomClass,
+        activeRole,
+        availableRoles,
+        issuedAt: Date.now(),
+        expiresAt: expiresAt.getTime(),
+        lastActivity: Date.now(),
+      };
+
+      teacherToken = await signTeacherSession(teacherPayload);
+      const tokenHash = hashSessionToken(teacherToken);
+
+      // Store in PostgreSQL teacher_portal_sessions table
+      try {
+        await createDbSessionRecord({
+          tokenHash,
+          userId: user.id,
+          institutionId: user.institutionId || user.institution?.id || "inst_demo_school",
+          activeRole,
+          expiresAt,
+        });
+      } catch (err) {
+        console.error("[Login] Failed to record teacher portal session in DB:", err);
+      }
     } else if (userRole === "ADMIN") {
       redirectUrl = "/admin";
     } else if (userRole === "SUPER_ADMIN") {
@@ -266,8 +346,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let mustChangePassword = false;
-    if (password) {
+    let mustChangePassword = await isTemporaryPasswordActive(user.id);
+    if (!mustChangePassword && password) {
       if (isDefaultOrTemporaryPassword(password)) {
         mustChangePassword = true;
       } else {
@@ -277,6 +357,7 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+    const passwordSig = computePasswordSignature(user.passwordHash || "");
 
     const sessionUser: SessionUser = {
       userId: user.id,
@@ -289,11 +370,12 @@ export async function POST(req: NextRequest) {
       guardianId,
       activeChildId,
       mustChangePassword,
+      passwordSig,
     };
 
     const token = await signToken(sessionUser);
 
-    // Update last login
+    // Update last login timestamp without corrupting audit history
     try {
       await db.$executeRaw`
         UPDATE users SET "lastLoginAt" = NOW() WHERE id = ${user.id}
@@ -302,11 +384,15 @@ export async function POST(req: NextRequest) {
       // Non-critical background update
     }
 
+    // Strip internal security signatures from client response
+    const safeUser = { ...sessionUser };
+    delete safeUser.passwordSig;
+
     const response = NextResponse.json({
       success: true,
       message: "Authentication successful.",
       data: {
-        user: sessionUser,
+        user: safeUser,
         token,
         redirectUrl,
         mustChangePassword,
@@ -332,6 +418,18 @@ export async function POST(req: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24, // 24 hours
     });
+
+    if (teacherToken) {
+      response.cookies.set({
+        name: TEACHER_AUTH_COOKIE,
+        value: teacherToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24, // 24 hours
+      });
+    }
 
     return response;
   } catch (error: any) {

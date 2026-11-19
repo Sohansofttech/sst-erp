@@ -1,20 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
+import Link from "next/link"
 import {
   AlertTriangle,
+  ArrowRight,
   Award,
-  BellRing,
   CheckCircle2,
+  Clock,
   FileBarChart2,
   Megaphone,
-  Search,
+  ShieldAlert,
   Users,
 } from "lucide-react"
-import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import {
@@ -23,7 +21,6 @@ import {
   LoadingState,
   PageHeader,
   StatCard,
-  StatusBadge,
 } from "@/components/shared"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,23 +32,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -59,192 +39,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import {
-  createAnnouncement,
-  getClassAllocations,
   getSectionStudents,
+  getStudentLeaveRequests,
 } from "@/lib/services/teacher.service"
-import type { ClassAllocation, StudentRosterItem } from "@/types/teacher"
+import type { StudentRosterItem, StudentLeaveRequest } from "@/types/teacher"
 import { useTeacherRole } from "../teacher-role-context"
 
-const parentNoticeSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(5, "Subject line must be at least 5 characters."),
-  priority: z.enum(["normal", "important", "urgent"]),
-  content: z
-    .string()
-    .trim()
-    .min(15, "Notice message must be at least 15 characters."),
-})
-
-type ParentNoticeValues = z.infer<typeof parentNoticeSchema>
-
-type RecommendationType =
-  | "Good Standing"
-  | "Attendance Watch"
-  | "Remedial Support"
-  | "Parent Conference"
-  | "Merit Commendation"
-
-function defaultRecommendation(s: StudentRosterItem): RecommendationType {
-  if (
-    (s.attendancePercent !== null && s.attendancePercent < 75) ||
-    s.iaAverage < 60
-  ) {
-    return "Parent Conference"
-  }
-  if (
-    (s.attendancePercent !== null && s.attendancePercent < 82) ||
-    s.iaAverage < 70
-  ) {
-    return "Remedial Support"
-  }
-  if (
-    s.attendancePercent !== null &&
-    s.attendancePercent >= 95 &&
-    s.iaAverage >= 90
-  ) {
-    return "Merit Commendation"
-  }
-  return "Good Standing"
-}
-
-export default function ClassTeacherToolsPage() {
-  const { role, setRole } = useTeacherRole()
-  const [classAlloc, setClassAlloc] = React.useState<ClassAllocation | null>(
-    null
-  )
+export default function ClassTeacherDashboardPage() {
+  const { slug } = useTeacherRole()
   const [students, setStudents] = React.useState<StudentRosterItem[]>([])
-  const [recommendations, setRecommendations] = React.useState<
-    Record<string, RecommendationType>
-  >({})
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [noticeOpen, setNoticeOpen] = React.useState(false)
-  const [sendingNotice, setSendingNotice] = React.useState(false)
+  const [leaveRequests, setLeaveRequests] = React.useState<StudentLeaveRequest[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
-  const noticeForm = useForm<ParentNoticeValues>({
-    resolver: zodResolver(parentNoticeSchema),
-    defaultValues: {
-      title: "",
-      priority: "important",
-      content: "",
-    },
-  })
-
-  const hydrate = React.useCallback(
-    (allocs: ClassAllocation[], roster: StudentRosterItem[]) => {
-      const assigned =
-        allocs.find((c) => c.role === "class_teacher") ?? allocs[0] ?? null
-      setClassAlloc(assigned)
-      setStudents(roster)
-      const initialRecs: Record<string, RecommendationType> = {}
-      for (const s of roster) {
-        initialRecs[s.studentId] = defaultRecommendation(s)
-      }
-      setRecommendations(initialRecs)
-    },
-    []
-  )
-
-  const loadData = React.useCallback(() => {
+  const loadData = React.useCallback(async () => {
     setLoading(true)
     setError(null)
-    Promise.all([getClassAllocations(), getSectionStudents("sec-10a")])
-      .then(([allocs, roster]) => {
-        hydrate(allocs, roster)
-      })
-      .catch((err) => {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load Class Teacher tools."
-        )
-      })
-      .finally(() => {
-        setLoading(false)
-      })
-  }, [hydrate])
+    try {
+      const [roster, leaves] = await Promise.all([
+        getSectionStudents("sec-10a"),
+        getStudentLeaveRequests(),
+      ])
+      setStudents(roster)
+      setLeaveRequests(leaves)
+    } catch (err: any) {
+      setError(err?.message || "Failed to load homeroom section data.")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   React.useEffect(() => {
-    let active = true
-    Promise.all([getClassAllocations(), getSectionStudents("sec-10a")])
-      .then(([allocs, roster]) => {
-        if (!active) return
-        hydrate(allocs, roster)
-      })
-      .catch((err) => {
-        if (!active) return
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load Class Teacher tools."
-        )
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [hydrate])
-
-  const openNoticeForStudent = (student?: StudentRosterItem) => {
-    if (student) {
-      noticeForm.reset({
-        title: `Attendance & Academic Advisory — ${student.fullName} (${student.rollNo})`,
-        priority:
-          student.attendancePercent !== null && student.attendancePercent < 75
-            ? "urgent"
-            : "important",
-        content: `Dear Parent/Guardian of ${student.fullName} (Roll ${student.rollNo}, Class 10 - A),\n\nCurrent attendance stands at ${student.attendancePercent !== null ? `${student.attendancePercent}%` : "Pending records"} (minimum required: 75%) with an Internal Assessment average of ${student.iaAverage}%. Kindly meet the Class Teacher during PTI hours to review the catch-up plan.`,
-      })
-    } else {
-      noticeForm.reset({
-        title: "Class 10 - A Monthly Attendance & Term Progress Update",
-        priority: "important",
-        content:
-          "Dear Parents of Class 10 - A, please review your ward's Term 1 attendance percentage and upcoming Pre-Board schedule on the parent portal.",
-      })
-    }
-    setNoticeOpen(true)
-  }
-
-  const handleSendNotice = noticeForm.handleSubmit(async (values) => {
-    setSendingNotice(true)
-    try {
-      await createAnnouncement({
-        title: values.title,
-        content: values.content,
-        audience: "Class & Parents",
-        targetClasses: ["Class 10 - A"],
-        priority: values.priority,
-        isPinned: false,
-      })
-      setNoticeOpen(false)
-      toast.success(
-        "Parent notice queued via Official Parent Portal (contact numbers protected)."
-      )
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to send parent notice."
-      )
-    } finally {
-      setSendingNotice(false)
-    }
-  })
+    loadData()
+  }, [loadData])
 
   if (loading) {
     return (
       <LoadingState
-        title="Loading Class Teacher workspace"
-        description="Fetching Class 10 - A attendance standing and section summary..."
+        title="Loading Homeroom Section"
+        description="Aggregating Class 10-A student metrics, attendance defaulters, and leave queue..."
       />
     )
   }
@@ -252,13 +86,14 @@ export default function ClassTeacherToolsPage() {
   if (error) {
     return (
       <ErrorState
-        title="Could not load Class Teacher tools"
+        title="Could not load section dashboard"
         description={error}
         onRetry={loadData}
       />
     )
   }
 
+  const base = `/campus/${slug}/teacher/class-teacher`
   const defaulters = students.filter(
     (s) => s.attendancePercent !== null && s.attendancePercent < 75
   )
@@ -268,488 +103,275 @@ export default function ClassTeacherToolsPage() {
       s.attendancePercent >= 75 &&
       s.attendancePercent < 82
   )
-  const studentsWithAttendance = students.filter(
-    (s) => s.attendancePercent !== null && s.attendancePercent !== undefined
-  )
-  const avgAttendance =
-    studentsWithAttendance.length > 0
-      ? Math.round(
-          (studentsWithAttendance.reduce(
-            (sum, s) => sum + (s.attendancePercent ?? 0),
-            0
-          ) /
-            studentsWithAttendance.length) *
-            10
-        ) / 10
-      : null
-  const avgIA =
-    students.length > 0
-      ? Math.round(
-          (students.reduce((sum, s) => sum + s.iaAverage, 0) /
-            students.length) *
-            10
-        ) / 10
-      : 0
-  const honorStudents = students.filter(
-    (s) =>
-      s.attendancePercent !== null &&
-      s.attendancePercent >= 95 &&
-      s.iaAverage >= 85
-  ).length
+  const pendingLeaves = leaveRequests.filter((l) => l.status === "pending")
 
-  const filteredStudents = students.filter(
-    (s) =>
-      s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.rollNo.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const studentsWithAtt = students.filter((s) => s.attendancePercent !== null)
+  const avgAttendance =
+    studentsWithAtt.length > 0
+      ? Number(
+          (
+            studentsWithAtt.reduce(
+              (acc, s) => acc + (s.attendancePercent ?? 0),
+              0
+            ) / studentsWithAtt.length
+          ).toFixed(1)
+        )
+      : null
+
+  const avgIA = students.length > 0
+    ? Number((students.reduce((acc, s) => acc + s.iaAverage, 0) / students.length).toFixed(1))
+    : 84.6
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Class Teacher Tools — ${classAlloc ? `${classAlloc.className} (${classAlloc.section})` : "Class 10 - A"}`}
-        subtitle="Scoped strictly to your assigned homeroom section: attendance shortage defaulters, section summary analytics, status recommendations, and parent notices."
+        title="Homeroom Workspace — Class 10-A"
+        subtitle="Dedicated homeroom section management: student roster, attendance shortage alerts, student leave approvals, and parent communications."
         action={
-          <Button onClick={() => openNoticeForStudent()}>
-            <Megaphone className="size-4" />
-            Quick Parent Notice
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+              <Link href={`${base}/leave-approvals`}>
+                <CheckCircle2 className="mr-1.5 size-4 text-[#123B5A]" />
+                Leave Approvals ({pendingLeaves.length})
+              </Link>
+            </Button>
+            <Button asChild className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+              <Link href={`${base}/notices`}>
+                <Megaphone className="mr-1.5 size-4" />
+                Broadcast Parent Notice
+              </Link>
+            </Button>
+          </div>
         }
       />
 
-      {role !== "class_teacher" && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E5E9EF] bg-white px-4 py-3 text-sm text-[#202936] shadow-xs">
-          <span>
-            Scoped strictly to your Class Teacher section:{" "}
-            <strong>Class 10 - A</strong>. Switch the demo role toggle to{" "}
-            <strong>Class Teacher</strong> to preview homeroom permissions.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
-            onClick={() => setRole("class_teacher")}
-          >
-            Switch to Class Teacher Role
-          </Button>
-        </div>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 5 Core KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="Section Strength"
           value={students.length}
           icon={<Users />}
           variant="dark"
           tone="darkNavy"
-          description="Class 10 - A enrolled"
+          description="Class 10 - A (Homeroom)"
         />
         <StatCard
-          label="Section Avg Attendance"
+          label="Average Attendance"
           value={avgAttendance !== null ? `${avgAttendance}%` : "N/A"}
           icon={<CheckCircle2 />}
           tone="success"
-          description="Threshold: 75% mandatory"
+          description="Target ≥85% CBSE norm"
         />
         <StatCard
           label="Attendance Defaulters"
           value={defaulters.length}
           icon={<AlertTriangle />}
           tone="error"
-          description={`${borderline.length} borderline (75–81%)`}
+          description={`${borderline.length} borderline (75–82%)`}
         />
         <StatCard
           label="Section IA Mean"
           value={`${avgIA}%`}
           icon={<Award />}
           tone="primary"
-          description={`${honorStudents} high-merit scholars`}
+          description="Cross-subject aggregate"
+        />
+        <StatCard
+          label="Pending Leaves"
+          value={pendingLeaves.length}
+          icon={<Clock />}
+          tone={pendingLeaves.length > 0 ? "warning" : "primary"}
+          description="Requires CT approval"
         />
       </div>
 
-      <Tabs defaultValue="defaulters" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="defaulters">
-            Section Defaulter List ({defaulters.length + borderline.length})
-          </TabsTrigger>
-          <TabsTrigger value="summary">
-            Section Summary & Status Recommendations ({students.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="defaulters" className="space-y-4">
-          <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
-            <CardHeader className="border-b border-[#E5E9EF] pb-4">
-              <CardTitle className="text-lg font-bold text-[#202936]">
-                Attendance Shortage & Borderline Watch (Class 10 - A)
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Defaulter Alert Snapshot */}
+        <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-[#E5E9EF] pb-4">
+            <div>
+              <CardTitle className="text-base font-bold text-[#202936]">
+                Attendance Shortage Watch
               </CardTitle>
-              <CardDescription className="text-[#788391]">
-                Students below 75% require immediate parent intimation for examination eligibility compliance.
+              <CardDescription className="text-xs text-[#788391]">
+                Students under 75% require immediate parent notice for exam eligibility.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-5">
-              {defaulters.length + borderline.length === 0 ? (
+            </div>
+            <Button asChild variant="ghost" size="sm" className="text-xs font-bold text-[#F5A000] hover:bg-amber-50">
+              <Link href={`${base}/defaulters`} className="gap-1">
+                View All
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {defaulters.length + borderline.length === 0 ? (
+              <div className="p-6">
                 <EmptyState
                   title="Zero attendance defaulters"
-                  description="All students in Class 10 - A are currently above 82% attendance."
-                />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Roll No</TableHead>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Attendance %</TableHead>
-                      <TableHead>IA Average</TableHead>
-                      <TableHead>Guardian</TableHead>
-                      <TableHead>Severity</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...defaulters, ...borderline].map((student) => {
-                      const critical =
-                        student.attendancePercent !== null &&
-                        student.attendancePercent < 75
-                      return (
-                        <TableRow key={student.studentId}>
-                          <TableCell className="font-medium text-foreground">
-                            {student.rollNo}
-                          </TableCell>
-                          <TableCell className="font-medium text-foreground">
-                            {student.fullName}
-                          </TableCell>
-                          <TableCell>
-                            <span
-                              className={cn(
-                                "font-semibold",
-                                critical ? "text-error" : "text-amber-700"
-                              )}
-                            >
-                              {student.attendancePercent !== null &&
-                              student.attendancePercent !== undefined
-                                ? `${student.attendancePercent}%`
-                                : "N/A"}
-                            </span>
-                          </TableCell>
-                          <TableCell>{student.iaAverage}%</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {student.guardianContact.guardianName} (
-                            {student.guardianContact.relation})
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge
-                              status={critical ? "Rejected" : "Pending"}
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant={critical ? "default" : "outline"}
-                              onClick={() => openNoticeForStudent(student)}
-                            >
-                              <BellRing className="size-3.5" />
-                              Send Parent Notice
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="summary" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
-              <CardHeader className="pb-2 border-b border-[#E5E9EF]">
-                <CardTitle className="flex items-center gap-2 text-base font-bold text-[#202936]">
-                  <FileBarChart2 className="size-4 text-[#123B5A]" />
-                  Attendance Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm pt-4">
-                <div className="flex justify-between">
-                  <span className="text-[#788391]">90% and above</span>
-                  <span className="font-bold text-emerald-700">
-                    {
-                      students.filter(
-                        (s) =>
-                          s.attendancePercent !== null &&
-                          s.attendancePercent >= 90
-                      ).length
-                    }{" "}
-                    students
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#788391]">75% – 89%</span>
-                  <span className="font-bold text-[#202936]">
-                    {
-                      students.filter(
-                        (s) =>
-                          s.attendancePercent !== null &&
-                          s.attendancePercent >= 75 &&
-                          s.attendancePercent < 90
-                      ).length
-                    }{" "}
-                    students
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#788391]">
-                    Below 75% (Shortage)
-                  </span>
-                  <span className="font-bold text-rose-700">
-                    {defaulters.length} student(s)
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
-              <CardHeader className="pb-2 border-b border-[#E5E9EF]">
-                <CardTitle className="flex items-center gap-2 text-base font-bold text-[#202936]">
-                  <Award className="size-4 text-[#F5A000]" />
-                  IA Score Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm pt-4">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Distinction (≥ 85%)
-                  </span>
-                  <span className="font-semibold text-success">
-                    {students.filter((s) => s.iaAverage >= 85).length} students
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Proficient (65% – 84%)
-                  </span>
-                  <span className="font-semibold text-foreground">
-                    {
-                      students.filter(
-                        (s) => s.iaAverage >= 65 && s.iaAverage < 85
-                      ).length
-                    }{" "}
-                    students
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Needs Remedial (&lt; 65%)
-                  </span>
-                  <span className="font-semibold text-amber-700">
-                    {students.filter((s) => s.iaAverage < 65).length} student(s)
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">
-                  Section Homeroom Notes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <p>
-                  Class 10 - A term summary will freeze on{" "}
-                  <strong className="text-foreground">25 Nov 2026</strong> prior
-                  to Pre-Board hall ticket generation.
-                </p>
-                <p>
-                  Use recommendations below to flag students for Remedial
-                  Support or Parent–Teacher Interaction (PTI).
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="bg-white">
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle className="text-lg font-semibold text-foreground">
-                  Student Status Recommendations
-                </CardTitle>
-                <CardDescription>
-                  Assign official homeroom recommendations for Class 10 - A term review.
-                </CardDescription>
-              </div>
-              <div className="relative w-full sm:w-64">
-                <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search roll no or name..."
-                  className="pl-9"
+                  description="All students currently maintain safe attendance standing."
                 />
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
+            ) : (
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-[#EEF1F5]/80">
                   <TableRow>
-                    <TableHead>Roll No</TableHead>
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Attendance</TableHead>
-                    <TableHead>IA Avg</TableHead>
-                    <TableHead>Recommendation</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Roll No</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Student</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Attendance</TableHead>
+                    <TableHead className="text-right font-bold text-[#788391]">Status</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => {
-                    const rec =
-                      recommendations[student.studentId] ?? "Good Standing"
+                <TableBody className="divide-y divide-[#E5E9EF]">
+                  {[...defaulters, ...borderline].slice(0, 4).map((s) => {
+                    const isCritical =
+                      s.attendancePercent !== null && s.attendancePercent < 75
                     return (
-                      <TableRow key={student.studentId}>
-                        <TableCell className="font-medium text-foreground">
-                          {student.rollNo}
+                      <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
+                        <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
+                          {s.rollNo}
                         </TableCell>
-                        <TableCell className="font-medium text-foreground">
-                          {student.fullName}
+                        <TableCell className="font-bold text-[#202936]">
+                          {s.fullName}
                         </TableCell>
                         <TableCell>
+                          <span
+                            className={cn(
+                              "font-mono font-bold text-xs",
+                              s.attendancePercent === null
+                                ? "text-[#788391]"
+                                : isCritical
+                                  ? "text-rose-600"
+                                  : "text-amber-600"
+                            )}
+                          >
+                            {s.attendancePercent !== null &&
+                            s.attendancePercent !== undefined
+                              ? `${s.attendancePercent}%`
+                              : "N/A"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
                           <Badge
                             variant="outline"
                             className={cn(
-                              student.attendancePercent === null ||
-                                student.attendancePercent === undefined
-                                ? "border-slate-200 bg-slate-50 text-slate-700"
-                                : student.attendancePercent < 75
-                                  ? "border-error/30 bg-error/10 text-error"
-                                  : student.attendancePercent < 82
-                                    ? "border-warning/35 bg-warning/12 text-amber-700"
-                                    : "border-success/25 bg-success/10 text-success"
+                              "rounded-full text-xs font-bold",
+                              isCritical
+                                ? "border-rose-300 bg-rose-50 text-rose-700"
+                                : "border-amber-300 bg-amber-50 text-amber-700"
                             )}
                           >
-                            {student.attendancePercent !== null &&
-                            student.attendancePercent !== undefined
-                              ? `${student.attendancePercent}%`
-                              : "N/A"}
+                            {isCritical ? "Defaulter (<75%)" : "Borderline"}
                           </Badge>
-                        </TableCell>
-                        <TableCell>{student.iaAverage}%</TableCell>
-                        <TableCell className="w-60">
-                          <Select
-                            value={rec}
-                            onValueChange={(val) => {
-                              setRecommendations((prev) => ({
-                                ...prev,
-                                [student.studentId]: val as RecommendationType,
-                              }))
-                              toast.success(
-                                `Updated recommendation for ${student.fullName}: ${val}`
-                              )
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Good Standing">
-                                Good Standing
-                              </SelectItem>
-                              <SelectItem value="Merit Commendation">
-                                Merit Commendation
-                              </SelectItem>
-                              <SelectItem value="Attendance Watch">
-                                Attendance Watch
-                              </SelectItem>
-                              <SelectItem value="Remedial Support">
-                                Remedial Support
-                              </SelectItem>
-                              <SelectItem value="Parent Conference">
-                                Parent Conference
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
                         </TableCell>
                       </TableRow>
                     )
                   })}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Quick Parent Notice Dialog */}
-      <Dialog open={noticeOpen} onOpenChange={setNoticeOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Send Quick Parent Notice (Class 10 - A)</DialogTitle>
-            <DialogDescription>
-              Delivered via the Parent Portal & official campus digest without exposing personal phone numbers.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSendNotice} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="notice-title">Notice Subject</Label>
-              <Input
-                id="notice-title"
-                placeholder="e.g. Attendance Advisory / PTI Reminder"
-                {...noticeForm.register("title")}
-              />
-              {noticeForm.formState.errors.title && (
-                <p className="text-xs text-error">
-                  {noticeForm.formState.errors.title.message}
-                </p>
-              )}
+        {/* Pending Student Leaves Snapshot */}
+        <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-[#E5E9EF] pb-4">
+            <div>
+              <CardTitle className="text-base font-bold text-[#202936]">
+                Pending Leave / OD Queue
+              </CardTitle>
+              <CardDescription className="text-xs text-[#788391]">
+                Approving automatically records On-Duty attendance credit.
+              </CardDescription>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="notice-priority">Priority Level</Label>
-              <Select
-                defaultValue="important"
-                onValueChange={(val) =>
-                  noticeForm.setValue(
-                    "priority",
-                    val as ParentNoticeValues["priority"]
-                  )
-                }
-              >
-                <SelectTrigger id="notice-priority">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="important">Important</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
+            <Button asChild variant="ghost" size="sm" className="text-xs font-bold text-[#F5A000] hover:bg-amber-50">
+              <Link href={`${base}/leave-approvals`} className="gap-1">
+                Manage Queue
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {pendingLeaves.length === 0 ? (
+              <div className="p-6">
+                <EmptyState
+                  title="No pending leave applications"
+                  description="All student leave and on-duty requests have been processed."
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-[#E5E9EF] p-2">
+                {pendingLeaves.map((l) => (
+                  <div key={l.id} className="p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold text-[#202936]">
+                        {l.studentName} ({l.rollNo})
+                      </p>
+                      <p className="text-[11px] text-[#788391] mt-0.5">
+                        {l.leaveType} ({l.daysCount}d) · {l.fromDate}
+                      </p>
+                      <p className="text-[11px] text-[#123B5A] italic mt-0.5 truncate max-w-xs">
+                        {l.reason}
+                      </p>
+                    </div>
+                    <Button asChild size="sm" className="h-8 rounded-lg bg-[#123B5A] text-xs font-bold text-white hover:bg-[#1B4D70]">
+                      <Link href={`${base}/leave-approvals`}>Review</Link>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Homeroom Action Center */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="rounded-2xl border-[#E5E9EF] bg-white p-5 shadow-xs hover:border-[#123B5A] transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-[#123B5A]/10 text-[#123B5A]">
+              <Users className="size-5" />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="notice-content">Message to Parents</Label>
-              <Textarea
-                id="notice-content"
-                rows={4}
-                {...noticeForm.register("content")}
-              />
-              {noticeForm.formState.errors.content && (
-                <p className="text-xs text-error">
-                  {noticeForm.formState.errors.content.message}
-                </p>
-              )}
+            <div>
+              <p className="font-bold text-sm text-[#202936]">Roster Directory</p>
+              <p className="text-xs text-[#788391]">All 18 students & contacts</p>
             </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setNoticeOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={sendingNotice}>
-                {sendingNotice ? "Dispatching..." : "Send Parent Notice"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+          <Button asChild variant="outline" className="mt-4 w-full rounded-xl border-[#E5E9EF] text-xs font-bold text-[#123B5A] hover:bg-[#EEF1F5]">
+            <Link href={`${base}/students`}>Open Section Students</Link>
+          </Button>
+        </Card>
+
+        <Card className="rounded-2xl border-[#E5E9EF] bg-white p-5 shadow-xs hover:border-[#123B5A] transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <FileBarChart2 className="size-5" />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-[#202936]">Section Remarks</p>
+              <p className="text-xs text-[#788391]">Assign term recommendations</p>
+            </div>
+          </div>
+          <Button asChild variant="outline" className="mt-4 w-full rounded-xl border-[#E5E9EF] text-xs font-bold text-[#123B5A] hover:bg-[#EEF1F5]">
+            <Link href={`${base}/recommendations`}>Open Recommendations</Link>
+          </Button>
+        </Card>
+
+        <Card className="rounded-2xl border-[#E5E9EF] bg-white p-5 shadow-xs hover:border-[#123B5A] transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <Megaphone className="size-5" />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-[#202936]">Parent Notices</p>
+              <p className="text-xs text-[#788391]">Broadcast announcements</p>
+            </div>
+          </div>
+          <Button asChild variant="outline" className="mt-4 w-full rounded-xl border-[#E5E9EF] text-xs font-bold text-[#123B5A] hover:bg-[#EEF1F5]">
+            <Link href={`${base}/notices`}>Open Parent Broadcasts</Link>
+          </Button>
+        </Card>
+      </div>
     </div>
   )
 }

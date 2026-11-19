@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useInstitution } from "@/lib/store";
 import {
   Menu,
-  Bell,
   Calendar,
   Building2,
   ChevronDown,
@@ -17,6 +16,7 @@ import {
   ExternalLink,
   KeyRound,
 } from "lucide-react";
+import { NotificationDropdown } from "@/components/shared/NotificationDropdown";
 import { ChangePasswordModal } from "../shared/ChangePasswordModal";
 
 interface AdminHeaderProps {
@@ -28,7 +28,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
   const { profile, activeAcademicYear, academicYears, setActiveAcademicYear } = useInstitution();
   const [showYearMenu, setShowYearMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -37,6 +36,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
         localStorage.removeItem("erp_institution_name");
+        localStorage.removeItem("sst_erp_inst_admin_profile");
       }
       await fetch("/api/auth/me", { method: "POST", credentials: "include" });
       window.location.href = "/login";
@@ -143,36 +143,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
           )}
         </div>
 
-        {/* Notifications */}
-        <div className="relative">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 rounded-lg text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] transition-colors cursor-pointer"
-            aria-label="Notifications"
-          >
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#F5A000] ring-2 ring-white" />
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-[#E2E8F0] p-3 z-40 animate-in fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-[#F1F5F9]">
-                <h4 className="text-xs font-bold text-[#1E293B]">Notifications</h4>
-                <span className="text-[10px] text-[#F5A000] font-medium">3 unread</span>
-              </div>
-              <div className="py-2 space-y-2 text-xs">
-                <div className="p-2 rounded-lg bg-[#FEF3C7] text-[#1E293B]">
-                  <p className="font-semibold text-[#123B5A]">Academic Year Activated</p>
-                  <p className="text-[11px] text-[#64748B]">AY 2026-2027 is now the system active calendar.</p>
-                </div>
-                <div className="p-2 rounded-lg bg-[#F8FAFC] text-[#1E293B]">
-                  <p className="font-semibold text-[#123B5A]">Staff Registration</p>
-                  <p className="text-[11px] text-[#64748B]">New faculty added in CSE department.</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Live Notification Dropdown */}
+        <NotificationDropdown />
 
         {/* User Profile */}
         <div className="relative">

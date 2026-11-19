@@ -59,7 +59,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Slot ID required." }, { status: 400 });
     }
 
-    await db.timetableSlot.delete({ where: { id } });
+    const result = await db.timetableSlot.deleteMany({
+      where: { id, institutionId },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Timetable slot not found or access denied." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({ success: true, message: "Timetable slot removed." });
   } catch (error) {
     return handleAdminApiError(error);

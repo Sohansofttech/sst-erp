@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
 import { authorizeStudentOrParentAccess } from "@/lib/security/authorize";
+import { submitQuery } from "@/lib/services/query-management.service";
 import db from "@/lib/db";
 import {
   getStudentFeedbacks,
@@ -170,6 +171,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing feedback fields" }, { status: 400 });
     }
 
+    // Submit via unified query management engine (creates feedback and approval request + admin notification)
+    let query: any = null;
+    try {
+      query = await submitQuery({
+        institutionId: session.institutionId || institutionId,
+        userId: session.userId,
+        role: "STUDENT",
+        category,
+        subject: String(subject).trim(),
+        description: String(message).trim(),
+        studentId: session.studentId || studentId,
+      });
+    } catch (queryErr) {
+      console.warn("Unified query submit fallback:", queryErr);
+    }
+
     let feedback: any;
     try {
       feedback = await db.feedback.create({
@@ -199,7 +216,7 @@ export async function POST(req: NextRequest) {
     } catch (err: any) {
       console.warn("Direct feedback DB creation fallback:", err.message);
       feedback = {
-        id: `fb_${Date.now()}`,
+        id: query?.id || `fb_${Date.now()}`,
         institutionId,
         studentId,
         category,
@@ -234,7 +251,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Feedback submitted successfully.",
-      data: feedback,
+      data: feedback || query,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
