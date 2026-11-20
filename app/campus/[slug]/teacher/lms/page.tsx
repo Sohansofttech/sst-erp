@@ -351,7 +351,7 @@ export default function TeacherLMSPage() {
         title="Study Material (LMS)"
         subtitle={`Organize lecture PDFs, video lessons, and reference links by unit · AY ${academicYear}`}
         action={
-          <Button type="button" onClick={() => setDialogOpen(true)}>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setDialogOpen(true)}>
             <Plus className="size-4" />
             Add Study Material
           </Button>
@@ -361,9 +361,9 @@ export default function TeacherLMSPage() {
       {/* Filter Bar */}
       <Card className="py-4 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
         <CardContent className="flex flex-col gap-3 px-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full sm:w-auto">
             <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-              <SelectTrigger className="w-64 border-[#E5E9EF]">
+              <SelectTrigger className="w-full sm:w-64 border-[#E5E9EF]">
                 <SelectValue placeholder="All Courses / Subjects" />
               </SelectTrigger>
               <SelectContent>
@@ -382,12 +382,12 @@ export default function TeacherLMSPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search title or unit..."
-                className="pl-9"
+                className="pl-9 w-full"
               />
             </div>
           </div>
 
-          <Badge variant="secondary" className="rounded-full bg-[#EEF1F5] text-[#202936] font-semibold">
+          <Badge variant="secondary" className="rounded-full bg-[#EEF1F5] text-[#202936] font-semibold w-fit">
             {filteredMaterials.length} Resources · {unitNames.length} Units
           </Badge>
         </CardContent>
@@ -505,7 +505,7 @@ export default function TeacherLMSPage() {
 
       {/* Upload / Add Material Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-lg">
           <form onSubmit={handleSubmit(onCreateMaterial)}>
             <DialogHeader>
               <DialogTitle>Add Study Material</DialogTitle>
@@ -681,15 +681,16 @@ export default function TeacherLMSPage() {
               )}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
+                className="w-full sm:w-auto"
                 onClick={() => setDialogOpen(false)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                 {isSubmitting ? "Uploading..." : "Add Material"}
               </Button>
             </DialogFooter>

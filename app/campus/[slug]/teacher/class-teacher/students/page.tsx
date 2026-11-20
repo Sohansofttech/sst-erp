@@ -157,14 +157,14 @@ export default function SectionStudentsPage() {
         title="Section Students — Class 10-A"
         subtitle="Complete homeroom student roster with roll numbers, attendance standing, internal assessment means, and parent contact protection."
         action={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
               <Link href={`/campus/${slug}/teacher/class-teacher`}>
                 <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
                 Section Dashboard
               </Link>
             </Button>
-            <Button asChild className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
               <Link href={`/campus/${slug}/teacher/class-teacher/notices`}>
                 <Megaphone className="mr-1.5 size-4" />
                 Broadcast Parent Notice
@@ -236,28 +236,29 @@ export default function SectionStudentsPage() {
               />
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-[#EEF1F5]/80">
-                <TableRow>
-                  <TableHead className="font-bold text-[#788391]">Roll No</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Student Name</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Attendance %</TableHead>
-                  <TableHead className="font-bold text-[#788391]">IA Mean</TableHead>
-                  <TableHead className="font-bold text-[#788391]">House</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Parent Contact (Protected)</TableHead>
-                  <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-[#E5E9EF]">
-                {filteredStudents.map((s) => {
-                  const isDefaulter = s.attendancePercent !== null && s.attendancePercent < 75
-                  const isBorderline = s.attendancePercent !== null && s.attendancePercent >= 75 && s.attendancePercent < 82
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader className="bg-[#EEF1F5]/80">
+                  <TableRow>
+                    <TableHead className="w-24 font-bold text-[#788391] sticky left-0 bg-[#EEF1F5] z-10 shadow-xs">Roll No</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Student Name</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Attendance %</TableHead>
+                    <TableHead className="font-bold text-[#788391]">IA Mean</TableHead>
+                    <TableHead className="font-bold text-[#788391]">House</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Parent Contact (Protected)</TableHead>
+                    <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#E5E9EF]">
+                  {filteredStudents.map((s) => {
+                    const isDefaulter = s.attendancePercent !== null && s.attendancePercent < 75
+                    const isBorderline = s.attendancePercent !== null && s.attendancePercent >= 75 && s.attendancePercent < 82
 
-                  return (
-                    <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
-                      <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
-                        {s.rollNo}
-                      </TableCell>
+                    return (
+                      <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
+                        <TableCell className="font-mono text-xs font-bold text-[#123B5A] sticky left-0 bg-white z-10 shadow-xs">
+                          {s.rollNo}
+                        </TableCell>
                       <TableCell className="font-bold text-[#202936]">
                         {s.fullName}
                       </TableCell>
@@ -308,13 +309,14 @@ export default function SectionStudentsPage() {
                 })}
               </TableBody>
             </Table>
-          )}
+          </div>
+        )}
         </CardContent>
       </Card>
 
       {/* Notice Dialog */}
       <Dialog open={!!noticeTarget} onOpenChange={(open) => !open && setNoticeTarget(null)}>
-        <DialogContent className="rounded-2xl sm:max-w-md bg-white border-[#E5E9EF]">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] rounded-2xl sm:max-w-md bg-white border-[#E5E9EF]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#123B5A]">
               Send Parent Intimation
@@ -342,18 +344,18 @@ export default function SectionStudentsPage() {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => setNoticeTarget(null)}
-              className="rounded-xl border-[#E5E9EF] text-[#202936]"
+              className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936]"
             >
               Cancel
             </Button>
             <Button
               disabled={sendingNotice}
               onClick={handleSendNotice}
-              className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
             >
               {sendingNotice ? "Sending..." : "Dispatch Notice"}
             </Button>
