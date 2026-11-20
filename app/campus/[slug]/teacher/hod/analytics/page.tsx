@@ -88,7 +88,7 @@ export default function HodAnalyticsPage() {
         title="Department Attendance & Result Analytics"
         subtitle="Department of Mathematics aggregate academic performance: student attendance distribution, course syllabus coverage against term milestones, and faculty teaching load."
         action={
-          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/hod`}>
               <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
               Dept Dashboard
@@ -97,7 +97,7 @@ export default function HodAnalyticsPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Dept Faculty Count"
           value={facultyLoad.length}
@@ -129,7 +129,7 @@ export default function HodAnalyticsPage() {
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Attendance Distribution Card */}
         <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
           <CardHeader className="border-b border-[#E5E9EF] pb-4">

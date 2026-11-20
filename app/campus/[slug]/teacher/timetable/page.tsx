@@ -197,15 +197,15 @@ export default function TeacherTimetablePage() {
           ) : undefined
         }
         action={
-          <div className="flex items-center gap-2">
-            <span className="text-[12.5px] font-medium text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+            <span className="text-[12.5px] font-medium text-muted-foreground whitespace-nowrap">
               Active Slot Preview:
             </span>
             <Select
               value={activeSlotId ?? ""}
               onValueChange={(val) => setActiveSlotId(val)}
             >
-              <SelectTrigger size="sm" className="w-52 bg-card">
+              <SelectTrigger size="sm" className="w-full sm:w-52 bg-card">
                 <SelectValue placeholder="Highlight active slot" />
               </SelectTrigger>
               <SelectContent align="end">
@@ -224,7 +224,7 @@ export default function TeacherTimetablePage() {
       {/* Workload Summary KPI Strip */}
       <section
         aria-label="Workload Summary"
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
       >
         <StatCard
           label="Weekly Periods"
@@ -280,7 +280,7 @@ export default function TeacherTimetablePage() {
 
             {/* Day View */}
             <TabsContent value="day" className="space-y-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1.5 sm:flex-wrap">
                 {DAYS_OF_WEEK.map((day) => {
                   const count = slots.filter((s) => s.day === day).length
                   const active = selectedDay === day
@@ -290,7 +290,7 @@ export default function TeacherTimetablePage() {
                       type="button"
                       onClick={() => setSelectedDay(day)}
                       className={cn(
-                        "inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-bold transition-all",
+                        "inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-bold transition-all",
                         active
                           ? "border-[#F5A000] bg-[#F5A000] text-white shadow-xs"
                           : "border-[#E5E9EF] bg-white text-[#202936] hover:bg-[#EEF1F5]"
@@ -404,91 +404,93 @@ export default function TeacherTimetablePage() {
             {/* Weekly Matrix View */}
             <TabsContent value="weekly">
               <Card className="overflow-hidden py-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-28 bg-muted/80 font-semibold text-foreground">
-                        Period
-                      </TableHead>
-                      {DAYS_OF_WEEK.map((day) => (
-                        <TableHead
-                          key={day}
-                          className="min-w-36 font-semibold text-foreground"
-                        >
-                          {day}
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[850px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-28 bg-[#EEF1F5] font-bold text-[#202936] sticky left-0 z-10">
+                          Period
                         </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[1, 2, 3, 4, 5, 6, 7].map((period) => (
-                      <TableRow key={period} className="hover:bg-transparent">
-                        <TableCell className="bg-muted/30 align-top">
-                          <p className="text-[13px] font-semibold text-foreground">
-                            Period {period}
-                          </p>
-                          <p className="text-[11.5px] text-muted-foreground">
-                            {PERIOD_TIMES[period]}
-                          </p>
-                        </TableCell>
-                        {DAYS_OF_WEEK.map((day) => {
-                          const slot = slotLookup.get(`${day}-${period}`)
-                          if (!slot) {
+                        {DAYS_OF_WEEK.map((day) => (
+                          <TableHead
+                            key={day}
+                            className="min-w-36 font-semibold text-foreground"
+                          >
+                            {day}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[1, 2, 3, 4, 5, 6, 7].map((period) => (
+                        <TableRow key={period} className="hover:bg-transparent">
+                          <TableCell className="bg-[#EEF1F5]/80 sticky left-0 z-10 backdrop-blur-xs align-top">
+                            <p className="text-[13px] font-semibold text-foreground">
+                              Period {period}
+                            </p>
+                            <p className="text-[11.5px] text-muted-foreground">
+                              {PERIOD_TIMES[period]}
+                            </p>
+                          </TableCell>
+                          {DAYS_OF_WEEK.map((day) => {
+                            const slot = slotLookup.get(`${day}-${period}`)
+                            if (!slot) {
+                              return (
+                                <TableCell
+                                  key={day}
+                                  className="align-top text-center text-xs text-muted-foreground/60"
+                                >
+                                  —
+                                </TableCell>
+                              )
+                            }
+                            const isActiveSlot = slot.id === activeSlotId
                             return (
-                              <TableCell
-                                key={day}
-                                className="align-top text-center text-xs text-muted-foreground/60"
-                              >
-                                —
+                              <TableCell key={day} className="p-2 align-top">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveSlotId(slot.id)}
+                                  className={cn(
+                                    "flex w-full flex-col gap-1 rounded-xl border p-2.5 text-left transition-all",
+                                    isActiveSlot
+                                      ? "border-[#F5A000] bg-amber-50/50 ring-2 ring-[#F5A000]/30 shadow-xs"
+                                      : slot.isSubstituted
+                                        ? "border-amber-200 bg-amber-50/40 text-amber-900"
+                                        : "border-[#E5E9EF] bg-white hover:border-[#123B5A]/40"
+                                  )}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-[12.5px] font-bold text-[#202936]">
+                                      {slot.className}-{slot.section}
+                                    </span>
+                                    {slot.isSubstituted && (
+                                      <Badge
+                                        className="rounded-full border-amber-200 bg-amber-100 text-amber-800 px-1.5 py-0 text-[10px] font-bold"
+                                      >
+                                        Sub
+                                      </Badge>
+                                    )}
+                                    {isActiveSlot && !slot.isSubstituted && (
+                                      <Badge className="rounded-full bg-[#F5A000] px-1.5 py-0 text-[10px] text-white font-bold">
+                                        Active
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="truncate text-[12px] font-medium text-[#788391]">
+                                    {slot.subject}
+                                  </p>
+                                  <p className="text-[11px] text-[#788391]">
+                                    Room {slot.room}
+                                  </p>
+                                </button>
                               </TableCell>
                             )
-                          }
-                          const isActiveSlot = slot.id === activeSlotId
-                          return (
-                            <TableCell key={day} className="p-2 align-top">
-                              <button
-                                type="button"
-                                onClick={() => setActiveSlotId(slot.id)}
-                                className={cn(
-                                  "flex w-full flex-col gap-1 rounded-xl border p-2.5 text-left transition-all",
-                                  isActiveSlot
-                                    ? "border-[#F5A000] bg-amber-50/50 ring-2 ring-[#F5A000]/30 shadow-xs"
-                                    : slot.isSubstituted
-                                      ? "border-amber-200 bg-amber-50/40 text-amber-900"
-                                      : "border-[#E5E9EF] bg-white hover:border-[#123B5A]/40"
-                                )}
-                              >
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="text-[12.5px] font-bold text-[#202936]">
-                                    {slot.className}-{slot.section}
-                                  </span>
-                                  {slot.isSubstituted && (
-                                    <Badge
-                                      className="rounded-full border-amber-200 bg-amber-100 text-amber-800 px-1.5 py-0 text-[10px] font-bold"
-                                    >
-                                      Sub
-                                    </Badge>
-                                  )}
-                                  {isActiveSlot && !slot.isSubstituted && (
-                                    <Badge className="rounded-full bg-[#F5A000] px-1.5 py-0 text-[10px] text-white font-bold">
-                                      Active
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="truncate text-[12px] font-medium text-[#788391]">
-                                  {slot.subject}
-                                </p>
-                                <p className="text-[11px] text-[#788391]">
-                                  Room {slot.room}
-                                </p>
-                              </button>
-                            </TableCell>
-                          )
-                        })}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </Card>
             </TabsContent>
           </Tabs>

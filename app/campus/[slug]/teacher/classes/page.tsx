@@ -211,7 +211,7 @@ export default function TeacherClassesPage() {
       {/* Assigned Class + Section + Subject Cards */}
       <section
         aria-label="Assigned Classes"
-        className="grid gap-4 md:grid-cols-3"
+        className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
       >
         {assignedClasses.map(({ classAllocation, subjectAllocation }) => {
           const isSelected =
@@ -320,21 +320,26 @@ export default function TeacherClassesPage() {
             </CardDescription>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
             <div className="relative w-full sm:w-64">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#788391]" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search name or roll no..."
-                className="pl-9"
+                className="pl-9 w-full"
               />
             </div>
             <Button
               type="button"
               variant={onlyLowAttendance ? "default" : "outline"}
               size="sm"
-              className={onlyLowAttendance ? "rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]" : "rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"}
+              className={cn(
+                "w-full sm:w-auto rounded-xl",
+                onlyLowAttendance
+                  ? "bg-[#F5A000] text-white hover:bg-[#E09200]"
+                  : "border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+              )}
               onClick={() => setOnlyLowAttendance((v) => !v)}
             >
               {onlyLowAttendance ? "Showing < 75% Att." : "Filter < 75% Att."}
@@ -366,8 +371,8 @@ export default function TeacherClassesPage() {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-[#E5E9EF]">
-              <Table>
+            <div className="overflow-x-auto rounded-xl border border-[#E5E9EF]">
+              <Table className="min-w-[650px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Student</TableHead>
@@ -593,10 +598,10 @@ export default function TeacherClassesPage() {
                   </p>
                 </div>
 
-                <div className="flex gap-2 pt-1">
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
                   <Button
                     type="button"
-                    className="flex-1"
+                    className="w-full sm:flex-1"
                     onClick={() =>
                       toast.info(
                         `Dialing ${activeStudent.guardianContact.guardianName}`,
@@ -612,6 +617,7 @@ export default function TeacherClassesPage() {
                   <Button
                     type="button"
                     variant="outline"
+                    className="w-full sm:w-auto"
                     onClick={() => setActiveStudent(null)}
                   >
                     Close

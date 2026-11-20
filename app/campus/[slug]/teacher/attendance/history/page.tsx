@@ -303,7 +303,7 @@ export default function TeacherAttendanceHistoryPage() {
         title="Attendance History & Audit Trail"
         subtitle={`Review past submitted sessions, apply permitted corrections, and inspect modification history · AY ${academicYear}`}
         action={
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link href={`/campus/${slug}/teacher/attendance`}>
               <CalendarCheck className="size-4" />
               Mark Attendance
@@ -351,11 +351,12 @@ export default function TeacherAttendanceHistoryPage() {
             </SelectContent>
           </Select>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <Input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
+              className="w-full"
             />
             {(searchQuery ||
               sectionFilter !== "all" ||
@@ -365,6 +366,7 @@ export default function TeacherAttendanceHistoryPage() {
                 type="button"
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setSearchQuery("")
                   setSectionFilter("all")
@@ -398,11 +400,11 @@ export default function TeacherAttendanceHistoryPage() {
               description="Try adjusting your class, date, or status filters."
             />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-[#E5E9EF]">
-              <Table>
+            <div className="overflow-x-auto rounded-xl border border-[#E5E9EF]">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
+                    <TableHead className="w-28 sticky left-0 bg-white z-10">Date</TableHead>
                     <TableHead>Class</TableHead>
                     <TableHead>Subject</TableHead>
                     <TableHead>Slot</TableHead>
@@ -416,7 +418,7 @@ export default function TeacherAttendanceHistoryPage() {
                     const editable = isSessionEditable(session, academicYear)
                     return (
                       <TableRow key={session.id}>
-                        <TableCell className="font-mono text-[13px]">
+                        <TableCell className="font-mono text-[13px] sticky left-0 bg-white z-10 shadow-xs">
                           {session.date}
                         </TableCell>
                         <TableCell className="font-semibold text-foreground">
@@ -606,15 +608,16 @@ export default function TeacherAttendanceHistoryPage() {
                         placeholder="Mandatory audit reason (e.g., Late medical certificate verified by Class Teacher)"
                       />
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-col-reverse sm:flex-row justify-end gap-2">
                       <Button
                         type="button"
                         variant="outline"
+                        className="w-full sm:w-auto"
                         onClick={() => setActiveSession(null)}
                       >
                         Close
                       </Button>
-                      <Button type="submit" disabled={savingEdit}>
+                      <Button type="submit" disabled={savingEdit} className="w-full sm:w-auto">
                         <Save className="size-4" />
                         {savingEdit ? "Saving..." : "Save Correction"}
                       </Button>

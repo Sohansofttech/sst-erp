@@ -301,14 +301,16 @@ export default function TeacherCommunicationPage() {
       </div>
 
       <Tabs defaultValue="announcements" className="space-y-4">
-        <TabsList className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
-          <TabsTrigger value="announcements" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
-            Academic Announcements ({announcements.length})
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
-            Notification Center ({unreadCount} unread)
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-2 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
+            <TabsTrigger value="announcements" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
+              Academic Announcements ({announcements.length})
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
+              Notification Center ({unreadCount} unread)
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="announcements" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-12">
@@ -339,7 +341,7 @@ export default function TeacherCommunicationPage() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="ann-audience" className="text-xs font-semibold text-[#202936]">Target Audience</Label>
                       <Select
@@ -584,13 +586,13 @@ export default function TeacherCommunicationPage() {
                   Timetable updates, student leave escalations, IA deadlines, and academic announcements.
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <Select
                   value={categoryFilter}
                   onValueChange={setCategoryFilter}
                 >
                   <SelectTrigger
-                    className="w-44 rounded-xl border-[#E5E9EF] bg-white text-[#202936]"
+                    className="w-full sm:w-44 rounded-xl border-[#E5E9EF] bg-white text-[#202936]"
                     aria-label="Filter notifications"
                   >
                     <SelectValue />
@@ -611,7 +613,7 @@ export default function TeacherCommunicationPage() {
                   variant="outline"
                   disabled={unreadCount === 0}
                   onClick={handleMarkAllRead}
-                  className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                  className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                 >
                   <CheckCheck className="size-4" />
                   Mark All Read
@@ -662,19 +664,19 @@ export default function TeacherCommunicationPage() {
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex flex-col sm:flex-row shrink-0 items-stretch sm:items-center gap-2 w-full sm:w-auto">
                         {!notif.isRead && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleMarkRead(notif.id)}
-                            className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                            className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                           >
                             Mark Read
                           </Button>
                         )}
                         {targetHref && (
-                          <Button asChild size="sm" variant="secondary" className="rounded-xl bg-[#123B5A] text-white hover:bg-[#1B4D70]">
+                          <Button asChild size="sm" variant="secondary" className="w-full sm:w-auto rounded-xl bg-[#123B5A] text-white hover:bg-[#1B4D70]">
                             <Link href={targetHref}>
                               Open
                               <ExternalLink className="size-3.5" />

@@ -231,7 +231,7 @@ export default function TeacherProfilePage() {
       {/* Profile Summary Banner */}
       <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
         <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col sm:flex-row items-start gap-4">
             <Avatar className="size-16 border-2 border-[#F5A000]/40">
               <AvatarFallback className="bg-[#123B5A] text-lg font-bold text-white">
                 {initials || "AS"}
@@ -273,7 +273,7 @@ export default function TeacherProfilePage() {
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-1 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/60 px-5 py-3.5 text-left sm:text-right">
+          <div className="flex shrink-0 flex-col gap-1 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/60 px-5 py-3.5 text-left sm:text-right w-full sm:w-auto">
             <span className="text-xs font-semibold text-[#788391]">
               Total Experience
             </span>
@@ -343,17 +343,17 @@ export default function TeacherProfilePage() {
                 />
               </div>
             </CardContent>
-            <CardFooter className="justify-end gap-2 border-t border-[#E5E9EF] pt-4">
+            <CardFooter className="flex-col-reverse sm:flex-row justify-end gap-2 border-t border-[#E5E9EF] pt-4">
               <Button
                 type="button"
                 variant="outline"
                 disabled={!hasChanges || saving}
                 onClick={handleReset}
-                className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
               >
                 Reset
               </Button>
-              <Button type="submit" disabled={!hasChanges || saving} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+              <Button type="submit" disabled={!hasChanges || saving} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
                 <Save className="size-4" />
                 {saving ? "Saving..." : "Save Contact Info"}
               </Button>
@@ -470,11 +470,11 @@ export default function TeacherProfilePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
             {FACULTY_DOCUMENTS.map((doc) => (
               <div
                 key={doc.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-[#E5E9EF] p-4 bg-white hover:border-[#123B5A]/30 transition-all"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[#E5E9EF] p-4 bg-white hover:border-[#123B5A]/30 transition-all"
               >
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-[#F5A000]">
@@ -489,7 +489,7 @@ export default function TeacherProfilePage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
                   <StatusBadge status={doc.status} />
                   <Button
                     type="button"

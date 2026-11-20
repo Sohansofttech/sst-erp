@@ -548,11 +548,11 @@ export default function TeacherMentoringPage() {
                     </CardDescription>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
                     <Button
                       size="sm"
                       onClick={() => setMeetingDialogOpen(true)}
-                      className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]"
+                      className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]"
                     >
                       <MessageSquarePlus className="size-4" />
                       Log Mentoring Meeting
@@ -560,7 +560,7 @@ export default function TeacherMentoringPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                      className="w-full sm:w-auto rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
                       onClick={() => setEscalateDialogOpen(true)}
                     >
                       <ShieldAlert className="size-4" />
@@ -648,7 +648,7 @@ export default function TeacherMentoringPage() {
                       placeholder="Record private counseling context, learning support needs, or home study barriers (not visible to peers)..."
                       className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                     />
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <span className="text-xs text-[#788391]">
                         Strictly excluded from student report cards and public logs.
                       </span>
@@ -657,7 +657,7 @@ export default function TeacherMentoringPage() {
                         variant="outline"
                         disabled={savingNote}
                         onClick={handleSaveConfidentialNote}
-                        className="rounded-xl border-[#123B5A] text-[#123B5A] hover:bg-[#123B5A] hover:text-white"
+                        className="w-full sm:w-auto rounded-xl border-[#123B5A] text-[#123B5A] hover:bg-[#123B5A] hover:text-white"
                       >
                         {savingNote ? "Saving..." : "Save Confidential Note"}
                       </Button>
@@ -746,7 +746,7 @@ export default function TeacherMentoringPage() {
 
       {/* Log Mentoring Meeting Dialog */}
       <Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
-        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-[#202936]">Log Mentoring Meeting</DialogTitle>
             <DialogDescription className="text-xs text-[#788391]">
@@ -756,7 +756,7 @@ export default function TeacherMentoringPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleLogMeeting} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="sessionDate" className="text-xs font-semibold text-[#202936]">Meeting Date</Label>
                 <Input
@@ -853,16 +853,16 @@ export default function TeacherMentoringPage() {
               />
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                 onClick={() => setMeetingDialogOpen(false)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingMeeting} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+              <Button type="submit" disabled={savingMeeting} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
                 {savingMeeting ? "Saving..." : "Save Meeting Log"}
               </Button>
             </DialogFooter>
@@ -872,7 +872,7 @@ export default function TeacherMentoringPage() {
 
       {/* Escalate Concern Dialog */}
       <Dialog open={escalateDialogOpen} onOpenChange={setEscalateDialogOpen}>
-        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-rose-600">
               Escalate Mentee Concern
@@ -900,11 +900,11 @@ export default function TeacherMentoringPage() {
                 </p>
               )}
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                 onClick={() => setEscalateDialogOpen(false)}
               >
                 Cancel
@@ -912,7 +912,7 @@ export default function TeacherMentoringPage() {
               <Button
                 type="submit"
                 variant="destructive"
-                className="rounded-xl bg-rose-600 text-white hover:bg-rose-700"
+                className="w-full sm:w-auto rounded-xl bg-rose-600 text-white hover:bg-rose-700"
                 disabled={savingEscalation}
               >
                 {savingEscalation ? "Escalating..." : "Confirm Escalation"}
