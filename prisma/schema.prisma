@@ -255,19 +255,6 @@ model AuditLog {
 // BATCH 1: ACADEMIC FOUNDATION MODELS
 // ============================================================================
 
-enum AcademicYearStatus {
-  UPCOMING
-  ACTIVE
-  COMPLETED
-  ARCHIVED
-}
-
-enum TermStatus {
-  UPCOMING
-  ACTIVE
-  COMPLETED
-}
-
 enum DepartmentStatus {
   ACTIVE
   INACTIVE
@@ -314,7 +301,7 @@ model AcademicYear {
   startDate     DateTime
   endDate       DateTime
   isCurrent     Boolean            @default(false)
-  status        AcademicYearStatus @default(UPCOMING)
+  status        String             @default("ACTIVE")
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -350,6 +337,7 @@ model AcademicYear {
   @@unique([id, institutionId])
   @@index([institutionId, status])
   @@index([institutionId, isCurrent])
+  @@map("academic_years")
 }
 
 model AcademicTerm {
@@ -361,7 +349,7 @@ model AcademicTerm {
   startDate      DateTime
   endDate        DateTime
   isCurrent      Boolean    @default(false)
-  status         TermStatus @default(UPCOMING)
+  status         String     @default("ACTIVE")
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -382,6 +370,7 @@ model AcademicTerm {
   @@unique([id, institutionId])
   @@index([institutionId, isCurrent])
   @@index([academicYearId, institutionId])
+  @@map("academic_terms")
 }
 
 model Department {
