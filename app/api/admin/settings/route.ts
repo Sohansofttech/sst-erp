@@ -1,11 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
-import { initialInstitutionProfile } from "@/lib/mock-data";
-import { InstitutionProfile } from "@/types/institution";
+import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
+import { InstitutionProfile, InstitutionType } from "@/types/institution";
 import db from "@/lib/db";
 
-const globalSettingsRegistry = new Map<string, InstitutionProfile | (Record<string, unknown> & { name?: string; id?: string })>();
-globalSettingsRegistry.set("inst_apex", initialInstitutionProfile);
+const globalSettingsRegistry = new Map<string, InstitutionProfile>();
+
+function mapToInstitutionType(val?: string | null): InstitutionType {
+  if (!val) return "Engineering & Technology";
+  if (val === "UNIVERSITY") return "University";
+  if (val === "SCHOOL" || val === "K12") return "K-12 School";
+  if (val === "POLYTECHNIC") return "Polytechnic / Diploma";
+  if (val === "MEDICAL") return "Medical & Health Sciences";
+  if (val === "ARTS_SCIENCE") return "Arts & Science";
+  if (
+    val === "Engineering & Technology" ||
+    val === "Arts & Science" ||
+    val === "University" ||
+    val === "Polytechnic / Diploma" ||
+    val === "Medical & Health Sciences" ||
+    val === "K-12 School"
+  ) {
+    return val as InstitutionType;
+  }
+  return "Engineering & Technology";
+}
+
+function createDefaultInstitutionProfile(id: string, name: string, code: string = "INST"): InstitutionProfile {
+  return {
+    id,
+    name: name || "Educational Institution",
+    code: code || "INST",
+    type: "Engineering & Technology",
+    email: "",
+    phone: "",
+    alternatePhone: "",
+    affiliation: "",
+    accreditation: "",
+    establishedYear: new Date().getFullYear(),
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "India",
+    website: "",
+    logoUrl: "",
+    primaryColor: "#123B5A",
+    accentColor: "#F5A000",
+    academicCalendarType: "Semester",
+    currencySymbol: "₹",
+    themeConfig: DEFAULT_INSTITUTION_THEME,
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,8 +64,22 @@ export async function GET(req: NextRequest) {
         where: { id: institutionId },
       });
       if (inst) {
+        const base = createDefaultInstitutionProfile(inst.id, inst.name, inst.code || "INST");
+        const profile: InstitutionProfile = {
+          ...base,
+          name: inst.name || base.name,
+          code: inst.code || base.code,
+          type: mapToInstitutionType(inst.type),
+          email: inst.email || "",
+          phone: inst.phone || "",
+          addressLine1: inst.address || "",
+          city: inst.city || "",
+          state: inst.state || "",
+          country: inst.country || "India",
+          website: inst.website || "",
+        };
         const cached = globalSettingsRegistry.get(institutionId);
-        const merged = cached ? { ...cached, ...inst, id: inst.id } : inst;
+        const merged = cached ? { ...profile, ...cached, id: inst.id } : profile;
         return NextResponse.json({
           success: true,
           institutionId,
@@ -39,12 +100,12 @@ export async function GET(req: NextRequest) {
       `;
       if (platformRows && platformRows.length > 0) {
         const row = platformRows[0];
+        const base = createDefaultInstitutionProfile(row.id, row.name || institutionName || "Educational Institution", row.code || row.slug || "INST");
         const mappedProfile: InstitutionProfile = {
-          ...initialInstitutionProfile,
-          id: row.id,
-          name: row.name || initialInstitutionProfile.name,
+          ...base,
+          name: row.name || base.name,
           code: row.code || row.slug || "INST",
-          type: row.type || "COLLEGE",
+          type: mapToInstitutionType(row.type),
           email: row.email || "",
           phone: row.phone || "",
           addressLine1: row.address || "",
@@ -56,7 +117,7 @@ export async function GET(req: NextRequest) {
         };
 
         const cached = globalSettingsRegistry.get(institutionId);
-        const merged = cached ? { ...cached, ...mappedProfile, id: row.id } : mappedProfile;
+        const merged = cached ? { ...mappedProfile, ...cached, id: row.id } : mappedProfile;
         globalSettingsRegistry.set(institutionId, merged);
 
         return NextResponse.json({
@@ -69,11 +130,10 @@ export async function GET(req: NextRequest) {
       console.warn("Platform institution lookup error in settings GET:", err);
     }
 
-    const cached = globalSettingsRegistry.get(institutionId) || {
-      ...initialInstitutionProfile,
-      id: institutionId,
-      name: institutionName || initialInstitutionProfile.name,
-    };
+    const cached = globalSettingsRegistry.get(institutionId) || createDefaultInstitutionProfile(
+      institutionId,
+      institutionName || "Educational Institution"
+    );
 
     return NextResponse.json({
       success: true,
@@ -87,7 +147,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, institutionName } = await resolveAdminContext(req);
     const body = await req.json();
 
     if (!body || typeof body !== "object") {
@@ -97,7 +157,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const current = globalSettingsRegistry.get(institutionId) || initialInstitutionProfile;
+    // Protection: reject hardcoded mock template overrides
+    if (body.id === "inst-sst-01" && institutionId !== "inst-sst-01") {
+      return NextResponse.json(
+        { success: false, error: "Mock institution id cannot be assigned to authenticated tenant." },
+        { status: 400 }
+      );
+    }
+    if (body.email === "admin@sohansoft.in" && !body.emailVerified) {
+      return NextResponse.json(
+        { success: false, error: "Mock placeholder contact email cannot be saved as genuine institutional address." },
+        { status: 400 }
+      );
+    }
+
+    const current = globalSettingsRegistry.get(institutionId) || createDefaultInstitutionProfile(
+      institutionId,
+      body.name || institutionName || "Educational Institution"
+    );
     const updated = { ...current, ...body, id: institutionId };
     globalSettingsRegistry.set(institutionId, updated);
 

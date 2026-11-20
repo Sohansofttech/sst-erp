@@ -314,6 +314,7 @@ export default function StudentsPage() {
               fullName: `${firstName.trim()} ${lastName.trim()}`,
               email: email.trim(),
               rollNumber: genRoll,
+              admissionNumber: genAdm,
               phone: phone.trim(),
               gender,
               dateOfBirth: dob,
@@ -321,6 +322,16 @@ export default function StudentsPage() {
               academicYearId: selectedAYId || undefined,
               classId: selectedClassId || undefined,
               sectionId: selectedSectionId || undefined,
+              departmentId: selectedDeptId || undefined,
+              bloodGroup,
+              category,
+              addressLine: addressLine.trim() || undefined,
+              city: city.trim() || undefined,
+              state: state.trim() || undefined,
+              postalCode: postalCode.trim() || undefined,
+              admissionDate: admissionDate || undefined,
+              batch: batch || undefined,
+              status: status || undefined,
             }),
           });
           const json = await res.json();
@@ -373,6 +384,9 @@ export default function StudentsPage() {
           portalAccess: false,
           portalEmail: email.trim(),
         });
+
+        // Sync with API so any server-derived status is up to date
+        loadStudentsFromApi();
       }
 
       setIsFormModalOpen(false);
@@ -741,10 +755,10 @@ export default function StudentsPage() {
                     <TableRow key={stu.id}>
                       {/* ID / Roll */}
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE] whitespace-nowrap inline-block">
                           {stu.studentId}
                         </span>
-                        <span className="block text-[11px] font-semibold text-[#64748B] mt-0.5">
+                        <span className="block text-[11px] font-semibold text-[#64748B] mt-0.5 whitespace-nowrap">
                           Roll: {stu.rollNumber}
                         </span>
                       </TableCell>
@@ -779,10 +793,10 @@ export default function StudentsPage() {
 
                       {/* Admission */}
                       <TableCell>
-                        <span className="font-mono text-xs text-[#1E293B] block">
+                        <span className="font-mono text-xs text-[#1E293B] block whitespace-nowrap">
                           {stu.admissionNumber}
                         </span>
-                        <span className="text-[10px] text-[#94A3B8] block">
+                        <span className="text-[10px] text-[#94A3B8] block whitespace-nowrap">
                           Adm: {stu.admissionDate}
                         </span>
                       </TableCell>
@@ -813,8 +827,8 @@ export default function StudentsPage() {
                       <TableCell>{getStudentStatusBadge(stu.status)}</TableCell>
 
                       {/* Actions */}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                           <button
                             onClick={() => handleOpenCredentialModal(stu)}
                             className="p-1.5 rounded text-[#64748B] hover:text-[#123B5A] hover:bg-[#EFF6FF] transition-colors cursor-pointer"
@@ -1293,11 +1307,11 @@ export default function StudentsPage() {
         maxWidth="2xl"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsFormModalOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsFormModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={handleSubmitForm}>
-              {editingStudent ? "Save Changes" : "Create Student Record"}
+            <Button variant="primary" size="sm" onClick={handleSubmitForm} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : (editingStudent ? "Save Changes" : "Create Student Record")}
             </Button>
           </>
         }

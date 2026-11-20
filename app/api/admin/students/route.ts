@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       fullName: body.fullName,
       email: body.email,
       rollNumber: body.rollNumber,
+      admissionNumber: body.admissionNumber,
       usn: body.usn,
       phone: body.phone,
       gender: body.gender,
@@ -48,6 +49,16 @@ export async function POST(req: NextRequest) {
       academicYearId: body.academicYearId,
       classId: body.classId,
       sectionId: body.sectionId,
+      departmentId: body.departmentId,
+      bloodGroup: body.bloodGroup,
+      category: body.category,
+      addressLine: body.addressLine,
+      city: body.city,
+      state: body.state,
+      postalCode: body.postalCode,
+      admissionDate: body.admissionDate ? new Date(body.admissionDate) : undefined,
+      batch: body.batch,
+      status: body.status,
     });
 
     return NextResponse.json({

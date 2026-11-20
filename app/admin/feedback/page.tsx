@@ -488,15 +488,17 @@ export default function AdminFeedbackPage() {
                       </TableCell>
 
                       {/* Action */}
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenReview(item)}
-                          className="text-xs text-[#123B5A] border-[#123B5A]/30 hover:bg-[#123B5A]/5 font-semibold"
-                        >
-                          Review / Respond
-                        </Button>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end whitespace-nowrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenReview(item)}
+                            className="text-xs text-[#123B5A] border-[#123B5A]/30 hover:bg-[#123B5A]/5 font-semibold"
+                          >
+                            Review / Respond
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

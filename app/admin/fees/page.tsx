@@ -339,7 +339,7 @@ export default function FeesFinancePage() {
                   ) : (
                     filteredInvoices.map((inv) => (
                       <TableRow key={inv.id} className="hover:bg-[#F8FAFC]">
-                        <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
+                        <TableCell className="font-mono text-xs font-bold text-[#123B5A] whitespace-nowrap">
                           {inv.invoiceNumber}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-[#1E293B]">
@@ -371,21 +371,23 @@ export default function FeesFinancePage() {
                             {inv.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          {inv.status !== "PAID" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs"
-                              onClick={() => {
-                                setSelectedInvoice(inv);
-                                setPaymentAmount(String(inv.outstandingAmount));
-                                setIsPaymentModalOpen(true);
-                              }}
-                            >
-                              Record Payment
-                            </Button>
-                          )}
+                        <TableCell className="text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                            {inv.status !== "PAID" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs"
+                                onClick={() => {
+                                  setSelectedInvoice(inv);
+                                  setPaymentAmount(String(inv.outstandingAmount));
+                                  setIsPaymentModalOpen(true);
+                                }}
+                              >
+                                Record Payment
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

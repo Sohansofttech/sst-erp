@@ -22,28 +22,41 @@ import {
 import { AcademicYear, Term } from "@/types/institution";
 import { formatDate } from "@/lib/utils";
 
-function mapApiToAY(item: any): AcademicYear {
-  const toDateStr = (val: any) => {
-    if (!val) return "";
-    if (typeof val === "string") return val.split("T")[0];
-    try {
-      return new Date(val).toISOString().split("T")[0];
-    } catch {
-      return "";
+function normalizeDateToYMD(val: any): string {
+  if (!val) return "";
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return trimmed.split("T")[0];
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (ddmmyyyy) {
+      const d = ddmmyyyy[1].padStart(2, "0");
+      const m = ddmmyyyy[2].padStart(2, "0");
+      const y = ddmmyyyy[3];
+      return `${y}-${m}-${d}`;
     }
-  };
+  }
+  try {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split("T")[0];
+    }
+  } catch {}
+  return "";
+}
 
+function mapApiToAY(item: any): AcademicYear {
   return {
     id: item.id,
     name: item.name,
-    startDate: toDateStr(item.startDate),
-    endDate: toDateStr(item.endDate),
+    startDate: normalizeDateToYMD(item.startDate),
+    endDate: normalizeDateToYMD(item.endDate),
     isActive: Boolean(item.isCurrent),
     terms: (item.terms || []).map((t: any, idx: number) => ({
       id: t.id || `term-${idx}`,
       name: t.name,
-      startDate: toDateStr(t.startDate),
-      endDate: toDateStr(t.endDate),
+      startDate: normalizeDateToYMD(t.startDate),
+      endDate: normalizeDateToYMD(t.endDate),
       isCurrent: Boolean(t.isCurrent),
     })),
     createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
@@ -52,10 +65,7 @@ function mapApiToAY(item: any): AcademicYear {
 
 export default function AcademicYearsPage() {
   const {
-    addAcademicYear,
-    updateAcademicYear,
-    setActiveAcademicYear,
-    deleteAcademicYear,
+    refreshAcademicYears,
   } = useInstitution();
 
   // Data fetching state
@@ -103,13 +113,14 @@ export default function AcademicYearsPage() {
 
   const handleOpenAddModal = () => {
     setEditingAY(null);
-    setName("2027-2028");
-    setStartDate("2027-08-01");
-    setEndDate("2028-05-31");
+    const currY = new Date().getFullYear();
+    setName(`${currY}-${currY + 1}`);
+    setStartDate(`${currY}-08-01`);
+    setEndDate(`${currY + 1}-05-31`);
     setIsActive(false);
     setTerms([
-      { id: "t1", name: "Odd Semester / Term 1", startDate: "2027-08-01", endDate: "2027-12-20", isCurrent: true },
-      { id: "t2", name: "Even Semester / Term 2", startDate: "2028-01-10", endDate: "2028-05-31", isCurrent: false },
+      { id: "t1", name: "Odd Semester / Term 1", startDate: `${currY}-08-01`, endDate: `${currY}-12-20`, isCurrent: true },
+      { id: "t2", name: "Even Semester / Term 2", startDate: `${currY + 1}-01-10`, endDate: `${currY + 1}-05-31`, isCurrent: false },
     ]);
     setFormError("");
     setIsModalOpen(true);
@@ -118,10 +129,18 @@ export default function AcademicYearsPage() {
   const handleOpenEditModal = (ay: AcademicYear) => {
     setEditingAY(ay);
     setName(ay.name);
-    setStartDate(ay.startDate);
-    setEndDate(ay.endDate);
+    setStartDate(normalizeDateToYMD(ay.startDate));
+    setEndDate(normalizeDateToYMD(ay.endDate));
     setIsActive(ay.isActive);
-    setTerms(ay.terms || []);
+    setTerms(
+      (ay.terms || []).map((t, idx) => ({
+        id: t.id || `term-${idx}`,
+        name: t.name,
+        startDate: normalizeDateToYMD(t.startDate),
+        endDate: normalizeDateToYMD(t.endDate),
+        isCurrent: Boolean(t.isCurrent),
+      }))
+    );
     setFormError("");
     setIsModalOpen(true);
   };
@@ -129,7 +148,11 @@ export default function AcademicYearsPage() {
   const handleTermChange = (index: number, field: keyof Term, value: string | boolean) => {
     setTerms((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
+      const normalizedVal =
+        (field === "startDate" || field === "endDate") && typeof value === "string"
+          ? normalizeDateToYMD(value) || value
+          : value;
+      copy[index] = { ...copy[index], [field]: normalizedVal };
       return copy;
     });
   };
@@ -160,76 +183,114 @@ export default function AcademicYearsPage() {
     e.preventDefault();
     setFormError("");
 
-    // Date validation
-    if (!startDate || !endDate) {
-      setFormError("Start date and End date are required.");
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setFormError("Academic year label is required.");
       return;
     }
-    if (new Date(startDate) >= new Date(endDate)) {
+
+    // Date normalization & validation
+    const normAYStart = normalizeDateToYMD(startDate);
+    const normAYEnd = normalizeDateToYMD(endDate);
+    if (!normAYStart || !normAYEnd) {
+      setFormError("Valid start date and end date are required.");
+      return;
+    }
+    const ayStart = new Date(normAYStart);
+    const ayEnd = new Date(normAYEnd);
+    if (ayStart >= ayEnd) {
       setFormError("Academic year start date must be strictly before end date.");
       return;
     }
 
     // Terms validation
-    for (const t of terms) {
-      if (!t.name.trim()) {
-        setFormError("Every term must have a valid title.");
+    if (!terms || terms.length === 0) {
+      setFormError("At least one term must be configured for this academic cycle.");
+      return;
+    }
+
+    const seenTermNames = new Set<string>();
+    const normalizedTerms: Term[] = [];
+
+    for (let i = 0; i < terms.length; i++) {
+      const t = terms[i];
+      const tTitle = (t.name || "").trim();
+      if (!tTitle) {
+        setFormError(`Term #${i + 1} must have a valid title.`);
         return;
       }
-      if (t.startDate && t.endDate && new Date(t.startDate) >= new Date(t.endDate)) {
-        setFormError(`Term "${t.name}" start date must precede its end date.`);
+      const lowerTitle = tTitle.toLowerCase();
+      if (seenTermNames.has(lowerTitle)) {
+        setFormError(`Duplicate term title "${tTitle}". Each term in an academic cycle must have a unique title.`);
+        return;
+      }
+      seenTermNames.add(lowerTitle);
+
+      const tStartNorm = normalizeDateToYMD(t.startDate);
+      const tEndNorm = normalizeDateToYMD(t.endDate);
+      if (!tStartNorm || !tEndNorm) {
+        setFormError(`Term "${tTitle}" requires both start and end dates.`);
+        return;
+      }
+
+      const tStart = new Date(tStartNorm);
+      const tEnd = new Date(tEndNorm);
+      if (tStart >= tEnd) {
+        setFormError(`Term "${tTitle}" start date must precede its end date.`);
+        return;
+      }
+      if (tStart < ayStart || tEnd > ayEnd) {
+        setFormError(
+          `Term "${tTitle}" dates (${tStartNorm} to ${tEndNorm}) must fall within the academic year dates (${normAYStart} to ${normAYEnd}).`
+        );
+        return;
+      }
+
+      normalizedTerms.push({
+        id: t.id,
+        name: tTitle,
+        startDate: tStartNorm,
+        endDate: tEndNorm,
+        isCurrent: Boolean(t.isCurrent),
+      });
+    }
+
+    // Non-overlapping validation: terms ordered chronologically must not overlap
+    const sortedTerms = [...normalizedTerms].sort(
+      (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+    );
+    for (let i = 0; i < sortedTerms.length - 1; i++) {
+      const current = sortedTerms[i];
+      const next = sortedTerms[i + 1];
+      if (new Date(current.endDate) > new Date(next.startDate)) {
+        setFormError(`Terms cannot overlap: "${current.name}" ends on ${current.endDate}, but "${next.name}" starts on ${next.startDate}.`);
         return;
       }
     }
 
     setIsSubmitting(true);
     try {
-      if (editingAY) {
-        const res = await fetch("/api/admin/academics/academic-years", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: editingAY.id,
-            name: name.trim(),
-            startDate,
-            endDate,
-            isCurrent: isActive,
-            terms,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.error || "Failed to update academic year.");
-        }
-        updateAcademicYear(editingAY.id, {
-          name,
-          startDate,
-          endDate,
-          isActive,
-          terms,
-        });
-      } else {
-        const res = await fetch("/api/admin/academics/academic-years", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            startDate,
-            endDate,
-            isCurrent: isActive,
-            terms,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.error || "Failed to create academic year.");
-        }
-        if (json.data) {
-          addAcademicYear(mapApiToAY(json.data));
-        }
+      const payload = {
+        ...(editingAY ? { id: editingAY.id } : {}),
+        name: trimmedName,
+        startDate: normAYStart,
+        endDate: normAYEnd,
+        isCurrent: isActive,
+        terms: normalizedTerms,
+      };
+
+      const res = await fetch("/api/admin/academics/academic-years", {
+        method: editingAY ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || (editingAY ? "Failed to update academic year." : "Failed to create academic year."));
       }
 
       await loadAcademicYears();
+      await refreshAcademicYears();
       setIsModalOpen(false);
     } catch (err: any) {
       setFormError(err.message || "An error occurred while saving.");
@@ -250,8 +311,8 @@ export default function AcademicYearsPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to set active academic year.");
       }
-      setActiveAcademicYear(id);
       await loadAcademicYears();
+      await refreshAcademicYears();
     } catch (err: any) {
       alert(err.message || "Failed to set active academic year.");
     } finally {
@@ -271,8 +332,8 @@ export default function AcademicYearsPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to delete academic year.");
       }
-      deleteAcademicYear(id);
       await loadAcademicYears();
+      await refreshAcademicYears();
     } catch (err: any) {
       alert(err.message || "Failed to delete academic year.");
     } finally {
@@ -407,19 +468,28 @@ export default function AcademicYearsPage() {
                       <TableCell>{formatDate(ay.startDate)}</TableCell>
                       <TableCell>{formatDate(ay.endDate)}</TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1.5">
-                          {ay.terms.map((term) => (
-                            <span
-                              key={term.id}
-                              className={`text-[11px] px-2 py-0.5 rounded font-medium border ${
-                                term.isCurrent
-                                  ? "bg-[#EFF6FF] text-[#F5A000] border-[#BFDBFE]"
-                                  : "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]"
-                              }`}
-                            >
-                              {term.name} {term.isCurrent && "★"}
-                            </span>
-                          ))}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {ay.terms && ay.terms.length > 0 ? (
+                            ay.terms.map((term) => (
+                              <span
+                                key={term.id}
+                                className={`text-[11px] px-2 py-0.5 rounded font-medium border ${
+                                  term.isCurrent
+                                    ? "bg-[#EFF6FF] text-[#F5A000] border-[#BFDBFE]"
+                                    : "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]"
+                                }`}
+                                title={
+                                  term.startDate && term.endDate
+                                    ? `${formatDate(term.startDate)} to ${formatDate(term.endDate)}`
+                                    : undefined
+                                }
+                              >
+                                {term.name} {term.isCurrent && "★"}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-[#94A3B8] italic">0 terms</span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -433,38 +503,40 @@ export default function AcademicYearsPage() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        {!ay.isActive && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleSetActive(ay.id)}
-                            disabled={isSubmitting}
-                            className="text-[#F5A000] border-[#F5A000]/30 hover:bg-[#EFF6FF]"
-                          >
-                            Set as Active
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEditModal(ay)}
-                          disabled={isSubmitting}
-                          title="Edit Year"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
-                        </Button>
-                        {!ay.isActive && (
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          {!ay.isActive && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSetActive(ay.id)}
+                              disabled={isSubmitting}
+                              className="text-[#F5A000] border-[#F5A000]/30 hover:bg-[#EFF6FF]"
+                            >
+                              Set as Active
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(ay.id, ay.name)}
+                            onClick={() => handleOpenEditModal(ay)}
                             disabled={isSubmitting}
-                            title="Delete Year"
+                            title="Edit Year"
                           >
-                            <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                            <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
                           </Button>
-                        )}
+                          {!ay.isActive && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(ay.id, ay.name)}
+                              disabled={isSubmitting}
+                              title="Delete Year"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

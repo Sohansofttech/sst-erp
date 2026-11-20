@@ -249,15 +249,17 @@ export default function HostelPage() {
                       <TableCell className="text-xs text-[#64748B]">
                         {new Date(a.allocatedDate).toLocaleDateString()}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs text-[#DC2626] border-[#DC2626]/30 hover:bg-[#DC2626]/10"
-                          onClick={() => handleDelete(a.id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end whitespace-nowrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs text-[#DC2626] border-[#DC2626]/30 hover:bg-[#DC2626]/10"
+                            onClick={() => handleDelete(a.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

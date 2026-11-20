@@ -653,7 +653,7 @@ export default function StaffPage() {
                 filteredStaff.map((st) => (
                   <TableRow key={st.id} className="hover:bg-slate-50/60 transition-colors">
                     {/* ID */}
-                    <TableCell className="font-mono text-xs font-semibold text-[#123B5A]">
+                    <TableCell className="font-mono text-xs font-semibold text-[#123B5A] whitespace-nowrap">
                       {st.employeeId}
                     </TableCell>
 
@@ -762,8 +762,8 @@ export default function StaffPage() {
                     </TableCell>
 
                     {/* Actions */}
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                         <Button
                           variant="ghost"
                           size="sm"

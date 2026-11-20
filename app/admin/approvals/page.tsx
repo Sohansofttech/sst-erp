@@ -524,15 +524,17 @@ export default function ApprovalsPage() {
                         <TableCell className="text-xs text-[#64748B]">
                           {new Date(q.createdAt).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => openQueryResponse(q)}
-                          >
-                            Review & Respond
-                          </Button>
+                        <TableCell className="text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end whitespace-nowrap">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => openQueryResponse(q)}
+                            >
+                              Review & Respond
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -690,9 +692,9 @@ export default function ApprovalsPage() {
                             {req.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right whitespace-nowrap">
                           {req.status === "PENDING" ? (
-                            <div className="flex justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                               <Button
                                 variant="primary"
                                 size="sm"

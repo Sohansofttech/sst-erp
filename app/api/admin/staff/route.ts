@@ -3,7 +3,7 @@ import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-a
 import { getStaff, createStaff } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 
-const ALLOWED_STAFF_ROLES = ["TEACHER", "ADMIN", "STAFF"] as const;
+const ALLOWED_STAFF_ROLES = ["TEACHER", "ADMIN", "STAFF", "HOD"] as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,14 +26,14 @@ export async function POST(req: NextRequest) {
 
     if (!body.fullName || !body.email || !body.role) {
       return NextResponse.json(
-        { success: false, error: "Full name, email, and role (TEACHER | ADMIN) are required." },
+        { success: false, error: "Full name, email, and role (TEACHER | ADMIN | STAFF | HOD) are required." },
         { status: 400 }
       );
     }
 
     if (!ALLOWED_STAFF_ROLES.includes(body.role)) {
       return NextResponse.json(
-        { success: false, error: "Unauthorized role assignment. Permitted roles: TEACHER, ADMIN, STAFF." },
+        { success: false, error: "Unauthorized role assignment. Permitted roles: TEACHER, ADMIN, STAFF, HOD." },
         { status: 403 }
       );
     }
@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest) {
     if (role !== undefined) {
       if (!ALLOWED_STAFF_ROLES.includes(role)) {
         return NextResponse.json(
-          { success: false, error: "Unauthorized role assignment. Permitted roles: TEACHER, ADMIN, STAFF." },
+          { success: false, error: "Unauthorized role assignment. Permitted roles: TEACHER, ADMIN, STAFF, HOD." },
           { status: 403 }
         );
       }

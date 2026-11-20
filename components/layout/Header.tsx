@@ -12,6 +12,7 @@ interface HeaderProps {
   userFullName?: string;
   userRole?: string;
   institutionName?: string;
+  academicYearName?: string;
   selectedChildId?: string;
   onSelectChild?: (childId: string) => void;
   onMenuToggle: () => void;
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   userFullName = "User",
   userRole = "STUDENT",
   institutionName = "Campus Portal",
+  academicYearName,
   selectedChildId,
   onSelectChild,
   onMenuToggle,
@@ -64,7 +66,8 @@ export const Header: React.FC<HeaderProps> = ({
               {institutionName}
             </h1>
             <p className="text-[11px] text-[#64748B] font-medium hidden sm:block">
-              {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"} • AY 2026-2027
+              {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"}
+              {academicYearName ? ` • AY ${academicYearName}` : ""}
             </p>
           </div>
           <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#123B5A] text-white ml-1">
@@ -76,10 +79,12 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right side: Academic Year, Notifications, User Profile */}
       <div className="flex items-center gap-2.5 sm:gap-3.5">
         {/* Academic Year Switcher matching Admin Header */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#1E293B]">
-          <Calendar className="w-4 h-4 text-[#F5A000]" />
-          <span>AY 2026-2027</span>
-        </div>
+        {academicYearName ? (
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#1E293B]">
+            <Calendar className="w-4 h-4 text-[#F5A000]" />
+            <span>AY {academicYearName}</span>
+          </div>
+        ) : null}
 
         <NotificationDropdown />
 
