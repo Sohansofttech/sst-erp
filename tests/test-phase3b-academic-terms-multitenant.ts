@@ -69,7 +69,7 @@ async function runMultiTenantAcademicTermsSuite() {
           IF NOT EXISTS (
               SELECT 1 FROM pg_constraint WHERE conname = 'academic_years_id_institutionId_uq'
           ) THEN
-              ALTER TABLE public.academic_years 
+              ALTER TABLE public.academic_years
               ADD CONSTRAINT "academic_years_id_institutionId_uq" UNIQUE (id, "institutionId");
           END IF;
       END $$;
@@ -87,15 +87,15 @@ async function runMultiTenantAcademicTermsSuite() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "academic_terms_dates_check" CHECK ("startDate" < "endDate"),
-        CONSTRAINT "academic_terms_academic_year_tenant_fkey" 
-          FOREIGN KEY ("academicYearId", "institutionId") 
-          REFERENCES public.academic_years(id, "institutionId") 
+        CONSTRAINT "academic_terms_academic_year_tenant_fkey"
+          FOREIGN KEY ("academicYearId", "institutionId")
+          REFERENCES public.academic_years(id, "institutionId")
           ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS "academic_terms_institutionId_idx" ON public.academic_terms ("institutionId");
       CREATE INDEX IF NOT EXISTS "academic_terms_academicYearId_idx" ON public.academic_terms ("academicYearId");
-      CREATE UNIQUE INDEX IF NOT EXISTS "academic_terms_one_current_per_year_idx" 
-        ON public.academic_terms ("academicYearId") 
+      CREATE UNIQUE INDEX IF NOT EXISTS "academic_terms_one_current_per_year_idx"
+        ON public.academic_terms ("academicYearId")
         WHERE ("isCurrent" = true);
     `);
   }

@@ -7,9 +7,9 @@ async function main() {
 
   try {
     const rawTables = await db.$queryRawUnsafe<Array<{ table_name: string }>>(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
       ORDER BY table_name ASC;
     `);
 
@@ -52,8 +52,8 @@ async function main() {
     // Check _prisma_migrations
     if (tableNames.includes("_prisma_migrations")) {
       const migrations = await db.$queryRawUnsafe<Array<{ migration_name: string; finished_at: any }>>(`
-        SELECT migration_name, finished_at 
-        FROM _prisma_migrations 
+        SELECT migration_name, finished_at
+        FROM _prisma_migrations
         ORDER BY started_at ASC;
       `);
       console.log(`\nApplied Prisma Migrations (${migrations.length}):`);
