@@ -78,6 +78,7 @@ export interface PortalShellProps {
   onAcademicYearChange?: (year: string) => void
   notificationCount?: number
   onNotificationClick?: () => void
+  notificationElement?: React.ReactNode
   headerExtra?: React.ReactNode
   user?: PortalUser
   profileHref?: string
@@ -308,6 +309,7 @@ export function PortalShell({
   onAcademicYearChange,
   notificationCount = 0,
   onNotificationClick,
+  notificationElement,
   headerExtra,
   user = DEFAULT_USER,
   profileHref,
@@ -438,26 +440,30 @@ export function PortalShell({
               </SelectContent>
             </Select>
 
-            {/* Notification Bell */}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={onNotificationClick}
-              aria-label={
-                notificationCount > 0
-                  ? `${notificationCount} unread notifications`
-                  : "Notifications"
-              }
-              className="relative rounded-xl border-[#E5E9EF] bg-white text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5]"
-            >
-              <Bell className="size-4" />
-              {notificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F5A000] px-1 text-[10px] font-bold text-white shadow-xs">
-                  {notificationCount > 99 ? "99+" : notificationCount}
-                </span>
-              )}
-            </Button>
+            {/* Notification Bell / Dropdown */}
+            {notificationElement ? (
+              notificationElement
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={onNotificationClick}
+                aria-label={
+                  notificationCount > 0
+                    ? `${notificationCount} unread notifications`
+                    : "Notifications"
+                }
+                className="relative rounded-xl border-[#E5E9EF] bg-white text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5]"
+              >
+                <Bell className="size-4" />
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F5A000] px-1 text-[10px] font-bold text-white shadow-xs">
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </span>
+                )}
+              </Button>
+            )}
 
             {/* User Profile Dropdown */}
             <DropdownMenu>

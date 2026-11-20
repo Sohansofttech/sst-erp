@@ -369,6 +369,94 @@ export default function AttendancePage() {
     return studentSummaries.filter((s) => s.isWarning);
   }, [studentSummaries]);
 
+  // Dynamically computed daily attendance trends from live database / store records
+  const dailyAttendanceTrends = useMemo(() => {
+    if (!attendanceRecords || attendanceRecords.length === 0) return [];
+
+    const dateMap = new Map<
+      string,
+      {
+        date: string;
+        day: string;
+        present: number;
+        late: number;
+        onDuty: number;
+        halfDay: number;
+        absent: number;
+        leave: number;
+        total: number;
+        attendedCredits: number;
+        countableSessions: number;
+        pct: number | null;
+      }
+    >();
+
+    for (const r of attendanceRecords) {
+      const dateStr = typeof r.date === "string" ? r.date.split("T")[0] : new Date(r.date).toISOString().split("T")[0];
+      const normStatus = (r.status || "").toUpperCase().replace(/\s+/g, "_");
+
+      let entry = dateMap.get(dateStr);
+      if (!entry) {
+        const d = new Date(dateStr);
+        const dayName = isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-US", { weekday: "long" });
+        entry = {
+          date: dateStr,
+          day: dayName,
+          present: 0,
+          late: 0,
+          onDuty: 0,
+          halfDay: 0,
+          absent: 0,
+          leave: 0,
+          total: 0,
+          attendedCredits: 0,
+          countableSessions: 0,
+          pct: null,
+        };
+        dateMap.set(dateStr, entry);
+      }
+
+      entry.total += 1;
+
+      if (normStatus === "PRESENT") {
+        entry.present += 1;
+        entry.attendedCredits += 1;
+        entry.countableSessions += 1;
+      } else if (normStatus === "LATE") {
+        entry.late += 1;
+        entry.attendedCredits += 1;
+        entry.countableSessions += 1;
+      } else if (normStatus === "ON_DUTY") {
+        entry.onDuty += 1;
+        entry.attendedCredits += 1;
+        entry.countableSessions += 1;
+      } else if (normStatus === "HALF_DAY") {
+        entry.halfDay += 1;
+        entry.attendedCredits += 0.5;
+        entry.countableSessions += 1;
+      } else if (normStatus === "ABSENT") {
+        entry.absent += 1;
+        entry.countableSessions += 1;
+      } else if (normStatus === "ON_LEAVE" || normStatus === "EXCUSED") {
+        entry.leave += 1;
+      } else {
+        entry.absent += 1;
+        entry.countableSessions += 1;
+      }
+    }
+
+    return Array.from(dateMap.values())
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 10)
+      .map((row) => ({
+        ...row,
+        pct:
+          row.countableSessions > 0
+            ? Math.round((row.attendedCredits / row.countableSessions) * 1000) / 10
+            : null,
+      }));
+  }, [attendanceRecords]);
+
   // Guardian Alert Dispatch Modal State
   const [alertTargetStudent, setAlertTargetStudent] = useState<
     (typeof studentSummaries)[0] | null
@@ -417,8 +505,8 @@ export default function AttendancePage() {
       s.absentCount,
       s.lateCount,
       s.leaveCount,
-      `${s.percentage}%`,
-      `"${s.isBelowThreshold ? "Defaulter (<" + attendanceThreshold.minimumPercentage + "%)" : s.isWarning ? "At Risk" : "Compliant"}"`,
+      s.percentage !== null ? `${s.percentage}%` : "N/A",
+      `"${s.percentage === null ? "Pending (No Sessions)" : s.isBelowThreshold ? "Defaulter (<" + attendanceThreshold.minimumPercentage + "%)" : s.isWarning ? "At Risk" : "Compliant"}"`,
       `"${s.guardianName || "N/A"}"`,
       `"${s.guardianPhone || "N/A"}"`,
     ]);
@@ -670,12 +758,14 @@ export default function AttendancePage() {
                   Attendance Rate
                 </span>
                 <p className="text-2xl font-black text-[#123B5A] mt-1">
-                  {overallMetrics.percentage}%
+                  {overallMetrics.percentage !== null && overallMetrics.percentage !== undefined
+                    ? `${overallMetrics.percentage}%`
+                    : "N/A"}
                 </p>
                 <div className="w-full bg-[#E2E8F0] h-1.5 rounded-full mt-2 overflow-hidden">
                   <div
                     className="bg-[#14B8A6] h-full rounded-full transition-all duration-500"
-                    style={{ width: `${overallMetrics.percentage}%` }}
+                    style={{ width: `${overallMetrics.percentage ?? 0}%` }}
                   />
                 </div>
               </CardContent>
@@ -699,36 +789,41 @@ export default function AttendancePage() {
               </CardHeader>
               <CardContent className="space-y-4 pt-4">
                 <div className="space-y-3">
-                  {[
-                    { date: "2026-11-12", day: "Thursday", present: 5, late: 0, absent: 1, leave: 0, total: 6, pct: 83.3 },
-                    { date: "2026-11-11", day: "Wednesday", present: 4, late: 0, absent: 2, leave: 0, total: 6, pct: 66.7 },
-                    { date: "2026-11-10", day: "Tuesday", present: 5, late: 1, absent: 0, leave: 0, total: 6, pct: 100 },
-                    { date: "2026-11-09", day: "Monday", present: 4, late: 0, absent: 1, leave: 1, total: 6, pct: 83.3 },
-                    { date: "2026-11-06", day: "Friday", present: 5, late: 0, absent: 0, leave: 1, total: 6, pct: 100 },
-                    { date: "2026-11-05", day: "Thursday", present: 5, late: 0, absent: 1, leave: 0, total: 6, pct: 83.3 },
-                  ].map((row) => (
-                    <div key={row.date} className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-[#1E293B]">{row.date}</span>
-                          <span className="text-[#64748B]">({row.day})</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-[11px] text-[#16A34A] font-bold">{row.present} Present</span>
-                          <span className="text-[11px] text-[#DC2626] font-bold">{row.absent} Absent</span>
-                          {row.late > 0 && <span className="text-[11px] text-[#D97706] font-bold">{row.late} Late</span>}
-                          {row.leave > 0 && <span className="text-[11px] text-[#0284C7] font-bold">{row.leave} Leave</span>}
-                          <span className="text-xs font-black text-[#123B5A] ml-2">{row.pct}%</span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden flex">
-                        <div style={{ width: `${(row.present / row.total) * 100}%` }} className="bg-[#16A34A] h-full" title="Present" />
-                        <div style={{ width: `${(row.late / row.total) * 100}%` }} className="bg-[#F59E0B] h-full" title="Late" />
-                        <div style={{ width: `${(row.leave / row.total) * 100}%` }} className="bg-[#0284C7] h-full" title="Leave" />
-                        <div style={{ width: `${(row.absent / row.total) * 100}%` }} className="bg-[#DC2626] h-full" title="Absent" />
-                      </div>
+                  {dailyAttendanceTrends.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-[#94A3B8]">
+                      No attendance session records logged yet for the selected period.
                     </div>
-                  ))}
+                  ) : (
+                    dailyAttendanceTrends.map((row) => (
+                      <div key={row.date} className="p-3 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[#1E293B]">{row.date}</span>
+                            {row.day && <span className="text-[#64748B]">({row.day})</span>}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[11px] text-[#16A34A] font-bold">{row.present} Present</span>
+                            <span className="text-[11px] text-[#DC2626] font-bold">{row.absent} Absent</span>
+                            {row.late > 0 && <span className="text-[11px] text-[#D97706] font-bold">{row.late} Late</span>}
+                            {row.onDuty > 0 && <span className="text-[11px] text-[#2563EB] font-bold">{row.onDuty} On Duty</span>}
+                            {row.halfDay > 0 && <span className="text-[11px] text-[#7C3AED] font-bold">{row.halfDay} Half Day</span>}
+                            {row.leave > 0 && <span className="text-[11px] text-[#0284C7] font-bold">{row.leave} Leave</span>}
+                            <span className="text-xs font-black text-[#123B5A] ml-2">
+                              {row.pct !== null ? `${row.pct}%` : "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden flex">
+                          <div style={{ width: `${row.total > 0 ? (row.present / row.total) * 100 : 0}%` }} className="bg-[#16A34A] h-full" title="Present" />
+                          <div style={{ width: `${row.total > 0 ? (row.late / row.total) * 100 : 0}%` }} className="bg-[#F59E0B] h-full" title="Late" />
+                          <div style={{ width: `${row.total > 0 ? (row.onDuty / row.total) * 100 : 0}%` }} className="bg-[#2563EB] h-full" title="On Duty" />
+                          <div style={{ width: `${row.total > 0 ? (row.halfDay / row.total) * 100 : 0}%` }} className="bg-[#7C3AED] h-full" title="Half Day" />
+                          <div style={{ width: `${row.total > 0 ? (row.leave / row.total) * 100 : 0}%` }} className="bg-[#0284C7] h-full" title="Leave" />
+                          <div style={{ width: `${row.total > 0 ? (row.absent / row.total) * 100 : 0}%` }} className="bg-[#DC2626] h-full" title="Absent" />
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="flex items-center justify-center gap-6 pt-2 text-xs font-medium text-[#64748B]">
@@ -798,7 +893,11 @@ export default function AttendancePage() {
                         <span className="text-[10px] text-[#64748B]">{cls.totalEnrolled} Enrolled • {cls.totalSessions} Sessions</span>
                       </div>
                       <div className="text-right">
-                        <span className="font-black text-[#123B5A] text-sm block">{cls.averagePercentage}%</span>
+                        <span className="font-black text-[#123B5A] text-sm block">
+                          {cls.averagePercentage !== null && cls.averagePercentage !== undefined
+                            ? `${cls.averagePercentage}%`
+                            : "N/A"}
+                        </span>
                         {cls.lowAttendanceCount > 0 ? (
                           <span className="text-[10px] text-[#DC2626] font-bold">{cls.lowAttendanceCount} Defaulters</span>
                         ) : (
@@ -1484,23 +1583,31 @@ export default function AttendancePage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex flex-col items-end">
-                            <span className="font-black text-[#123B5A] text-sm">{s.percentage}%</span>
+                            <span className="font-black text-[#123B5A] text-sm">
+                              {s.percentage !== null && s.percentage !== undefined ? `${s.percentage}%` : "N/A"}
+                            </span>
                             <div className="w-16 bg-[#E2E8F0] h-1.5 rounded-full overflow-hidden mt-1">
                               <div
                                 className={`h-full rounded-full ${
-                                  s.isBelowThreshold
+                                  s.percentage === null
+                                    ? "bg-slate-300"
+                                    : s.isBelowThreshold
                                     ? "bg-[#DC2626]"
                                     : s.isWarning
                                     ? "bg-[#F59E0B]"
                                     : "bg-[#16A34A]"
                                 }`}
-                                style={{ width: `${Math.min(100, s.percentage)}%` }}
+                                style={{ width: `${s.percentage !== null ? Math.min(100, s.percentage) : 0}%` }}
                               />
                             </div>
                           </div>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          {s.isBelowThreshold ? (
+                          {s.percentage === null ? (
+                            <Badge variant="neutral" size="sm">
+                              Pending
+                            </Badge>
+                          ) : s.isBelowThreshold ? (
                             <Badge variant="error" size="sm">
                               Defaulter
                             </Badge>
@@ -1646,9 +1753,11 @@ export default function AttendancePage() {
                             {s.presentCount + s.lateCount} / {s.totalSessions} sessions
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <span className="text-sm font-black text-[#DC2626] block">{s.percentage}%</span>
+                            <span className="text-sm font-black text-[#DC2626] block">
+                              {s.percentage !== null ? `${s.percentage}%` : "N/A"}
+                            </span>
                             <span className="text-[10px] text-[#991B1B] font-semibold">
-                              Shortfall: {(attendanceThreshold.minimumPercentage - s.percentage).toFixed(1)}%
+                              Shortfall: {s.percentage !== null ? (attendanceThreshold.minimumPercentage - s.percentage).toFixed(1) : "0.0"}%
                             </span>
                           </td>
                           <td className="py-3 px-4">

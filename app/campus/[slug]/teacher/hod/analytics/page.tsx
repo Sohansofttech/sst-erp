@@ -72,9 +72,10 @@ export default function HodAnalyticsPage() {
     )
   }
 
-  const avgAttendance = facultyLoad.length > 0
-    ? Number((facultyLoad.reduce((acc, f) => acc + f.attendanceAveragePercent, 0) / facultyLoad.length).toFixed(1))
-    : 91.8
+  const facultyWithAtt = facultyLoad.filter((f) => f.attendanceAveragePercent !== null)
+  const avgAttendance = facultyWithAtt.length > 0
+    ? Number((facultyWithAtt.reduce((acc, f) => acc + (f.attendanceAveragePercent ?? 0), 0) / facultyWithAtt.length).toFixed(1))
+    : null
 
   const avgSyllabus = facultyLoad.length > 0
     ? Number((facultyLoad.reduce((acc, f) => acc + f.syllabusAveragePercent, 0) / facultyLoad.length).toFixed(1))
@@ -108,7 +109,7 @@ export default function HodAnalyticsPage() {
         />
         <StatCard
           label="Avg Student Attendance"
-          value={`${avgAttendance}%`}
+          value={avgAttendance !== null ? `${avgAttendance}%` : "N/A"}
           icon={<CheckCircle2 />}
           tone="success"
           description="Cross-course attendance mean"
@@ -146,13 +147,13 @@ export default function HodAnalyticsPage() {
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-[#202936]">{f.fullName}</span>
                   <span className="font-mono font-bold text-emerald-600">
-                    {f.attendanceAveragePercent}%
+                    {f.attendanceAveragePercent !== null ? `${f.attendanceAveragePercent}%` : "N/A"}
                   </span>
                 </div>
                 <div className="h-2.5 w-full rounded-full bg-[#EEF1F5] overflow-hidden">
                   <div
                     className="h-full bg-emerald-600 rounded-full transition-all"
-                    style={{ width: `${f.attendanceAveragePercent}%` }}
+                    style={{ width: `${f.attendanceAveragePercent ?? 0}%` }}
                   />
                 </div>
                 <p className="text-[11px] text-[#788391]">

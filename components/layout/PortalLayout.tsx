@@ -42,8 +42,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
             setUser({
               fullName: parsed.fullName,
               role: parsed.role || "STUDENT",
-              institutionName: parsed.institutionName || "Apex Institute of Technology",
-              email: parsed.email || "john.doe@student.apex.edu",
+              institutionName: parsed.institutionName || "Campus Portal",
+              email: parsed.email || "user@campus.portal",
             });
           }
         }
@@ -68,7 +68,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         const json = await fetchClientSession(token);
         if (isMounted && json.success && json.data?.session) {
           const sess = json.data.session;
-          const instName = sess.institutionName || "Apex Institute of Technology";
+          const instName = sess.institutionName || "Campus Portal";
           if (typeof window !== "undefined") {
             localStorage.setItem("erp_institution_name", instName);
           }
@@ -115,7 +115,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
           portalType={effectiveRole}
           userFullName={user?.fullName || "John Doe"}
           userRole={effectiveRole}
-          institutionName={user?.institutionName || "Apex Institute of Technology"}
+          institutionName={user?.institutionName || "Campus Portal"}
           selectedChildId={currentChildId}
           onSelectChild={handleSelect}
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}

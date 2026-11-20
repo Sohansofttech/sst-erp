@@ -21,9 +21,9 @@ export async function POST(req: NextRequest) {
     const { institutionId } = await resolveAdminContext(req);
     const body = await req.json();
 
-    if (!body.fullName || !body.relationship || !body.phone) {
+    if (!body.fullName || !body.relationship || !body.phone || !body.email) {
       return NextResponse.json(
-        { success: false, error: "Guardian full name, relationship, and phone are required." },
+        { success: false, error: "Guardian full name, relationship, phone, and email are required." },
         { status: 400 }
       );
     }

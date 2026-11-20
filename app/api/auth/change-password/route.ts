@@ -1,7 +1,9 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
-import { signToken, AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
 import db from "@/lib/db";
+import { requireAuth } from "@/lib/auth/session";
+import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "@/lib/auth/jwt";
+import { SessionUser } from "@/types";
 import {
   validatePasswordStrength,
   checkPwnedPassword,
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (newPassword !== confirmPassword) {
+    if (confirmPassword && newPassword !== confirmPassword) {
       return NextResponse.json(
         { success: false, error: "New password and confirmation do not match." },
         { status: 400 }
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch user's current password hash from database
     const user = await db.user.findUnique({
       where: { id: session.userId },
-      select: { id: true, email: true, fullName: true, passwordHash: true },
+      select: { id: true, email: true, fullName: true, passwordHash: true, institutionId: true },
     });
 
     if (!user || !user.passwordHash) {
@@ -97,39 +99,51 @@ export async function POST(req: NextRequest) {
 
     // 6. Hash new password with bcrypt
     const newHash = await hashPassword(newPassword);
+    const updatedSig = computePasswordSignature(newHash);
+    const now = new Date();
 
     // 7. Update database
     await db.user.update({
       where: { id: user.id },
       data: {
         passwordHash: newHash,
+        lastLoginAt: now,
       },
     });
 
-    // 8. Log audit trail (Never log passwords!)
+    // 8. Log audit trail safely
     try {
-      await db.auditLog.create({
-        data: {
-          actorUserId: user.id,
-          action: "PASSWORD_CHANGE_SUCCESS",
-          entityType: "User",
-          entityId: user.id,
-        },
-      });
+      const auditId = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO audit_logs (id, "institutionId", "userId", "actorUserId", action, "entityType", "entityId", "newValuesJson", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        auditId,
+        user.institutionId || session.institutionId || "",
+        user.id,
+        user.id,
+        "PASSWORD_CHANGED",
+        "USER_CREDENTIALS",
+        user.id,
+        JSON.stringify({ status: "SUCCESS" })
+      );
     } catch {
       // Non-critical audit log
     }
 
-    // 9. Re-issue updated session token with mustChangePassword cleared
-    const updatedSession = {
+    // 9. Re-issue updated session token with mustChangePassword cleared and updated signature
+    const updatedSession: SessionUser = {
       ...session,
       mustChangePassword: false,
+      passwordSig: updatedSig,
     };
     const newToken = await signToken(updatedSession);
 
     const response = NextResponse.json({
       success: true,
       message: "Password changed successfully. Your account is now secured.",
+      data: {
+        mustChangePassword: false,
+      },
     });
 
     response.cookies.set({
@@ -161,9 +175,8 @@ export async function POST(req: NextRequest) {
       );
     }
     return NextResponse.json(
-      { success: false, error: "Failed to update password. Please try again." },
+      { success: false, error: error.message || "Failed to update password. Please try again." },
       { status: 500 }
     );
   }
 }
-

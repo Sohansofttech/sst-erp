@@ -476,14 +476,21 @@ export default function TeacherMentoringPage() {
                         <span
                           className={cn(
                             "font-semibold",
-                            mentee.attendancePercent < 75
-                              ? "text-rose-600"
-                              : mentee.attendancePercent < 85
-                                ? "text-amber-700"
-                                : "text-[#202936]"
+                            mentee.attendancePercent === null ||
+                              mentee.attendancePercent === undefined
+                              ? "text-[#788391]"
+                              : mentee.attendancePercent < 75
+                                ? "text-rose-600"
+                                : mentee.attendancePercent < 85
+                                  ? "text-amber-700"
+                                  : "text-[#202936]"
                           )}
                         >
-                          Att: {mentee.attendancePercent}%
+                          Att:{" "}
+                          {mentee.attendancePercent !== null &&
+                          mentee.attendancePercent !== undefined
+                            ? `${mentee.attendancePercent}%`
+                            : "N/A"}
                         </span>
                         <span
                           className={cn(
@@ -578,14 +585,20 @@ export default function TeacherMentoringPage() {
                       <div
                         className={cn(
                           "mt-1 text-xl font-bold",
-                          activeMentee.attendancePercent < 75
-                            ? "text-rose-600"
-                            : activeMentee.attendancePercent < 85
-                              ? "text-amber-700"
-                              : "text-emerald-700"
+                          activeMentee.attendancePercent === null ||
+                            activeMentee.attendancePercent === undefined
+                            ? "text-[#788391]"
+                            : activeMentee.attendancePercent < 75
+                              ? "text-rose-600"
+                              : activeMentee.attendancePercent < 85
+                                ? "text-amber-700"
+                                : "text-emerald-700"
                         )}
                       >
-                        {activeMentee.attendancePercent}%
+                        {activeMentee.attendancePercent !== null &&
+                        activeMentee.attendancePercent !== undefined
+                          ? `${activeMentee.attendancePercent}%`
+                          : "N/A"}
                       </div>
                     </div>
                     <div className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5]/50 p-3">

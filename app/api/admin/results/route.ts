@@ -70,9 +70,20 @@ export async function PUT(req: NextRequest) {
       });
     }
 
-    const updated = await db.resultBatch.update({
-      where: { id },
+    const result = await db.resultBatch.updateMany({
+      where: { id, institutionId },
       data: { status: action || "APPROVED" },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Result batch not found or access denied." },
+        { status: 404 }
+      );
+    }
+
+    const updated = await db.resultBatch.findFirst({
+      where: { id, institutionId },
     });
 
     return NextResponse.json({

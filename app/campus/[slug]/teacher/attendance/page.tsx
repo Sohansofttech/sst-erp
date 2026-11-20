@@ -783,12 +783,18 @@ export default function TeacherAttendancePage() {
                           <span
                             className={cn(
                               "text-[13px] font-semibold",
-                              student.attendancePercent < 75
-                                ? "text-error"
-                                : "text-muted-foreground"
+                              student.attendancePercent === null ||
+                                student.attendancePercent === undefined
+                                ? "text-muted-foreground font-normal"
+                                : student.attendancePercent < 75
+                                  ? "text-error"
+                                  : "text-muted-foreground"
                             )}
                           >
-                            {student.attendancePercent}%
+                            {student.attendancePercent !== null &&
+                            student.attendancePercent !== undefined
+                              ? `${student.attendancePercent}%`
+                              : "N/A"}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">

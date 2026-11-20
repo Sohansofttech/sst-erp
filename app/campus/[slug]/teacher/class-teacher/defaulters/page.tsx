@@ -131,9 +131,11 @@ export default function AttendanceDefaultersPage() {
     )
   }
 
-  const criticalDefaulters = students.filter((s) => s.attendancePercent < 75)
+  const criticalDefaulters = students.filter(
+    (s) => s.attendancePercent !== null && s.attendancePercent < 75
+  )
   const borderlineStudents = students.filter(
-    (s) => s.attendancePercent >= 75 && s.attendancePercent < 82
+    (s) => s.attendancePercent !== null && s.attendancePercent >= 75 && s.attendancePercent < 82
   )
 
   return (
@@ -216,7 +218,7 @@ export default function AttendanceDefaultersPage() {
                 </TableHeader>
                 <TableBody className="divide-y divide-[#E5E9EF]">
                   {[...criticalDefaulters, ...borderlineStudents].map((s) => {
-                    const isCritical = s.attendancePercent < 75
+                    const isCritical = s.attendancePercent !== null && s.attendancePercent < 75
 
                     return (
                       <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
@@ -233,7 +235,7 @@ export default function AttendanceDefaultersPage() {
                             isCritical ? "text-rose-600" : "text-amber-600"
                           )}
                         >
-                          {s.attendancePercent}%
+                          {s.attendancePercent !== null ? `${s.attendancePercent.toFixed(1)}%` : "N/A"}
                         </span>
                       </TableCell>
                       <TableCell className="font-mono text-xs font-semibold text-[#202936]">

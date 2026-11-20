@@ -11,14 +11,30 @@ export interface ProvisionAdminInput {
   adminEmail?: string;
   adminPhone?: string;
   adminPassword?: string;
+  password?: string;
   actorUserId?: string;
   resend?: boolean;
 }
 
 export interface ProvisionAdminResult {
   success: boolean;
-  user?: { id: string; email: string; fullName: string; role: string };
-  institution?: { id: string; name: string; code: string | null; slug: string };
+  user?: {
+    id: string;
+    email: string;
+    fullName: string;
+    role: string;
+    status?: string;
+    isActive?: boolean;
+  };
+  institution?: {
+    id: string;
+    name: string;
+    code: string | null;
+    slug: string;
+  };
+  invitationSent?: boolean;
+  previewUrl?: string | false;
+  invitationError?: string | null;
   invitation?: { status: string; expiresAt: Date; sent: boolean };
   error?: string;
 }
@@ -84,7 +100,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     if (!adminEmail) return { success: false, error: "A primary administrator email is required." };
     const adminName = (input.adminName || `${institution.name} Administrator`).trim();
     const adminPhone = input.adminPhone?.trim() || null;
-    const adminPassword = input.adminPassword || "Password@123";
+    const adminPassword = input.adminPassword || input.password || "Password@123";
     const passwordHash = await bcrypt.hash(adminPassword, 10);
 
     if (!await syncInstitutionToAppDb(institution.id)) {
@@ -287,9 +303,23 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
 
     return {
       success: true,
-      user: { id: platformUserId, email: adminEmail, fullName: adminName, role: "ADMIN" },
-      institution: { id: institution.id, name: institution.name, code: institution.code, slug: institution.slug },
+      user: {
+        id: platformUserId,
+        email: adminEmail,
+        fullName: adminName,
+        role: "ADMIN",
+        status: "ACTIVE",
+        isActive: true,
+      },
+      institution: {
+        id: institution.id,
+        name: institution.name,
+        code: institution.code,
+        slug: institution.slug,
+      },
+      invitationSent: emailSent,
       invitation: { status: emailSent ? "SENT" : "FAILED", expiresAt, sent: emailSent },
+      invitationError: emailReason,
     };
   } catch (error) {
     console.error("[InstitutionProvisioning] Failed:", error);
@@ -326,4 +356,95 @@ export async function syncAllPlatformInstitutions(): Promise<{ synced: number; p
     }
   }
   return { synced, provisioned };
+}
+
+/**
+ * Resends an account setup invitation to an Institution Administrator.
+ * Generates a fresh single-use password setup token and dispatches an invitation email.
+ */
+export async function resendInstitutionAdminInvitation(
+  institutionId: string,
+  adminUserId?: string,
+  actorUserId?: string
+): Promise<{
+  success: boolean;
+  message: string;
+  previewUrl?: string | false;
+  email?: string;
+}> {
+  try {
+    const instRows: any = await db.$queryRaw`
+      SELECT id, name, slug FROM "Institution" WHERE id::text = ${institutionId} LIMIT 1
+    `;
+    const inst = instRows?.[0];
+
+    const adminUser = await db.user.findFirst({
+      where: {
+        institutionId,
+        role: "ADMIN",
+        ...(adminUserId ? { id: adminUserId } : {}),
+      },
+      select: { id: true, email: true, fullName: true, name: true, passwordHash: true },
+    });
+
+    if (!adminUser) {
+      return { success: false, message: "No institution admin found for this institution." };
+    }
+
+    const { signPasswordSetupToken } = await import("@/lib/auth/jwt");
+    const { sendPasswordSetupInvitation } = await import("@/lib/services/email.service");
+
+    const setupToken = await signPasswordSetupToken({
+      userId: adminUser.id,
+      email: adminUser.email,
+      institutionId,
+      passwordHash: adminUser.passwordHash || null,
+    });
+
+    const { getAppBaseUrl } = await import("@/lib/services/email.service");
+    const appUrl = getAppBaseUrl();
+    const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+
+    const emailRes = await sendPasswordSetupInvitation(
+      { email: adminUser.email, name: adminUser.fullName || adminUser.name || "Administrator" },
+      {
+        setupUrl,
+        institutionName: inst?.name || "Campus Administration",
+        expiresIn: "24 hours",
+        loginUrl: `${appUrl}/admin`,
+      }
+    );
+
+    try {
+      const auditId = crypto.randomUUID();
+      await db.$executeRawUnsafe(
+        `INSERT INTO audit_logs (
+          "id", "institutionId", "userId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        auditId,
+        institutionId,
+        adminUser.id,
+        actorUserId || null,
+        emailRes.success ? "INVITATION_RESENT" : "INVITATION_FAILED",
+        "ADMIN_CREDENTIALS",
+        adminUser.id,
+        JSON.stringify({
+          recipient: adminUser.email,
+          previewUrl: emailRes.previewUrl || undefined,
+          error: emailRes.error || undefined,
+        })
+      );
+    } catch {}
+
+    return {
+      success: emailRes.success,
+      message: emailRes.success
+        ? `Invitation sent successfully to ${adminUser.email}.`
+        : `Email delivery failed: ${emailRes.error || "Transport failure"}`,
+      previewUrl: emailRes.previewUrl,
+      email: adminUser.email,
+    };
+  } catch (err: any) {
+    return { success: false, message: err.message || "Failed to resend invitation." };
+  }
 }

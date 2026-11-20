@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
 import { authorizeStudentOrParentAccess } from "@/lib/security/authorize";
 import db from "@/lib/db";
+import {
+  calculateAttendance,
+  calculateSubjectWiseAttendance,
+  RawAttendanceRecord,
+} from "@/lib/services/attendance-calculator";
 
 export async function GET(req: NextRequest) {
   try {
@@ -129,9 +134,21 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const totalClasses = allAttendance.length;
-    const attendedClasses = allAttendance.filter((a) => a.status === "PRESENT" || a.status === "EXCUSED").length;
-    const attendancePercentage = totalClasses > 0 ? Math.round((attendedClasses / totalClasses) * 100) : 100;
+    const attendanceItems: RawAttendanceRecord[] = allAttendance.map((a) => ({
+      id: a.id,
+      studentId: a.studentId,
+      institutionId: a.institutionId,
+      subjectId: a.subjectId,
+      subjectCode: a.subject?.code || "SUB",
+      subjectName: a.subject?.name || "Subject",
+      date: a.date,
+      status: a.status,
+      remarks: a.remarks,
+      recordedAt: a.recordedAt,
+    }));
+
+    const attendanceCalc = calculateAttendance(attendanceItems);
+    const subjectWiseAttendance = calculateSubjectWiseAttendance(attendanceItems);
 
     const totalOutstanding = invoices.reduce((acc, inv) => acc + inv.outstandingAmount, 0);
     const totalPaid = invoices.reduce((acc, inv) => acc + inv.paidAmount, 0);
@@ -160,10 +177,20 @@ export async function GET(req: NextRequest) {
           academicYear: academicYearName,
         },
         attendanceSummary: {
-          totalClasses,
-          attendedClasses,
-          attendancePercentage,
+          totalClasses: attendanceCalc.countableSessions,
+          totalRecords: attendanceCalc.totalRecords,
+          attendedClasses: attendanceCalc.attendedCredits,
+          absentClasses: attendanceCalc.statusCounts.absent,
+          lateClasses: attendanceCalc.statusCounts.late,
+          onDutyClasses: attendanceCalc.statusCounts.onDuty,
+          attendancePercentage: attendanceCalc.percentage,
+          formattedPercentage: attendanceCalc.formattedPercentage,
+          hasData: attendanceCalc.hasData,
+          displayState: attendanceCalc.displayState,
+          displayLabel: attendanceCalc.displayLabel,
+          isEligible: attendanceCalc.isEligible,
         },
+        subjectWiseAttendance,
         todaySchedule: todaySlots.map((s) => ({
           id: s.id,
           startTime: s.startTime,
@@ -193,24 +220,26 @@ export async function GET(req: NextRequest) {
         assignments: activeAssignments.map((a) => ({
           id: a.id,
           title: a.title,
-          subjectName: a.subject.name,
+          subjectName: a.subject?.name || "Subject",
           dueDate: a.dueDate,
-          isSubmitted: a.submissions.length > 0,
-          status: a.submissions[0]?.status || "PENDING",
+          isSubmitted: Array.isArray(a.submissions) && a.submissions.length > 0,
+          status: a.submissions?.[0]?.status || "PENDING",
         })),
-        notifications: notifications.map((n) => ({
-          id: n.id,
-          title: n.notification.title,
-          message: n.notification.message,
-          category: n.notification.category,
-          createdAt: n.notification.createdAt,
-        })),
+        notifications: notifications
+          .filter((n) => n && n.notification)
+          .map((n) => ({
+            id: n.id,
+            title: n.notification.title,
+            message: n.notification.message,
+            category: n.notification.category,
+            createdAt: n.notification.createdAt,
+          })),
         recentResults: isParent
           ? []
           : recentResults.map((r) => ({
               id: r.id,
-              subjectCode: r.subject.code,
-              subjectName: r.subject.name,
+              subjectCode: r.subject?.code || "SUB",
+              subjectName: r.subject?.name || "Subject",
               grade: r.grade,
               totalMarks: r.totalMarks,
               isPassed: r.isPassed,
@@ -223,9 +252,15 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    const status =
+      err.name === "UnauthorizedError"
+        ? 401
+        : err.name === "ForbiddenError"
+        ? 403
+        : 500;
     return NextResponse.json(
       { success: false, error: err.message || "Failed to load dashboard" },
-      { status: err.name === "ForbiddenError" ? 403 : 500 }
+      { status }
     );
   }
 }

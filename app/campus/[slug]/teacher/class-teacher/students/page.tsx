@@ -102,7 +102,10 @@ export default function SectionStudentsPage() {
         content: noticeMessage,
         audience: "Class & Parents",
         targetClasses: ["Class 10 - A"],
-        priority: noticeTarget.attendancePercent < 75 ? "urgent" : "important",
+        priority:
+          noticeTarget.attendancePercent !== null && noticeTarget.attendancePercent < 75
+            ? "urgent"
+            : "important",
         isPinned: false,
       })
       toast.success(`Notice dispatched for ${noticeTarget.fullName} via parent portal (phone protected).`)
@@ -139,9 +142,10 @@ export default function SectionStudentsPage() {
       s.rollNo.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const avgAttendance = students.length > 0
-    ? Number((students.reduce((acc, s) => acc + s.attendancePercent, 0) / students.length).toFixed(1))
-    : 91.1
+  const studentsWithAtt = students.filter((s) => s.attendancePercent !== null)
+  const avgAttendance = studentsWithAtt.length > 0
+    ? Number((studentsWithAtt.reduce((acc, s) => acc + (s.attendancePercent ?? 0), 0) / studentsWithAtt.length).toFixed(1))
+    : null
 
   const avgIA = students.length > 0
     ? Number((students.reduce((acc, s) => acc + s.iaAverage, 0) / students.length).toFixed(1))
@@ -181,7 +185,7 @@ export default function SectionStudentsPage() {
         />
         <StatCard
           label="Section Attendance"
-          value={`${avgAttendance}%`}
+          value={avgAttendance !== null ? `${avgAttendance}%` : "N/A"}
           icon={<CheckCircle2 />}
           tone="success"
           description="Roster cumulative mean"
@@ -195,7 +199,7 @@ export default function SectionStudentsPage() {
         />
         <StatCard
           label="Shortage Watch"
-          value={students.filter((s) => s.attendancePercent < 80).length}
+          value={students.filter((s) => s.attendancePercent !== null && s.attendancePercent < 80).length}
           icon={<ShieldAlert />}
           tone="warning"
           description="Below 80% threshold"
@@ -247,8 +251,8 @@ export default function SectionStudentsPage() {
                 </TableHeader>
                 <TableBody className="divide-y divide-[#E5E9EF]">
                   {filteredStudents.map((s) => {
-                    const isDefaulter = s.attendancePercent < 75
-                    const isBorderline = s.attendancePercent >= 75 && s.attendancePercent < 82
+                    const isDefaulter = s.attendancePercent !== null && s.attendancePercent < 75
+                    const isBorderline = s.attendancePercent !== null && s.attendancePercent >= 75 && s.attendancePercent < 82
 
                     return (
                       <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
@@ -269,7 +273,7 @@ export default function SectionStudentsPage() {
                                 : "text-emerald-600"
                           )}
                         >
-                          {s.attendancePercent}%
+                          {s.attendancePercent !== null ? `${s.attendancePercent.toFixed(1)}%` : "N/A"}
                         </span>
                       </TableCell>
                       <TableCell className="font-mono text-xs font-semibold text-[#202936]">

@@ -47,15 +47,35 @@ export default function ParentAttendancePage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
           title="Overall Attendance"
-          value={`${summary?.overallPercentage ?? 0}%`}
-          subtitle="Minimum 75% requirement"
-          badgeText={summary?.overallPercentage >= 75 ? "Eligible" : "Attendance Shortage"}
-          badgeVariant={summary?.overallPercentage >= 75 ? "success" : "error"}
+          value={
+            summary?.overallPercentage !== null && summary?.overallPercentage !== undefined
+              ? `${summary.overallPercentage}%`
+              : "N/A"
+          }
+          subtitle={summary?.hasData ? "Minimum 75% requirement" : "No attendance data"}
+          badgeText={
+            !summary?.hasData
+              ? "Pending"
+              : summary?.overallPercentage >= 75
+              ? "Eligible"
+              : "Attendance Shortage"
+          }
+          badgeVariant={
+            !summary?.hasData
+              ? "neutral"
+              : summary?.overallPercentage >= 75
+              ? "success"
+              : "error"
+          }
           icon={<CheckCircle2 className="w-5 h-5 text-[#16A34A]" />}
         />
         <StatCard
           title="Classes Attended"
-          value={`${summary?.attendedClasses ?? 0} / ${summary?.totalClasses ?? 0}`}
+          value={
+            summary?.hasData
+              ? `${summary?.attendedClasses ?? 0} / ${summary?.totalClasses ?? 0}`
+              : "0 / 0"
+          }
           subtitle="Total semester lectures"
           icon={<Clock className="w-5 h-5 text-[#F59E0B]" />}
         />
@@ -63,8 +83,20 @@ export default function ParentAttendancePage() {
           title="Absences Logged"
           value={summary?.absentClasses ?? 0}
           subtitle={`${summary?.lateClasses ?? 0} late entries`}
-          badgeText={summary?.absentClasses > 0 ? "Logged" : "Zero Absences"}
-          badgeVariant={summary?.absentClasses > 0 ? "warning" : "success"}
+          badgeText={
+            !summary?.hasData
+              ? "Pending"
+              : summary?.absentClasses > 0
+              ? "Logged"
+              : "Zero Absences"
+          }
+          badgeVariant={
+            !summary?.hasData
+              ? "neutral"
+              : summary?.absentClasses > 0
+              ? "warning"
+              : "success"
+          }
           icon={<XCircle className="w-5 h-5 text-[#DC2626]" />}
         />
       </div>
@@ -77,7 +109,8 @@ export default function ParentAttendancePage() {
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {monthlyAttendance?.map((m: any) => {
-              const isGood = m.percentage >= 75;
+              const hasMonthData = m.percentage !== null && m.percentage !== undefined;
+              const isGood = hasMonthData && m.percentage >= 75;
               return (
                 <div
                   key={m.monthYear}
@@ -85,12 +118,12 @@ export default function ParentAttendancePage() {
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-bold text-[#0F2942]">{m.monthYear}</span>
-                    <Badge variant={isGood ? "success" : "error"} size="sm">
-                      {isGood ? "Eligible" : "Shortage"}
+                    <Badge variant={!hasMonthData ? "neutral" : isGood ? "success" : "error"} size="sm">
+                      {!hasMonthData ? "Pending" : isGood ? "Eligible" : "Shortage"}
                     </Badge>
                   </div>
                   <div className="text-xl font-extrabold text-[#1E293B]">
-                    {m.percentage}%
+                    {hasMonthData ? `${m.percentage}%` : "N/A"}
                   </div>
                   <p className="text-[11px] text-[#64748B] mt-0.5">
                     {m.attendedClasses} of {m.totalClasses} classes
@@ -104,28 +137,36 @@ export default function ParentAttendancePage() {
         {/* Subject wise breakdown */}
         <Card title="Subject-Wise Attendance Breakdown">
           <div className="space-y-3">
-            {subjectWise?.map((sub: any) => (
-              <div
-                key={sub.subjectId}
-                className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#D97706]">{sub.subjectCode}</span>
-                    <h4 className="font-semibold text-[#1E293B]">{sub.subjectName}</h4>
+            {subjectWise?.map((sub: any) => {
+              const hasSubData = sub.percentage !== null && sub.percentage !== undefined;
+              return (
+                <div
+                  key={sub.subjectId}
+                  className="p-4 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-[#D97706]">{sub.subjectCode}</span>
+                      <h4 className="font-semibold text-[#1E293B]">{sub.subjectName}</h4>
+                    </div>
+                    <p className="text-[#64748B] text-[11px] mt-0.5">
+                      Attended {sub.attendedClasses} out of {sub.totalClasses} classes
+                    </p>
                   </div>
-                  <p className="text-[#64748B] text-[11px] mt-0.5">
-                    Attended {sub.attendedClasses} out of {sub.totalClasses} classes
-                  </p>
+                  <div className="flex items-center gap-4 self-end sm:self-center">
+                    <span className="text-base font-bold text-[#0F2942]">
+                      {hasSubData ? `${sub.percentage}%` : "N/A"}
+                    </span>
+                    <Badge
+                      variant={!hasSubData ? "neutral" : sub.percentage >= 75 ? "success" : "error"}
+                      size="sm"
+                    >
+                      {!hasSubData ? "Pending" : sub.percentage >= 75 ? "Good" : "Low"}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 self-end sm:self-center">
-                  <span className="text-base font-bold text-[#0F2942]">{sub.percentage}%</span>
-                  <Badge variant={sub.percentage >= 75 ? "success" : "error"} size="sm">
-                    {sub.percentage >= 75 ? "Good" : "Low"}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
 
@@ -150,7 +191,11 @@ export default function ParentAttendancePage() {
               { header: "Remarks", accessorKey: "remarks" },
             ]}
             data={absenceHistory || []}
-            emptyMessage="No absences recorded."
+            emptyMessage={
+              summary?.hasData
+                ? "No absences on record. Attendance is regular."
+                : "No attendance sessions logged yet."
+            }
           />
         </Card>
 

@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { Card } from "@/components/shared/Card";
-import { StatCard } from "@/components/shared/StatCard";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { fetchClientSession } from "@/lib/auth/client-session";
@@ -19,24 +17,21 @@ import {
   Clock,
   MapPin,
   AlertTriangle,
-  Building2,
-  MessageSquare,
   Bell,
   Users,
-  GraduationCap,
   FileText,
-  Layers,
 } from "lucide-react";
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [session, setSession] = useState<{
-    id: string;
+    id?: string;
+    userId?: string;
     fullName: string;
     role: "STUDENT" | "PARENT" | string;
     institutionName: string;
     studentId?: string;
     activeChildId?: string;
+    mustChangePassword?: boolean;
   } | null>(null);
 
   const [selectedChildId, setSelectedChildId] = useState<string>("");
@@ -44,6 +39,91 @@ export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
+
+  // First-login password change state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdSuccess, setPwdSuccess] = useState<string | null>(null);
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError(null);
+    setPwdSuccess(null);
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+      setPwdError("Please fill in all password fields.");
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError("New passwords do not match.");
+      return;
+    }
+    if (pwdNew.length < 8) {
+      setPwdError("New password must be at least 8 characters long.");
+      return;
+    }
+
+    try {
+      setPwdLoading(true);
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: pwdCurrent,
+          newPassword: pwdNew,
+          confirmPassword: pwdConfirm,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setPwdError(json.error || "Failed to update password.");
+        return;
+      }
+      setPwdSuccess("Password changed successfully!");
+      setSession((prev) => (prev ? { ...prev, mustChangePassword: false } : null));
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPwdCurrent("");
+        setPwdNew("");
+        setPwdConfirm("");
+        setPwdSuccess(null);
+      }, 1500);
+    } catch {
+      setPwdError("Network error. Please try again.");
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
+  // Fast client-side check to redirect non-student/parent users immediately
+  // Hard navigation (window.location.replace) is used across portal layout boundaries
+  // to avoid Next.js App Router client-side layout aborts during mount.
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const storedUser = localStorage.getItem("erp_user");
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          if (u.role === "ADMIN") {
+            window.location.replace("/admin");
+            return;
+          }
+          if (u.role === "SUPER_ADMIN") {
+            window.location.replace("/super-admin");
+            return;
+          }
+          if (u.role === "TEACHER") {
+            const slug = (u.institutionSlug || u.institutionCode || "vidyaniketan").toLowerCase();
+            window.location.replace(`/campus/${slug}/teacher`);
+            return;
+          }
+        }
+      }
+    } catch {}
+  }, []);
 
   // 1. Initial Session Authentication
   useEffect(() => {
@@ -57,13 +137,31 @@ export default function DashboardPage() {
 
         if (json.success && json.data?.session) {
           const sess = json.data.session;
+
+          // Role Redirection Guard:
+          // /dashboard is exclusively for STUDENT and PARENT/GUARDIAN.
+          // Other roles must be directed to their respective portals:
+          if (sess.role === "ADMIN") {
+            window.location.replace("/admin");
+            return;
+          }
+          if (sess.role === "SUPER_ADMIN") {
+            window.location.replace("/super-admin");
+            return;
+          }
+          if (sess.role === "TEACHER") {
+            const slug = (sess.institutionSlug || sess.institutionCode || "vidyaniketan").toLowerCase();
+            window.location.replace(`/campus/${slug}/teacher`);
+            return;
+          }
+
           setSession(sess);
 
           if (json.data.student) {
             setData((prev: any) => (prev ? { ...prev, student: prev.student || json.data.student } : { student: json.data.student }));
           }
 
-          if (sess.role === "PARENT") {
+          if (sess.role === "PARENT" || sess.role === "GUARDIAN") {
             const stored = typeof window !== "undefined" ? localStorage.getItem("erp_active_child_id") : null;
             const initialChildId = stored || sess.activeChildId || "";
             if (initialChildId) {
@@ -71,12 +169,12 @@ export default function DashboardPage() {
             }
           }
         } else {
-          router.replace("/login");
+          window.location.replace("/login");
         }
       } catch (err) {
         if (!isMounted) return;
         console.error("Session verification failed", err);
-        router.replace("/login");
+        window.location.replace("/login");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -86,7 +184,7 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, []);
 
   // 2. Fetch Dashboard Data for current student / selected child
   const fetchDashboardData = useCallback(async (childId?: string) => {
@@ -118,18 +216,30 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // 3. Initiate dashboard data fetch immediately on mount in parallel with session verification
+  // 3. Initiate dashboard data fetch only for student/parent roles
   useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("erp_user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (u.role && u.role !== "STUDENT" && u.role !== "PARENT" && u.role !== "GUARDIAN") {
+            return; // Do not fetch student dashboard for admin/teacher/super-admin
+          }
+        }
+      }
+    } catch {}
+
     fetchDashboardData();
   }, [fetchDashboardData]);
 
   // 4. Refetch when parent changes active child
   useEffect(() => {
-    if (!session || session.role !== "PARENT" || !selectedChildId) return;
+    if (!session || (session.role !== "PARENT" && session.role !== "GUARDIAN") || !selectedChildId) return;
     fetchDashboardData(selectedChildId);
   }, [session, selectedChildId, fetchDashboardData]);
 
-  // 4. Listen for activeChildChanged global event from Header ChildSelector
+  // 5. Listen for activeChildChanged global event from Header ChildSelector
   useEffect(() => {
     const handleChildChanged = (e: any) => {
       if (e.detail?.childId) {
@@ -142,6 +252,120 @@ export default function DashboardPage() {
       window.removeEventListener("activeChildChanged", handleChildChanged);
     };
   }, [fetchDashboardData]);
+
+  const {
+    student,
+    attendanceSummary,
+    subjectWiseAttendance,
+    todaySchedule,
+    feeSummary,
+    upcomingExams,
+    assignments,
+    notifications,
+    recentResults,
+    cgpa,
+  } = data || {};
+
+  // Student Enrolled Courses with dynamic subject-wise attendance
+  // MUST be called unconditionally before any early returns to satisfy React Rules of Hooks
+  const enrolledCourses = React.useMemo(() => {
+    const baseCourses = [
+      {
+        code: "CS301",
+        name: "Database Management Systems",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 4,
+        marks: 93,
+        grade: "A+",
+        theoryPct: 75,
+        labPct: 15,
+        pendingTasks: 0,
+        status: "On Track",
+      },
+      {
+        code: "CS302",
+        name: "Operating Systems",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 4,
+        marks: 86,
+        grade: "A",
+        theoryPct: 72,
+        labPct: 16,
+        pendingTasks: 1,
+        status: "On Track",
+      },
+      {
+        code: "CS303",
+        name: "Computer Networks",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 4,
+        marks: 90,
+        grade: "A",
+        theoryPct: 74,
+        labPct: 14,
+        pendingTasks: 0,
+        status: "On Track",
+      },
+      {
+        code: "CS304",
+        name: "Software Engineering & Architecture",
+        faculty: "Prof. Rajesh Sharma",
+        credits: 3,
+        marks: 88,
+        grade: "A+",
+        theoryPct: 78,
+        labPct: 12,
+        pendingTasks: 1,
+        status: "On Track",
+      },
+      {
+        code: "CS305",
+        name: "Web Technologies & Cloud Lab",
+        faculty: "Prof. Sunita Verma",
+        credits: 2,
+        marks: 95,
+        grade: "O",
+        theoryPct: 82,
+        labPct: 12,
+        pendingTasks: 0,
+        status: "Exemplary",
+      },
+      {
+        code: "CS306",
+        name: "Professional Ethics & Values",
+        faculty: "Dr. Arvind Swamy",
+        credits: 2,
+        marks: 85,
+        grade: "A",
+        theoryPct: 70,
+        labPct: 15,
+        pendingTasks: 0,
+        status: "On Track",
+      },
+    ];
+
+    const subjectList: any[] = Array.isArray(subjectWiseAttendance) ? subjectWiseAttendance : [];
+
+    return baseCourses.map((c) => {
+      const matched = subjectList.find(
+        (s: any) =>
+          s &&
+          ((s.subjectCode && s.subjectCode.toLowerCase() === c.code.toLowerCase()) ||
+            (s.subjectName && s.subjectName.toLowerCase() === c.name.toLowerCase()))
+      );
+
+      const actualAttendance = matched && matched.percentage !== null && matched.percentage !== undefined ? matched.percentage : null;
+
+      return {
+        ...c,
+        attendance: actualAttendance,
+        attendanceLabel:
+          actualAttendance !== null
+            ? `${actualAttendance}% Attended`
+            : "No sessions",
+      };
+    });
+  }, [subjectWiseAttendance]);
 
   if (loading) {
     return (
@@ -156,18 +380,18 @@ export default function DashboardPage() {
 
   if (!session) return null;
 
-  const isParent = session.role === "PARENT";
-  const {
-    student,
-    attendanceSummary,
-    todaySchedule,
-    feeSummary,
-    upcomingExams,
-    assignments,
-    notifications,
-    recentResults,
-    cgpa,
-  } = data || {};
+  if (session.role !== "STUDENT" && session.role !== "PARENT" && session.role !== "GUARDIAN") {
+    return (
+      <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-xs font-semibold text-[#64748B]">Redirecting to your authorized portal...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isParent = session.role === "PARENT" || session.role === "GUARDIAN";
 
   const studentName = student?.firstName
     ? `${student.firstName} ${student.lastName || ""}`.trim()
@@ -175,88 +399,6 @@ export default function DashboardPage() {
   const displayName = studentName || (session?.fullName || "").trim() || "Student";
   const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
   const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
-
-  // Student Enrolled Courses for Semester 5
-  const enrolledCourses = [
-    {
-      code: "CS301",
-      name: "Database Management Systems",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 4,
-      attendance: 96,
-      marks: 93,
-      grade: "A+",
-      theoryPct: 75,
-      labPct: 15,
-      pendingTasks: 0,
-      status: "On Track",
-    },
-    {
-      code: "CS302",
-      name: "Operating Systems",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 4,
-      attendance: 92,
-      marks: 86,
-      grade: "A",
-      theoryPct: 72,
-      labPct: 16,
-      pendingTasks: 1,
-      status: "On Track",
-    },
-    {
-      code: "CS303",
-      name: "Computer Networks",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 4,
-      attendance: 95,
-      marks: 90,
-      grade: "A",
-      theoryPct: 74,
-      labPct: 14,
-      pendingTasks: 0,
-      status: "On Track",
-    },
-    {
-      code: "CS304",
-      name: "Software Engineering & Architecture",
-      faculty: "Prof. Rajesh Sharma",
-      credits: 3,
-      attendance: 98,
-      marks: 88,
-      grade: "A+",
-      theoryPct: 78,
-      labPct: 12,
-      pendingTasks: 1,
-      status: "On Track",
-    },
-    {
-      code: "CS305",
-      name: "Web Technologies & Cloud Lab",
-      faculty: "Prof. Sunita Verma",
-      credits: 2,
-      attendance: 100,
-      marks: 95,
-      grade: "O",
-      theoryPct: 82,
-      labPct: 12,
-      pendingTasks: 0,
-      status: "Exemplary",
-    },
-    {
-      code: "CS306",
-      name: "Professional Ethics & Values",
-      faculty: "Dr. Arvind Swamy",
-      credits: 2,
-      attendance: 94,
-      marks: 85,
-      grade: "A",
-      theoryPct: 70,
-      labPct: 15,
-      pendingTasks: 0,
-      status: "On Track",
-    },
-  ];
 
   return (
     <PortalLayout
@@ -270,6 +412,29 @@ export default function DashboardPage() {
         }
       }}
     >
+      {/* First Login Security Notice */}
+      {session?.mustChangePassword && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-900">First-Time Login Security Notice</p>
+              <p className="text-xs text-amber-700">You are currently logged in with a temporary password. Please set a new permanent password to secure your portal account.</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-white border-amber-300 text-amber-800 hover:bg-amber-100 shrink-0 self-start sm:self-auto cursor-pointer"
+            onClick={() => setShowPasswordModal(true)}
+          >
+            Change Password
+          </Button>
+        </div>
+      )}
+
       {/* Top Header Bar matching the Reference Image */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
@@ -330,11 +495,15 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-white tracking-tight">
-                  {attendanceSummary?.attendancePercentage ?? 95}%
+                  {attendanceSummary?.attendancePercentage !== null && attendanceSummary?.attendancePercentage !== undefined
+                    ? `${attendanceSummary.attendancePercentage}%`
+                    : "N/A"}
                 </span>
               </div>
               <span className="text-[11px] text-white/70 truncate">
-                {attendanceSummary?.attendedClasses ?? 57}/{attendanceSummary?.totalClasses ?? 60} classes
+                {attendanceSummary?.hasData
+                  ? `${attendanceSummary.attendedClasses}/${attendanceSummary.totalClasses} classes`
+                  : "No attendance data"}
               </span>
             </div>
 
@@ -350,11 +519,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {todaySchedule?.length ?? 4}
+                  {Array.isArray(todaySchedule) ? todaySchedule.length : 0}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                {todaySchedule && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "No classes today"}
+                {Array.isArray(todaySchedule) && todaySchedule.length > 0 ? `${todaySchedule.length} active periods` : "No classes today"}
               </span>
             </div>
 
@@ -370,11 +539,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[26px] font-extrabold text-[#1E293B] tracking-tight truncate">
-                  {feeSummary?.totalOutstanding > 0 ? `₹${(feeSummary.totalOutstanding / 1000).toFixed(1)}k` : "Settled"}
+                  {feeSummary && Number(feeSummary.totalOutstanding) > 0 ? `₹${(Number(feeSummary.totalOutstanding) / 1000).toFixed(1)}k` : "Settled"}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                {feeSummary?.totalOutstanding > 0 ? "Semester 5 balance" : "All tuition cleared"}
+                {feeSummary && Number(feeSummary.totalOutstanding) > 0 ? "Semester balance due" : "All tuition cleared"}
               </span>
             </div>
 
@@ -390,11 +559,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2 flex items-baseline gap-1.5">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {cgpa !== undefined && cgpa > 0 ? cgpa : "9.5"}
+                  {cgpa !== undefined && cgpa !== null && Number(cgpa) > 0 ? cgpa : "N/A"}
                 </span>
               </div>
               <span className="text-[11px] text-emerald-600 font-semibold truncate">
-                Grade A+ • Distinction
+                {cgpa !== undefined && cgpa !== null && Number(cgpa) > 0 ? "Cumulative Performance" : "Records Pending"}
               </span>
             </div>
 
@@ -410,11 +579,13 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {upcomingExams?.length ?? 1}
+                  {Array.isArray(upcomingExams) ? upcomingExams.length : 0}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                {upcomingExams?.[0]?.hasHallTicket ? "Hall Ticket Ready" : "Semester Finals"}
+                {Array.isArray(upcomingExams) && upcomingExams.length > 0
+                  ? (upcomingExams[0]?.hasHallTicket ? "Hall Ticket Ready" : "Upcoming Schedule")
+                  : "No upcoming exams"}
               </span>
             </div>
 
@@ -430,11 +601,11 @@ export default function DashboardPage() {
               </div>
               <div className="my-2">
                 <span className="text-2xl lg:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-                  {assignments?.filter((a: any) => !a.isSubmitted).length ?? assignments?.length ?? 2}
+                  {Array.isArray(assignments) ? assignments.filter((a: any) => !a?.isSubmitted).length : 0}
                 </span>
               </div>
               <span className="text-[11px] text-[#64748B] truncate">
-                Coursework due soon
+                {Array.isArray(assignments) && assignments.filter((a: any) => !a?.isSubmitted).length > 0 ? "Coursework due soon" : "No pending tasks"}
               </span>
             </div>
           </div>
@@ -497,7 +668,7 @@ export default function DashboardPage() {
                       </div>
                       <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
                         {activeTab === "attendance"
-                          ? `${course.attendance}% Attended`
+                          ? course.attendanceLabel
                           : activeTab === "marks"
                           ? `${course.marks}/100 (${course.grade})`
                           : activeTab === "coursework"
@@ -506,7 +677,7 @@ export default function DashboardPage() {
                             : "Submitted"
                           : activeTab === "credits"
                           ? `${course.credits} Credits`
-                          : `${course.attendance}% Attended`}
+                          : course.attendanceLabel}
                       </span>
                     </div>
 
@@ -562,7 +733,7 @@ export default function DashboardPage() {
                   </Link>
                 }
               >
-                {todaySchedule?.length === 0 ? (
+                {!Array.isArray(todaySchedule) || todaySchedule.length === 0 ? (
                   <div className="py-8 text-center text-sm text-[#64748B]">
                     <Calendar className="w-8 h-8 text-[#64748B]/40 mx-auto mb-2" />
                     <p className="font-medium text-[#1E293B]">No lectures scheduled for today</p>
@@ -570,7 +741,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {todaySchedule?.map((slot: any) => (
+                    {todaySchedule.map((slot: any) => (
                       <div
                         key={slot.id}
                         className="p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#123B5A]/40 bg-white hover:shadow-xs flex items-center justify-between transition-all"
@@ -621,35 +792,39 @@ export default function DashboardPage() {
                   </Link>
                 }
               >
-                {assignments?.length === 0 ? (
+                {!Array.isArray(assignments) || assignments.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No active coursework assignments pending.</p>
                 ) : (
                   <div className="space-y-3">
-                    {assignments?.map((item: any) => (
-                      <div
-                        key={item.id}
-                        className="p-3.5 rounded-xl border border-[#E2E8F0] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
-                            <BookOpen className="w-4 h-4" />
+                    {assignments.map((item: any) => {
+                      const dueDate = item?.dueDate ? new Date(item.dueDate) : null;
+                      const dueStr = dueDate && !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString() : "TBD";
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3.5 rounded-xl border border-[#E2E8F0] flex items-center justify-between bg-white hover:border-[#123B5A]/30 transition-all shadow-xs"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
+                              <BookOpen className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-[#1E293B]">{item.title}</h4>
+                              <p className="text-xs text-[#64748B]">{item.subjectName}</p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="text-sm font-semibold text-[#1E293B]">{item.title}</h4>
-                            <p className="text-xs text-[#64748B]">{item.subjectName}</p>
+                          <div className="text-right">
+                            <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
+                              {item.isSubmitted ? "Submitted" : "Pending"}
+                            </Badge>
+                            <div className="flex items-center gap-1 text-[11px] text-[#64748B] mt-1">
+                              <Clock className="w-3 h-3 text-[#64748B]" />
+                              <span>Due {dueStr}</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <Badge variant={item.isSubmitted ? "success" : "warning"} size="sm">
-                            {item.isSubmitted ? "Submitted" : "Pending"}
-                          </Badge>
-                          <div className="flex items-center gap-1 text-[11px] text-[#64748B] mt-1">
-                            <Clock className="w-3 h-3 text-[#64748B]" />
-                            <span>Due {new Date(item.dueDate).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Card>
@@ -673,11 +848,11 @@ export default function DashboardPage() {
                   </div>
                 }
               >
-                {recentResults?.length === 0 ? (
+                {!Array.isArray(recentResults) || recentResults.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No recent published exam results.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {recentResults?.map((res: any) => (
+                    {recentResults.map((res: any) => (
                       <div
                         key={res.id}
                         className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs flex items-center justify-between"
@@ -720,36 +895,40 @@ export default function DashboardPage() {
                   </Link>
                 }
               >
-                {upcomingExams?.length === 0 ? (
+                {!Array.isArray(upcomingExams) || upcomingExams.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No upcoming examinations scheduled.</p>
                 ) : (
                   <div className="space-y-3">
-                    {upcomingExams?.map((exam: any) => (
-                      <div key={exam.id} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white shadow-xs hover:border-[#123B5A]/30 transition-all">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <Badge variant="error" size="sm">{exam.examType}</Badge>
-                          <span className="text-xs font-medium text-[#64748B]">{exam.slotsCount} papers</span>
+                    {upcomingExams.map((exam: any) => {
+                      const startDate = exam?.startDate ? new Date(exam.startDate) : null;
+                      const startStr = startDate && !isNaN(startDate.getTime()) ? startDate.toLocaleDateString() : "TBD";
+                      return (
+                        <div key={exam.id} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white shadow-xs hover:border-[#123B5A]/30 transition-all">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <Badge variant="error" size="sm">{exam.examType || "EXAM"}</Badge>
+                            <span className="text-xs font-medium text-[#64748B]">{exam.slotsCount || 0} papers</span>
+                          </div>
+                          <h4 className="text-xs font-bold text-[#1E293B] mt-1">{exam.title}</h4>
+                          <p className="text-[11px] text-[#64748B] mt-1 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
+                            <span>Starts: {startStr}</span>
+                          </p>
+                          {exam.hasHallTicket && (
+                            <Link href="/student/examinations">
+                              <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#16466C] text-white rounded-md shadow-xs">
+                                Download Admit Card
+                              </Button>
+                            </Link>
+                          )}
                         </div>
-                        <h4 className="text-xs font-bold text-[#1E293B] mt-1">{exam.title}</h4>
-                        <p className="text-[11px] text-[#64748B] mt-1 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-[#F5A000]" />
-                          <span>Starts: {new Date(exam.startDate).toLocaleDateString()}</span>
-                        </p>
-                        {exam.hasHallTicket && (
-                          <Link href="/student/examinations">
-                            <Button variant="secondary" size="sm" className="w-full mt-2.5 text-xs py-1.5 bg-[#123B5A] hover:bg-[#16466C] text-white rounded-md shadow-xs">
-                              Download Admit Card
-                            </Button>
-                          </Link>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Card>
 
               {/* Quick Institutional Fee Alert */}
-              {feeSummary?.totalOutstanding > 0 && (
+              {feeSummary && Number(feeSummary.totalOutstanding) > 0 && (
                 <div className="p-4 rounded-xl border border-[#F5A000]/30 bg-gradient-to-br from-[#FFFBEB] to-[#FEF3C7]/40 text-[#92400E] shadow-xs">
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-[#F5A000]/20 flex items-center justify-center shrink-0 mt-0.5">
@@ -758,7 +937,7 @@ export default function DashboardPage() {
                     <div className="flex-1">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-[#92400E]">Tuition Fee Reminder</h4>
                       <p className="text-xs mt-1 leading-relaxed text-[#78350F]">
-                        Outstanding balance of <span className="font-extrabold text-[#92400E]">₹{feeSummary.totalOutstanding.toLocaleString()}</span> is due for Semester 5.
+                        Outstanding balance of <span className="font-extrabold text-[#92400E]">₹{Number(feeSummary.totalOutstanding).toLocaleString("en-IN")}</span> is due for Semester 5.
                       </p>
                       <Link href="/student/fees">
                         <Button variant="primary" size="sm" className="mt-3 text-xs bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs rounded-md">
@@ -780,31 +959,35 @@ export default function DashboardPage() {
                 }
                 subtitle="Campus notices & academic updates"
               >
-                {notifications?.length === 0 ? (
+                {!Array.isArray(notifications) || notifications.length === 0 ? (
                   <p className="text-xs text-[#64748B] py-4 text-center">No recent campus notices.</p>
                 ) : (
                   <div className="space-y-2.5">
-                    {notifications?.slice(0, 3).map((item: any) => (
-                      <div
-                        key={item.id}
-                        className="p-3 rounded-lg border border-[#E2E8F0] bg-white hover:border-[#F5A000] transition-colors shadow-xs"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
-                            {item.category}
-                          </span>
-                          <span className="text-[10px] text-[#64748B]">
-                            {new Date(item.createdAt).toLocaleDateString()}
-                          </span>
+                    {notifications.slice(0, 3).map((item: any) => {
+                      const createdDate = item?.createdAt ? new Date(item.createdAt) : null;
+                      const dateStr = createdDate && !isNaN(createdDate.getTime()) ? createdDate.toLocaleDateString() : "Recent";
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3 rounded-lg border border-[#E2E8F0] bg-white hover:border-[#F5A000] transition-colors shadow-xs"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase">
+                              {item.category || "Notice"}
+                            </span>
+                            <span className="text-[10px] text-[#64748B]">
+                              {dateStr}
+                            </span>
+                          </div>
+                          <h5 className="text-xs font-semibold text-[#1E293B] line-clamp-1">
+                            {item.title}
+                          </h5>
+                          <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-2">
+                            {item.message}
+                          </p>
                         </div>
-                        <h5 className="text-xs font-semibold text-[#1E293B] line-clamp-1">
-                          {item.title}
-                        </h5>
-                        <p className="text-[11px] text-[#64748B] mt-0.5 line-clamp-2">
-                          {item.message}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </Card>
@@ -857,6 +1040,77 @@ export default function DashboardPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900 mb-1">Set New Password</h2>
+            <p className="text-xs text-slate-500 mb-4">Choose a strong password with at least 8 characters.</p>
+
+            {pwdError && (
+              <div className="p-3 mb-4 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                {pwdError}
+              </div>
+            )}
+            {pwdSuccess && (
+              <div className="p-3 mb-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs">
+                {pwdSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Current / Temporary Password</label>
+                <input
+                  type="password"
+                  value={pwdCurrent}
+                  onChange={(e) => setPwdCurrent(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B5A]"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  value={pwdNew}
+                  onChange={(e) => setPwdNew(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B5A]"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={pwdConfirm}
+                  onChange={(e) => setPwdConfirm(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#123B5A]"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowPasswordModal(false)}
+                  disabled={pwdLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-[#123B5A] text-white hover:bg-[#0E2E47]"
+                  disabled={pwdLoading}
+                >
+                  {pwdLoading ? "Updating..." : "Update Password"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </PortalLayout>
   );

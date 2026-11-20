@@ -52,8 +52,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Student record created successfully.",
+      message: "Student record and login account provisioned successfully.",
       data: student,
+      invitationSent: student.invitationSent,
+      previewUrl: student.previewUrl,
     });
   } catch (error) {
     return handleAdminApiError(error);
@@ -92,10 +94,21 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Student ID required." }, { status: 400 });
     }
 
-    // Soft delete / archive
-    const updated = await db.student.update({
-      where: { id },
+    // Atomic soft delete / archive scoped to institutionId
+    const result = await db.student.updateMany({
+      where: { id, institutionId },
       data: { status: "ARCHIVED" as any },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Student not found or access denied." },
+        { status: 404 }
+      );
+    }
+
+    const updated = await db.student.findFirst({
+      where: { id, institutionId },
     });
 
     return NextResponse.json({

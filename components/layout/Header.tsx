@@ -21,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   portalType,
   userFullName = "User",
   userRole = "STUDENT",
-  institutionName = "Apex Institute of Technology",
+  institutionName = "Campus Portal",
   selectedChildId,
   onSelectChild,
   onMenuToggle,

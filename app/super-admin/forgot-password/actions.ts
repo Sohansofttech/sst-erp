@@ -8,7 +8,7 @@ export type ResetState = { message: string | null; error: string | null };
 export async function requestPasswordReset(_previous: ResetState, formData: FormData): Promise<ResetState> {
   const email = z.email().safeParse(formData.get("email"));
   if (!email.success) return { message: null, error: "Enter a valid email address." };
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
   if (!siteUrl) return { message: null, error: "Password reset is not configured. Set NEXT_PUBLIC_SITE_URL and configure Supabase email delivery." };
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email.data, { redirectTo: `${siteUrl.replace(/\/$/, "")}/super-admin/auth/callback?next=/super-admin/reset-password` });

@@ -302,6 +302,13 @@ export interface StudentItem {
 
   // Source Admission Application Link (if converted)
   sourceApplicationId?: string;
+
+  // Portal Credential Management
+  portalAccess?: boolean;
+  portalStatus?: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED";
+  portalUserId?: string;
+  portalEmail?: string;
+  lastLoginAt?: string | null;
 }
 
 // -------------------------------------------------------------
@@ -329,6 +336,14 @@ export interface GuardianItem {
   // Linked Students (Many-to-Many IDs)
   studentIds: string[];
   createdAt: string;
+
+  // Portal Credential Management
+  portalAccess?: boolean;
+  portalStatus?: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" | "UNVERIFIED";
+  hasVerifiedRelationship?: boolean;
+  portalUserId?: string;
+  portalEmail?: string;
+  lastLoginAt?: string | null;
 }
 
 // -------------------------------------------------------------
@@ -358,6 +373,14 @@ export interface StaffItem {
   dob?: string;
   addressLine?: string;
   specialization?: string;
+
+  // Portal Credential Management
+  portalAccess?: boolean;
+  portalStatus?: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" | "INELIGIBLE";
+  isTeachingFaculty?: boolean;
+  portalUserId?: string;
+  portalEmail?: string;
+  lastLoginAt?: string | null;
 }
 
 // -------------------------------------------------------------
@@ -501,7 +524,7 @@ export interface StudentAttendanceSummary {
   absentCount: number;
   lateCount: number;
   leaveCount: number;
-  percentage: number;
+  percentage: number | null;
   isBelowThreshold: boolean;
   isWarning: boolean;
   guardianName?: string;
@@ -516,7 +539,7 @@ export interface ClassAttendanceSummary {
   sectionName?: string;
   totalEnrolled: number;
   totalSessions: number;
-  averagePercentage: number;
+  averagePercentage: number | null;
   lowAttendanceCount: number;
 }
 
@@ -605,7 +628,7 @@ export interface ExamEligibilityOverride {
   studentId: string;
   studentName: string;
   rollNumber: string;
-  attendancePercentage: number;
+  attendancePercentage: number | null;
   status: "Approved" | "Rejected";
   reason: string;
   authorizedBy: string;

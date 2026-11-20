@@ -125,9 +125,20 @@ export default function HodDashboardPage() {
   const avgSyllabus = facultyLoad.length > 0
     ? Number((facultyLoad.reduce((acc, f) => acc + f.syllabusAveragePercent, 0) / facultyLoad.length).toFixed(1))
     : 79.4
-  const avgAttendance = facultyLoad.length > 0
-    ? Number((facultyLoad.reduce((acc, f) => acc + f.attendanceAveragePercent, 0) / facultyLoad.length).toFixed(1))
-    : 91.8
+  const facultyWithAtt = facultyLoad.filter(
+    (f) => f.attendanceAveragePercent !== null && f.attendanceAveragePercent !== undefined
+  )
+  const avgAttendance =
+    facultyWithAtt.length > 0
+      ? Number(
+          (
+            facultyWithAtt.reduce(
+              (acc, f) => acc + (f.attendanceAveragePercent ?? 0),
+              0
+            ) / facultyWithAtt.length
+          ).toFixed(1)
+        )
+      : null
 
   return (
     <div className="space-y-6">

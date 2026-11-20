@@ -58,9 +58,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Assessment ID and status required." }, { status: 400 });
     }
 
-    const updated = await db.iAAssessment.update({
-      where: { id },
+    const result = await db.iAAssessment.updateMany({
+      where: { id, institutionId },
       data: { status },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Internal assessment not found or access denied." },
+        { status: 404 }
+      );
+    }
+
+    const updated = await db.iAAssessment.findFirst({
+      where: { id, institutionId },
     });
 
     return NextResponse.json({

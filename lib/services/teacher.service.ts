@@ -84,6 +84,7 @@ import {
 } from "@/mocks/teacher.mock"
 import { prisma } from "@/lib/prisma"
 import { getTeacherSession } from "@/lib/auth/teacher-session"
+import { calculateAttendance, RawAttendanceRecord } from "@/lib/services/attendance-calculator"
 
 // ---------------------------------------------------------------------------
 // Multi-tenant Active Teacher Resolution (with in-memory cache & deduplication)
@@ -637,8 +638,13 @@ export async function getTeacherDashboardOverview(
       )
       const alerts = rosters
         .flat()
-        .filter((student) => student.attendancePercent < 75)
-        .sort((a, b) => a.attendancePercent - b.attendancePercent)
+        .filter(
+          (student) =>
+            student.attendancePercent !== null &&
+            student.attendancePercent !== undefined &&
+            student.attendancePercent < 75
+        )
+        .sort((a, b) => (a.attendancePercent ?? 0) - (b.attendancePercent ?? 0))
 
       const result: TeacherDashboardOverview = {
         data,
@@ -821,20 +827,46 @@ export async function getClassAllocations(
   }
 
   const classItems = Array.from(classMap.values())
-  const counts = await Promise.all(
+  const classMetrics = await Promise.all(
     classItems.map(async (item) => {
+      let count = 0
+      let averageAttendancePercent: number | null = null
       try {
-        return await prisma.enrollments.count({
+        const enrolledStudents = await prisma.students.findMany({
           where: {
             institutionId,
-            semester: item.semester,
-            section: item.section,
+            currentSemester: item.semester,
+            currentSection: item.section,
             status: "ACTIVE",
           },
+          select: { id: true },
         })
-      } catch {
-        return 0
+        count = enrolledStudents.length
+
+        if (enrolledStudents.length > 0) {
+          const prismaAttendance =
+            (prisma as any).attendance_records ?? (prisma as any).attendanceRecord
+          const records = await prismaAttendance.findMany({
+            where: {
+              studentId: { in: enrolledStudents.map((s: any) => s.id) },
+              institutionId,
+            },
+            select: {
+              id: true,
+              studentId: true,
+              status: true,
+              date: true,
+              subjectId: true,
+            },
+          })
+          const calc = calculateAttendance(records)
+          averageAttendancePercent = calc.hasData ? calc.percentage : null
+        }
+      } catch (err) {
+        console.warn("[getClassAllocations] attendance query error:", err)
       }
+
+      return { count, averageAttendancePercent }
     })
   )
 
@@ -843,7 +875,7 @@ export async function getClassAllocations(
     const classId = `cls-${grade}`
     const className = `Class ${grade}`
     const sectionId = `sec-${grade}${item.section.toLowerCase()}`
-    const count = counts[index] ?? 0
+    const metric = classMetrics[index] ?? { count: 0, averageAttendancePercent: null }
     const isClassTeacher = item.semester === 1 && item.section === "A"
 
     return {
@@ -856,9 +888,9 @@ export async function getClassAllocations(
       sectionId,
       section: item.section,
       role: isClassTeacher ? "class_teacher" : "subject_teacher",
-      studentCount: count > 0 ? count : (item.semester === 1 && item.section === "A" ? 18 : 16),
+      studentCount: metric.count > 0 ? metric.count : (item.semester === 1 && item.section === "A" ? 18 : 16),
       roomNo: item.roomNo,
-      averageAttendancePercent: isClassTeacher ? 94.2 : (item.section === "B" ? 91.6 : 89.8),
+      averageAttendancePercent: metric.averageAttendancePercent,
     }
   })
 
@@ -1188,6 +1220,37 @@ export async function getSectionStudents(
         console.warn("[getSectionStudents] DB query error:", err)
       }
 
+      let studentAttendanceRecords: any[] = []
+      if (dbStudents.length > 0) {
+        try {
+          const prismaAttendance =
+            (prisma as any).attendance_records ?? (prisma as any).attendanceRecord
+          studentAttendanceRecords = await prismaAttendance.findMany({
+            where: {
+              studentId: { in: dbStudents.map((s: any) => s.id) },
+              institutionId: activeTenantId,
+            },
+            select: {
+              id: true,
+              studentId: true,
+              status: true,
+              date: true,
+              subjectId: true,
+            },
+          })
+        } catch (err) {
+          console.warn("[getSectionStudents] attendance query error:", err)
+        }
+      }
+
+      const attendanceByStudent = new Map<string, any[]>()
+      for (const rec of studentAttendanceRecords) {
+        if (!attendanceByStudent.has(rec.studentId)) {
+          attendanceByStudent.set(rec.studentId, [])
+        }
+        attendanceByStudent.get(rec.studentId)!.push(rec)
+      }
+
       const classId = `cls-${grade}`
       const className = `Class ${grade}`
       const normalizedSectionId = `sec-${grade}${section.toLowerCase()}`
@@ -1212,7 +1275,9 @@ export async function getSectionStudents(
         }
 
         const houseIndex = (st.rollNumber.charCodeAt(st.rollNumber.length - 1) + index) % houses.length
-        const attendancePercent = 90 + ((index * 3) % 10) - (index % 5 === 0 ? 15 : 0)
+        const recordsForStudent = attendanceByStudent.get(st.id) ?? []
+        const calc = calculateAttendance(recordsForStudent)
+        const attendancePercent = calc.hasData ? calc.percentage : null
         const iaAverage = 75 + ((index * 4) % 22)
 
         return {
@@ -1225,7 +1290,7 @@ export async function getSectionStudents(
           className,
           sectionId: normalizedSectionId,
           section,
-          attendancePercent: Math.min(99, Math.max(68, attendancePercent)),
+          attendancePercent,
           iaAverage: Math.min(98, Math.max(55, iaAverage)),
           guardianContact,
           houseOrGroup: houses[houseIndex],
@@ -3576,6 +3641,38 @@ export async function getMentees(): Promise<Mentee[]> {
       studentMap.get(r.studentId)!.push(r)
     }
 
+    let menteeAttendanceRecords: any[] = []
+    const menteeStudentIds = Array.from(studentMap.keys())
+    if (menteeStudentIds.length > 0) {
+      try {
+        const prismaAttendance =
+          (prisma as any).attendance_records ?? (prisma as any).attendanceRecord
+        menteeAttendanceRecords = await prismaAttendance.findMany({
+          where: {
+            studentId: { in: menteeStudentIds },
+            institutionId: activeTenantId,
+          },
+          select: {
+            id: true,
+            studentId: true,
+            status: true,
+            date: true,
+            subjectId: true,
+          },
+        })
+      } catch (err) {
+        console.warn("[getMentees] attendance query error:", err)
+      }
+    }
+
+    const attendanceByMentee = new Map<string, any[]>()
+    for (const rec of menteeAttendanceRecords) {
+      if (!attendanceByMentee.has(rec.studentId)) {
+        attendanceByMentee.set(rec.studentId, [])
+      }
+      attendanceByMentee.get(rec.studentId)!.push(rec)
+    }
+
     const liveMentees: Mentee[] = Array.from(studentMap.entries()).map(
       ([, records]) => {
         const student = records[0].student ?? records[0].students
@@ -3583,6 +3680,16 @@ export async function getMentees(): Promise<Mentee[]> {
         const latestPrivate = records.find((r: any) => r.isPrivateNote)
         const gLinks = student?.guardianLinks ?? student?.guardian_links ?? []
         const guardian = gLinks[0]?.guardianAccount ?? gLinks[0]?.guardian_accounts
+
+        const recs = attendanceByMentee.get(student.id) ?? []
+        const calc = calculateAttendance(recs)
+        const attendancePercent = calc.hasData ? calc.percentage : null
+        const riskLevel: "on_track" | "watch" | "at_risk" =
+          attendancePercent !== null && attendancePercent < 75
+            ? "at_risk"
+            : attendancePercent !== null && attendancePercent < 82
+              ? "watch"
+              : "on_track"
 
         return {
           id: `mentee-${student.id}`,
@@ -3595,9 +3702,9 @@ export async function getMentees(): Promise<Mentee[]> {
           fullName: `${student.firstName} ${student.lastName}`,
           className: "Class 10",
           section: student.currentSection,
-          attendancePercent: 94.2,
+          attendancePercent,
           iaAverage: 78,
-          riskLevel: "on_track",
+          riskLevel,
           guardianContact: {
             guardianName: guardian?.fullName || "Parent / Guardian",
             phone: guardian?.phone || student.emergencyContact || "+91 98765 43210",
@@ -4323,7 +4430,7 @@ export async function reviewStudentLeaveRequest(
       const student = store.students.find(
         (s: StudentRosterItem) => s.studentId === leaveReq.studentId || s.rollNo === leaveReq.rollNo
       )
-      if (student && student.attendancePercent < 98) {
+      if (student && student.attendancePercent !== null && student.attendancePercent < 98) {
         student.attendancePercent = Math.min(100, student.attendancePercent + 2)
       }
     }
@@ -4343,7 +4450,7 @@ export async function getNotifications(): Promise<NotificationItem[]> {
 
   let dbRecipients: any[] = []
   try {
-    dbRecipients = await prisma.notification_recipients.findMany({
+    dbRecipients = await prisma.notificationRecipient.findMany({
       where: {
         userId: user.id,
       },
@@ -4391,7 +4498,7 @@ export async function markNotificationRead(
 ): Promise<NotificationItem[]> {
   const { user } = await resolveActiveTeacher()
 
-  await prisma.notification_recipients.updateMany({
+  await prisma.notificationRecipient.updateMany({
     where: { id: notificationId, userId: user.id },
     data: { isRead: true, readAt: new Date() },
   })
@@ -4405,7 +4512,7 @@ export async function markNotificationRead(
 export async function markAllNotificationsRead(): Promise<NotificationItem[]> {
   const { user } = await resolveActiveTeacher()
 
-  await prisma.notification_recipients.updateMany({
+  await prisma.notificationRecipient.updateMany({
     where: { userId: user.id },
     data: { isRead: true, readAt: new Date() },
   })
@@ -4423,7 +4530,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
 
   let dbAnnouncements: any[] = []
   try {
-    dbAnnouncements = await prisma.notifications.findMany({
+    dbAnnouncements = await prisma.notification.findMany({
       where: {
         institutionId: activeTenantId,
         category: "ANNOUNCEMENT",
@@ -4470,7 +4577,7 @@ export async function createAnnouncement(
   const activeTenantId = institutionId
 
   const id = `ann-${Date.now()}`
-  await prisma.notifications.create({
+  await prisma.notification.create({
     data: {
       id,
       institutionId: activeTenantId,
@@ -4482,7 +4589,7 @@ export async function createAnnouncement(
     },
   })
 
-  await prisma.notification_recipients.create({
+  await prisma.notificationRecipient.create({
     data: {
       id: `rec-${id}-${user.id}`,
       notificationId: id,

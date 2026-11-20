@@ -62,6 +62,7 @@ import {
   type PortalNavGroup,
   type PortalNavItem,
 } from "@/components/shared"
+import { NotificationDropdown } from "@/components/shared/NotificationDropdown"
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner"
 import {
   TeacherRoleProvider,
@@ -896,26 +897,10 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
               </Select>
             </div>
 
-            {/* Notification Bell */}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={handleNotificationClick}
-              aria-label={
-                unreadCount > 0
-                  ? `${unreadCount} unread notifications`
-                  : "Notifications"
-              }
-              className="relative size-9 shrink-0 rounded-xl border-[#E5E9EF] bg-white text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5]"
-            >
-              <Bell className="size-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F5A000] px-1 text-[10px] font-bold text-white shadow-xs">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </Button>
+            {/* Notification Dropdown */}
+            <NotificationDropdown
+              buttonClassName="size-9 shrink-0 rounded-xl border border-[#E5E9EF] bg-white text-[#788391] hover:text-[#202936] hover:bg-[#EEF1F5] flex items-center justify-center p-0"
+            />
 
             {/* User Profile Dropdown */}
             <DropdownMenu>

@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const cleanEmail = email.trim().toLowerCase();
     const user = await db.user.findFirst({
       where: { email: cleanEmail, isActive: true },
-      select: { id: true, email: true, fullName: true },
+      select: { id: true, email: true, fullName: true, institutionId: true },
     });
 
     let resetToken: string | null = null;
@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       try {
         await db.auditLog.create({
           data: {
+            institutionId: user.institutionId || "",
             actorUserId: user.id,
             action: "PASSWORD_RESET_REQUESTED",
             entityType: "User",

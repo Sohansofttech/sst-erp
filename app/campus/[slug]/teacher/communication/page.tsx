@@ -98,6 +98,15 @@ export default function TeacherCommunicationPage() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
+  // Teacher Inquiries to Administration state
+  const [teacherQueries, setTeacherQueries] = React.useState<any[]>([])
+  const [loadingQueries, setLoadingQueries] = React.useState(false)
+  const [submittingQuery, setSubmittingQuery] = React.useState(false)
+  const [queryCategory, setQueryCategory] = React.useState("ACADEMIC")
+  const [queryPriority, setQueryPriority] = React.useState("NORMAL")
+  const [querySubject, setQuerySubject] = React.useState("")
+  const [queryDescription, setQueryDescription] = React.useState("")
+
   const form = useForm<AnnouncementFormValues>({
     resolver: zodResolver(announcementSchema),
     defaultValues: {
@@ -113,6 +122,21 @@ export default function TeacherCommunicationPage() {
   const priorityVal = useWatch({ control: form.control, name: "priority" })
   const titleVal = useWatch({ control: form.control, name: "title" })
   const pinnedVal = useWatch({ control: form.control, name: "isPinned" })
+
+  const fetchTeacherQueries = React.useCallback(async () => {
+    try {
+      setLoadingQueries(true)
+      const res = await fetch("/api/teacher/queries")
+      const json = await res.json()
+      if (json.success && Array.isArray(json.data)) {
+        setTeacherQueries(json.data)
+      }
+    } catch (err) {
+      console.warn("Failed to load teacher queries:", err)
+    } finally {
+      setLoadingQueries(false)
+    }
+  }, [])
 
   const loadData = React.useCallback(() => {
     setLoading(true)
@@ -133,7 +157,42 @@ export default function TeacherCommunicationPage() {
       .finally(() => {
         setLoading(false)
       })
-  }, [])
+    fetchTeacherQueries()
+  }, [fetchTeacherQueries])
+
+  const handleQuerySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!querySubject.trim() || !queryDescription.trim()) {
+      toast.error("Please provide both subject and details.")
+      return
+    }
+    try {
+      setSubmittingQuery(true)
+      const res = await fetch("/api/teacher/queries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: queryCategory,
+          subject: querySubject.trim(),
+          description: queryDescription.trim(),
+          priority: queryPriority,
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success("Query submitted to campus administration.")
+        setQuerySubject("")
+        setQueryDescription("")
+        fetchTeacherQueries()
+      } else {
+        toast.error(json.error || "Failed to submit query.")
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit query.")
+    } finally {
+      setSubmittingQuery(false)
+    }
+  }
 
   React.useEffect(() => {
     let active = true
@@ -302,12 +361,15 @@ export default function TeacherCommunicationPage() {
 
       <Tabs defaultValue="announcements" className="space-y-4">
         <div className="overflow-x-auto pb-1">
-          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-2 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-3 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
             <TabsTrigger value="announcements" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
               Academic Announcements ({announcements.length})
             </TabsTrigger>
             <TabsTrigger value="notifications" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
               Notification Center ({unreadCount} unread)
+            </TabsTrigger>
+            <TabsTrigger value="inquiries" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
+              Admin Inquiries & Queries ({teacherQueries.length})
             </TabsTrigger>
           </TabsList>
         </div>
@@ -690,6 +752,182 @@ export default function TeacherCommunicationPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Tab 3: Admin Inquiries & Queries */}
+        <TabsContent value="inquiries" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-12">
+            {/* Submit Query Form */}
+            <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs lg:col-span-5">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold text-[#202936]">
+                  Submit Inquiry to Administration
+                </CardTitle>
+                <CardDescription className="text-sm text-[#788391]">
+                  Submit official departmental, academic, leave, or facility inquiries to institution admins.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleQuerySubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="query-title" className="text-xs font-semibold text-[#202936]">
+                      Subject / Headline
+                    </Label>
+                    <Input
+                      id="query-title"
+                      placeholder="e.g. Request for Lab 3 Equipment Maintenance"
+                      value={querySubject}
+                      onChange={(e) => setQuerySubject(e.target.value)}
+                      className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="query-cat" className="text-xs font-semibold text-[#202936]">
+                        Category
+                      </Label>
+                      <Select value={queryCategory} onValueChange={(val) => setQueryCategory(val)}>
+                        <SelectTrigger id="query-cat" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACADEMIC">Academic / Syllabus</SelectItem>
+                          <SelectItem value="DEPARTMENTAL">Departmental Affairs</SelectItem>
+                          <SelectItem value="EXAMINATION">Exam Duty / Evaluation</SelectItem>
+                          <SelectItem value="LEAVE">Leave & Attendance</SelectItem>
+                          <SelectItem value="INFRASTRUCTURE">Campus Infrastructure</SelectItem>
+                          <SelectItem value="GENERAL">General Inquiries</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="query-priority" className="text-xs font-semibold text-[#202936]">
+                        Priority
+                      </Label>
+                      <Select value={queryPriority} onValueChange={(val) => setQueryPriority(val)}>
+                        <SelectTrigger id="query-priority" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936]">
+                          <SelectValue placeholder="Priority" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NORMAL">Normal</SelectItem>
+                          <SelectItem value="URGENT">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="query-desc" className="text-xs font-semibold text-[#202936]">
+                      Detailed Description / Inquiry Notes
+                    </Label>
+                    <Textarea
+                      id="query-desc"
+                      rows={4}
+                      value={queryDescription}
+                      onChange={(e) => setQueryDescription(e.target.value)}
+                      placeholder="Detail the complete context, room number, course code, or dates required for administration action..."
+                      className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000] leading-relaxed"
+                      required
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={submittingQuery || !querySubject.trim() || !queryDescription.trim()}
+                    className="w-full rounded-xl bg-[#123B5A] text-white hover:bg-[#0F2F48] transition cursor-pointer"
+                  >
+                    <Send className="mr-2 size-4" />
+                    {submittingQuery ? "Submitting Inquiry..." : "Submit to Administration"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Queries & Responses List */}
+            <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs lg:col-span-7">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-bold text-[#202936]">
+                      Inquiry History & Adjudication Status
+                    </CardTitle>
+                    <CardDescription className="text-sm text-[#788391]">
+                      Real-time responses and administrative remarks from campus leadership.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="border-[#E5E9EF] bg-[#EEF1F5] text-[#202936] font-semibold">
+                    {teacherQueries.length} Total
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {loadingQueries ? (
+                  <p className="text-xs text-[#788391] text-center py-6">Loading inquiries...</p>
+                ) : teacherQueries.length === 0 ? (
+                  <EmptyState
+                    title="No inquiries submitted"
+                    description="You have not submitted any administrative inquiries or assistance requests yet."
+                  />
+                ) : (
+                  teacherQueries.map((q) => (
+                    <div
+                      key={q.id}
+                      className="rounded-xl border border-[#E5E9EF] p-4 bg-white space-y-2 hover:border-[#123B5A]/30 transition"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-[#202936]">{q.subject}</h4>
+                            <span
+                              className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                q.status === "RESOLVED"
+                                  ? "bg-[#DCFCE7] text-[#15803D]"
+                                  : q.status === "IN_PROGRESS"
+                                  ? "bg-[#DBEAFE] text-[#1E40AF]"
+                                  : q.status === "REJECTED"
+                                  ? "bg-[#FEE2E2] text-[#B91C1C]"
+                                  : "bg-[#FEF3C7] text-[#B45309]"
+                              }`}
+                            >
+                              {q.status.replace("_", " ")}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-[#788391] uppercase tracking-wider font-semibold block mt-0.5">
+                            {q.category} &bull; {new Date(q.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-[#475569] leading-relaxed whitespace-pre-wrap">
+                        {q.description}
+                      </p>
+
+                      {q.adminRemarks ? (
+                        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-950 mt-2 space-y-1">
+                          <span className="font-semibold block text-[11px] text-emerald-800">
+                            Administrator Response:
+                          </span>
+                          <p className="leading-relaxed">{q.adminRemarks}</p>
+                          {q.reviewedByName && (
+                            <span className="text-[10px] text-emerald-700 block font-medium">
+                              Reviewed by: {q.reviewedByName}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-[#94A3B8] italic mt-1">
+                          Awaiting administrative review.
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -94,10 +94,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        institutionName: session.institutionName,
         schedules: examSchedules,
         admitCard: admitCard
           ? {
               id: admitCard.id,
+              institutionName: session.institutionName,
               hallTicketNo: admitCard.hallTicketNo,
               isEligible: admitCard.isEligible,
               qrCodeData: admitCard.qrCodeData,

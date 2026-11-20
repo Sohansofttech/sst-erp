@@ -55,9 +55,9 @@ type RecommendationType =
   | "Parent Meeting"
 
 function defaultRecommendation(student: StudentRosterItem): RecommendationType {
-  if (student.attendancePercent < 75 || student.iaAverage < 60) return "Parent Meeting"
+  if ((student.attendancePercent !== null && student.attendancePercent < 75) || student.iaAverage < 60) return "Parent Meeting"
   if (student.iaAverage < 70) return "Remedial Support"
-  if (student.attendancePercent < 82) return "Academic Watch"
+  if (student.attendancePercent !== null && student.attendancePercent < 82) return "Academic Watch"
   return "Good Standing"
 }
 
@@ -221,10 +221,10 @@ export default function SectionRecommendationsPage() {
                       <span
                         className={cn(
                           "font-mono font-bold text-xs",
-                          s.attendancePercent < 75 ? "text-rose-600" : "text-emerald-600"
+                          s.attendancePercent !== null && s.attendancePercent < 75 ? "text-rose-600" : "text-emerald-600"
                         )}
                       >
-                        {s.attendancePercent}%
+                        {s.attendancePercent !== null ? `${s.attendancePercent.toFixed(1)}%` : "N/A"}
                       </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs font-semibold text-[#202936]">

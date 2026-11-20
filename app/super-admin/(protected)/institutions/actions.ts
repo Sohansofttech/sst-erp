@@ -98,8 +98,8 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
 
     if (newInstitutionId) {
       await syncInstitutionToAppDb(newInstitutionId);
-      const adminName = data.adminName;
-      const adminEmail = data.adminEmail;
+      const adminName = data.adminName || formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
+      const adminEmail = data.adminEmail || formData.get("adminEmail")?.toString().trim() || data.email || undefined;
       const adminPhone = data.adminPhone;
       const adminPassword = data.adminPassword || "Password@123";
 

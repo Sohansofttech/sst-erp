@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,62 @@ import {
   Edit2,
   Trash2,
   Building,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { Course, DegreeType } from "@/types/institution";
 
+const DEFAULT_DEPARTMENTS = [
+  { id: "dept-cse", name: "Computer Science & Engineering", code: "CSE" },
+  { id: "dept-ece", name: "Electronics & Communication Engineering", code: "ECE" },
+  { id: "dept-mech", name: "Mechanical Engineering", code: "MECH" },
+  { id: "dept-civil", name: "Civil Engineering", code: "CIVIL" },
+  { id: "dept-mgmt", name: "Management Studies", code: "MBA" },
+];
+
+function toUiDegreeType(val?: string): DegreeType {
+  switch (val?.toUpperCase()) {
+    case "POSTGRADUATE":
+      return "Postgraduate";
+    case "DIPLOMA":
+      return "Diploma";
+    case "DOCTORAL":
+      return "Doctoral";
+    case "CERTIFICATE":
+      return "Certificate";
+    default:
+      return "Undergraduate";
+  }
+}
+
+function mapApiToCourse(c: any): Course {
+  return {
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    degreeType: toUiDegreeType(c.degreeType),
+    departmentId: c.departmentId || "",
+    departmentName: c.departmentName || c.department || "General",
+    durationYears: c.durationYears ?? 4,
+    totalSemesters: c.totalSemesters ?? 8,
+    totalCredits: c.totalCredits ?? 160,
+    status: c.status === "INACTIVE" ? "Inactive" : "Active",
+    description: c.description || "",
+  };
+}
+
 export default function CoursesPage() {
-  const { courses, departments, addCourse, updateCourse, deleteCourse } = useInstitution();
+  const {
+    departments,
+    addCourse,
+    updateCourse: updateStoreCourse,
+    deleteCourse: deleteStoreCourse,
+  } = useInstitution();
+
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -36,12 +87,36 @@ export default function CoursesPage() {
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState("");
 
+  const effectiveDepts = departments && departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
+
+  const loadCourses = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/admin/academics/courses");
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to load courses.");
+      }
+      const mapped = (json.data || []).map(mapApiToCourse);
+      setCourses(mapped);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to load courses from database.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCourses();
+  }, [loadCourses]);
+
   const handleOpenAddModal = () => {
     setEditingCourse(null);
     setName("");
     setCode("");
     setDegreeType("Undergraduate");
-    setDepartmentId(departments[0]?.id || "");
+    setDepartmentId(effectiveDepts[0]?.id || "");
     setDurationYears(4);
     setTotalSemesters(8);
     setTotalCredits(160);
@@ -55,7 +130,7 @@ export default function CoursesPage() {
     setName(course.name);
     setCode(course.code);
     setDegreeType(course.degreeType);
-    setDepartmentId(course.departmentId);
+    setDepartmentId(course.departmentId || effectiveDepts[0]?.id || "");
     setDurationYears(course.durationYears);
     setTotalSemesters(course.totalSemesters);
     setTotalCredits(course.totalCredits);
@@ -64,7 +139,7 @@ export default function CoursesPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -72,50 +147,105 @@ export default function CoursesPage() {
       setFormError("Program title and course code are required.");
       return;
     }
-    if (!departmentId) {
-      setFormError("Department association is mandatory.");
-      return;
-    }
     if (durationYears <= 0 || totalSemesters <= 0) {
       setFormError("Duration and semesters must be positive numbers.");
       return;
     }
 
-    if (editingCourse) {
-      updateCourse(editingCourse.id, {
-        name,
-        code: code.toUpperCase(),
-        degreeType,
-        departmentId,
-        durationYears: Number(durationYears),
-        totalSemesters: Number(totalSemesters),
-        totalCredits: Number(totalCredits),
-        description,
-      });
-    } else {
-      addCourse({
-        name,
-        code: code.toUpperCase(),
-        degreeType,
-        departmentId,
-        durationYears: Number(durationYears),
-        totalSemesters: Number(totalSemesters),
-        totalCredits: Number(totalCredits),
-        status: "Active",
-        description,
-      });
-    }
+    const selectedDept = effectiveDepts.find((d) => d.id === departmentId);
+    const departmentName = selectedDept ? `${selectedDept.name} (${selectedDept.code})` : undefined;
 
-    setIsModalOpen(false);
+    setIsSubmitting(true);
+    try {
+      if (editingCourse) {
+        const res = await fetch("/api/admin/academics/courses", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingCourse.id,
+            name: name.trim(),
+            code: code.trim().toUpperCase(),
+            degreeType,
+            departmentId: departmentId || undefined,
+            departmentName,
+            durationYears: Number(durationYears),
+            totalSemesters: Number(totalSemesters),
+            totalCredits: Number(totalCredits),
+            description: description.trim() || undefined,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to update course.");
+        }
+        updateStoreCourse(editingCourse.id, {
+          name,
+          code: code.toUpperCase(),
+          degreeType,
+          departmentId,
+          durationYears: Number(durationYears),
+          totalSemesters: Number(totalSemesters),
+          totalCredits: Number(totalCredits),
+          description,
+        });
+      } else {
+        const res = await fetch("/api/admin/academics/courses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            code: code.trim().toUpperCase(),
+            degreeType,
+            departmentId: departmentId || undefined,
+            departmentName,
+            durationYears: Number(durationYears),
+            totalSemesters: Number(totalSemesters),
+            totalCredits: Number(totalCredits),
+            description: description.trim() || undefined,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to create course.");
+        }
+        if (json.data) {
+          addCourse(mapApiToCourse(json.data));
+        }
+      }
+
+      await loadCourses();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || "An unexpected error occurred while saving.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string, courseName: string) => {
-    if (confirm(`Are you sure you want to delete course "${courseName}"?`)) {
-      deleteCourse(id);
+  const handleDelete = async (id: string, courseName: string) => {
+    if (!confirm(`Are you sure you want to delete course "${courseName}"?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/academics/courses?id=${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to delete course.");
+      }
+      deleteStoreCourse(id);
+      await loadCourses();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete course.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const departmentOptions = departments.map((d) => ({
+  const departmentOptions = effectiveDepts.map((d) => ({
     value: d.id,
     label: `${d.name} (${d.code})`,
   }));
@@ -140,15 +270,45 @@ export default function CoursesPage() {
             Manage academic degrees, program codes, department associations, and credit rules.
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleOpenAddModal}
-          leftIcon={<Plus className="w-4 h-4" />}
-        >
-          Create Course
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadCourses}
+            disabled={isLoading || isSubmitting}
+            leftIcon={<RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleOpenAddModal}
+            disabled={isSubmitting}
+            leftIcon={<Plus className="w-4 h-4" />}
+          >
+            Create Course
+          </Button>
+        </div>
       </div>
+
+      {/* Error Alert */}
+      {fetchError && (
+        <Alert variant="error" title="Failed to Load Courses">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-1">
+            <span className="text-sm">{fetchError}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadCourses}
+              disabled={isLoading}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+            >
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
 
       {/* Quick Overview Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -206,68 +366,83 @@ export default function CoursesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {courses.map((course) => (
-                <TableRow key={course.id}>
-                  <TableCell>
-                    <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-1 rounded">
-                      {course.code}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-semibold text-[#1E293B]">
-                    {course.name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        course.degreeType === "Undergraduate"
-                          ? "navy"
-                          : course.degreeType === "Postgraduate"
-                          ? "teal"
-                          : "info"
-                      }
-                      size="sm"
-                    >
-                      {course.degreeType}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
-                      <Building className="w-3.5 h-3.5 text-[#F5A000]" />
-                      <span>{course.departmentName || "General"}</span>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-[#64748B]">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#F5A000]" />
+                      <span>Loading courses...</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-medium text-[#1E293B]">
-                      {course.durationYears} Years • {course.totalSemesters} Semesters
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-bold text-[#123B5A]">
-                      {course.totalCredits} Credits
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right space-x-1.5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenEditModal(course)}
-                      title="Edit Course"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(course.id, course.name)}
-                      title="Delete Course"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
-                    </Button>
-                  </TableCell>
                 </TableRow>
-              ))}
-              {courses.length === 0 && (
-                <TableEmpty colSpan={7} message="No courses or programs configured yet." />
+              ) : (
+                <>
+                  {courses.map((course) => (
+                    <TableRow key={course.id}>
+                      <TableCell>
+                        <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-1 rounded">
+                          {course.code}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-semibold text-[#1E293B]">
+                        {course.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            course.degreeType === "Undergraduate"
+                              ? "navy"
+                              : course.degreeType === "Postgraduate"
+                              ? "teal"
+                              : "info"
+                          }
+                          size="sm"
+                        >
+                          {course.degreeType}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 text-xs text-[#64748B]">
+                          <Building className="w-3.5 h-3.5 text-[#F5A000]" />
+                          <span>{course.departmentName || "General"}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs font-medium text-[#1E293B]">
+                          {course.durationYears} Years • {course.totalSemesters} Semesters
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs font-bold text-[#123B5A]">
+                          {course.totalCredits} Credits
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right space-x-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenEditModal(course)}
+                          disabled={isSubmitting}
+                          title="Edit Course"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(course.id, course.name)}
+                          disabled={isSubmitting}
+                          title="Delete Course"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {courses.length === 0 && (
+                    <TableEmpty colSpan={7} message="No courses or programs configured yet." />
+                  )}
+                </>
               )}
             </TableBody>
           </Table>
@@ -277,7 +452,7 @@ export default function CoursesPage() {
       {/* Modal: Create / Edit Course */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingCourse ? `Edit Course (${editingCourse.code})` : "Create Academic Course"}
         description="Define course title, code, department association, and duration."
         maxWidth="lg"
@@ -288,11 +463,23 @@ export default function CoursesPage() {
               variant="outline"
               size="sm"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="button" variant="primary" size="sm" onClick={handleSubmit}>
-              {editingCourse ? "Update Course" : "Save Course"}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              leftIcon={isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : undefined}
+            >
+              {isSubmitting
+                ? "Saving..."
+                : editingCourse
+                ? "Update Course"
+                : "Save Course"}
             </Button>
           </>
         }
