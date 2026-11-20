@@ -869,8 +869,8 @@ function PromotionsContent() {
                             )}
                           </TableCell>
 
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <TableCell className="text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1171,8 +1171,8 @@ function PromotionsContent() {
                             <span>{stu.reason}</span>
                           </TableCell>
 
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <TableCell className="text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                               {stu.status === "Detained" && (
                                 <Button
                                   variant="outline"

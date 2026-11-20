@@ -605,10 +605,10 @@ export default function AdmissionsPage() {
                     <TableRow key={app.id}>
                       {/* Application ID */}
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE] whitespace-nowrap inline-block">
                           {app.applicationNumber}
                         </span>
-                        <span className="block text-[10px] text-[#94A3B8] mt-0.5">
+                        <span className="block text-[10px] text-[#94A3B8] mt-0.5 whitespace-nowrap">
                           {app.appliedDate}
                         </span>
                       </TableCell>
@@ -692,8 +692,8 @@ export default function AdmissionsPage() {
                       </TableCell>
 
                       {/* Actions */}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                           <button
                             onClick={() => handleOpenDetails(app)}
                             className="p-1.5 rounded text-[#64748B] hover:text-[#F5A000] hover:bg-[#EFF6FF] transition-colors cursor-pointer"

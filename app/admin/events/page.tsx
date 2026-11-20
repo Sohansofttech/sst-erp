@@ -322,9 +322,9 @@ export default function EventsResourcesPage() {
                           {b.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
                         {b.status === "PENDING" && (
-                          <div className="flex justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                             <Button
                               variant="primary"
                               size="sm"

@@ -755,10 +755,10 @@ export default function StudentsPage() {
                     <TableRow key={stu.id}>
                       {/* ID / Roll */}
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE] whitespace-nowrap inline-block">
                           {stu.studentId}
                         </span>
-                        <span className="block text-[11px] font-semibold text-[#64748B] mt-0.5">
+                        <span className="block text-[11px] font-semibold text-[#64748B] mt-0.5 whitespace-nowrap">
                           Roll: {stu.rollNumber}
                         </span>
                       </TableCell>
@@ -793,10 +793,10 @@ export default function StudentsPage() {
 
                       {/* Admission */}
                       <TableCell>
-                        <span className="font-mono text-xs text-[#1E293B] block">
+                        <span className="font-mono text-xs text-[#1E293B] block whitespace-nowrap">
                           {stu.admissionNumber}
                         </span>
-                        <span className="text-[10px] text-[#94A3B8] block">
+                        <span className="text-[10px] text-[#94A3B8] block whitespace-nowrap">
                           Adm: {stu.admissionDate}
                         </span>
                       </TableCell>
@@ -827,8 +827,8 @@ export default function StudentsPage() {
                       <TableCell>{getStudentStatusBadge(stu.status)}</TableCell>
 
                       {/* Actions */}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                           <button
                             onClick={() => handleOpenCredentialModal(stu)}
                             className="p-1.5 rounded text-[#64748B] hover:text-[#123B5A] hover:bg-[#EFF6FF] transition-colors cursor-pointer"

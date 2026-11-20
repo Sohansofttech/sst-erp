@@ -559,10 +559,12 @@ export default function InstitutionSupportPage() {
                     <TableCell className="text-xs text-slate-500">
                       {new Date(t.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" className="text-xs text-blue-600 hover:text-blue-800 p-1">
-                        View <ChevronRight className="w-3.5 h-3.5 ml-0.5 inline" />
-                      </Button>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end whitespace-nowrap">
+                        <Button size="sm" variant="ghost" className="text-xs text-blue-600 hover:text-blue-800 p-1">
+                          View <ChevronRight className="w-3.5 h-3.5 ml-0.5 inline" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

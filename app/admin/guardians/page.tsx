@@ -655,7 +655,7 @@ export default function GuardiansPage() {
                   return (
                     <TableRow key={g.id} className="hover:bg-slate-50/60 transition-colors">
                       {/* ID */}
-                      <TableCell className="font-mono text-xs font-semibold text-[#123B5A]">
+                      <TableCell className="font-mono text-xs font-semibold text-[#123B5A] whitespace-nowrap">
                         {g.guardianId}
                       </TableCell>
 
@@ -776,8 +776,8 @@ export default function GuardiansPage() {
                       </TableCell>
 
                       {/* Actions */}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                           <Button
                             variant="ghost"
                             size="sm"

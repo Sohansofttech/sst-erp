@@ -25,7 +25,13 @@ interface AdminHeaderProps {
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => {
   const router = useRouter();
-  const { profile, activeAcademicYear, academicYears, setActiveAcademicYear } = useInstitution();
+  const {
+    profile,
+    activeAcademicYear,
+    academicYears,
+    isAcademicYearsLoading,
+    setActiveAcademicYear,
+  } = useInstitution();
   const [showYearMenu, setShowYearMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -102,11 +108,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 Academic Year
               </span>
               <span className="text-xs font-bold text-[#123B5A] leading-none">
-                {activeAcademicYear?.name || "Not Set"}
+                {isAcademicYearsLoading ? "Loading..." : (activeAcademicYear?.name || "Not Set")}
               </span>
             </div>
             <span className="text-xs font-bold text-[#123B5A] md:hidden">
-              {activeAcademicYear?.name}
+              {isAcademicYearsLoading ? "Loading..." : (activeAcademicYear?.name || "Not Set")}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
           </button>
@@ -117,27 +123,37 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 Select Active Year
               </div>
               <div className="py-1">
-                {academicYears.map((ay) => (
-                  <button
-                    key={ay.id}
-                    onClick={() => {
-                      setActiveAcademicYear(ay.id);
-                      setShowYearMenu(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors cursor-pointer ${
-                      ay.isActive
-                        ? "bg-[#FEF3C7] text-[#D97706] font-bold"
-                        : "text-[#1E293B] hover:bg-[#F8FAFC]"
-                    }`}
-                  >
-                    <span>{ay.name}</span>
-                    {ay.isActive && (
-                      <span className="text-[10px] font-semibold bg-[#F5A000] text-white px-1.5 py-0.5 rounded">
-                        Active
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {isAcademicYearsLoading ? (
+                  <div className="px-3 py-3 text-xs text-[#64748B] text-center">
+                    Loading academic years...
+                  </div>
+                ) : academicYears.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-[#64748B] text-center">
+                    No academic years configured.
+                  </div>
+                ) : (
+                  academicYears.map((ay) => (
+                    <button
+                      key={ay.id}
+                      onClick={() => {
+                        setActiveAcademicYear(ay.id);
+                        setShowYearMenu(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors cursor-pointer ${
+                        ay.isActive
+                          ? "bg-[#FEF3C7] text-[#D97706] font-bold"
+                          : "text-[#1E293B] hover:bg-[#F8FAFC]"
+                      }`}
+                    >
+                      <span>{ay.name}</span>
+                      {ay.isActive && (
+                        <span className="text-[10px] font-semibold bg-[#F5A000] text-white px-1.5 py-0.5 rounded">
+                          Active
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           )}

@@ -45,7 +45,7 @@ interface AdminSidebarProps {
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
-  const { profile } = useInstitution();
+  const { profile, activeAcademicYear, isAcademicYearsLoading } = useInstitution();
   const [academicsOpen, setAcademicsOpen] = useState(
     pathname.startsWith("/admin/academics") || pathname === "/admin"
   );
@@ -483,8 +483,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             <Sparkles className="w-3.5 h-3.5 text-[#F5A000]" />
             <span className="font-semibold text-white">Academic Year</span>
           </div>
-          <p className="text-[10px] text-[#8EA4C2] mt-0.5">
-            AY 2026-2027 • Central Campus
+          <p className="text-[10px] text-[#8EA4C2] mt-0.5 truncate" title={activeAcademicYear?.name}>
+            {isAcademicYearsLoading
+              ? "Loading..."
+              : activeAcademicYear
+              ? `AY ${activeAcademicYear.name}`
+              : "No Academic Year Set"}
           </p>
         </div>
       </aside>

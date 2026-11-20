@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import {
   InstitutionThemeConfig,
   DEFAULT_INSTITUTION_THEME,
@@ -135,12 +135,17 @@ interface InstitutionContextType {
   profile: InstitutionProfile;
   updateProfile: (data: Partial<InstitutionProfile>) => void;
   refreshProfile: () => Promise<void>;
+  isProfileLoading: boolean;
+  profileError: string | null;
   theme: InstitutionThemeConfig;
   updateTheme: (newTheme: Partial<InstitutionThemeConfig>) => void;
   resetThemeToDefaults: () => void;
 
   academicYears: AcademicYear[];
   activeAcademicYear: AcademicYear | undefined;
+  isAcademicYearsLoading: boolean;
+  academicYearsError: string | null;
+  refreshAcademicYears: (tenantId?: string) => Promise<AcademicYear[]>;
   addAcademicYear: (data: Omit<AcademicYear, "id" | "createdAt">) => void;
   updateAcademicYear: (id: string, data: Partial<AcademicYear>) => void;
   setActiveAcademicYear: (id: string) => void;
@@ -631,7 +636,9 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
   const [theme, setTheme] = useState<InstitutionThemeConfig>(() => {
     return initialInstitutionProfile.themeConfig || DEFAULT_INSTITUTION_THEME;
   });
-  const [academicYears, setAcademicYears] = useState<AcademicYear[]>(initialAcademicYears);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [isAcademicYearsLoading, setIsAcademicYearsLoading] = useState<boolean>(true);
+  const [academicYearsError, setAcademicYearsError] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>(initialDepartments);
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [classes, setClasses] = useState<ClassItem[]>(initialClasses);
@@ -695,15 +702,14 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
           if (parsed.themeConfig) setTheme(parsed.themeConfig);
         }
 
-        const savedTheme = localStorage.getItem(`${STORAGE_KEY_PREFIX}theme_${currentInstId}`);
-        if (savedTheme) {
-          try {
-            setTheme(JSON.parse(savedTheme));
-          } catch {}
+        if (currentInstId) {
+          const savedTheme = localStorage.getItem(`${STORAGE_KEY_PREFIX}theme_${currentInstId}`);
+          if (savedTheme) {
+            try {
+              setTheme(JSON.parse(savedTheme));
+            } catch {}
+          }
         }
-
-        const savedAY = localStorage.getItem(`${STORAGE_KEY_PREFIX}ay`);
-        if (savedAY) setAcademicYears(JSON.parse(savedAY));
 
         const savedDept = localStorage.getItem(`${STORAGE_KEY_PREFIX}dept`);
         if (savedDept) setDepartments(JSON.parse(savedDept));
@@ -814,70 +820,52 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     return () => clearTimeout(timer);
   }, []);
 
-  const refreshProfile = async () => {
-    try {
-      const res = await fetch("/api/admin/settings");
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success && json.data) {
-        const serverProfile = json.data as InstitutionProfile;
-        setProfile((prev) => {
-          const merged = {
-            ...prev,
-            ...serverProfile,
-            id: serverProfile.id || prev.id,
-            name: serverProfile.name || prev.name,
-            code: serverProfile.code || prev.code,
-          };
-          saveState("profile", merged);
-          return merged;
-        });
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
-        if (serverProfile.themeConfig) {
-          setTheme(serverProfile.themeConfig);
-        }
+  const refreshProfile = useCallback(async () => {
+    try {
+      setIsProfileLoading(true);
+      setProfileError(null);
+      const res = await fetch("/api/admin/settings");
+      const json = await res.json();
+      if (!res.ok || !json.success || !json.data) {
+        throw new Error(json.error || "Failed to load institution settings from server.");
       }
-    } catch (err) {
+
+      const serverProfile = json.data as InstitutionProfile;
+      // Verification check: tenant must match
+      if (json.institutionId && serverProfile.id && serverProfile.id !== json.institutionId) {
+        throw new Error("Security mismatch: Retrieved institution profile does not match authenticated tenant.");
+      }
+
+      setProfile((prev) => {
+        const merged = {
+          ...prev,
+          ...serverProfile,
+          id: serverProfile.id || prev.id,
+          name: serverProfile.name || prev.name,
+          code: serverProfile.code || prev.code,
+        };
+        saveState("profile", merged);
+        return merged;
+      });
+
+      if (serverProfile.themeConfig) {
+        setTheme(serverProfile.themeConfig);
+      }
+    } catch (err: any) {
       console.warn("Could not refresh institution profile from /api/admin/settings:", err);
+      setProfileError(err?.message || "Failed to load institution profile from database.");
+    } finally {
+      setIsProfileLoading(false);
     }
-  };
+  }, []);
 
   // Hydrate authenticated institution profile and settings from backend on mount
   useEffect(() => {
-    let isMounted = true;
-    async function hydrate() {
-      try {
-        const res = await fetch("/api/admin/settings");
-        if (!res.ok) return;
-        const json = await res.json();
-        if (json.success && json.data && isMounted) {
-          const serverProfile = json.data as InstitutionProfile;
-          setProfile((prev) => {
-            const merged = {
-              ...prev,
-              ...serverProfile,
-              id: serverProfile.id || prev.id,
-              name: serverProfile.name || prev.name,
-              code: serverProfile.code || prev.code,
-            };
-            saveState("profile", merged);
-            return merged;
-          });
-
-          if (serverProfile.themeConfig) {
-            setTheme(serverProfile.themeConfig);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not hydrate institution profile from /api/admin/settings:", err);
-      }
-    }
-
-    hydrate();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    refreshProfile();
+  }, [refreshProfile]);
 
   // Save state helper
   const saveState = (key: string, data: unknown) => {
@@ -888,15 +876,15 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     }
   };
 
-  const updateProfile = (data: Partial<InstitutionProfile>) => {
+  const updateProfile = useCallback((data: Partial<InstitutionProfile>) => {
     setProfile((prev) => {
       const updated = { ...prev, ...data };
       saveState("profile", updated);
       return updated;
     });
-  };
+  }, []);
 
-  const updateTheme = (newTheme: Partial<InstitutionThemeConfig>) => {
+  const updateTheme = useCallback((newTheme: Partial<InstitutionThemeConfig>) => {
     setTheme((prev) => {
       const updated: InstitutionThemeConfig = { ...prev, ...newTheme };
       setProfile((p) => {
@@ -907,13 +895,13 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
           accentColor: updated.accentColor,
         };
         saveState("profile", updatedProfile);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_${p.id}`, JSON.stringify(updated));
+          } catch {}
+        }
         return updatedProfile;
       });
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_${profile.id}`, JSON.stringify(updated));
-        } catch {}
-      }
       try {
         fetch("/api/admin/settings/theme", {
           method: "POST",
@@ -923,9 +911,9 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       } catch {}
       return updated;
     });
-  };
+  }, []);
 
-  const resetThemeToDefaults = () => {
+  const resetThemeToDefaults = useCallback(() => {
     updateTheme(DEFAULT_INSTITUTION_THEME);
     try {
       fetch("/api/admin/settings/theme", {
@@ -934,64 +922,85 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         body: JSON.stringify({ action: "RESET" }),
       }).catch(() => {});
     } catch {}
-  };
+  }, [updateTheme]);
 
-  const addAcademicYear = (data: Omit<AcademicYear, "id" | "createdAt">) => {
-    const newAY: AcademicYear = {
-      ...data,
-      id: `ay-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    setAcademicYears((prev) => {
-      let updated = [...prev];
-      if (newAY.isActive) {
-        updated = updated.map((ay) => ({ ...ay, isActive: false }));
-      }
-      updated.unshift(newAY);
-      saveState("ay", updated);
-      return updated;
-    });
-
+  const refreshAcademicYears = useCallback(async (tenantId?: string) => {
     try {
-      fetch("/api/admin/academics/academic-years", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).catch(() => {});
-    } catch {
-      // Offline fallback
-    }
-  };
+      setIsAcademicYearsLoading(true);
+      setAcademicYearsError(null);
+      const res = await fetch("/api/admin/academics/academic-years");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load academic years.");
+      }
+      const mapped: AcademicYear[] = json.data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        startDate: item.startDate ? String(item.startDate).split("T")[0] : "",
+        endDate: item.endDate ? String(item.endDate).split("T")[0] : "",
+        isActive: Boolean(item.isCurrent),
+        terms: (item.terms || []).map((t: any, idx: number) => ({
+          id: t.id || `term-${idx}`,
+          name: t.name,
+          startDate: t.startDate ? String(t.startDate).split("T")[0] : "",
+          endDate: t.endDate ? String(t.endDate).split("T")[0] : "",
+          isCurrent: Boolean(t.isCurrent),
+        })),
+        createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+      }));
 
-  const updateAcademicYear = (id: string, data: Partial<AcademicYear>) => {
+      setAcademicYears(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load academic years:", err);
+      setAcademicYearsError(err?.message || "Failed to load academic years from server.");
+      return [];
+    } finally {
+      setIsAcademicYearsLoading(false);
+    }
+  }, []);
+
+  // Synchronize academic years with authenticated institution context & prevent cross-tenant leaks
+  const [activeHydratedTenantId, setActiveHydratedTenantId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile.id && profile.id !== activeHydratedTenantId) {
+      setActiveHydratedTenantId(profile.id);
+      // Immediately clear previous tenant's records so stale data never lingers
+      setAcademicYears([]);
+      setIsAcademicYearsLoading(true);
+      setAcademicYearsError(null);
+      refreshAcademicYears(profile.id);
+    }
+  }, [profile.id, activeHydratedTenantId, refreshAcademicYears]);
+
+  const addAcademicYear = useCallback((_data: Omit<AcademicYear, "id" | "createdAt">) => {
+    // Database API is single source of truth; trigger fresh synchronization
+    refreshAcademicYears();
+  }, [refreshAcademicYears]);
+
+  const updateAcademicYear = useCallback((id: string, data: Partial<AcademicYear>) => {
     setAcademicYears((prev) => {
       let updated = prev.map((ay) => (ay.id === id ? { ...ay, ...data } : ay));
       if (data.isActive) {
         updated = updated.map((ay) => (ay.id === id ? ay : { ...ay, isActive: false }));
       }
-      saveState("ay", updated);
       return updated;
     });
-  };
+  }, []);
 
-  const setActiveAcademicYear = (id: string) => {
+  const setActiveAcademicYear = useCallback((id: string) => {
     setAcademicYears((prev) => {
-      const updated = prev.map((ay) => ({
+      return prev.map((ay) => ({
         ...ay,
         isActive: ay.id === id,
       }));
-      saveState("ay", updated);
-      return updated;
     });
-  };
+  }, []);
 
-  const deleteAcademicYear = (id: string) => {
-    setAcademicYears((prev) => {
-      const updated = prev.filter((ay) => ay.id !== id);
-      saveState("ay", updated);
-      return updated;
-    });
-  };
+  const deleteAcademicYear = useCallback((id: string) => {
+    setAcademicYears((prev) => prev.filter((ay) => ay.id !== id));
+  }, []);
 
   const addDepartment = (data: Omit<Department, "id">) => {
     const newDept: Department = {
@@ -4130,7 +4139,7 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         params.batchName?.trim() ||
         `${crs?.name || "Program"} - Sem ${params.semester} (${secName}) Results`,
       academicYearId: params.academicYearId,
-      academicYearName: ay?.name || "2026-2027",
+      academicYearName: ay?.name || "N/A",
       courseId: crs?.id || cls.courseId,
       courseName: crs?.name || "Course",
       classId: cls.id,
@@ -6245,7 +6254,7 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
 
   const resetToDefaults = () => {
     setProfile(initialInstitutionProfile);
-    setAcademicYears(initialAcademicYears);
+    setAcademicYears([]);
     setDepartments(initialDepartments);
     setCourses(initialCourses);
     setClasses(initialClasses);
@@ -6288,7 +6297,7 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     }
   };
 
-  const activeAY = academicYears.find((ay) => ay.isActive) || academicYears[0];
+  const activeAY = academicYears.find((ay) => ay.isActive) || undefined;
 
   const stats: DashboardStats = {
     ...initialDashboardStats,
@@ -6308,11 +6317,16 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         profile,
         updateProfile,
         refreshProfile,
+        isProfileLoading,
+        profileError,
         theme,
         updateTheme,
         resetThemeToDefaults,
         academicYears,
         activeAcademicYear: activeAY,
+        isAcademicYearsLoading,
+        academicYearsError,
+        refreshAcademicYears,
         addAcademicYear,
         updateAcademicYear,
         setActiveAcademicYear,

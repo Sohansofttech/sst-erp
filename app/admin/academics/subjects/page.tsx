@@ -480,7 +480,7 @@ export default function SubjectsPage() {
                   {filteredSubjects.map((subj) => (
                     <TableRow key={subj.id}>
                       <TableCell>
-                        <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded whitespace-nowrap inline-block">
                           {subj.code}
                         </span>
                       </TableCell>
@@ -526,25 +526,27 @@ export default function SubjectsPage() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right space-x-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEditModal(subj)}
-                          disabled={isSubmitting}
-                          title="Edit Subject"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(subj.id, subj.name)}
-                          disabled={isSubmitting}
-                          title="Delete Subject"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
-                        </Button>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenEditModal(subj)}
+                            disabled={isSubmitting}
+                            title="Edit Subject"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(subj.id, subj.name)}
+                            disabled={isSubmitting}
+                            title="Delete Subject"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
