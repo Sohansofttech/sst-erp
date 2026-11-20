@@ -156,7 +156,6 @@ async function runTestSuite() {
 
     // Platform Super Admin institution invitation template
     const instInvite = institutionInvitationEmail({
-      to: "principal@nationalcollege.edu",
       institutionName: "National College of Engineering",
       institutionCode: "NCE-2026",
       administratorName: "Dr. Vikram Seth",
@@ -273,7 +272,7 @@ async function runTestSuite() {
     });
 
     assert(errorRes.success === false, "Handles Resend API error cleanly without throwing uncaught exception");
-    assert(errorRes.error?.includes("Domain not verified"), "Captures error message from Resend API response");
+    assert(Boolean(errorRes.error?.includes("Domain not verified")), "Captures error message from Resend API response");
 
     // -------------------------------------------------------------
     // TEST GROUP 4: Student Creation Logic & Input Sanitization

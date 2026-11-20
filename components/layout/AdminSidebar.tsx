@@ -35,6 +35,7 @@ import {
   History,
   ChevronDown,
   Sparkles,
+  HelpCircle,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -72,6 +73,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { href: "/admin/feedback", label: "Grievances & Feedback", icon: HeartHandshake },
     { href: "/admin/approvals", label: "Approvals", icon: CheckSquare },
     { href: "/admin/audit-logs", label: "Audit Logs", icon: History },
+    { href: "/admin/support", label: "Support & Helpdesk", icon: HelpCircle },
   ];
 
   return (
