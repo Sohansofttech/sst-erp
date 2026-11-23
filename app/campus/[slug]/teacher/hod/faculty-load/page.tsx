@@ -92,14 +92,14 @@ export default function HodFacultyLoadPage() {
         title="Course Allocation & Faculty Workload"
         subtitle="Department of Mathematics faculty roster: lecture load balancing, weekly teaching hours, curriculum syllabus completion, and course section coverage."
         action={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
               <Link href={`/campus/${slug}/teacher/hod`}>
                 <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
                 Dept Dashboard
               </Link>
             </Button>
-            <Button asChild className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
               <Link href={`/campus/${slug}/teacher/timetable`}>
                 <Calendar className="mr-1.5 size-4" />
                 Department Timetable
@@ -110,7 +110,7 @@ export default function HodFacultyLoadPage() {
       />
 
       {/* Verified Demo Metrics */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <StatCard
           label="Department Faculty"
           value={facultyLoad.length}
@@ -153,23 +153,24 @@ export default function HodFacultyLoadPage() {
               />
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-[#EEF1F5]/80">
-                <TableRow>
-                  <TableHead className="font-bold text-[#788391]">Faculty Name</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Designation</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Assigned Subjects & Sections</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Weekly Hours</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Syllabus Completion</TableHead>
-                  <TableHead className="text-right font-bold text-[#788391]">Avg Attendance</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-[#E5E9EF]">
-                {facultyLoad.map((f) => (
-                  <TableRow key={f.teacherId} className="hover:bg-[#EEF1F5]/50">
-                    <TableCell className="font-bold text-[#202936]">
-                      {f.fullName}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader className="bg-[#EEF1F5]/80">
+                  <TableRow>
+                    <TableHead className="font-bold text-[#788391] sticky left-0 z-10 bg-[#EEF1F5]">Faculty Name</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Designation</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Assigned Subjects & Sections</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Weekly Hours</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Syllabus Completion</TableHead>
+                    <TableHead className="text-right font-bold text-[#788391]">Avg Attendance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#E5E9EF]">
+                  {facultyLoad.map((f) => (
+                    <TableRow key={f.teacherId} className="hover:bg-[#EEF1F5]/50">
+                      <TableCell className="font-bold text-[#202936] sticky left-0 z-10 bg-white">
+                        {f.fullName}
+                      </TableCell>
                     <TableCell className="text-xs text-[#788391]">
                       {f.designation}
                     </TableCell>
@@ -209,6 +210,7 @@ export default function HodFacultyLoadPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

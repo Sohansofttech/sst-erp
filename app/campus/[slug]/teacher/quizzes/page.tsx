@@ -422,7 +422,7 @@ export default function TeacherQuizzesPage() {
         title="Quiz Management"
         subtitle={`Build formative MCQ & short-answer quizzes, schedule timed windows, and review scores · AY ${academicYear}`}
         action={
-          <Button type="button" onClick={() => setActiveTab("create")}>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setActiveTab("create")}>
             <Plus className="size-4" />
             Create Quiz
           </Button>
@@ -430,11 +430,13 @@ export default function TeacherQuizzesPage() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
-          <TabsTrigger value="list">All Quizzes ({quizzes.length})</TabsTrigger>
-          <TabsTrigger value="create">Create Quiz Wizard</TabsTrigger>
-          <TabsTrigger value="results">Quiz Results</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:max-w-lg sm:grid-cols-3">
+            <TabsTrigger value="list" className="shrink-0">All Quizzes ({quizzes.length})</TabsTrigger>
+            <TabsTrigger value="create" className="shrink-0">Create Quiz Wizard</TabsTrigger>
+            <TabsTrigger value="results" className="shrink-0">Quiz Results</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Tab 1: Quizzes List */}
         <TabsContent value="list" className="mt-4">
@@ -502,18 +504,18 @@ export default function TeacherQuizzesPage() {
                     </p>
                   </CardContent>
 
-                  <CardFooter className="gap-2 border-t border-[#E5E9EF] pt-4">
+                  <CardFooter className="flex-col sm:flex-row gap-2 border-t border-[#E5E9EF] pt-4">
                     <Button
                       type="button"
                       variant="outline"
-                      className="flex-1 rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                      className="w-full sm:flex-1 rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                       onClick={() => void handleToggleStatus(quiz)}
                     >
                       {quiz.status === "published" ? "Close Quiz" : "Publish"}
                     </Button>
                     <Button
                       type="button"
-                      className="flex-1 rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                      className="w-full sm:flex-1 rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
                       onClick={() => void handleSelectResultQuiz(quiz.id)}
                     >
                       <ListChecks className="size-4" />
@@ -827,15 +829,16 @@ export default function TeacherQuizzesPage() {
                 })}
               </CardContent>
 
-              <CardFooter className="justify-end gap-2 border-t pt-4">
+              <CardFooter className="flex-col-reverse sm:flex-row justify-end gap-2 border-t pt-4">
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full sm:w-auto"
                   onClick={() => setActiveTab("list")}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                   <Send className="size-4" />
                   {isSubmitting ? "Publishing..." : "Publish Quiz"}
                 </Button>
@@ -847,14 +850,14 @@ export default function TeacherQuizzesPage() {
         {/* Tab 3: Quiz Results */}
         <TabsContent value="results" className="mt-4 space-y-4">
           <Card className="py-4">
-            <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5">
-              <div className="flex items-center gap-3">
-                <Label htmlFor="res-quiz">Select Quiz:</Label>
+            <CardContent className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-3 px-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+                <Label htmlFor="res-quiz" className="whitespace-nowrap">Select Quiz:</Label>
                 <Select
                   value={selectedQuizId}
                   onValueChange={(val) => void handleSelectResultQuiz(val)}
                 >
-                  <SelectTrigger id="res-quiz" className="w-80">
+                  <SelectTrigger id="res-quiz" className="w-full sm:w-80">
                     <SelectValue placeholder="Choose quiz" />
                   </SelectTrigger>
                   <SelectContent>
@@ -867,7 +870,7 @@ export default function TeacherQuizzesPage() {
                 </Select>
               </div>
               {activeResultQuiz && (
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="w-fit">
                   {submissions.length} of {activeResultQuiz.totalStudents}{" "}
                   Attempts · Total {activeResultQuiz.totalMarks} Marks
                 </Badge>
@@ -895,11 +898,11 @@ export default function TeacherQuizzesPage() {
                   description="Student scores will appear here once attempts are submitted."
                 />
               ) : (
-                <div className="overflow-hidden rounded-lg border">
-                  <Table>
+                <div className="overflow-x-auto rounded-lg border">
+                  <Table className="min-w-[650px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-24">Roll No</TableHead>
+                        <TableHead className="w-24 sticky left-0 bg-white z-10 shadow-xs">Roll No</TableHead>
                         <TableHead>Student</TableHead>
                         <TableHead>Submitted At</TableHead>
                         <TableHead>Score</TableHead>
@@ -910,7 +913,7 @@ export default function TeacherQuizzesPage() {
                     <TableBody>
                       {submissions.map((sub) => (
                         <TableRow key={sub.id}>
-                          <TableCell className="font-mono text-[13px] font-semibold">
+                          <TableCell className="font-mono text-[13px] font-semibold sticky left-0 bg-white z-10 shadow-xs">
                             {sub.rollNo}
                           </TableCell>
                           <TableCell>
@@ -975,7 +978,7 @@ export default function TeacherQuizzesPage() {
           if (!open) setEvaluatingSub(null)
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-md">
           <form onSubmit={(e) => void handleSaveEvaluation(e)}>
             <DialogHeader>
               <DialogTitle>Manual Quiz Evaluation</DialogTitle>
@@ -1008,15 +1011,16 @@ export default function TeacherQuizzesPage() {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
+                className="w-full sm:w-auto"
                 onClick={() => setEvaluatingSub(null)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingEval}>
+              <Button type="submit" disabled={savingEval} className="w-full sm:w-auto">
                 <CheckCircle2 className="size-4" />
                 {savingEval ? "Saving..." : "Save Score"}
               </Button>

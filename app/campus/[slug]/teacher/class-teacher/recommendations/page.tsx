@@ -132,8 +132,8 @@ export default function SectionRecommendationsPage() {
         title="Section Summary & Status Recommendations"
         subtitle="Homeroom Class 10-A holistic evaluation: assign term recommendations, remedial clinic tags, and parent conference requests based on attendance and IA metrics."
         action={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
               <Link href={`/campus/${slug}/teacher/class-teacher`}>
                 <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
                 Section Dashboard
@@ -142,7 +142,7 @@ export default function SectionRecommendationsPage() {
             <Button
               onClick={handleSaveAll}
               disabled={saving}
-              className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
             >
               <Save className="mr-1.5 size-4" />
               {saving ? "Saving..." : "Save Recommendations"}
@@ -151,7 +151,7 @@ export default function SectionRecommendationsPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Strength"
           value={students.length}
@@ -193,26 +193,27 @@ export default function SectionRecommendationsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-[#EEF1F5]/80">
-              <TableRow>
-                <TableHead className="font-bold text-[#788391]">Roll No</TableHead>
-                <TableHead className="font-bold text-[#788391]">Student Name</TableHead>
-                <TableHead className="font-bold text-[#788391]">Attendance %</TableHead>
-                <TableHead className="font-bold text-[#788391]">IA Mean</TableHead>
-                <TableHead className="font-bold text-[#788391]">Class Teacher Recommendation</TableHead>
-                <TableHead className="text-right font-bold text-[#788391]">Standing Tag</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-y divide-[#E5E9EF]">
-              {students.map((s) => {
-                const rec = recommendations[s.studentId] || "Good Standing"
+          <div className="overflow-x-auto">
+            <Table className="min-w-[700px]">
+              <TableHeader className="bg-[#EEF1F5]/80">
+                <TableRow>
+                  <TableHead className="font-bold text-[#788391] sticky left-0 z-10 bg-[#EEF1F5]">Roll No</TableHead>
+                  <TableHead className="font-bold text-[#788391]">Student Name</TableHead>
+                  <TableHead className="font-bold text-[#788391]">Attendance %</TableHead>
+                  <TableHead className="font-bold text-[#788391]">IA Mean</TableHead>
+                  <TableHead className="font-bold text-[#788391]">Class Teacher Recommendation</TableHead>
+                  <TableHead className="text-right font-bold text-[#788391]">Standing Tag</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-[#E5E9EF]">
+                {students.map((s) => {
+                  const rec = recommendations[s.studentId] || "Good Standing"
 
-                return (
-                  <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
-                    <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
-                      {s.rollNo}
-                    </TableCell>
+                  return (
+                    <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
+                      <TableCell className="font-mono text-xs font-bold text-[#123B5A] sticky left-0 z-10 bg-white">
+                        {s.rollNo}
+                      </TableCell>
                     <TableCell className="font-bold text-[#202936]">
                       {s.fullName}
                     </TableCell>
@@ -267,6 +268,7 @@ export default function SectionRecommendationsPage() {
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

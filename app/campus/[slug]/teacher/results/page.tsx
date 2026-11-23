@@ -411,9 +411,9 @@ export default function TeacherResultsPage() {
         title="Final Results & Moderation Tracker"
         subtitle="Enter final theory & practical examination marks, track moderation status, and publish approved registers."
         action={
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/results`}>
-              <ClipboardList className="size-4" />
+              <ClipboardList className="size-4 mr-1.5" />
               Back to Results Overview
             </Link>
           </Button>
@@ -465,15 +465,15 @@ export default function TeacherResultsPage() {
               {activeEntry.maxTotalMarks}
             </CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="w-72">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
+            <div className="w-full sm:w-72">
               <Select value={activeEntry.id} onValueChange={handleEntryChange}>
-                <SelectTrigger aria-label="Select result register">
+                <SelectTrigger aria-label="Select result register" className="w-full rounded-xl border-[#E5E9EF] bg-white text-xs font-semibold">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-[#E5E9EF]">
                   {entries.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
+                    <SelectItem key={entry.id} value={entry.id} className="text-xs">
                       {entry.className}-{entry.section} • {entry.subjectName} (
                       {entry.examName})
                     </SelectItem>
@@ -481,44 +481,46 @@ export default function TeacherResultsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                Moderation:
-              </span>
-              <StatusBadge
-                status={mapModerationBadge(activeEntry.entryStatus)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                Publication:
-              </span>
-              <StatusBadge
-                status={mapPublicationBadge(activeEntry.publicationStatus)}
-              />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-[#788391]">
+                  Moderation:
+                </span>
+                <StatusBadge
+                  status={mapModerationBadge(activeEntry.entryStatus)}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-[#788391]">
+                  Publication:
+                </span>
+                <StatusBadge
+                  status={mapPublicationBadge(activeEntry.publicationStatus)}
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-2 sm:grid-cols-5">
+        <CardContent className="pt-4">
+          <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 lg:grid-cols-5">
             {pipelineSteps.map((step, idx) => {
               const reached = idx <= stepStage
               return (
                 <div
                   key={step}
                   className={cn(
-                    "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium",
+                    "flex shrink-0 min-w-[150px] sm:min-w-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold",
                     reached
-                      ? "border-primary/30 bg-primary/8 text-primary"
-                      : "border-slate-200 bg-slate-50 text-muted-foreground"
+                      ? "border-[#123B5A]/30 bg-[#123B5A]/8 text-[#123B5A]"
+                      : "border-[#E5E9EF] bg-[#EEF1F5] text-[#788391]"
                   )}
                 >
                   <span
                     className={cn(
-                      "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                      "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
                       reached
-                        ? "bg-primary text-white"
-                        : "bg-slate-200 text-slate-600"
+                        ? "bg-[#123B5A] text-white"
+                        : "bg-white text-[#788391]"
                     )}
                   >
                     {idx + 1}
@@ -532,7 +534,7 @@ export default function TeacherResultsPage() {
       </Card>
 
       {isLocked && (
-        <div className="flex items-center gap-3 rounded-lg border border-brand/25 bg-brand/8 px-4 py-3 text-sm text-brand">
+        <div className="flex items-center gap-3 rounded-xl border border-brand/25 bg-brand/8 px-4 py-3 text-sm text-brand">
           <Lock className="size-4 shrink-0" />
           <span>
             This final result register is <strong>Locked</strong> for official
@@ -542,231 +544,240 @@ export default function TeacherResultsPage() {
       )}
 
       {/* Final Marks Table */}
-      <Card className="bg-white">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="bg-white rounded-2xl border-[#E5E9EF] shadow-xs">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#E5E9EF] pb-4">
           <div>
-            <CardTitle className="text-lg font-semibold text-foreground">
+            <CardTitle className="text-lg font-bold text-[#202936]">
               {activeEntry.className} - {activeEntry.section} •{" "}
               {activeEntry.subjectName}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs text-[#788391]">
               Last updated: {activeEntry.lastUpdatedAt.slice(0, 10)}
             </CardDescription>
           </div>
           <div className="relative w-full sm:w-64">
-            <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-[#788391]" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search student or roll no..."
-              className="pl-9"
+              className="pl-9 rounded-xl border-[#E5E9EF] text-xs"
             />
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-24">Roll No</TableHead>
-                <TableHead>Student Name</TableHead>
-                <TableHead className="w-36">
-                  Theory (/ {activeEntry.maxTheoryMarks})
-                </TableHead>
-                {activeEntry.maxPracticalMarks > 0 && (
-                  <TableHead className="w-36">
-                    Practical (/ {activeEntry.maxPracticalMarks})
+          <div className="overflow-x-auto">
+            <Table className="min-w-[800px]">
+              <TableHeader className="bg-[#EEF1F5]/80">
+                <TableRow className="border-b border-[#E5E9EF]">
+                  <TableHead className="w-24 font-bold text-[#788391] sticky left-0 bg-[#EEF1F5] z-10 shadow-xs">Roll No</TableHead>
+                  <TableHead className="font-bold text-[#788391] sticky left-24 bg-[#EEF1F5] z-10 shadow-xs">Student Name</TableHead>
+                  <TableHead className="w-36 font-bold text-[#788391]">
+                    Theory (/ {activeEntry.maxTheoryMarks})
                   </TableHead>
-                )}
-                <TableHead className="w-24">Total</TableHead>
-                <TableHead className="w-20">Grade</TableHead>
-                <TableHead className="w-24 text-center">Absent</TableHead>
-                <TableHead>Moderator / Teacher Remarks</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRows.map((row) => {
-                const { theoryErr, practicalErr } = getRowValidation(
-                  row,
-                  activeEntry
-                )
-                const theoryNum =
-                  row.theoryMarks.trim() !== "" ? Number(row.theoryMarks) : 0
-                const practicalNum =
-                  activeEntry.maxPracticalMarks > 0 &&
-                  row.practicalMarks.trim() !== ""
-                    ? Number(row.practicalMarks)
-                    : 0
-                const hasAnyMark =
-                  !row.isAbsent && row.theoryMarks.trim() !== ""
-                const total = row.isAbsent ? null : hasAnyMark ? theoryNum + practicalNum : null
-                const grade =
-                  hasAnyMark || row.isAbsent
-                    ? computeGrade(
-                        theoryNum,
-                        practicalNum,
-                        activeEntry.maxTotalMarks,
-                        row.isAbsent
-                      )
-                    : "-"
+                  {activeEntry.maxPracticalMarks > 0 && (
+                    <TableHead className="w-36 font-bold text-[#788391]">
+                      Practical (/ {activeEntry.maxPracticalMarks})
+                    </TableHead>
+                  )}
+                  <TableHead className="w-24 font-bold text-[#788391]">Total</TableHead>
+                  <TableHead className="w-20 font-bold text-[#788391]">Grade</TableHead>
+                  <TableHead className="w-24 text-center font-bold text-[#788391]">Absent</TableHead>
+                  <TableHead className="font-bold text-[#788391]">Moderator / Teacher Remarks</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-[#E5E9EF]">
+                {filteredRows.map((row) => {
+                  const { theoryErr, practicalErr } = getRowValidation(
+                    row,
+                    activeEntry
+                  )
+                  const theoryNum =
+                    row.theoryMarks.trim() !== "" ? Number(row.theoryMarks) : 0
+                  const practicalNum =
+                    activeEntry.maxPracticalMarks > 0 &&
+                    row.practicalMarks.trim() !== ""
+                      ? Number(row.practicalMarks)
+                      : 0
+                  const hasAnyMark =
+                    !row.isAbsent && row.theoryMarks.trim() !== ""
+                  const total = row.isAbsent ? null : hasAnyMark ? theoryNum + practicalNum : null
+                  const grade =
+                    hasAnyMark || row.isAbsent
+                      ? computeGrade(
+                          theoryNum,
+                          practicalNum,
+                          activeEntry.maxTotalMarks,
+                          row.isAbsent
+                        )
+                      : "-"
 
-                return (
-                  <TableRow key={row.studentId}>
-                    <TableCell className="font-medium text-foreground">
-                      {row.rollNo}
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">
-                      {row.studentName}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={activeEntry.maxTheoryMarks}
-                          disabled={isLocked || row.isAbsent}
-                          value={row.isAbsent ? "" : row.theoryMarks}
-                          placeholder={row.isAbsent ? "AB" : "0"}
-                          className={cn(
-                            "h-8 w-24",
-                            theoryErr && "border-error focus-visible:ring-error"
-                          )}
-                          onChange={(e) =>
-                            updateRow(row.studentId, {
-                              theoryMarks: e.target.value,
-                            })
-                          }
-                        />
-                        {theoryErr && (
-                          <p className="text-[11px] font-medium text-error">
-                            {theoryErr}
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-                    {activeEntry.maxPracticalMarks > 0 && (
+                  return (
+                    <TableRow key={row.studentId} className="hover:bg-[#EEF1F5]/40 transition-colors">
+                      <TableCell className="font-bold font-mono text-xs text-[#123B5A] sticky left-0 bg-white z-10 shadow-xs">
+                        {row.rollNo}
+                      </TableCell>
+                      <TableCell className="font-bold text-[#202936] sticky left-24 bg-white z-10 shadow-xs whitespace-nowrap">
+                        {row.studentName}
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <Input
                             type="number"
                             min={0}
-                            max={activeEntry.maxPracticalMarks}
+                            max={activeEntry.maxTheoryMarks}
                             disabled={isLocked || row.isAbsent}
-                            value={row.isAbsent ? "" : row.practicalMarks}
+                            value={row.isAbsent ? "" : row.theoryMarks}
                             placeholder={row.isAbsent ? "AB" : "0"}
                             className={cn(
-                              "h-8 w-24",
-                              practicalErr &&
-                                "border-error focus-visible:ring-error"
+                              "h-8 w-24 rounded-lg text-xs",
+                              theoryErr && "border-rose-500 focus-visible:ring-rose-500"
                             )}
                             onChange={(e) =>
                               updateRow(row.studentId, {
-                                practicalMarks: e.target.value,
+                                theoryMarks: e.target.value,
                               })
                             }
                           />
-                          {practicalErr && (
-                            <p className="text-[11px] font-medium text-error">
-                              {practicalErr}
+                          {theoryErr && (
+                            <p className="text-[11px] font-medium text-rose-600">
+                              {theoryErr}
                             </p>
                           )}
                         </div>
                       </TableCell>
-                    )}
-                    <TableCell className="font-semibold text-foreground">
-                      {row.isAbsent
-                        ? "AB"
-                        : total !== null
-                          ? `${total}/${activeEntry.maxTotalMarks}`
-                          : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          grade === "AB" || grade === "E"
-                            ? "border-error/30 bg-error/10 text-error"
-                            : "border-slate-200 bg-slate-50 text-foreground"
-                        )}
-                      >
-                        {grade}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="inline-flex items-center justify-center">
-                        <Checkbox
-                          aria-label={`Mark ${row.studentName} absent`}
+                      {activeEntry.maxPracticalMarks > 0 && (
+                        <TableCell>
+                          <div className="space-y-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={activeEntry.maxPracticalMarks}
+                              disabled={isLocked || row.isAbsent}
+                              value={row.isAbsent ? "" : row.practicalMarks}
+                              placeholder={row.isAbsent ? "AB" : "0"}
+                              className={cn(
+                                "h-8 w-24 rounded-lg text-xs",
+                                practicalErr &&
+                                  "border-rose-500 focus-visible:ring-rose-500"
+                              )}
+                              onChange={(e) =>
+                                updateRow(row.studentId, {
+                                  practicalMarks: e.target.value,
+                                })
+                              }
+                            />
+                            {practicalErr && (
+                              <p className="text-[11px] font-medium text-rose-600">
+                                {practicalErr}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+                      <TableCell className="font-semibold text-xs text-[#202936]">
+                        {row.isAbsent
+                          ? "AB"
+                          : total !== null
+                            ? `${total}/${activeEntry.maxTotalMarks}`
+                            : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-full text-xs font-bold",
+                            grade === "AB" || grade === "E"
+                              ? "border-rose-200 bg-rose-50 text-rose-700"
+                              : "border-[#E5E9EF] bg-[#EEF1F5] text-[#202936]"
+                          )}
+                        >
+                          {grade}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="inline-flex items-center justify-center">
+                          <Checkbox
+                            aria-label={`Mark ${row.studentName} absent`}
+                            disabled={isLocked}
+                            checked={row.isAbsent}
+                            onCheckedChange={(checked) =>
+                              updateRow(row.studentId, {
+                                isAbsent: Boolean(checked),
+                                theoryMarks: checked ? "" : row.theoryMarks,
+                                practicalMarks: checked ? "" : row.practicalMarks,
+                              })
+                            }
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Label
+                          htmlFor={`remarks-${row.studentId}`}
+                          className="sr-only"
+                        >
+                          Remarks for {row.studentName}
+                        </Label>
+                        <Input
+                          id={`remarks-${row.studentId}`}
                           disabled={isLocked}
-                          checked={row.isAbsent}
-                          onCheckedChange={(checked) =>
-                            updateRow(row.studentId, {
-                              isAbsent: Boolean(checked),
-                              theoryMarks: checked ? "" : row.theoryMarks,
-                              practicalMarks: checked ? "" : row.practicalMarks,
-                            })
+                          value={row.remarks}
+                          placeholder="Optional moderation note..."
+                          className="h-8 min-w-36 rounded-lg text-xs"
+                          onChange={(e) =>
+                            updateRow(row.studentId, { remarks: e.target.value })
                           }
                         />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Label
-                        htmlFor={`remarks-${row.studentId}`}
-                        className="sr-only"
-                      >
-                        Remarks for {row.studentName}
-                      </Label>
-                      <Input
-                        id={`remarks-${row.studentId}`}
-                        disabled={isLocked}
-                        value={row.remarks}
-                        placeholder="Optional moderation note..."
-                        className="h-8"
-                        onChange={(e) =>
-                          updateRow(row.studentId, { remarks: e.target.value })
-                        }
-                      />
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
-        <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
-          <div className="text-xs text-muted-foreground">
+        <CardFooter className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[#E5E9EF] bg-[#EEF1F5]/40 px-4 sm:px-6 py-4">
+          <div className="text-xs text-[#788391]">
             Grade calculation follows institutional CBSE / Term standard slabs.
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full sm:w-auto flex-wrap items-center gap-2">
             <Button
               variant="outline"
               disabled={isLocked || saving}
               onClick={() => handleSave("draft")}
+              className="flex-1 sm:flex-initial rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-white"
             >
-              <Save className="size-4" />
+              <Save className="size-4 mr-1.5" />
               Save Draft
             </Button>
             <Button
               variant="secondary"
               disabled={isLocked || saving}
               onClick={() => handleSave("submitted")}
+              className="flex-1 sm:flex-initial rounded-xl"
             >
-              <Send className="size-4" />
+              <Send className="size-4 mr-1.5" />
               Submit for Moderation
             </Button>
             {activeEntry.publicationStatus !== "published" &&
               activeEntry.publicationStatus !== "locked" && (
-                <Button disabled={isLocked || saving} onClick={handlePublish}>
-                  <Globe className="size-4" />
+                <Button
+                  disabled={isLocked || saving}
+                  onClick={handlePublish}
+                  className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                >
+                  <Globe className="size-4 mr-1.5" />
                   Publish Results
                 </Button>
               )}
             {activeEntry.publicationStatus === "published" && (
               <Button
                 variant="default"
-                className="bg-brand hover:bg-brand/90"
+                className="w-full sm:w-auto rounded-xl bg-[#123B5A] text-white hover:bg-[#1B4D70]"
                 disabled={saving}
                 onClick={handleLock}
               >
-                <Lock className="size-4" />
+                <Lock className="size-4 mr-1.5" />
                 Lock Register
               </Button>
             )}

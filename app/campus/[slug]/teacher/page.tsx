@@ -340,11 +340,11 @@ export default function TeacherDashboardPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
             <Button
               variant="outline"
               asChild
-              className="rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              className="w-full sm:w-auto rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
             >
               <Link href={`${base}/timetable`}>
                 <Clock className="size-4" />
@@ -353,7 +353,7 @@ export default function TeacherDashboardPage() {
             </Button>
             <Button
               asChild
-              className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200] shadow-sm"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200] shadow-sm"
             >
               <Link href={`${base}/attendance`}>
                 <ClipboardCheck className="size-4" />
@@ -367,7 +367,7 @@ export default function TeacherDashboardPage() {
       {/* Top 4 KPI StatCards */}
       <section
         aria-label="Key Metrics"
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
       >
         {/* Dark Highlight KPI Card */}
         <StatCard
@@ -535,7 +535,7 @@ export default function TeacherDashboardPage() {
                           )}
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2 w-full sm:w-auto">
                           {isDone ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                               <CheckCircle2 className="size-3.5" />
@@ -545,7 +545,7 @@ export default function TeacherDashboardPage() {
                             <Button
                               type="button"
                               size="sm"
-                              className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
                               onClick={() => void openMarkAttendance(slot)}
                             >
                               Mark Attendance
@@ -855,7 +855,7 @@ export default function TeacherDashboardPage() {
           if (!open) setAttendanceSlot(null)
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl rounded-2xl border-[#E5E9EF] bg-white shadow-xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-2xl rounded-2xl border-[#E5E9EF] bg-white shadow-xl">
           <DialogHeader>
             <DialogTitle className="text-[#202936] text-lg font-bold">
               Mark Attendance — {attendanceSlot?.className}{" "}
@@ -888,7 +888,7 @@ export default function TeacherDashboardPage() {
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 w-full sm:w-auto">
                       {ATTENDANCE_STATUS_OPTIONS.map((opt) => {
                         const active = currentStatus === opt.value
                         return (
@@ -902,7 +902,7 @@ export default function TeacherDashboardPage() {
                               }))
                             }
                             className={cn(
-                              "rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors",
+                              "rounded-lg border px-2.5 py-1.5 min-h-[36px] text-xs font-bold transition-colors",
                               active
                                 ? opt.value === "present"
                                   ? "border-emerald-600 bg-emerald-600 text-white"
@@ -925,18 +925,18 @@ export default function TeacherDashboardPage() {
             </div>
           )}
 
-          <DialogFooter className="border-t border-[#E5E9EF] pt-4">
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 border-t border-[#E5E9EF] pt-4">
             <Button
               type="button"
               variant="outline"
-              className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+              className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
               onClick={() => setAttendanceSlot(null)}
             >
               Cancel
             </Button>
             <Button
               type="button"
-              className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
               disabled={loadingRoster || submittingAttendance}
               onClick={() => void handleSaveSlotAttendance()}
             >
