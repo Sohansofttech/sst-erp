@@ -66,10 +66,10 @@ export async function findOtpLoginAccount(
       COALESCE(i.slug, pi.slug) AS "institutionSlug",
       pi.code AS "institutionCode",
       COALESCE(i.status::text, pi.status::text) AS "institutionStatus",
-      COALESCE(i."isActive", pi.status IN ('ACTIVE', 'PENDING')) AS "institutionIsActive"
-    FROM "User" u
+      COALESCE(pi."isActive", i.status IN ('ACTIVE', 'PENDING')) AS "institutionIsActive"
+    FROM "users" u
     LEFT JOIN "Institution" i ON i.id::text = u."institutionId"::text
-    LEFT JOIN "Institution" pi ON pi.id::text = u."institutionId"::text
+    LEFT JOIN "institutions" pi ON pi.id::text = u."institutionId"::text
     WHERE regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g')
       IN (${mobile}, ${phoneDigitsWithCountryCode})
   `;
