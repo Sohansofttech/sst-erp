@@ -3236,6 +3236,8 @@ model SubscriptionPlan {
   price           Decimal      @db.Decimal(12, 2)
   currency        String       @default("INR")
   maxUsers        Int?
+  maxStudents     Int?
+  maxStaff        Int?
   storageLimitMb  BigInt?
   isActive        Boolean      @default(true)
   archivedAt      DateTime?

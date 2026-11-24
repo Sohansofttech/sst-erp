@@ -6,6 +6,10 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
+import {
+  currentOrScheduledSubscriptionWhere,
+  lockInstitutionSubscriptionLifecycle,
+} from "@/lib/services/institution-subscription-lifecycle.service";
 
 async function audited(actorId: string | null, action: string, entity: string, entityId: string | null, change: (tx: Prisma.TransactionClient) => Promise<unknown>) {
   await prisma.$transaction(async (tx) => {
@@ -18,12 +22,12 @@ async function audited(actorId: string | null, action: string, entity: string, e
 export async function createPlan(formData: FormData) {
   const actor = await requireSuperAdmin();
   const optionalInteger = z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(100000000).optional());
-  const input = z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/), name: z.string().trim().min(2).max(120), description: z.string().trim().max(500).optional(), price: z.coerce.number().min(0).max(100000000), currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/), billingCycle: z.enum(["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]), customCycleDays: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(3650).optional()), maxUsers: optionalInteger, storageLimitMb: optionalInteger }).safeParse(Object.fromEntries(formData.entries()));
+  const input = z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/), name: z.string().trim().min(2).max(120), description: z.string().trim().max(500).optional(), price: z.coerce.number().min(0).max(100000000), currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/), billingCycle: z.enum(["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]), customCycleDays: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(3650).optional()), maxStudents: optionalInteger, maxUsers: optionalInteger, storageLimitMb: optionalInteger }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error(input.error.issues[0]?.message ?? "Invalid plan fields.");
   const data = input.data;
   if (data.billingCycle === "CUSTOM" && !data.customCycleDays) throw new Error("Custom billing cycles need a cycle length in days.");
   const plan = await prisma.$transaction(async (tx) => {
-    const created = await tx.subscriptionPlan.create({ data: { ...data, description: data.description || null, customCycleDays: data.billingCycle === "CUSTOM" ? data.customCycleDays : null, maxUsers: data.maxUsers || null, storageLimitMb: data.storageLimitMb ? BigInt(data.storageLimitMb) : null, createdById: actor.id } });
+    const created = await tx.subscriptionPlan.create({ data: { ...data, description: data.description || null, customCycleDays: data.billingCycle === "CUSTOM" ? data.customCycleDays : null, maxStudents: data.maxStudents ?? null, maxUsers: data.maxUsers || null, storageLimitMb: data.storageLimitMb ? BigInt(data.storageLimitMb) : null, createdById: actor.id }, select: { id: true } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_CREATED", entity: "SubscriptionPlan", entityId: created.id, result: "SUCCESS" } });
     return created;
   });
@@ -45,6 +49,42 @@ export async function updatePlan(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     await tx.subscriptionPlan.update({ where: { id: prior.id }, data: { code: input.data.code, name: input.data.name, description: input.data.description || null, price: input.data.price, currency: input.data.currency, billingCycle: input.data.billingCycle, customCycleDays: input.data.billingCycle === "CUSTOM" ? input.data.customCycleDays : null, maxUsers: input.data.maxUsers ?? null, storageLimitMb: input.data.storageLimitMb ? BigInt(input.data.storageLimitMb) : null } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_UPDATED", entity: "SubscriptionPlan", entityId: prior.id, result: "SUCCESS" } });
+  });
+  revalidatePath("/super-admin/subscription-plans");
+}
+
+export async function updatePlanLimits(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const optionalInteger = z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(100000000).optional());
+  const input = z.object({ id: z.uuid(), maxStudents: optionalInteger }).safeParse(Object.fromEntries(formData.entries()));
+  if (!input.success) throw new Error(input.error.issues[0]?.message ?? "Invalid plan limits.");
+
+  await prisma.$transaction(async (tx) => {
+    const prior = await tx.subscriptionPlan.findUnique({
+      where: { id: input.data.id },
+      include: { _count: { select: { subscriptions: true } } },
+    });
+    if (!prior || prior.archivedAt) throw new Error("Plan not found or archived.");
+
+    const maxStudents = input.data.maxStudents ?? null;
+    if (prior._count.subscriptions > 0 && prior.maxStudents !== maxStudents) {
+      throw new Error("This plan already has subscriptions. Create a new plan to change its limits.");
+    }
+
+    await tx.subscriptionPlan.update({
+      where: { id: prior.id },
+      data: { maxStudents },
+    });
+    await tx.platformAuditLog.create({
+      data: {
+        userId: actor.id,
+        action: "SUBSCRIPTION_PLAN_LIMITS_UPDATED",
+        entity: "SubscriptionPlan",
+        entityId: prior.id,
+        result: "SUCCESS",
+        metadata: { maxStudents },
+      },
+    });
   });
   revalidatePath("/super-admin/subscription-plans");
 }
@@ -73,19 +113,123 @@ export async function setPlanActive(formData: FormData) {
 
 export async function createInstitutionSubscription(formData: FormData) {
   const actor = await requireSuperAdmin();
-  const input = z.object({ institutionId: z.uuid(), planId: z.uuid(), startsAt: z.string().optional(), endsAt: z.string().optional() }).safeParse(Object.fromEntries(formData.entries()));
+  const input = z.object({
+    institutionId: z.uuid(),
+    planId: z.uuid(),
+    startsAt: z.string().optional(),
+    endsAt: z.string().optional(),
+    operation: z.enum(["ASSIGN", "CHANGE"]).optional(),
+  }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("Select an institution and an active plan.");
-  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: input.data.planId }, select: { isActive: true, archivedAt: true } });
-  if (!plan?.isActive || plan.archivedAt) throw new Error("The selected plan is not active.");
+  const operation = input.data.operation ?? "ASSIGN";
   const startsAt = input.data.startsAt ? new Date(`${input.data.startsAt}T00:00:00.000Z`) : new Date();
   const endsAt = input.data.endsAt ? new Date(`${input.data.endsAt}T00:00:00.000Z`) : null;
   if (Number.isNaN(startsAt.getTime()) || (endsAt && Number.isNaN(endsAt.getTime()))) throw new Error("Enter valid subscription dates.");
   if (endsAt && endsAt <= startsAt) throw new Error("Subscription expiry must be after its start date.");
   await prisma.$transaction(async (tx) => {
-    const subscription = await tx.institutionSubscription.create({ data: { institutionId: input.data.institutionId, planId: input.data.planId, createdById: actor.id, startsAt, endsAt, status: "ACTIVE" } });
-    await tx.subscriptionEvent.create({ data: { subscriptionId: subscription.id, actorId: actor.id, action: "ASSIGNED", details: { planId: input.data.planId } } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUBSCRIPTION_ASSIGNED", entity: "InstitutionSubscription", entityId: subscription.id, result: "SUCCESS" } });
+    await lockInstitutionSubscriptionLifecycle(tx, input.data.institutionId);
+    const plan = await tx.subscriptionPlan.findUnique({
+      where: { id: input.data.planId },
+      select: { id: true, isActive: true, archivedAt: true },
+    });
+    if (!plan?.isActive || plan.archivedAt) throw new Error("The selected plan is not active.");
+
+    const now = new Date();
+    const priorSubscriptions = await tx.institutionSubscription.findMany({
+      where: currentOrScheduledSubscriptionWhere(input.data.institutionId, now),
+      include: { plan: { select: { name: true } } },
+    });
+    if (priorSubscriptions.length > 1) {
+      throw new Error("Multiple current or scheduled subscriptions exist. Reconcile them before assigning another plan.");
+    }
+
+    const prior = priorSubscriptions[0];
+    if (prior && operation !== "CHANGE") {
+      throw new Error("A current or scheduled subscription already exists. Use the institution-specific Change plan operation.");
+    }
+    if (prior) {
+      await tx.institutionSubscription.update({
+        where: { id: prior.id },
+        data: { status: "CANCELED", cancelledAt: now },
+      });
+      await tx.subscriptionEvent.create({
+        data: {
+          subscriptionId: prior.id,
+          actorId: actor.id,
+          action: "SUPERSEDED_BY_MANUAL_ASSIGNMENT",
+          details: {
+            source: "manual_administrative_action",
+            previous: {
+              planId: prior.planId,
+              planName: prior.plan.name,
+              status: prior.status,
+              startsAt: prior.startsAt.toISOString(),
+              endsAt: prior.endsAt?.toISOString() ?? null,
+              cancelledAt: prior.cancelledAt?.toISOString() ?? null,
+            },
+          },
+        },
+      });
+    }
+
+    const subscription = await tx.institutionSubscription.create({
+      data: {
+        institutionId: input.data.institutionId,
+        planId: plan.id,
+        createdById: actor.id,
+        startsAt,
+        endsAt,
+        status: "ACTIVE",
+      },
+    });
+    await tx.subscriptionEvent.create({
+      data: {
+        subscriptionId: subscription.id,
+        actorId: actor.id,
+        action: prior ? "PLAN_CHANGED_MANUALLY" : "ASSIGNED_MANUALLY",
+        details: {
+          source: "manual_administrative_action",
+          previousSubscriptionId: prior?.id ?? null,
+          previousPlanId: prior?.planId ?? null,
+          planId: plan.id,
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt?.toISOString() ?? null,
+        },
+      },
+    });
+    await tx.platformAuditLog.create({
+      data: {
+        userId: actor.id,
+        institutionId: input.data.institutionId,
+        action: prior ? "SUBSCRIPTION_PLAN_CHANGED_MANUALLY" : "SUBSCRIPTION_ASSIGNED_MANUALLY",
+        entity: "InstitutionSubscription",
+        entityId: subscription.id,
+        result: "SUCCESS",
+        metadata: {
+          source: "manual_administrative_action",
+          subscriptionId: subscription.id,
+          previous: prior
+            ? {
+                subscriptionId: prior.id,
+                planId: prior.planId,
+                status: prior.status,
+                startsAt: prior.startsAt.toISOString(),
+                endsAt: prior.endsAt?.toISOString() ?? null,
+                cancelledAt: prior.cancelledAt?.toISOString() ?? null,
+              }
+            : null,
+          next: {
+            subscriptionId: subscription.id,
+            planId: plan.id,
+            status: subscription.status,
+            startsAt: startsAt.toISOString(),
+            endsAt: endsAt?.toISOString() ?? null,
+          },
+        },
+      },
+    });
   });
+  revalidatePath(`/super-admin/institutions/${input.data.institutionId}`);
   revalidatePath("/super-admin/billing");
   revalidatePath("/super-admin");
 }
@@ -225,12 +369,83 @@ export async function setSubscriptionStatus(formData: FormData) {
   const actor = await requireSuperAdmin();
   const input = z.object({ id: z.uuid(), status: z.enum(["ACTIVE", "CANCELED", "SUSPENDED", "EXPIRED"]) }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("Invalid subscription change.");
+  let institutionId = "";
   await prisma.$transaction(async (tx) => {
-    const existing = await tx.institutionSubscription.findUniqueOrThrow({ where: { id: input.data.id }, select: { institutionId: true, status: true } });
-    await tx.institutionSubscription.update({ where: { id: input.data.id }, data: { status: input.data.status, cancelledAt: input.data.status === "CANCELED" ? new Date() : null } });
-    await tx.subscriptionEvent.create({ data: { subscriptionId: input.data.id, actorId: actor.id, action: `STATUS_${input.data.status}`, details: { status: input.data.status } } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: existing.institutionId, action: "SUBSCRIPTION_STATUS_CHANGED", entity: "InstitutionSubscription", entityId: input.data.id, result: "SUCCESS", metadata: { previousStatus: existing.status, status: input.data.status } } });
+    const initial = await tx.institutionSubscription.findUniqueOrThrow({
+      where: { id: input.data.id },
+      select: { institutionId: true },
+    });
+    await lockInstitutionSubscriptionLifecycle(tx, initial.institutionId);
+    const existing = await tx.institutionSubscription.findUniqueOrThrow({
+      where: { id: input.data.id },
+      select: { id: true, institutionId: true, planId: true, status: true, startsAt: true, endsAt: true, cancelledAt: true },
+    });
+    institutionId = existing.institutionId;
+    if (input.data.status === "ACTIVE") {
+      if (existing.status === "TRIALING") {
+        throw new Error("Use manual plan assignment to transition a trial so the trial record remains in history.");
+      }
+      const now = new Date();
+      if (existing.startsAt > now || existing.endsAt && existing.endsAt <= now) {
+        throw new Error("This subscription is outside its valid dates. Assign a new plan rather than reactivating an expired or future record.");
+      }
+      const competing = await tx.institutionSubscription.findMany({
+        where: {
+          ...currentOrScheduledSubscriptionWhere(existing.institutionId),
+          id: { not: existing.id },
+        },
+        select: { id: true },
+      });
+      if (competing.length) throw new Error("Another current or scheduled subscription exists for this institution.");
+    }
+
+    const now = new Date();
+    await tx.institutionSubscription.update({
+      where: { id: existing.id },
+      data: {
+        status: input.data.status,
+        cancelledAt: input.data.status === "CANCELED" ? now : null,
+      },
+    });
+    const previous = {
+      planId: existing.planId,
+      status: existing.status,
+      startsAt: existing.startsAt.toISOString(),
+      endsAt: existing.endsAt?.toISOString() ?? null,
+      cancelledAt: existing.cancelledAt?.toISOString() ?? null,
+    };
+    const next = {
+      ...previous,
+      status: input.data.status,
+      cancelledAt: input.data.status === "CANCELED" ? now.toISOString() : null,
+    };
+    await tx.subscriptionEvent.create({
+      data: {
+        subscriptionId: existing.id,
+        actorId: actor.id,
+        action: `STATUS_${input.data.status}`,
+        details: { source: "manual_administrative_action", previous, next },
+      },
+    });
+    await tx.platformAuditLog.create({
+      data: {
+        userId: actor.id,
+        institutionId: existing.institutionId,
+        action: "SUBSCRIPTION_STATUS_CHANGED",
+        entity: "InstitutionSubscription",
+        entityId: existing.id,
+        result: "SUCCESS",
+        metadata: {
+          source: "manual_administrative_action",
+          subscriptionId: existing.id,
+          operation: input.data.status,
+          previous,
+          next,
+        },
+      },
+    });
   });
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
   revalidatePath("/super-admin/billing");
   revalidatePath("/super-admin");
 }
@@ -239,9 +454,27 @@ export async function renewSubscription(formData: FormData) {
   const actor = await requireSuperAdmin();
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) throw new Error("Invalid subscription.");
+  let institutionId = "";
   await prisma.$transaction(async (tx) => {
-    const current = await tx.institutionSubscription.findUnique({ where: { id: id.data }, include: { plan: { select: { billingCycle: true, customCycleDays: true } } } });
-    if (!current || current.plan.billingCycle === "CUSTOM" && !current.plan.customCycleDays) throw new Error("This subscription cannot be renewed until its plan cycle is configured.");
+    const initial = await tx.institutionSubscription.findUnique({ where: { id: id.data }, select: { institutionId: true } });
+    if (!initial) throw new Error("Subscription not found.");
+    await lockInstitutionSubscriptionLifecycle(tx, initial.institutionId);
+    const current = await tx.institutionSubscription.findUnique({
+      where: { id: id.data },
+      include: { plan: { select: { billingCycle: true, customCycleDays: true } } },
+    });
+    if (!current || current.status !== "ACTIVE" || current.plan.billingCycle === "CUSTOM" && !current.plan.customCycleDays) {
+      throw new Error("Only an active subscription with a configured plan cycle can be renewed through this existing action.");
+    }
+    institutionId = current.institutionId;
+    const competing = await tx.institutionSubscription.findMany({
+      where: {
+        ...currentOrScheduledSubscriptionWhere(current.institutionId),
+        id: { not: current.id },
+      },
+      select: { id: true },
+    });
+    if (competing.length) throw new Error("Another current or scheduled subscription exists for this institution.");
     const now = new Date();
     const nextEnd = current.endsAt && current.endsAt > now ? new Date(current.endsAt) : new Date(now);
     if (current.plan.billingCycle === "MONTHLY") nextEnd.setUTCMonth(nextEnd.getUTCMonth() + 1);
@@ -249,9 +482,98 @@ export async function renewSubscription(formData: FormData) {
     else if (current.plan.billingCycle === "YEARLY") nextEnd.setUTCMonth(nextEnd.getUTCMonth() + 12);
     else nextEnd.setUTCDate(nextEnd.getUTCDate() + current.plan.customCycleDays!);
     await tx.institutionSubscription.update({ where: { id: current.id }, data: { status: "ACTIVE", startsAt: current.startsAt, endsAt: nextEnd, renewsAt: nextEnd, cancelledAt: null } });
-    await tx.subscriptionEvent.create({ data: { subscriptionId: current.id, actorId: actor.id, action: "RENEWED", details: { previousEnd: current.endsAt?.toISOString() ?? null, nextEnd: nextEnd.toISOString() } } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: current.institutionId, action: "SUBSCRIPTION_RENEWED", entity: "InstitutionSubscription", entityId: current.id, result: "SUCCESS", metadata: { endsAt: nextEnd.toISOString() } } });
+    const previous = {
+      status: current.status,
+      startsAt: current.startsAt.toISOString(),
+      endsAt: current.endsAt?.toISOString() ?? null,
+      renewsAt: current.renewsAt?.toISOString() ?? null,
+      cancelledAt: current.cancelledAt?.toISOString() ?? null,
+    };
+    const next = {
+      ...previous,
+      endsAt: nextEnd.toISOString(),
+      renewsAt: nextEnd.toISOString(),
+      cancelledAt: null,
+    };
+    await tx.subscriptionEvent.create({ data: { subscriptionId: current.id, actorId: actor.id, action: "RENEWED", details: { source: "manual_administrative_action", previous, next } } });
+    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: current.institutionId, action: "SUBSCRIPTION_RENEWED", entity: "InstitutionSubscription", entityId: current.id, result: "SUCCESS", metadata: { source: "manual_administrative_action", subscriptionId: current.id, previous, next } } });
   });
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
+  revalidatePath("/super-admin/billing");
+  revalidatePath("/super-admin");
+}
+
+export async function extendSubscriptionValidity(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z.object({ id: z.uuid(), endsAt: z.iso.date() }).safeParse(Object.fromEntries(formData.entries()));
+  if (!input.success) throw new Error("Select a valid new expiry date.");
+  const nextEnd = new Date(`${input.data.endsAt}T00:00:00.000Z`);
+
+  let institutionId = "";
+  await prisma.$transaction(async (tx) => {
+    const initial = await tx.institutionSubscription.findUnique({
+      where: { id: input.data.id },
+      select: { institutionId: true },
+    });
+    if (!initial) throw new Error("Subscription not found.");
+    await lockInstitutionSubscriptionLifecycle(tx, initial.institutionId);
+    const current = await tx.institutionSubscription.findUnique({
+      where: { id: input.data.id },
+      select: { id: true, institutionId: true, planId: true, status: true, startsAt: true, endsAt: true, cancelledAt: true },
+    });
+    if (!current || current.status !== "ACTIVE") {
+      throw new Error("Only an active paid subscription can be extended here; trial validity is managed separately.");
+    }
+    institutionId = current.institutionId;
+    if (!current.endsAt || nextEnd <= current.endsAt || nextEnd <= new Date()) {
+      throw new Error("The new expiry must be later than the existing finite expiry and in the future.");
+    }
+    const competing = await tx.institutionSubscription.findMany({
+      where: {
+        ...currentOrScheduledSubscriptionWhere(current.institutionId),
+        id: { not: current.id },
+      },
+      select: { id: true },
+    });
+    if (competing.length) throw new Error("Another current or scheduled subscription exists for this institution.");
+
+    await tx.institutionSubscription.update({
+      where: { id: current.id },
+      data: { endsAt: nextEnd },
+    });
+    const previous = {
+      planId: current.planId,
+      status: current.status,
+      startsAt: current.startsAt.toISOString(),
+      endsAt: current.endsAt.toISOString(),
+    };
+    const next = { ...previous, endsAt: nextEnd.toISOString() };
+    await tx.subscriptionEvent.create({
+      data: {
+        subscriptionId: current.id,
+        actorId: actor.id,
+        action: "VALIDITY_EXTENDED_MANUALLY",
+        details: { source: "manual_administrative_action", previous, next },
+      },
+    });
+    await tx.platformAuditLog.create({
+      data: {
+        userId: actor.id,
+        institutionId: current.institutionId,
+        action: "SUBSCRIPTION_VALIDITY_EXTENDED",
+        entity: "InstitutionSubscription",
+        entityId: current.id,
+        result: "SUCCESS",
+        metadata: {
+          source: "manual_administrative_action",
+          subscriptionId: current.id,
+          previous,
+          next,
+        },
+      },
+    });
+  });
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
   revalidatePath("/super-admin/billing");
   revalidatePath("/super-admin");
 }
