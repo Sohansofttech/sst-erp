@@ -1,5 +1,6 @@
 import { AdminDashboard } from "@/components/super-admin/admin-dashboard";
 import { getDashboardSummary } from "@/lib/super-admin/dashboard";
+import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { BrandLoadingScreen } from "@/components/shared/BrandLoadingScreen";
@@ -10,6 +11,7 @@ type DashboardSearchParams = Promise<{ from?: string | string[]; to?: string | s
 
 async function DashboardContent({ searchParams }: { searchParams: DashboardSearchParams }) {
   await connection();
+  await requireSuperAdmin();
   let summary = null;
   let unavailable = false;
   const params = await searchParams;
@@ -30,7 +32,8 @@ async function DashboardContent({ searchParams }: { searchParams: DashboardSearc
   try {
     if (validDates) summary = await getDashboardSummary({ from: validFrom, until });
     else unavailable = true;
-  } catch {
+  } catch (err: any) {
+    console.error("[SuperAdmin Dashboard] Failed to load dashboard summary:", err?.message || err);
     unavailable = true;
   }
   return <AdminDashboard summary={summary} unavailable={unavailable} filters={{ from: fromInput ?? "", to: toInput ?? "", range: range ?? "12m" }} />;

@@ -178,7 +178,7 @@ export async function getDashboardSummary(filter?: { from?: Date; until?: Date }
   addToTimeline(timeline, paidPayments, (record) => record.paidAt, "revenue", (record) => Number(record.amount));
 
   const paymentCurrencies = new Set(paidPayments.map((payment) => payment.currency));
-  const revenueByPlan = [...sumBy(paidPayments, (payment) => `${payment.invoice.subscription?.plan.name ?? "Unassigned"}|${payment.currency}`, (payment) => Number(payment.amount))].map(([key, value]) => {
+  const revenueByPlan = [...sumBy(paidPayments, (payment) => `${payment.invoice?.subscription?.plan.name ?? "Unassigned"}|${payment.currency}`, (payment) => Number(payment.amount))].map(([key, value]) => {
     const [label, currency] = key.split("|");
     return { label, value, currency };
   });
