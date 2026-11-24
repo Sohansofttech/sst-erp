@@ -47,6 +47,9 @@ import {
 export default function AdmissionsPage() {
   const {
     admissions,
+    isAdmissionsLoading,
+    admissionsError,
+    refreshAdmissions,
     addAdmission,
     updateAdmission,
     deleteAdmission,
@@ -118,6 +121,7 @@ export default function AdmissionsPage() {
   ]);
 
   const [formError, setFormError] = useState("");
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState("");
 
   // Filtered Admissions List
   const filteredAdmissions = useMemo(() => {
@@ -219,7 +223,36 @@ export default function AdmissionsPage() {
     setPrevScore(String(app.previousScorePercentage));
     setPassingYear(String(app.passingYear));
 
-    setDocuments(app.documents || []);
+    const standardDocNames = [
+      "10th Grade Marksheet",
+      "12th Grade Marksheet",
+      "Transfer Certificate (TC)",
+      "Aadhaar Card / ID Proof",
+    ];
+    let initialDocs: DocumentSubmissionStatus[] = [];
+    if (Array.isArray(app.documents) && app.documents.length > 0) {
+      initialDocs = standardDocNames.map((name) => {
+        const found = app.documents?.find(
+          (d) => d.documentName.toLowerCase() === name.toLowerCase()
+        );
+        return found
+          ? { documentName: name, isSubmitted: Boolean(found.isSubmitted), verifiedAt: found.verifiedAt }
+          : { documentName: name, isSubmitted: false };
+      });
+      const extras = app.documents.filter(
+        (d) => !standardDocNames.some((sn) => sn.toLowerCase() === d.documentName.toLowerCase())
+      );
+      initialDocs.push(...extras);
+    } else {
+      initialDocs = [
+        { documentName: "10th Grade Marksheet", isSubmitted: true },
+        { documentName: "12th Grade Marksheet", isSubmitted: true },
+        { documentName: "Transfer Certificate (TC)", isSubmitted: false },
+        { documentName: "Aadhaar Card / ID Proof", isSubmitted: true },
+      ];
+    }
+
+    setDocuments(initialDocs);
     setFormError("");
     setIsFormModalOpen(true);
   };
@@ -272,10 +305,10 @@ export default function AdmissionsPage() {
   };
 
   // Execute Student Conversion
-  const handleExecuteConvert = () => {
+  const handleExecuteConvert = async () => {
     if (!selectedApp) return;
 
-    const result = convertAdmissionToStudent(selectedApp.id, {
+    const result = await convertAdmissionToStudent(selectedApp.id, {
       classId: selectedClassId,
       sectionId: selectedSectionId,
       rollNumber: customRollNumber.trim() ? customRollNumber.trim() : undefined,
@@ -299,7 +332,7 @@ export default function AdmissionsPage() {
   };
 
   // Form Submission (Add or Edit)
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -307,8 +340,9 @@ export default function AdmissionsPage() {
       setFormError("Applicant first and last name are required.");
       return;
     }
-    if (!email.trim() || !email.includes("@")) {
-      setFormError("A valid applicant email address is required.");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setFormError("A valid applicant email address is required (e.g. name@example.com).");
       return;
     }
     if (!phone.trim() || phone.trim() === "+91") {
@@ -324,69 +358,99 @@ export default function AdmissionsPage() {
     const courseObj = courses.find((c) => c.id === selectedCourseId);
     const ayObj = academicYears.find((ay) => ay.id === selectedAYId);
 
-    if (editingApp) {
-      updateAdmission(editingApp.id, {
-        applicantFirstName: firstName.trim(),
-        applicantLastName: lastName.trim(),
-        dob,
-        gender,
-        email: email.trim(),
-        phone: phone.trim(),
-        addressLine: addressLine.trim(),
-        city: city.trim(),
-        state: state.trim(),
-        postalCode: postalCode.trim(),
-        guardianName: guardianName.trim(),
-        guardianRelation,
-        guardianPhone: guardianPhone.trim(),
-        guardianEmail: guardianEmail.trim(),
-        guardianOccupation: guardianOccupation.trim(),
-        departmentId: selectedDeptId,
-        departmentName: deptObj?.name || "Department",
-        courseId: selectedCourseId,
-        courseName: courseObj?.name || "Course",
-        academicYearId: selectedAYId,
-        academicYearName: ayObj?.name || "2026-2027",
-        previousSchoolOrCollege: prevSchool.trim(),
-        previousBoardOrUniversity: prevBoard.trim(),
-        previousScorePercentage: parseFloat(prevScore) || 0,
-        passingYear: parseInt(passingYear) || 2026,
-        documents,
-      });
-    } else {
-      addAdmission({
-        applicantFirstName: firstName.trim(),
-        applicantLastName: lastName.trim(),
-        applicantFullName: `${firstName.trim()} ${lastName.trim()}`,
-        dob,
-        gender,
-        email: email.trim(),
-        phone: phone.trim(),
-        addressLine: addressLine.trim(),
-        city: city.trim(),
-        state: state.trim(),
-        postalCode: postalCode.trim(),
-        guardianName: guardianName.trim(),
-        guardianRelation,
-        guardianPhone: guardianPhone.trim(),
-        guardianEmail: guardianEmail.trim(),
-        guardianOccupation: guardianOccupation.trim(),
-        departmentId: selectedDeptId,
-        departmentName: deptObj?.name || "Department",
-        courseId: selectedCourseId,
-        courseName: courseObj?.name || "Course",
-        academicYearId: selectedAYId,
-        academicYearName: ayObj?.name || "2026-2027",
-        previousSchoolOrCollege: prevSchool.trim(),
-        previousBoardOrUniversity: prevBoard.trim(),
-        previousScorePercentage: parseFloat(prevScore) || 0,
-        passingYear: parseInt(passingYear) || 2026,
-        documents,
-        status: "Submitted",
-      });
-    }
+    try {
+      if (editingApp) {
+        await updateAdmission(editingApp.id, {
+          applicantFirstName: firstName.trim(),
+          applicantLastName: lastName.trim(),
+          dob,
+          gender,
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          addressLine: addressLine.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          postalCode: postalCode.trim(),
+          guardianName: guardianName.trim(),
+          guardianRelation,
+          guardianPhone: guardianPhone.trim(),
+          guardianEmail: guardianEmail.trim().toLowerCase(),
+          guardianOccupation: guardianOccupation.trim(),
+          departmentId: selectedDeptId,
+          departmentName: deptObj?.name || "Department",
+          courseId: selectedCourseId,
+          courseName: courseObj?.name || "Course",
+          academicYearId: selectedAYId,
+          academicYearName: ayObj?.name || "2026-2027",
+          previousSchoolOrCollege: prevSchool.trim(),
+          previousBoardOrUniversity: prevBoard.trim(),
+          previousScorePercentage: parseFloat(prevScore) || 0,
+          passingYear: parseInt(passingYear) || 2026,
+          documents,
+        });
 
-    setIsFormModalOpen(false);
+        if (selectedApp && selectedApp.id === editingApp.id) {
+          setSelectedApp((prev: any) => ({
+            ...prev,
+            applicantFirstName: firstName.trim(),
+            applicantLastName: lastName.trim(),
+            applicantFullName: `${firstName.trim()} ${lastName.trim()}`,
+            email: email.trim().toLowerCase(),
+            phone: phone.trim(),
+            addressLine: addressLine.trim(),
+            city: city.trim(),
+            state: state.trim(),
+            postalCode: postalCode.trim(),
+            guardianName: guardianName.trim(),
+            guardianRelation,
+            guardianPhone: guardianPhone.trim(),
+            guardianEmail: guardianEmail.trim().toLowerCase(),
+            guardianOccupation: guardianOccupation.trim(),
+            courseId: selectedCourseId,
+            courseName: courseObj?.name || prev?.courseName,
+            academicYearId: selectedAYId,
+            academicYearName: ayObj?.name || prev?.academicYearName,
+          }));
+        }
+      } else {
+        addAdmission({
+          applicantFirstName: firstName.trim(),
+          applicantLastName: lastName.trim(),
+          applicantFullName: `${firstName.trim()} ${lastName.trim()}`,
+          dob,
+          gender,
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          addressLine: addressLine.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          postalCode: postalCode.trim(),
+          guardianName: guardianName.trim(),
+          guardianRelation,
+          guardianPhone: guardianPhone.trim(),
+          guardianEmail: guardianEmail.trim().toLowerCase(),
+          guardianOccupation: guardianOccupation.trim(),
+          departmentId: selectedDeptId,
+          departmentName: deptObj?.name || "Department",
+          courseId: selectedCourseId,
+          courseName: courseObj?.name || "Course",
+          academicYearId: selectedAYId,
+          academicYearName: ayObj?.name || "2026-2027",
+          previousSchoolOrCollege: prevSchool.trim(),
+          previousBoardOrUniversity: prevBoard.trim(),
+          previousScorePercentage: parseFloat(prevScore) || 0,
+          passingYear: parseInt(passingYear) || 2026,
+          documents,
+          status: "Submitted",
+        });
+      }
+
+      setSaveSuccessMessage("Application changes and document checklist saved successfully.");
+      setTimeout(() => setSaveSuccessMessage(""), 4000);
+      setIsFormModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save application changes.");
+    }
   };
 
   // Toggle Document Submission
@@ -422,6 +486,7 @@ export default function AdmissionsPage() {
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
@@ -574,6 +639,26 @@ export default function AdmissionsPage() {
         </CardContent>
       </Card>
 
+      {saveSuccessMessage && (
+        <Alert variant="success">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="text-emerald-800 font-medium text-xs">{saveSuccessMessage}</span>
+          </div>
+        </Alert>
+      )}
+
+      {admissionsError && (
+        <Alert variant="error">
+          <div className="flex items-center justify-between w-full">
+            <span>{admissionsError}</span>
+            <Button size="sm" variant="outline" onClick={() => refreshAdmissions()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
+
       {/* Main Applications Table */}
       <Card>
         <CardContent className="p-0">
@@ -591,7 +676,13 @@ export default function AdmissionsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAdmissions.length === 0 ? (
+              {isAdmissionsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-sm text-[#64748B]">
+                    Loading admission applications from database...
+                  </TableCell>
+                </TableRow>
+              ) : filteredAdmissions.length === 0 ? (
                 <TableEmpty
                   colSpan={8}
                   message="No admission applications found matching your criteria."

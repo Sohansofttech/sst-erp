@@ -3,6 +3,7 @@ import { sendEmail } from "@/lib/services/email.service";
 
 type SendInvitationInput = {
   to: string;
+  institutionId?: string;
   institutionName: string;
   institutionCode: string;
   administratorName: string;
@@ -10,7 +11,7 @@ type SendInvitationInput = {
   expiresAt: Date;
 };
 
-export type EmailSendResult = { sent: true } | { sent: false; reason: string };
+export type EmailSendResult = { sent: true; fallbackUsed?: boolean } | { sent: false; reason: string };
 
 export async function sendInstitutionInvitationEmail(input: SendInvitationInput): Promise<EmailSendResult> {
   const message = institutionInvitationEmail(input);
@@ -20,6 +21,9 @@ export async function sendInstitutionInvitationEmail(input: SendInvitationInput)
     subject: message.subject,
     html: message.html,
     text: message.text,
+    institutionId: input.institutionId,
+    purpose: "INVITATION",
+    allowFallback: true,
   });
 
   if (!res.success) {
@@ -29,5 +33,5 @@ export async function sendInstitutionInvitationEmail(input: SendInvitationInput)
     };
   }
 
-  return { sent: true };
+  return { sent: true, fallbackUsed: res.fallbackUsed };
 }

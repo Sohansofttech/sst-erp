@@ -257,6 +257,8 @@ export function mapDbTeacherToProfile(
 // In-memory caches for fast tenant resolution and zero pool churn
 const institutionCache = new Map<string, { inst: institutions; timestamp: number }>()
 const inFlightInstitutions = new Map<string, Promise<institutions | null>>()
+const academicYearsCache = new Map<string, { years: any[]; timestamp: number }>()
+const teacherSessionCache = new Map<string, { session: TeacherSession; timestamp: number }>()
 
 /**
  * Resolves an active institution from the database by slug or institution code / id.
@@ -326,14 +328,21 @@ export async function getTenantContext(slug: string): Promise<TenantContext> {
     )
   }
 
+  const cachedAY = academicYearsCache.get(institution.id)
   let dbYears: any[] = []
-  try {
-    dbYears = await prisma.academic_years.findMany({
-      where: { institutionId: institution.id },
-      orderBy: { startDate: "desc" },
-    })
-  } catch (err) {
-    console.warn("[getTenantContext] AY query error:", err)
+  if (cachedAY && Date.now() - cachedAY.timestamp < 300_000) {
+    dbYears = cachedAY.years
+  } else {
+    try {
+      dbYears = await prisma.academic_years.findMany({
+        where: { institutionId: institution.id },
+        orderBy: { startDate: "desc" },
+      })
+      academicYearsCache.set(institution.id, { years: dbYears, timestamp: Date.now() })
+    } catch (err) {
+      console.warn("[getTenantContext] AY query error:", err)
+      dbYears = cachedAY?.years ?? []
+    }
   }
 
   const academicYears = dbYears.map(mapDbAcademicYearToCommon)
@@ -398,14 +407,21 @@ export async function getTeacherSession(
     return null
   }
 
+  const cachedAY = academicYearsCache.get(institution.id)
   let dbYears: any[] = []
-  try {
-    dbYears = await prisma.academic_years.findMany({
-      where: { institutionId: institution.id },
-      orderBy: { startDate: "desc" },
-    })
-  } catch (err) {
-    console.warn("[getTeacherSession] AY query error:", err)
+  if (cachedAY && Date.now() - cachedAY.timestamp < 300_000) {
+    dbYears = cachedAY.years
+  } else {
+    try {
+      dbYears = await prisma.academic_years.findMany({
+        where: { institutionId: institution.id },
+        orderBy: { startDate: "desc" },
+      })
+      academicYearsCache.set(institution.id, { years: dbYears, timestamp: Date.now() })
+    } catch (err) {
+      console.warn("[getTeacherSession] AY query error:", err)
+      dbYears = cachedAY?.years ?? []
+    }
   }
 
   const currentAcademicYear = dbYears.find((y: any) => y.isCurrent) ?? dbYears[0] ?? null
@@ -428,6 +444,12 @@ export async function getTeacherSession(
   // 1. Check primary teacher session cookie (sst_teacher_session)
   const teacherToken = await getTeacherSessionToken(options.req)
   if (teacherToken) {
+    const sessionCacheKey = `${institution.id}:${teacherToken}`
+    const cachedSession = teacherSessionCache.get(sessionCacheKey)
+    if (cachedSession && Date.now() - cachedSession.timestamp < 15_000) {
+      return cachedSession.session
+    }
+
     const payload = await verifyTeacherSession(teacherToken)
     if (payload) {
       // Validate that session institution matches requested slug
@@ -505,13 +527,34 @@ export async function getTeacherSession(
         }
       }
 
+      if (!teacherObj && (user.role === "TEACHER" || user.role === "HOD")) {
+        try {
+          teacherObj = await prisma.teachers.findFirst({
+            where: { userId: user.id },
+          })
+          if (!teacherObj) {
+            teacherObj = await prisma.teachers.create({
+              data: {
+                userId: user.id,
+                institutionId: user.institutionId || institution.id,
+                employeeId: user.id.slice(0, 10).toUpperCase(),
+                department: "General",
+                designation: user.role === "HOD" ? "Head of Department" : "Faculty Member",
+              },
+            })
+          }
+        } catch (err) {
+          console.warn("[getTeacherSession] Dynamic teacher profile resolution:", err)
+        }
+      }
+
       if (teacherObj) {
         const profile = mapDbTeacherToProfile(teacherObj, user, {
           isClassTeacher: availableRoles.includes("class_teacher"),
           classTeacherOf: homeroomClass ?? "Class 10 - A",
         })
 
-        return {
+        const resolvedSession: TeacherSession = {
           institution,
           user,
           teacher: teacherObj,
@@ -525,13 +568,15 @@ export async function getTeacherSession(
           availableRoles,
           sessionPayload: payload,
         }
+        teacherSessionCache.set(sessionCacheKey, { session: resolvedSession, timestamp: Date.now() })
+        return resolvedSession
       }
     }
   }
 
   // 2. Check general ERP session (sst_session / erp_session)
   const erpSession = await getSession(options.req)
-  if (erpSession && (erpSession.role === "TEACHER" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
+  if (erpSession && (erpSession.role === "TEACHER" || (erpSession.role as string) === "HOD" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
     const user = await prisma.users.findFirst({
       where: {
         id: erpSession.userId,
@@ -542,21 +587,45 @@ export async function getTeacherSession(
       },
     })
 
-    const teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
-    if (user && teacherObj) {
-      const profile = mapDbTeacherToProfile(teacherObj, user)
-      return {
-        institution,
-        user,
-        teacher: teacherObj,
-        academicYears: dbYears,
-        currentAcademicYear,
-        profile,
-        tenantContext,
-        supabaseUser: null,
-        isDemoFallback: false,
-        activeRole: "teacher",
-        availableRoles: ["teacher"],
+    if (user && user.isActive) {
+      let teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
+      if (!teacherObj && (user.role === "TEACHER" || user.role === "HOD" || erpSession.role === "TEACHER")) {
+        try {
+          teacherObj = await prisma.teachers.findFirst({
+            where: { userId: user.id },
+          })
+          if (!teacherObj) {
+            teacherObj = await prisma.teachers.create({
+              data: {
+                userId: user.id,
+                institutionId: user.institutionId || institution.id,
+                employeeId: user.id.slice(0, 10).toUpperCase(),
+                department: "General",
+                designation: user.role === "HOD" ? "Head of Department" : "Faculty Member",
+              },
+            })
+          }
+        } catch (err) {
+          console.warn("[getTeacherSession] Dynamic teacher profile resolution:", err)
+        }
+      }
+
+      if (teacherObj) {
+        const profile = mapDbTeacherToProfile(teacherObj, user)
+        const isHod = user.role === "HOD"
+        return {
+          institution,
+          user,
+          teacher: teacherObj,
+          academicYears: dbYears,
+          currentAcademicYear,
+          profile,
+          tenantContext,
+          supabaseUser: null,
+          isDemoFallback: false,
+          activeRole: isHod ? "hod" : "teacher",
+          availableRoles: isHod ? ["teacher", "hod"] : ["teacher"],
+        }
       }
     }
   }

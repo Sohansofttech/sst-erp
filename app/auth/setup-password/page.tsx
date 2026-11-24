@@ -69,15 +69,27 @@ function SetupPasswordForm() {
       if (data.success) {
         setSuccess(true);
         setTimeout(() => {
-          if (data.role === "ADMIN" || data.role === "SUPER_ADMIN") {
+          const roleUpper = (data.role || "").toUpperCase();
+          if (roleUpper === "ADMIN" || roleUpper === "SUPER_ADMIN") {
             router.push("/admin");
-          } else if (data.role === "TEACHER") {
+          } else if (roleUpper === "TEACHER") {
             const institutionSlug = (data.institutionSlug || "").trim();
             if (institutionSlug) {
               router.push(`/campus/${institutionSlug}/teacher`);
             } else {
               router.push("/login");
             }
+          } else if (roleUpper === "HOD") {
+            const institutionSlug = (data.institutionSlug || "").trim();
+            if (institutionSlug) {
+              router.push(`/campus/${institutionSlug}/teacher/hod`);
+            } else {
+              router.push("/login");
+            }
+          } else if (roleUpper === "PARENT" || roleUpper === "GUARDIAN") {
+            router.push("/parent/dashboard");
+          } else if (roleUpper === "STUDENT") {
+            router.push("/student/dashboard");
           } else {
             router.push("/dashboard");
           }

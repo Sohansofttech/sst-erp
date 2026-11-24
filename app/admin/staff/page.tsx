@@ -37,6 +37,9 @@ import {
   X,
   Award,
   KeyRound,
+  Archive,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { StaffItem, StaffEmploymentType, StaffStatus } from "@/types/institution";
 import { CredentialManagementModal } from "@/components/admin/CredentialManagementModal";
@@ -46,12 +49,21 @@ import { isTeachingFacultyTitle, PortalAccountStatus } from "@/lib/utils/credent
 export default function StaffPage() {
   const {
     staff,
+    isStaffLoading,
+    staffError,
+    refreshStaff,
     addStaff,
     updateStaff,
     deactivateStaff,
+    archiveStaff,
+    restoreStaff,
     departments,
     roles,
   } = useInstitution();
+
+  useEffect(() => {
+    refreshStaff();
+  }, [refreshStaff]);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -59,11 +71,18 @@ export default function StaffPage() {
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [roleFilter, setRoleFilter] = useState("ALL");
+  const [directoryView, setDirectoryView] = useState<"active" | "archived">("active");
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffItem | null>(null);
   const [viewingStaff, setViewingStaff] = useState<StaffItem | null>(null);
+
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archivingStaff, setArchivingStaff] = useState<StaffItem | null>(null);
+  const [archivingDependencies, setArchivingDependencies] = useState<any | null>(null);
+  const [isLoadingDependencies, setIsLoadingDependencies] = useState(false);
+  const [isArchivingSubmitting, setIsArchivingSubmitting] = useState(false);
 
   const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
   const [credentialStaff, setCredentialStaff] = useState<StaffItem | null>(null);
@@ -83,6 +102,8 @@ export default function StaffPage() {
     switch (status) {
       case "ACTIVE":
         return <Badge variant="success" size="sm">Active Portal</Badge>;
+      case "PENDING_SETUP":
+        return <Badge variant="warning" size="sm">Pending Setup</Badge>;
       case "DISABLED":
         return <Badge variant="error" size="sm">Disabled</Badge>;
       case "NOT_CREATED":
@@ -176,14 +197,19 @@ export default function StaffPage() {
     const total = staff.length;
     const active = staff.filter((s) => s.status === "Active").length;
     const onLeave = staff.filter((s) => s.status === "On Leave").length;
+    const archived = staff.filter((s) => s.status === "Archived").length;
     const fullTime = staff.filter((s) => s.employmentType === "Full-Time").length;
 
-    return { total, active, onLeave, fullTime };
+    return { total, active, onLeave, archived, fullTime };
   }, [staff]);
 
   // Filtered Staff
   const filteredStaff = useMemo(() => {
     return staff.filter((st) => {
+      // Filter by directory view (Active vs Archived)
+      if (directoryView === "active" && st.status === "Archived") return false;
+      if (directoryView === "archived" && st.status !== "Archived") return false;
+
       const matchesSearch =
         searchQuery === "" ||
         st.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -201,7 +227,63 @@ export default function StaffPage() {
 
       return matchesSearch && matchesDept && matchesType && matchesStatus && matchesRole;
     });
-  }, [staff, searchQuery, deptFilter, typeFilter, statusFilter, roleFilter]);
+  }, [staff, directoryView, searchQuery, deptFilter, typeFilter, statusFilter, roleFilter]);
+
+  const handleOpenArchiveModal = async (st: StaffItem) => {
+    setArchivingStaff(st);
+    setArchivingDependencies(null);
+    setIsArchiveModalOpen(true);
+    setIsLoadingDependencies(true);
+    try {
+      const res = await fetch(`/api/admin/staff?id=${encodeURIComponent(st.id)}&dependencies=true`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          setArchivingDependencies(json.data);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch teacher dependencies:", err);
+    } finally {
+      setIsLoadingDependencies(false);
+    }
+  };
+
+  const handleConfirmArchive = async (force: boolean = false) => {
+    if (!archivingStaff) return;
+    setIsArchivingSubmitting(true);
+    try {
+      const res = await archiveStaff(archivingStaff.id, force);
+      if (!res.success) {
+        showToast("error", res.message);
+        return;
+      }
+      showToast("success", res.message);
+      setIsArchiveModalOpen(false);
+      setArchivingStaff(null);
+      setArchivingDependencies(null);
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to archive staff member.");
+    } finally {
+      setIsArchivingSubmitting(false);
+    }
+  };
+
+  const handleConfirmRestore = async (st: StaffItem) => {
+    if (
+      !confirm(
+        `Restore teacher "${st.fullName}" (${st.employeeId}) to the active Staff Directory?\n\nHistorical academic, attendance, and exam records will remain intact. Portal access remains dormant until fresh credentials are setup.`
+      )
+    ) {
+      return;
+    }
+    const res = await restoreStaff(st.id);
+    if (!res.success) {
+      showToast("error", res.message);
+      return;
+    }
+    showToast("success", res.message);
+  };
 
   // Form State
   const initialFormData = {
@@ -294,6 +376,10 @@ export default function StaffPage() {
             fullName: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
             phone: formData.phone.trim(),
             role: "TEACHER",
+            designation: formData.designation.trim(),
+            departmentId: formData.departmentId,
+            department: deptName,
+            employeeId: formData.employeeId.trim(),
           }),
         });
       } catch (err) {
@@ -320,6 +406,7 @@ export default function StaffPage() {
         assignedRoleName: roleName,
         status: formData.status,
         addressLine: formData.addressLine.trim() || undefined,
+        isTeachingFaculty: isTeachingFacultyTitle(formData.designation.trim(), roleName),
       });
       showToast("success", `Staff record for "${formData.firstName} ${formData.lastName}" updated.`);
     } else {
@@ -619,15 +706,39 @@ export default function StaffPage() {
 
       {/* Staff Master Directory Table */}
       <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
-        <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
+        <CardHeader className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
-            <span>Staff Directory</span>
+            <span>{directoryView === "active" ? "Staff Directory" : "Archived Staff Directory"}</span>
             <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
               {filteredStaff.length} personnel
             </span>
           </CardTitle>
-          <div className="text-xs text-slate-500">
-            Click on any staff member to view comprehensive profile & academic details
+
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setDirectoryView("active")}
+                className={`px-3 py-1 font-medium rounded-md transition-all cursor-pointer ${
+                  directoryView === "active"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Active Staff ({stats.total - stats.archived})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirectoryView("archived")}
+                className={`px-3 py-1 font-medium rounded-md transition-all cursor-pointer ${
+                  directoryView === "archived"
+                    ? "bg-slate-800 text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Archived Records ({stats.archived})
+              </button>
+            </div>
           </div>
         </CardHeader>
         <div className="overflow-x-auto">
@@ -824,6 +935,28 @@ export default function StaffPage() {
                             <UserCheck className="h-4 w-4" />
                           )}
                         </Button>
+
+                        {st.status !== "Archived" ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenArchiveModal(st)}
+                            title="Archive Teacher / Staff (Preserve Records)"
+                            className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleConfirmRestore(st)}
+                            title="Restore Teacher / Staff Record"
+                            className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1432,6 +1565,109 @@ export default function StaffPage() {
             : []
         }
       />
+
+      {/* ================================================================= */}
+      {/* TEACHER / STAFF ARCHIVE CONFIRMATION MODAL                        */}
+      {/* ================================================================= */}
+      {archivingStaff && (
+        <Modal
+          isOpen={isArchiveModalOpen}
+          onClose={() => {
+            if (!isArchivingSubmitting) {
+              setIsArchiveModalOpen(false);
+              setArchivingStaff(null);
+              setArchivingDependencies(null);
+            }
+          }}
+          title={`Archive Staff Member: ${archivingStaff.fullName}`}
+          description="Soft-archive teacher profile and safely revoke login access."
+          maxWidth="md"
+          footer={
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsArchiveModalOpen(false);
+                  setArchivingStaff(null);
+                  setArchivingDependencies(null);
+                }}
+                disabled={isArchivingSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => handleConfirmArchive(archivingDependencies?.hasActiveAssignments || false)}
+                disabled={isArchivingSubmitting || isLoadingDependencies}
+              >
+                {isArchivingSubmitting
+                  ? "Archiving..."
+                  : archivingDependencies?.hasActiveAssignments
+                  ? "Reassign & Confirm Archive"
+                  : "Confirm Archive"}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-sm text-slate-700">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1 text-xs">
+              <div><span className="font-semibold text-slate-900">Name:</span> {archivingStaff.fullName}</div>
+              <div><span className="font-semibold text-slate-900">Employee ID:</span> {archivingStaff.employeeId}</div>
+              <div><span className="font-semibold text-slate-900">Designation:</span> {archivingStaff.designation}</div>
+              <div><span className="font-semibold text-slate-900">Department:</span> {archivingStaff.departmentName}</div>
+              <div><span className="font-semibold text-slate-900">Email:</span> {archivingStaff.email}</div>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs space-y-1">
+              <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                Archival Impact & Security Safeguards:
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-amber-800">
+                <li>Teacher login and portal access will be deactivated immediately.</li>
+                <li>All historical attendance logs, grading, and timetable history will be permanently preserved.</li>
+                <li>Teacher will be moved to the Archived Records view.</li>
+              </ul>
+            </div>
+
+            {isLoadingDependencies ? (
+              <div className="text-xs text-slate-500 italic py-2 text-center">
+                Checking active timetable allocations & teaching dependencies...
+              </div>
+            ) : archivingDependencies?.hasActiveAssignments ? (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-900 text-xs space-y-2">
+                <div className="font-semibold text-red-800 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  Active Teaching Assignments Detected ({archivingDependencies.activeSlots.length}):
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                  {archivingDependencies.activeSlots.map((slot: any) => (
+                    <div key={slot.id} className="bg-white p-1.5 rounded border border-red-100 flex justify-between items-center text-[11px]">
+                      <div>
+                        <span className="font-bold text-slate-800">{slot.subjectName}</span> ({slot.courseName} - Sec {slot.section})
+                      </div>
+                      <div className="text-slate-500 font-mono">
+                        {slot.dayOfWeek} {slot.startTime}-{slot.endTime} {slot.roomNumber ? `(${slot.roomNumber})` : ""}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-red-700">
+                  Completing archival will require resolving or reassigning these active periods.
+                </p>
+              </div>
+            ) : (
+              <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 p-2 rounded flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                No active timetable assignments detected. Safe to archive immediately.
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

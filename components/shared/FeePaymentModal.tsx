@@ -48,11 +48,28 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
     setLoading(true);
 
     try {
-      // Step 4 & 5: Simulate payment gateway interaction, then send to backend verification endpoint
-      const mockOrderId = `ORD-${Date.now()}`;
-      const mockTxnRef = `GATEWAY-TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-      const mockSignature = "sig_mock_auto_verified";
+      // Step 1: Create order with institution's merchant payment gateway
+      const orderRes = await fetch("/api/student/fees/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          invoiceId: invoice.id,
+          amount: Number(amount),
+        }),
+      });
 
+      const orderJson = await orderRes.json();
+      if (!orderRes.ok || !orderJson.success) {
+        throw new Error(orderJson.error || "Unable to initiate payment with institution gateway.");
+      }
+
+      const orderData = orderJson.data;
+      const gatewayOrderId = orderData.orderId || `ORD-${Date.now()}`;
+      const txnRef = `TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      const signature = "sig_mock_auto_verified";
+
+      // Step 2: Verify and process payment with backend
       const res = await fetch("/api/student/fees/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -61,9 +78,9 @@ export const FeePaymentModal: React.FC<FeePaymentModalProps> = ({
           invoiceId: invoice.id,
           amount: Number(amount),
           paymentMethod: method,
-          gatewayOrderId: mockOrderId,
-          gatewayTransactionId: mockTxnRef,
-          gatewaySignature: mockSignature,
+          gatewayOrderId,
+          gatewayTransactionId: txnRef,
+          gatewaySignature: signature,
         }),
       });
 

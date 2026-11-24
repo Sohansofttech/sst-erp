@@ -615,15 +615,6 @@ enum StaffStatus {
   INACTIVE
 }
 
-enum StudentStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-  ALUMNI
-  TRANSFERRED
-  DROPOUT
-}
-
 enum EnrollmentStatus {
   ACTIVE
   COMPLETED
@@ -760,7 +751,7 @@ model Student {
   batch                 String?
   currentSemester       Int           @default(1)
   currentSection        String        @default("A")
-  status                StudentStatus @default(ACTIVE)
+  status                String        @default("ACTIVE") // Matches PostgreSQL text column: "status" text NOT NULL DEFAULT 'ACTIVE'::text
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 

@@ -69,11 +69,17 @@ export async function proxy(request: NextRequest) {
     }
 
     // Tenant validation: Ensure URL slug matches token's institutionSlug or institutionId
-    const slugNorm = slug.toLowerCase()
-    if (
-      session.institutionSlug.toLowerCase() !== slugNorm &&
-      session.institutionId.toLowerCase() !== slugNorm
-    ) {
+    const slugNorm = (slug || "").toLowerCase().trim()
+    const tokenSlug = (session.institutionSlug || "").toLowerCase().trim()
+    const tokenInstId = (session.institutionId || "").toLowerCase().trim()
+    const tokenCode = ((session as any).institutionCode || "").toLowerCase().trim()
+
+    const matchesTenant =
+      (tokenSlug && tokenSlug === slugNorm) ||
+      (tokenInstId && tokenInstId === slugNorm) ||
+      (tokenCode && tokenCode === slugNorm)
+
+    if (!matchesTenant) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json(
           { success: false, error: "Access denied: Tenant mismatch." },

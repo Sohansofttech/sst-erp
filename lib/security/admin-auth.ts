@@ -15,17 +15,22 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
   const session = await getSession(req);
 
   if (session) {
-    if (session.role === "ADMIN" || session.role === "SUPER_ADMIN") {
+    const roleUpper = (session.role || "").toUpperCase();
+    if (roleUpper === "ADMIN" || roleUpper === "INSTITUTION_ADMIN" || roleUpper === "SUPER_ADMIN") {
+      let resolvedUserInstId: string | undefined = undefined;
+
       // Live account verification and password revocation verification
       if (session.userId) {
         const user = await db.user.findUnique({
           where: { id: session.userId },
-          select: { id: true, isActive: true, status: true, passwordHash: true },
+          select: { id: true, isActive: true, status: true, passwordHash: true, institutionId: true },
         });
 
         if (!user || !user.isActive || user.status !== "ACTIVE") {
           throw new UnauthorizedError("Account has been deactivated, suspended, or locked.");
         }
+
+        resolvedUserInstId = user.institutionId || undefined;
 
         // Reject legacy tokens without password signature
         if (!session.passwordSig) {
@@ -54,10 +59,10 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
         }
       }
 
-      // For standard ADMIN, tenant is strictly bound to session.institutionId (spoof prevention)
-      let institutionId = session.institutionId;
+      // For standard ADMIN / INSTITUTION_ADMIN, tenant is strictly bound to session/user institutionId (spoof prevention)
+      let institutionId = session.institutionId || resolvedUserInstId || "";
       // Super Admin may optionally inspect or operate on behalf of a specific institution
-      if (session.role === "SUPER_ADMIN") {
+      if (roleUpper === "SUPER_ADMIN") {
         const requested = req.headers.get("x-institution-id") || req.nextUrl.searchParams.get("institutionId");
         if (requested) {
           institutionId = requested;
@@ -68,7 +73,7 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
         institutionId,
         institutionName: session.institutionName,
         userId: session.userId,
-        userRole: session.role,
+        userRole: roleUpper,
         isDevFallback: false,
       };
     }

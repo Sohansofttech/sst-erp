@@ -106,6 +106,7 @@ export const CredentialManagementModal: React.FC<CredentialManagementModalProps>
     email: string | null;
     lastLoginAt: string | null;
     role: string | null;
+    designation?: string;
     isTeachingFaculty?: boolean;
     totalLinkedChildren?: number;
     verifiedCount?: number;
@@ -139,7 +140,11 @@ export const CredentialManagementModal: React.FC<CredentialManagementModalProps>
     setSuccessMessage("");
 
     fetch(
-      `/api/admin/credentials?type=status&entityType=${currentEntityType}&entityId=${encodeURIComponent(currentEntityId)}`,
+      `/api/admin/credentials?type=status&entityType=${currentEntityType}&entityId=${encodeURIComponent(
+        currentEntityId
+      )}&designation=${encodeURIComponent(entity.designation || "")}&role=${encodeURIComponent(
+        entity.role || ""
+      )}`,
       { signal: controller.signal }
     )
       .then(async (res) => {
@@ -754,9 +759,9 @@ export const CredentialManagementModal: React.FC<CredentialManagementModalProps>
                         Guardian ID: {entity.guardianUniqueId}
                       </span>
                     )}
-                    {entity.designation && (
+                    {(liveData?.designation || entity.designation) && (
                       <span className="text-[11px] text-[#64748B]">
-                        • {entity.designation}
+                        • {liveData?.designation || entity.designation}
                       </span>
                     )}
                   </div>

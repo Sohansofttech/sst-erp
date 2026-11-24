@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { InstitutionProvider, useInstitution } from "@/lib/store";
-import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
+import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
@@ -84,12 +84,14 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           router.replace("/login");
           return;
         }
-        const role = json.data.session.role;
+        const role = (json.data.session.role || "").toUpperCase();
         if (role === "STUDENT" || role === "PARENT") {
           router.replace("/dashboard");
         } else if (role === "TEACHER") {
-          const slug = (json.data.session.institutionName ? "APEX-TECH" : "demo-school").toLowerCase();
+          const slug = (json.data.session.institutionSlug || json.data.session.institutionCode || json.data.session.institutionId || "vidyaniketan").toLowerCase();
           router.replace(`/campus/${slug}/teacher`);
+        } else if (role !== "ADMIN" && role !== "INSTITUTION_ADMIN" && role !== "SUPER_ADMIN") {
+          router.replace("/login");
         }
       })
       .catch(() => {

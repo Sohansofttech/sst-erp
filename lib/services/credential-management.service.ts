@@ -3,7 +3,12 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import db from "@/lib/db";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
-import { sendPasswordSetupInvitation, sendRoleCredentialInvitation, getAppBaseUrl } from "@/lib/services/email.service";
+import {
+  sendPasswordSetupInvitation,
+  sendRoleCredentialInvitation,
+  getAppBaseUrl,
+  getRolePortalLoginUrl,
+} from "@/lib/services/email.service";
 
 // ============================================================================
 // Types & Interfaces
@@ -502,6 +507,34 @@ export async function issueTeacherCredentials(
       },
       include: { user: true },
     });
+  }
+
+  if (!existingTeacher && (teacherId || userId)) {
+    const targetUserId = userId || (isValidUuid(teacherId) ? teacherId : undefined);
+    if (targetUserId) {
+      const fallbackUser = await db.user.findFirst({
+        where: {
+          institutionId,
+          id: targetUserId,
+        },
+        include: { teacherProfile: true },
+      }).catch(() => null);
+
+      if (fallbackUser?.teacherProfile) {
+        existingTeacher = fallbackUser.teacherProfile;
+      } else if (fallbackUser && fallbackUser.role === "TEACHER") {
+        existingTeacher = await db.teacher.create({
+          data: {
+            institutionId,
+            userId: fallbackUser.id,
+            employeeId: employeeId || `EMP-${fallbackUser.id.slice(0, 8)}`,
+            designation: designation || "Assistant Professor",
+            department: department || "General Academics",
+          },
+          include: { user: true },
+        }).catch(() => null);
+      }
+    }
   }
 
   if (!existingTeacher && teacherId) {
@@ -1279,6 +1312,29 @@ export async function getUserCredentialStatus(
     if (teacher) {
       resolvedEntity = teacher;
       user = teacher.user;
+    } else if (isValidUuid(entityId)) {
+      const fallbackUser = await db.user.findFirst({
+        where: {
+          institutionId,
+          id: entityId,
+        },
+        include: { teacherProfile: true },
+      }).catch(() => null);
+
+      if (fallbackUser) {
+        user = fallbackUser;
+        if (fallbackUser.teacherProfile) {
+          resolvedEntity = fallbackUser.teacherProfile;
+        } else if (fallbackUser.role === "TEACHER") {
+          resolvedEntity = {
+            id: fallbackUser.id,
+            userId: fallbackUser.id,
+            employeeId: `EMP-${fallbackUser.id.slice(0, 8)}`,
+            department: "General Academics",
+            designation: "Assistant Professor",
+          };
+        }
+      }
     }
   } else if (entityType === "PARENT") {
     const guardianOrFilters: any[] = [];
@@ -1288,6 +1344,26 @@ export async function getUserCredentialStatus(
     }
     if (entityId.includes("@")) {
       guardianOrFilters.push({ user: { email: entityId.trim().toLowerCase() } });
+    }
+    const cleanedPhone = entityId.replace(/[\s\-\+]/g, "");
+    if (/^\d{7,15}$/.test(cleanedPhone)) {
+      guardianOrFilters.push({ phone: entityId.trim() });
+    }
+
+    // If not matched directly, check if entityId is a guardianUniqueId (e.g. GRD-xxxx)
+    if (guardianOrFilters.length === 0 && entityId.startsWith("GRD-")) {
+      const suffix = entityId.slice(4).toLowerCase();
+      const accounts = await db.guardianAccount.findMany({
+        where: { institutionId },
+        select: { id: true, userId: true },
+      });
+      const matched = accounts.find((ga) => ga.id.toLowerCase().endsWith(suffix));
+      if (matched) {
+        guardianOrFilters.push({ id: matched.id });
+        if (matched.userId) {
+          guardianOrFilters.push({ userId: matched.userId });
+        }
+      }
     }
 
     if (guardianOrFilters.length === 0) {
@@ -1382,13 +1458,52 @@ export async function getUserCredentialStatus(
     };
   }
 
-  const hasPassword = Boolean(user.passwordHash && user.passwordHash !== "UNPROVISIONED");
-  const isAccountActive = Boolean(user.isActive && user.status === "ACTIVE");
+  const hasPassword = Boolean(
+    user.passwordHash &&
+    user.passwordHash !== "UNPROVISIONED" &&
+    !user.passwordHash.startsWith("INVITED_") &&
+    user.passwordHash.startsWith("$2")
+  );
+
+  const isSuspendedOrLocked =
+    !user.isActive ||
+    user.status === "LOCKED" ||
+    (user.status as string) === "SUSPENDED" ||
+    (user.status as string) === "ARCHIVED";
+
+  let isArchivedInSettings = false;
+  try {
+    const archivedKey =
+      entityType === "TEACHER"
+        ? `archived_staff:${institutionId}`
+        : entityType === "PARENT"
+        ? `archived_guardians:${institutionId}`
+        : `archived_students:${institutionId}`;
+    const setting = await db.platformSetting.findUnique({ where: { key: archivedKey } }).catch(() => null);
+    if (Array.isArray(setting?.value)) {
+      const ids = new Set((setting.value as any[]).map((r) => r.id));
+      if (
+        (resolvedEntity?.id && ids.has(resolvedEntity.id)) ||
+        (resolvedEntity?.userId && ids.has(resolvedEntity.userId)) ||
+        (user?.id && ids.has(user.id))
+      ) {
+        isArchivedInSettings = true;
+      }
+    }
+  } catch {
+    // Non-blocking
+  }
+
+  const isRestrictedAccount = isSuspendedOrLocked || isArchivedInSettings;
+  const isAccountActive = Boolean(user.isActive && user.status === "ACTIVE" && !isRestrictedAccount);
 
   let status = "NO_ACCOUNT";
   let invitationStatus: "PENDING" | "SENT" | "FAILED" | "ACCEPTED" = "PENDING";
 
-  if (hasPassword) {
+  if (isRestrictedAccount) {
+    status = "DISABLED";
+    invitationStatus = "FAILED";
+  } else if (hasPassword) {
     status = isAccountActive ? "ACTIVE" : "DISABLED";
     invitationStatus = "ACCEPTED";
   } else {
@@ -1397,12 +1512,14 @@ export async function getUserCredentialStatus(
   }
 
   // Check role-specific constraints
-  if (entityType === "TEACHER" && !isTeachingFaculty(resolvedEntity?.designation, user.role)) {
-    status = "INELIGIBLE";
-  } else if (entityType === "PARENT") {
-    const verified = (resolvedEntity?.guardianLinks || []).filter((l: any) => l.isVerified);
-    if (verified.length === 0) {
-      status = "UNVERIFIED";
+  if (status !== "DISABLED") {
+    if (entityType === "TEACHER" && !isTeachingFaculty(resolvedEntity?.designation, user.role)) {
+      status = "INELIGIBLE";
+    } else if (entityType === "PARENT") {
+      const verified = (resolvedEntity?.guardianLinks || []).filter((l: any) => l.isVerified);
+      if (verified.length === 0) {
+        status = "UNVERIFIED";
+      }
     }
   }
 
@@ -1455,26 +1572,55 @@ export async function resendInvitation(options: {
   });
   const dbUser = await db.user.findUnique({
     where: { id: statusRes.userId },
-    select: { passwordHash: true, fullName: true, name: true, email: true },
+    select: { id: true, passwordHash: true, fullName: true, name: true, email: true, status: true, isActive: true },
   });
 
-  // 3. Generate secure token
+  // Guard: Suspended or archived accounts must not receive invitations
+  if (dbUser?.status === "LOCKED" || (dbUser?.status as string) === "SUSPENDED" || (dbUser?.status as string) === "ARCHIVED") {
+    return {
+      success: false,
+      message: `Cannot resend invitation: This ${entityType.toLowerCase()} account is currently inactive or locked. Restore or activate the account first.`,
+    };
+  }
+
+  // Check archived platform settings
+  try {
+    const archivedKey = entityType === "TEACHER" 
+      ? `archived_staff:${institutionId}` 
+      : entityType === "PARENT" 
+      ? `archived_guardians:${institutionId}` 
+      : `archived_students:${institutionId}`;
+    const archivedSetting = await db.platformSetting.findUnique({ where: { key: archivedKey } }).catch(() => null);
+    if (archivedSetting?.value && Array.isArray(archivedSetting.value)) {
+      const isArchived = (archivedSetting.value as any[]).some((a: any) => a.id === statusRes.userId || a.userId === statusRes.userId || (statusRes.entityId && a.id === statusRes.entityId));
+      if (isArchived) {
+        return {
+          success: false,
+          message: `Cannot resend invitation: This ${entityType.toLowerCase()} profile is currently archived. Restore the profile first.`,
+        };
+      }
+    }
+  } catch {}
+
+  // 3. Security: Invalidate previous setup token by cycling the setup marker on the user record
+  const freshMarker = `INVITED_${Date.now()}_${crypto.randomUUID()}`;
+  await db.user.update({
+    where: { id: statusRes.userId },
+    data: { passwordHash: freshMarker },
+  });
+
+  // 4. Generate secure single-use token tied to the fresh marker
   const setupToken = await signPasswordSetupToken({
     userId: statusRes.userId,
     email: statusRes.email,
     institutionId,
-    passwordHash: dbUser?.passwordHash || null,
+    passwordHash: freshMarker,
   });
 
   const appUrl = getAppBaseUrl();
   const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
 
-  let portalLoginUrl = `${appUrl}/login`;
-  if (entityType === "STUDENT") portalLoginUrl = `${appUrl}/student`;
-  if (entityType === "TEACHER") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher`;
-  if (entityType === "HOD") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher/hod`;
-  if (entityType === "PARENT") portalLoginUrl = `${appUrl}/parent`;
-  if (entityType === "ADMIN" || entityType === "STAFF") portalLoginUrl = `${appUrl}/admin`;
+  const portalLoginUrl = getRolePortalLoginUrl(entityType, inst?.slug, appUrl);
 
   // 4. Dispatch setup invitation
   const emailRes = await sendRoleCredentialInvitation(
@@ -1486,6 +1632,7 @@ export async function resendInvitation(options: {
       role: entityType as any,
       loginUrl: portalLoginUrl,
       username: statusRes.email || dbUser?.email || undefined,
+      institutionId,
     }
   );
 

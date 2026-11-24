@@ -11,6 +11,7 @@ interface HeaderProps {
   portalType: "STUDENT" | "PARENT";
   userFullName?: string;
   userRole?: string;
+  userEmail?: string;
   institutionName?: string;
   academicYearName?: string;
   selectedChildId?: string;
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   portalType,
   userFullName = "User",
   userRole = "STUDENT",
+  userEmail,
   institutionName = "Campus Portal",
   academicYearName,
   selectedChildId,
@@ -103,7 +105,9 @@ export const Header: React.FC<HeaderProps> = ({
             <p className="text-xs font-semibold text-[#1E293B] leading-tight">
               {userFullName}
             </p>
-            <p className="text-[11px] text-[#64748B] capitalize">{userRole.toLowerCase()}</p>
+            <p className="text-[11px] text-[#64748B] truncate max-w-[150px]" title={userEmail || userRole.toLowerCase()}>
+              {userEmail || userRole.toLowerCase()}
+            </p>
           </div>
 
           <button

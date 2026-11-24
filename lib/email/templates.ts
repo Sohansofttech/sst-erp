@@ -67,6 +67,38 @@ export interface DirectMessageTemplateOptions {
   actionLabel?: string;
 }
 
+export interface PasswordResetTemplateOptions {
+  name?: string;
+  resetUrl: string;
+  institutionName?: string;
+  expiresIn?: string;
+  loginUrl?: string;
+}
+
+export interface FeeReceiptTemplateOptions {
+  studentName: string;
+  receiptNumber: string;
+  transactionId?: string;
+  amount: number | string;
+  currency?: string;
+  paymentDate?: string;
+  paymentMethod?: string;
+  feeItems?: Array<{ description: string; amount: number | string }>;
+  institutionName?: string;
+  downloadUrl?: string;
+}
+
+export interface AttendanceAlertTemplateOptions {
+  studentName: string;
+  rollNumber?: string;
+  courseName?: string;
+  attendancePercentage: number;
+  thresholdPercentage?: number;
+  institutionName?: string;
+  actionUrl?: string;
+  contactEmail?: string;
+}
+
 export interface RenderedEmail {
   subject: string;
   html: string;
@@ -405,6 +437,12 @@ export function renderRoleCredentialInvitationEmail(options: RoleCredentialInvit
                         <td style="color: #64748B; font-weight: 600;">Assigned Role:</td>
                         <td style="color: #123B5A; font-weight: 600;">${roleLabel}</td>
                       </tr>
+                      ${options.departmentName ? `
+                      <tr>
+                        <td style="color: #64748B; font-weight: 600;">Department:</td>
+                        <td style="color: #0F172A; font-weight: 600;">${escapeHtml(options.departmentName)}</td>
+                      </tr>
+                      ` : ""}
                       ${safeLoginUrl ? `
                       <tr>
                         <td style="color: #64748B; font-weight: 600;">Portal Login URL:</td>
@@ -596,6 +634,321 @@ ${options.message}
 ${options.actionUrl ? `${options.actionLabel || "View Details"}: ${options.actionUrl}\n\n` : ""}
 --
 SST-ERP Campus Management System.`;
+
+  return { subject, html, text };
+}
+
+/**
+ * 5. Password Reset Request Email Template
+ * Security: Single-use, expiring link, never transmits permanent plaintext passwords.
+ */
+export function renderPasswordResetEmail(options: PasswordResetTemplateOptions): RenderedEmail {
+  const institution = options.institutionName || "SST-ERP Campus";
+  const safeName = escapeHtml(options.name || "User");
+  const safeInstitution = escapeHtml(institution);
+  const expiresIn = options.expiresIn || "24 hours";
+  const subject = `Password Reset Request — ${institution}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #123B5A; padding: 24px 32px; text-align: left;">
+              <div style="color: #FFFFFF; font-size: 18px; font-weight: 700; letter-spacing: 0.5px;">
+                ${safeInstitution}
+              </div>
+              <div style="color: #94A3B8; font-size: 12px; margin-top: 4px;">
+                Powered by SOHAN SOFT TECH ERP
+              </div>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <div style="font-size: 14px; color: #64748B; margin-bottom: 8px;">
+                Hello ${safeName},
+              </div>
+              <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
+                Password Reset Request
+              </h1>
+              <p style="margin: 0 0 16px 0; color: #334155; font-size: 14px; line-height: 1.6;">
+                We received a request to reset the password for your account at <strong>${safeInstitution}</strong>.
+              </p>
+              <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 13px; color: #475569;">
+                  ⏰ This link is single-use and will automatically expire in <strong>${escapeHtml(expiresIn)}</strong>.
+                </p>
+              </div>
+              <div style="text-align: center; margin: 28px 0;">
+                <a href="${escapeHtml(options.resetUrl)}" style="background-color: #F5A000; color: #FFFFFF; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 700; display: inline-block;">
+                  Reset Your Password &rarr;
+                </a>
+              </div>
+              <p style="margin: 0 0 12px 0; color: #64748B; font-size: 12px; line-height: 1.5;">
+                If you did not request a password reset, you can safely ignore this email. Your current password will remain unchanged.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F1F5F9; padding: 20px 32px; border-top: 1px solid #E2E8F0; text-align: center;">
+              <p style="margin: 0; color: #64748B; font-size: 11px;">
+                Secure authentication notification from ${safeInstitution}.
+              </p>
+              <p style="margin: 6px 0 0 0; color: #94A3B8; font-size: 10px;">
+                &copy; ${new Date().getFullYear()} SOHAN SOFT TECH ERP. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `${institution.toUpperCase()} — PASSWORD RESET REQUEST
+==================================================
+Hello ${options.name || "User"},
+
+We received a request to reset the password for your account at ${institution}.
+Reset your password by following this link:
+${options.resetUrl}
+
+This link is single-use and will automatically expire in ${expiresIn}.
+If you did not request this reset, no action is needed.
+
+--
+SOHAN SOFT TECH ERP Campus Management System`;
+
+  return { subject, html, text };
+}
+
+/**
+ * 6. Fee Receipt & Payment Notification Email Template
+ */
+export function renderFeeReceiptEmail(options: FeeReceiptTemplateOptions): RenderedEmail {
+  const institution = options.institutionName || "SST-ERP Campus";
+  const safeStudent = escapeHtml(options.studentName);
+  const safeReceipt = escapeHtml(options.receiptNumber);
+  const safeInstitution = escapeHtml(institution);
+  const currency = options.currency || "INR";
+  const formattedAmount = `${currency} ${Number(options.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  const dateStr = options.paymentDate || new Date().toLocaleDateString("en-IN", { dateStyle: "medium" });
+  const subject = `Fee Payment Receipt #${options.receiptNumber} — ${institution}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #065F46; padding: 24px 32px; text-align: left;">
+              <div style="color: #FFFFFF; font-size: 18px; font-weight: 700;">
+                ${safeInstitution}
+              </div>
+              <div style="color: #A7F3D0; font-size: 12px; margin-top: 4px;">
+                Official Fee Payment Receipt
+              </div>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <div style="font-size: 14px; color: #64748B; margin-bottom: 8px;">
+                Dear Student / Guardian,
+              </div>
+              <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
+                Payment Successfully Received
+              </h1>
+              <p style="margin: 0 0 20px 0; color: #334155; font-size: 14px; line-height: 1.6;">
+                Thank you. We have received payment for <strong>${safeStudent}</strong>. Details of the transaction are summarized below:
+              </p>
+
+              <!-- Receipt Box -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; margin: 16px 0; font-size: 13px;">
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #64748B;">Receipt Number:</td>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; font-weight: 700; color: #0F172A; text-align: right;">${safeReceipt}</td>
+                </tr>
+                ${options.transactionId ? `
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #64748B;">Transaction ID:</td>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; font-family: monospace; color: #0F172A; text-align: right;">${escapeHtml(options.transactionId)}</td>
+                </tr>` : ""}
+                <tr>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #64748B;">Date:</td>
+                  <td style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; color: #0F172A; text-align: right;">${escapeHtml(dateStr)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 12px 16px; color: #64748B; font-weight: 700; font-size: 14px;">Total Amount Paid:</td>
+                  <td style="padding: 12px 16px; font-weight: 800; font-size: 16px; color: #065F46; text-align: right;">${escapeHtml(formattedAmount)}</td>
+                </tr>
+              </table>
+
+              ${options.downloadUrl ? `
+              <div style="text-align: center; margin: 28px 0;">
+                <a href="${escapeHtml(options.downloadUrl)}" style="background-color: #065F46; color: #FFFFFF; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 700; display: inline-block;">
+                  Download Official Receipt &rarr;
+                </a>
+              </div>` : ""}
+
+              <p style="margin: 16px 0 0 0; color: #64748B; font-size: 12px;">
+                Please retain this receipt for your records. For questions regarding your fee account, please contact the institution finance office.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F1F5F9; padding: 20px 32px; border-top: 1px solid #E2E8F0; text-align: center;">
+              <p style="margin: 0; color: #64748B; font-size: 11px;">
+                Electronic fee acknowledgement generated by SST-ERP for ${safeInstitution}.
+              </p>
+              <p style="margin: 6px 0 0 0; color: #94A3B8; font-size: 10px;">
+                Powered by SOHAN SOFT TECH ERP
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `${institution.toUpperCase()} — FEE PAYMENT RECEIPT
+==================================================
+Student: ${options.studentName}
+Receipt Number: ${options.receiptNumber}
+${options.transactionId ? `Transaction ID: ${options.transactionId}\n` : ""}Date: ${dateStr}
+Amount Paid: ${formattedAmount}
+${options.paymentMethod ? `Payment Method: ${options.paymentMethod}\n` : ""}
+${options.downloadUrl ? `Download Link: ${options.downloadUrl}\n\n` : ""}
+Please retain this receipt for your records.
+--
+Powered by SOHAN SOFT TECH ERP`;
+
+  return { subject, html, text };
+}
+
+/**
+ * 7. Attendance Alert Email Template
+ */
+export function renderAttendanceAlertEmail(options: AttendanceAlertTemplateOptions): RenderedEmail {
+  const institution = options.institutionName || "SST-ERP Campus";
+  const safeStudent = escapeHtml(options.studentName);
+  const safeInstitution = escapeHtml(institution);
+  const pct = options.attendancePercentage.toFixed(1);
+  const threshold = options.thresholdPercentage || 75;
+  const isSevere = options.attendancePercentage < threshold;
+  const subject = `[Attendance Notice] Attendance Update for ${options.studentName} — ${institution}`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: ${isSevere ? "#991B1B" : "#1E3A8A"}; padding: 24px 32px; text-align: left;">
+              <div style="color: #FFFFFF; font-size: 18px; font-weight: 700;">
+                ${safeInstitution}
+              </div>
+              <div style="color: #FCA5A5; font-size: 12px; margin-top: 4px;">
+                Academic Attendance Advisory
+              </div>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <div style="font-size: 14px; color: #64748B; margin-bottom: 8px;">
+                Dear Parent / Student,
+              </div>
+              <h1 style="margin: 0 0 16px 0; color: #0F172A; font-size: 20px; font-weight: 700;">
+                Current Attendance Status: ${pct}%
+              </h1>
+              <p style="margin: 0 0 16px 0; color: #334155; font-size: 14px; line-height: 1.6;">
+                This notice is to inform you regarding the current academic attendance record for <strong>${safeStudent}</strong>${options.rollNumber ? ` (${escapeHtml(options.rollNumber)})` : ""}.
+              </p>
+
+              <!-- Status Card -->
+              <div style="background-color: ${isSevere ? "#FEF2F2" : "#EFF6FF"}; border: 1px solid ${isSevere ? "#FECACA" : "#BFDBFE"}; border-radius: 8px; padding: 18px; margin: 20px 0;">
+                <div style="font-size: 13px; color: ${isSevere ? "#991B1B" : "#1E40AF"}; font-weight: 600;">
+                  ${isSevere ? `⚠️ Attendance is below the required ${threshold}% threshold.` : "✓ Current attendance is within standard academic criteria."}
+                </div>
+                <div style="font-size: 24px; font-weight: 800; color: ${isSevere ? "#B91C1C" : "#1D4ED8"}; margin-top: 8px;">
+                  ${pct}% <span style="font-size: 13px; font-weight: 400; color: #64748B;">(Mandatory: ${threshold}%)</span>
+                </div>
+              </div>
+
+              ${options.actionUrl ? `
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="${escapeHtml(options.actionUrl)}" style="background-color: #123B5A; color: #FFFFFF; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 700; display: inline-block;">
+                  View Attendance Details in Portal &rarr;
+                </a>
+              </div>` : ""}
+
+              ${options.contactEmail ? `
+              <p style="margin: 16px 0 0 0; color: #64748B; font-size: 12px;">
+                For attendance corrections or medical leaves, please contact your Class Teacher or Head of Department at <a href="mailto:${escapeHtml(options.contactEmail)}" style="color: #1D4ED8;">${escapeHtml(options.contactEmail)}</a>.
+              </p>` : ""}
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F1F5F9; padding: 20px 32px; border-top: 1px solid #E2E8F0; text-align: center;">
+              <p style="margin: 0; color: #64748B; font-size: 11px;">
+                Academic notification generated by SST-ERP for ${safeInstitution}.
+              </p>
+              <p style="margin: 6px 0 0 0; color: #94A3B8; font-size: 10px;">
+                Powered by SOHAN SOFT TECH ERP
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `${institution.toUpperCase()} — ATTENDANCE ADVISORY
+==================================================
+Student: ${options.studentName}${options.rollNumber ? ` (${options.rollNumber})` : ""}
+Current Attendance: ${pct}%
+Required Threshold: ${threshold}%
+
+${isSevere ? "WARNING: Attendance is below the mandatory academic threshold." : "Attendance is within regular academic standards."}
+
+${options.actionUrl ? `View Details: ${options.actionUrl}\n` : ""}${options.contactEmail ? `Contact: ${options.contactEmail}\n` : ""}
+--
+Powered by SOHAN SOFT TECH ERP`;
 
   return { subject, html, text };
 }
