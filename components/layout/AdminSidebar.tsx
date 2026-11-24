@@ -74,6 +74,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
     { href: "/admin/approvals", label: "Approvals", icon: CheckSquare },
     { href: "/admin/audit-logs", label: "Audit Logs", icon: History },
     { href: "/admin/support", label: "Support & Helpdesk", icon: HelpCircle },
+    { href: "/subscription", label: "Subscription & Plans", icon: Sparkles },
   ];
 
   return (

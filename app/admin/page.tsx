@@ -36,6 +36,7 @@ import {
   GraduationCap,
   RefreshCw,
 } from "lucide-react";
+import { TrialSubscriptionBanner } from "@/components/admin/TrialSubscriptionBanner";
 
 export default function DashboardPage() {
   const {
@@ -185,6 +186,12 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* 1.5 14-Day Free Trial & Subscription Status Banner */}
+      <TrialSubscriptionBanner
+        subscription={dashboardData?.subscription}
+        loading={loadingDashboard}
+      />
 
       {/* 2. Top Executive Highlight Cards Grid (6 Cards reproducing the Reference Theme) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
