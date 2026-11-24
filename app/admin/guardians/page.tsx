@@ -38,6 +38,9 @@ import {
   Building,
   Users,
   KeyRound,
+  Archive,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { GuardianItem, GuardianRelationship } from "@/types/institution";
 import { CredentialManagementModal } from "@/components/admin/CredentialManagementModal";
@@ -47,19 +50,29 @@ import { PortalAccountStatus } from "@/lib/utils/credential-helpers";
 export default function GuardiansPage() {
   const {
     guardians,
+    isGuardiansLoading,
+    guardiansError,
+    refreshGuardians,
     students,
     addGuardian,
     updateGuardian,
     deactivateGuardian,
+    archiveGuardian,
+    restoreGuardian,
     linkStudentToGuardian,
     unlinkStudentFromGuardian,
   } = useInstitution();
+
+  useEffect(() => {
+    refreshGuardians();
+  }, [refreshGuardians]);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [relationshipFilter, setRelationshipFilter] = useState("ALL");
   const [emergencyFilter, setEmergencyFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [directoryView, setDirectoryView] = useState<"active" | "archived">("active");
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -67,6 +80,12 @@ export default function GuardiansPage() {
   const [viewingGuardian, setViewingGuardian] = useState<GuardianItem | null>(null);
   const [linkingGuardian, setLinkingGuardian] = useState<GuardianItem | null>(null);
   const [selectedStudentToLink, setSelectedStudentToLink] = useState("");
+
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archivingGuardian, setArchivingGuardian] = useState<GuardianItem | null>(null);
+  const [archivingDependencies, setArchivingDependencies] = useState<any | null>(null);
+  const [isLoadingDependencies, setIsLoadingDependencies] = useState(false);
+  const [isArchivingSubmitting, setIsArchivingSubmitting] = useState(false);
 
   const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
   const [credentialGuardian, setCredentialGuardian] = useState<GuardianItem | null>(null);
@@ -85,6 +104,8 @@ export default function GuardiansPage() {
     switch (status) {
       case "ACTIVE":
         return <Badge variant="success" size="sm">Active Portal</Badge>;
+      case "PENDING_SETUP":
+        return <Badge variant="warning" size="sm">Pending Setup</Badge>;
       case "DISABLED":
         return <Badge variant="error" size="sm">Disabled</Badge>;
       case "UNVERIFIED":
@@ -181,13 +202,18 @@ export default function GuardiansPage() {
     const active = guardians.filter((g) => g.status === "Active").length;
     const emergency = guardians.filter((g) => g.isEmergencyContact).length;
     const multiChild = guardians.filter((g) => g.studentIds && g.studentIds.length > 1).length;
+    const archived = guardians.filter((g) => g.status === "Archived").length;
 
-    return { total, active, emergency, multiChild };
+    return { total, active, emergency, multiChild, archived };
   }, [guardians]);
 
   // Filtered Guardians List
   const filteredGuardians = useMemo(() => {
     return guardians.filter((g) => {
+      // Filter by directory view (Active vs Archived)
+      if (directoryView === "active" && g.status === "Archived") return false;
+      if (directoryView === "archived" && g.status !== "Archived") return false;
+
       // Find linked students for search matching
       const linkedStudents = students.filter(
         (s) => g.studentIds.includes(s.id) || g.studentIds.includes(s.studentId)
@@ -217,7 +243,63 @@ export default function GuardiansPage() {
 
       return matchesSearch && matchesRelationship && matchesEmergency && matchesStatus;
     });
-  }, [guardians, students, searchQuery, relationshipFilter, emergencyFilter, statusFilter]);
+  }, [guardians, students, directoryView, searchQuery, relationshipFilter, emergencyFilter, statusFilter]);
+
+  const handleOpenArchiveModal = async (g: GuardianItem) => {
+    setArchivingGuardian(g);
+    setArchivingDependencies(null);
+    setIsArchiveModalOpen(true);
+    setIsLoadingDependencies(true);
+    try {
+      const res = await fetch(`/api/admin/guardians?id=${encodeURIComponent(g.id)}&dependencies=true`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          setArchivingDependencies(json.data);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch guardian dependencies:", err);
+    } finally {
+      setIsLoadingDependencies(false);
+    }
+  };
+
+  const handleConfirmArchive = async (force: boolean = false) => {
+    if (!archivingGuardian) return;
+    setIsArchivingSubmitting(true);
+    try {
+      const res = await archiveGuardian(archivingGuardian.id, force);
+      if (!res.success) {
+        showToast("error", res.message);
+        return;
+      }
+      showToast("success", res.message);
+      setIsArchiveModalOpen(false);
+      setArchivingGuardian(null);
+      setArchivingDependencies(null);
+    } catch (err: any) {
+      showToast("error", err?.message || "Failed to archive guardian.");
+    } finally {
+      setIsArchivingSubmitting(false);
+    }
+  };
+
+  const handleConfirmRestore = async (g: GuardianItem) => {
+    if (
+      !confirm(
+        `Restore guardian "${g.fullName}" (${g.guardianId}) to active directory?\n\nLinked student relationships will remain intact. Portal access remains dormant until fresh administrator credentials or verification is completed.`
+      )
+    ) {
+      return;
+    }
+    const res = await restoreGuardian(g.id);
+    if (!res.success) {
+      showToast("error", res.message);
+      return;
+    }
+    showToast("success", res.message);
+  };
 
   // Form State
   const initialFormData = {
@@ -233,7 +315,7 @@ export default function GuardiansPage() {
     occupation: "",
     company: "",
     isEmergencyContact: false,
-    status: "Active" as "Active" | "Inactive",
+    status: "Active" as "Active" | "Inactive" | "Archived",
     initialStudentId: "",
   };
 
@@ -293,22 +375,55 @@ export default function GuardiansPage() {
     if (!validateForm()) return;
 
     if (editingGuardian) {
-      updateGuardian(editingGuardian.id, {
-        fullName: formData.fullName.trim(),
-        relationship: formData.relationship,
-        phone: formData.phone.trim(),
-        alternatePhone: formData.alternatePhone.trim() || undefined,
-        email: formData.email.trim().toLowerCase(),
-        addressLine: formData.addressLine.trim(),
-        city: formData.city.trim(),
-        state: formData.state.trim(),
-        postalCode: formData.postalCode.trim(),
-        occupation: formData.occupation.trim(),
-        company: formData.company.trim() || undefined,
-        isEmergencyContact: formData.isEmergencyContact,
-        status: formData.status,
-      });
-      showToast("success", `Guardian "${formData.fullName}" updated successfully.`);
+      try {
+        const res = await fetch("/api/admin/guardians", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingGuardian.id,
+            fullName: formData.fullName.trim(),
+            relationship: formData.relationship,
+            phone: formData.phone.trim(),
+            alternatePhone: formData.alternatePhone.trim() || undefined,
+            email: formData.email.trim().toLowerCase(),
+            addressLine: formData.addressLine.trim(),
+            city: formData.city.trim(),
+            state: formData.state.trim(),
+            postalCode: formData.postalCode.trim(),
+            occupation: formData.occupation.trim(),
+            company: formData.company.trim() || undefined,
+            isEmergencyContact: formData.isEmergencyContact,
+            status: formData.status,
+          }),
+        });
+
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to update guardian details.");
+        }
+
+        updateGuardian(editingGuardian.id, {
+          fullName: formData.fullName.trim(),
+          relationship: formData.relationship,
+          phone: formData.phone.trim(),
+          alternatePhone: formData.alternatePhone.trim() || undefined,
+          email: formData.email.trim().toLowerCase(),
+          addressLine: formData.addressLine.trim(),
+          city: formData.city.trim(),
+          state: formData.state.trim(),
+          postalCode: formData.postalCode.trim(),
+          occupation: formData.occupation.trim(),
+          company: formData.company.trim() || undefined,
+          isEmergencyContact: formData.isEmergencyContact,
+          status: formData.status,
+        });
+
+        await refreshGuardians();
+        showToast("success", `Guardian "${formData.fullName}" updated successfully.`);
+      } catch (err: any) {
+        showToast("error", err.message || "Failed to update guardian.");
+        return;
+      }
     } else {
       const studentIds = formData.initialStudentId ? [formData.initialStudentId] : [];
       let createdServerGuardian: any = null;
@@ -616,15 +731,39 @@ export default function GuardiansPage() {
 
       {/* Guardians Master Table */}
       <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
-        <CardHeader className="p-4 border-b border-slate-100 flex flex-row items-center justify-between">
+        <CardHeader className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
-            <span>Guardian Directory</span>
+            <span>{directoryView === "active" ? "Guardian Directory" : "Archived Guardian Directory"}</span>
             <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
               {filteredGuardians.length} records
             </span>
           </CardTitle>
-          <div className="text-xs text-slate-500">
-            Click on any guardian to view complete profile and linked students
+
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setDirectoryView("active")}
+                className={`px-3 py-1 font-medium rounded-md transition-all cursor-pointer ${
+                  directoryView === "active"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Active Guardians ({stats.total - stats.archived})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirectoryView("archived")}
+                className={`px-3 py-1 font-medium rounded-md transition-all cursor-pointer ${
+                  directoryView === "archived"
+                    ? "bg-slate-800 text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Archived Records ({stats.archived})
+              </button>
+            </div>
           </div>
         </CardHeader>
         <div className="overflow-x-auto">
@@ -655,7 +794,7 @@ export default function GuardiansPage() {
                   return (
                     <TableRow key={g.id} className="hover:bg-slate-50/60 transition-colors">
                       {/* ID */}
-                      <TableCell className="font-mono text-xs font-semibold text-[#123B5A]">
+                      <TableCell className="font-mono text-xs font-semibold text-[#123B5A] whitespace-nowrap">
                         {g.guardianId}
                       </TableCell>
 
@@ -776,8 +915,8 @@ export default function GuardiansPage() {
                       </TableCell>
 
                       {/* Actions */}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -848,6 +987,28 @@ export default function GuardiansPage() {
                               <UserCheck className="h-4 w-4" />
                             )}
                           </Button>
+
+                          {g.status !== "Archived" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenArchiveModal(g)}
+                              title="Archive Guardian (Preserve Student Links)"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <Archive className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleConfirmRestore(g)}
+                              title="Restore Guardian Record"
+                              className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1494,6 +1655,110 @@ export default function GuardiansPage() {
             : []
         }
       />
+
+      {/* =========================================================================
+          MODAL 6: GUARDIAN ARCHIVE CONFIRMATION MODAL
+      ========================================================================= */}
+      {archivingGuardian && (
+        <Modal
+          isOpen={isArchiveModalOpen}
+          onClose={() => {
+            if (!isArchivingSubmitting) {
+              setIsArchiveModalOpen(false);
+              setArchivingGuardian(null);
+              setArchivingDependencies(null);
+            }
+          }}
+          title={`Archive Guardian: ${archivingGuardian.fullName}`}
+          description="Safely archive guardian profile and revoke access to student records."
+          maxWidth="md"
+          footer={
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsArchiveModalOpen(false);
+                  setArchivingGuardian(null);
+                  setArchivingDependencies(null);
+                }}
+                disabled={isArchivingSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => handleConfirmArchive(archivingDependencies?.hasActiveStudents || false)}
+                disabled={isArchivingSubmitting || isLoadingDependencies}
+              >
+                {isArchivingSubmitting
+                  ? "Archiving..."
+                  : archivingDependencies?.hasActiveStudents
+                  ? "Acknowledge Links & Confirm Archive"
+                  : "Confirm Archive"}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-sm text-slate-700">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1 text-xs">
+              <div><span className="font-semibold text-slate-900">Name:</span> {archivingGuardian.fullName}</div>
+              <div><span className="font-semibold text-slate-900">Guardian ID:</span> {archivingGuardian.guardianId}</div>
+              <div><span className="font-semibold text-slate-900">Relationship:</span> {archivingGuardian.relationship}</div>
+              <div><span className="font-semibold text-slate-900">Phone:</span> {archivingGuardian.phone}</div>
+              <div><span className="font-semibold text-slate-900">Email:</span> {archivingGuardian.email || "N/A"}</div>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs space-y-1">
+              <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                Archival Safeguards & Privacy Enforcements:
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 text-amber-800">
+                <li>Guardian portal login will be disabled immediately.</li>
+                <li>Access to linked student academic records will be revoked.</li>
+                <li>Student records and historical relationship links are permanently preserved.</li>
+                <li>Guardian will be moved to the Archived Records view.</li>
+              </ul>
+            </div>
+
+            {isLoadingDependencies ? (
+              <div className="text-xs text-slate-500 italic py-2 text-center">
+                Checking active student relationship safeguards...
+              </div>
+            ) : archivingDependencies?.hasActiveStudents ? (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-900 text-xs space-y-2">
+                <div className="font-semibold text-red-800 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  Active Linked Students Detected ({archivingDependencies.activeStudents.length}):
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                  {archivingDependencies.activeStudents.map((child: any) => (
+                    <div key={child.studentId} className="bg-white p-1.5 rounded border border-red-100 flex justify-between items-center text-[11px]">
+                      <div>
+                        <span className="font-bold text-slate-800">{child.fullName}</span> ({child.rollNumber})
+                      </div>
+                      <div className="text-slate-500 font-mono text-[10px]">
+                        Relation: {child.relationship} | Adm: {child.admissionNumber}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-red-700">
+                  Archiving this guardian will revoke their portal access while safely preserving the students and relationship history.
+                </p>
+              </div>
+            ) : (
+              <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 p-2 rounded flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                No active student links detected. Safe to archive immediately.
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

@@ -344,7 +344,7 @@ export default function ClassesSectionsPage() {
                   return (
                     <TableRow key={cls.id}>
                       <TableCell>
-                        <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded">
+                        <span className="font-mono text-xs font-bold bg-[#123B5A] text-white px-2 py-0.5 rounded whitespace-nowrap inline-block">
                           {cls.code}
                         </span>
                       </TableCell>
@@ -376,31 +376,33 @@ export default function ClassesSectionsPage() {
                           {cls.academicYearName}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right space-x-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenAddSection(cls.id)}
-                          title="Add Section to this class"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-[#F5A000]" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEditClass(cls)}
-                          title="Edit Class"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteClass(cls.id, cls.name)}
-                          title="Delete Class"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
-                        </Button>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenAddSection(cls.id)}
+                            title="Add Section to this class"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-[#F5A000]" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenEditClass(cls)}
+                            title="Edit Class"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteClass(cls.id, cls.name)}
+                            title="Delete Class"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -470,23 +472,25 @@ export default function ClassesSectionsPage() {
                           {sec.currentEnrollment} / {sec.maxCapacity} Seats
                         </span>
                       </TableCell>
-                      <TableCell className="text-right space-x-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEditSection(sec)}
-                          title="Edit Section"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteSection(sec.id, sec.name)}
-                          title="Delete Section"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
-                        </Button>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenEditSection(sec)}
+                            title="Edit Section"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-[#F5A000]" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteSection(sec.id, sec.name)}
+                            title="Delete Section"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

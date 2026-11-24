@@ -1,0 +1,666 @@
+/**
+ * SST-ERP Email Infrastructure Configuration & Delivery Logging Service
+ * Option C Architecture: Institution-Specific Email Configuration with Central Sohan Softech Fallback
+ */
+
+import db from "../db";
+import nodemailer from "nodemailer";
+import {
+  EmailProviderType,
+  EmailVerificationStatus,
+  EmailDeliveryStatus,
+  EmailPurpose,
+  InstitutionEmailConfig,
+  MaskedInstitutionEmailConfig,
+  CentralEmailProviderConfig,
+  MaskedCentralEmailConfig,
+  EmailDeliveryLogRecord,
+  SaveInstitutionEmailInput,
+  SaveCentralEmailInput,
+  TestConnectionResult,
+  SmtpCredentials,
+  ApiProviderCredentials,
+  DecryptedEmailCredentials,
+} from "@/types/email-infrastructure";
+import {
+  encryptCredential,
+  decryptCredential,
+  maskCredential,
+} from "../security/encryption";
+import { recordAudit } from "./audit.service";
+
+// Canonical Central Sohan Softech Email Sender
+export const CENTRAL_SOHAN_SOFTECH_SENDER = "noreply@erp.sohansoft.in";
+export const CENTRAL_SOHAN_SOFTECH_NAME = "SOHAN SOFT TECH ERP";
+
+// In-memory cache for ultra-fast lookups and resilient offline/test fallback
+const institutionConfigCache = new Map<string, InstitutionEmailConfig>();
+let centralConfigCache: CentralEmailProviderConfig | null = null;
+const deliveryLogBuffer: EmailDeliveryLogRecord[] = [];
+const MAX_LOG_BUFFER_SIZE = 1000;
+
+function createDefaultInstitutionConfig(institutionId: string): InstitutionEmailConfig {
+  return {
+    institutionId,
+    provider: "SMTP",
+    isEnabled: false,
+    senderEmail: "",
+    senderName: "",
+    status: "NOT_CONFIGURED",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function createDefaultCentralConfig(): CentralEmailProviderConfig {
+  const hasResend = Boolean(process.env.RESEND_API_KEY);
+  const hasSmtp = Boolean(process.env.SMTP_HOST);
+
+  return {
+    provider: hasResend ? "RESEND" : hasSmtp ? "SMTP" : "RESEND",
+    senderEmail: process.env.EMAIL_FROM || process.env.INSTITUTION_INVITATION_FROM_EMAIL || CENTRAL_SOHAN_SOFTECH_SENDER,
+    senderName: CENTRAL_SOHAN_SOFTECH_NAME,
+    status: hasResend || hasSmtp ? "VERIFIED" : "NOT_CONFIGURED",
+    lastVerifiedAt: hasResend || hasSmtp ? new Date().toISOString() : null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Masks institution email credentials for safe frontend serialization.
+ * GUARANTEE: Never exposes plaintext passwords or raw API keys.
+ */
+export function toMaskedInstitutionConfig(
+  config: InstitutionEmailConfig
+): MaskedInstitutionEmailConfig {
+  let maskedCreds: any = undefined;
+
+  if (config.provider === "SMTP") {
+    const creds = config.credentials as SmtpCredentials | undefined;
+    maskedCreds = {
+      host: creds?.host || "",
+      port: creds?.port || 587,
+      secure: Boolean(creds?.secure),
+      username: creds?.username || "",
+      hasPassword: Boolean(creds?.password),
+      maskedPassword: creds?.password ? maskCredential(creds.password, 0, 0, true) : undefined,
+    };
+  } else if (config.provider === "RESEND" || config.provider === "SENDGRID") {
+    const creds = config.credentials as ApiProviderCredentials | undefined;
+    maskedCreds = {
+      hasApiKey: Boolean(creds?.apiKey),
+      maskedApiKey: creds?.apiKey ? maskCredential(creds.apiKey, 4, 4, false) : undefined,
+    };
+  }
+
+  return {
+    institutionId: config.institutionId,
+    provider: config.provider,
+    isEnabled: config.isEnabled,
+    senderEmail: config.senderEmail,
+    senderName: config.senderName,
+    replyToEmail: config.replyToEmail,
+    status: config.status,
+    hasCredentials: Boolean(config.credentials || config.encryptedCredentials),
+    maskedCredentials: maskedCreds,
+    lastVerifiedAt: config.lastVerifiedAt,
+    lastError: config.lastError,
+    updatedAt: config.updatedAt,
+    centralFallbackSender: CENTRAL_SOHAN_SOFTECH_SENDER,
+    architectureMode: "OPTION_C_INSTITUTION_WITH_CENTRAL_FALLBACK",
+  };
+}
+
+/**
+ * Masks central Super Admin email credentials for safe frontend serialization.
+ */
+export function toMaskedCentralConfig(
+  config: CentralEmailProviderConfig
+): MaskedCentralEmailConfig {
+  let maskedCreds: any = undefined;
+  if (config.provider === "SMTP") {
+    const creds = config.credentials as SmtpCredentials | undefined;
+    maskedCreds = {
+      host: creds?.host || "",
+      port: creds?.port || 587,
+      secure: Boolean(creds?.secure),
+      username: creds?.username || "",
+      hasPassword: Boolean(creds?.password),
+      maskedPassword: creds?.password ? maskCredential(creds.password, 0, 0, true) : undefined,
+    };
+  } else {
+    const creds = config.credentials as ApiProviderCredentials | undefined;
+    const apiKey = creds?.apiKey || process.env.RESEND_API_KEY || "";
+    maskedCreds = {
+      hasApiKey: Boolean(apiKey),
+      maskedApiKey: apiKey ? maskCredential(apiKey, 4, 4, false) : undefined,
+    };
+  }
+
+  return {
+    provider: config.provider,
+    senderEmail: config.senderEmail,
+    senderName: config.senderName,
+    status: config.status,
+    hasCredentials: Boolean(config.credentials || config.encryptedCredentials || process.env.RESEND_API_KEY),
+    maskedCredentials: maskedCreds,
+    lastVerifiedAt: config.lastVerifiedAt,
+    lastError: config.lastError,
+    updatedAt: config.updatedAt,
+  };
+}
+
+/**
+ * Retrieves the institution-specific email configuration.
+ * Tenant Isolation Guarantee: strictly scoped by institutionId.
+ */
+export async function getInstitutionEmailConfig(
+  institutionId: string
+): Promise<InstitutionEmailConfig> {
+  if (institutionConfigCache.has(institutionId)) {
+    return institutionConfigCache.get(institutionId)!;
+  }
+
+  const fallbackConfig = createDefaultInstitutionConfig(institutionId);
+
+  try {
+    const settingKey = `email_config:${institutionId}`;
+    const row: any = await db.platformSetting.findUnique({
+      where: { key: settingKey },
+    });
+
+    if (row?.value) {
+      const stored = typeof row.value === "string" ? JSON.parse(row.value) : row.value;
+      let creds: DecryptedEmailCredentials | undefined = undefined;
+
+      if (stored.encryptedCredentials) {
+        try {
+          creds = JSON.parse(decryptCredential(stored.encryptedCredentials));
+        } catch (decErr) {
+          console.warn(`[EmailConfig] Failed to decrypt credentials for institution ${institutionId}:`, decErr);
+        }
+      }
+
+      const config: InstitutionEmailConfig = {
+        ...fallbackConfig,
+        ...stored,
+        credentials: creds,
+        updatedAt: stored.updatedAt || new Date().toISOString(),
+      };
+
+      institutionConfigCache.set(institutionId, config);
+      return config;
+    }
+  } catch (err: any) {
+    // Database table or record not found; return safe memory fallback
+  }
+
+  institutionConfigCache.set(institutionId, fallbackConfig);
+  return fallbackConfig;
+}
+
+/**
+ * Saves the institution-specific email configuration.
+ * Encrypts provider credentials using AES-256-GCM.
+ * Enforces rule: Changing sender or credentials resets status to PENDING_VERIFICATION
+ * until an explicit connection test succeeds.
+ */
+export async function saveInstitutionEmailConfig(
+  institutionId: string,
+  input: SaveInstitutionEmailInput,
+  actorUserId?: string
+): Promise<InstitutionEmailConfig> {
+  const existing = await getInstitutionEmailConfig(institutionId);
+
+  // Validate email format
+  const senderEmail = input.senderEmail?.trim() || "";
+  const senderName = input.senderName?.trim() || "";
+  const replyToEmail = input.replyToEmail?.trim() || undefined;
+
+  let credentialsToStore: DecryptedEmailCredentials | undefined = input.credentials;
+  let encryptedPayload = existing.encryptedCredentials;
+
+  const credentialsUpdated = Boolean(
+    input.credentials &&
+      ((input.credentials as any).password || (input.credentials as any).apiKey)
+  );
+
+  if (credentialsUpdated && input.credentials) {
+    encryptedPayload = encryptCredential(JSON.stringify(input.credentials));
+    credentialsToStore = input.credentials;
+  } else if (!credentialsToStore && existing.credentials) {
+    credentialsToStore = existing.credentials;
+  }
+
+  // If sender email or credentials changed, reset status to PENDING_VERIFICATION
+  const isSenderChanged = existing.senderEmail !== senderEmail;
+  let status = existing.status;
+  if (!senderEmail) {
+    status = "NOT_CONFIGURED";
+  } else if (isSenderChanged || credentialsUpdated) {
+    status = "PENDING_VERIFICATION";
+  }
+
+  const updatedConfig: InstitutionEmailConfig = {
+    institutionId,
+    provider: input.provider || existing.provider || "SMTP",
+    isEnabled: input.isEnabled !== undefined ? input.isEnabled : existing.isEnabled,
+    senderEmail,
+    senderName,
+    replyToEmail,
+    status,
+    encryptedCredentials: encryptedPayload,
+    credentials: credentialsToStore,
+    lastVerifiedAt: status === "VERIFIED" ? existing.lastVerifiedAt : null,
+    lastError: status === "VERIFIED" ? existing.lastError : null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Update in-memory cache
+  institutionConfigCache.set(institutionId, updatedConfig);
+
+  // Persist to PlatformSetting
+  try {
+    const settingKey = `email_config:${institutionId}`;
+    const valueToStore = {
+      institutionId,
+      provider: updatedConfig.provider,
+      isEnabled: updatedConfig.isEnabled,
+      senderEmail: updatedConfig.senderEmail,
+      senderName: updatedConfig.senderName,
+      replyToEmail: updatedConfig.replyToEmail,
+      status: updatedConfig.status,
+      encryptedCredentials: updatedConfig.encryptedCredentials,
+      lastVerifiedAt: updatedConfig.lastVerifiedAt,
+      lastError: updatedConfig.lastError,
+      updatedAt: updatedConfig.updatedAt,
+    };
+
+    await db.platformSetting.upsert({
+      where: { key: settingKey },
+      create: {
+        key: settingKey,
+        value: valueToStore,
+        description: `Institution Email Configuration for ${institutionId} (Option C)`,
+        updatedAt: new Date(),
+      },
+      update: {
+        value: valueToStore,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Record audit event
+    await recordAudit({
+      institutionId,
+      actorUserId: actorUserId || null,
+      action: "UPDATE",
+      entityType: "INSTITUTION_EMAIL_CONFIG",
+      entityId: institutionId,
+      newValues: {
+        provider: updatedConfig.provider,
+        isEnabled: updatedConfig.isEnabled,
+        senderEmail: updatedConfig.senderEmail,
+        status: updatedConfig.status,
+      },
+    });
+  } catch (err: any) {
+    console.warn(`[EmailConfig] Could not persist to PlatformSetting (${err.message}). Cached in memory.`);
+  }
+
+  return updatedConfig;
+}
+
+/**
+ * Retrieves the central Super Admin email provider configuration.
+ */
+export async function getCentralEmailConfig(): Promise<CentralEmailProviderConfig> {
+  if (centralConfigCache) {
+    return centralConfigCache;
+  }
+
+  const defaultCentral = createDefaultCentralConfig();
+
+  try {
+    const settingKey = "central_email_provider";
+    const row: any = await db.platformSetting.findUnique({
+      where: { key: settingKey },
+    });
+
+    if (row?.value) {
+      const stored = typeof row.value === "string" ? JSON.parse(row.value) : row.value;
+      let creds: DecryptedEmailCredentials | undefined = undefined;
+
+      if (stored.encryptedCredentials) {
+        try {
+          creds = JSON.parse(decryptCredential(stored.encryptedCredentials));
+        } catch {}
+      }
+
+      const config: CentralEmailProviderConfig = {
+        ...defaultCentral,
+        ...stored,
+        credentials: creds,
+        updatedAt: stored.updatedAt || new Date().toISOString(),
+      };
+
+      centralConfigCache = config;
+      return config;
+    }
+  } catch {}
+
+  centralConfigCache = defaultCentral;
+  return defaultCentral;
+}
+
+/**
+ * Saves the central Super Admin email provider configuration.
+ */
+export async function saveCentralEmailConfig(
+  input: SaveCentralEmailInput,
+  actorUserId?: string
+): Promise<CentralEmailProviderConfig> {
+  const existing = await getCentralEmailConfig();
+
+  let encryptedPayload = existing.encryptedCredentials;
+  let credentialsToStore: DecryptedEmailCredentials | undefined = input.credentials;
+
+  if (input.credentials) {
+    encryptedPayload = encryptCredential(JSON.stringify(input.credentials));
+  } else {
+    credentialsToStore = existing.credentials;
+  }
+
+  const updatedConfig: CentralEmailProviderConfig = {
+    provider: input.provider,
+    senderEmail: input.senderEmail || existing.senderEmail || CENTRAL_SOHAN_SOFTECH_SENDER,
+    senderName: input.senderName || existing.senderName || CENTRAL_SOHAN_SOFTECH_NAME,
+    status: existing.status,
+    encryptedCredentials: encryptedPayload,
+    credentials: credentialsToStore,
+    lastVerifiedAt: existing.lastVerifiedAt,
+    lastError: existing.lastError,
+    updatedAt: new Date().toISOString(),
+  };
+
+  centralConfigCache = updatedConfig;
+
+  try {
+    const settingKey = "central_email_provider";
+    const valueToStore = {
+      provider: updatedConfig.provider,
+      senderEmail: updatedConfig.senderEmail,
+      senderName: updatedConfig.senderName,
+      status: updatedConfig.status,
+      encryptedCredentials: updatedConfig.encryptedCredentials,
+      lastVerifiedAt: updatedConfig.lastVerifiedAt,
+      lastError: updatedConfig.lastError,
+      updatedAt: updatedConfig.updatedAt,
+    };
+
+    await db.platformSetting.upsert({
+      where: { key: settingKey },
+      create: {
+        key: settingKey,
+        value: valueToStore,
+        description: "Central Super Admin Email Provider Configuration (Option C)",
+        updatedAt: new Date(),
+      },
+      update: {
+        value: valueToStore,
+        updatedAt: new Date(),
+      },
+    });
+
+    await recordAudit({
+      institutionId: "SUPER_ADMIN",
+      actorUserId: actorUserId || null,
+      action: "UPDATE",
+      entityType: "CENTRAL_EMAIL_PROVIDER",
+      entityId: "central_email_provider",
+      newValues: {
+        provider: updatedConfig.provider,
+        senderEmail: updatedConfig.senderEmail,
+      },
+    });
+  } catch {}
+
+  return updatedConfig;
+}
+
+/**
+ * Tests the connection and verifies the sender for an institution email provider.
+ * GUARANTEE: Entering an email address alone NEVER marks it as verified.
+ * Must successfully connect to SMTP server or API endpoint to become VERIFIED.
+ */
+export async function testInstitutionEmailConnection(
+  institutionId: string,
+  testRecipient?: string
+): Promise<TestConnectionResult> {
+  const config = await getInstitutionEmailConfig(institutionId);
+
+  if (!config.senderEmail || !config.senderEmail.includes("@")) {
+    return {
+      success: false,
+      provider: config.provider,
+      senderVerified: false,
+      message: "Please configure a valid official sender email address before testing.",
+      testedAt: new Date().toISOString(),
+    };
+  }
+
+  let testSuccess = false;
+  let testMessage = "";
+  let details: Record<string, any> = {};
+
+  if (config.provider === "SMTP") {
+    const creds = config.credentials as SmtpCredentials | undefined;
+    if (!creds?.host || !creds?.username) {
+      return {
+        success: false,
+        provider: "SMTP",
+        senderVerified: false,
+        message: "Incomplete SMTP configuration. Host and username are required.",
+        testedAt: new Date().toISOString(),
+      };
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host: creds.host,
+        port: creds.port || 587,
+        secure: Boolean(creds.secure),
+        auth: {
+          user: creds.username,
+          pass: creds.password || "",
+        },
+        connectionTimeout: 8000,
+      });
+
+      await transporter.verify();
+      testSuccess = true;
+      testMessage = `SMTP server (${creds.host}:${creds.port}) connection verified successfully.`;
+      details = { host: creds.host, port: creds.port, secure: creds.secure };
+    } catch (smtpErr: any) {
+      testSuccess = false;
+      testMessage = `SMTP connection failed: ${smtpErr.message || "Connection refused"}`;
+      details = { error: smtpErr.message };
+    }
+  } else if (config.provider === "RESEND") {
+    const creds = config.credentials as ApiProviderCredentials | undefined;
+    const apiKey = creds?.apiKey || "";
+    if (!apiKey) {
+      return {
+        success: false,
+        provider: "RESEND",
+        senderVerified: false,
+        message: "Resend API key is required to verify configuration.",
+        testedAt: new Date().toISOString(),
+      };
+    }
+
+    try {
+      // Test sending capability to verified sink or domain test
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: `${config.senderName || "SST-ERP"} <${config.senderEmail}>`,
+          to: "delivered@resend.dev",
+          subject: "SST-ERP — Institution Sender Verification Probe",
+          html: "<p>Verification probe</p>",
+        }),
+      });
+
+      if (res.ok) {
+        testSuccess = true;
+        testMessage = `Resend API verified successfully for sender ${config.senderEmail}.`;
+      } else {
+        const body: any = await res.json().catch(() => ({}));
+        testSuccess = false;
+        testMessage = `Resend verification error (${res.status}): ${body.message || "Invalid API key or unverified domain"}`;
+        details = body;
+      }
+    } catch (netErr: any) {
+      testSuccess = false;
+      testMessage = `Network error contacting Resend API: ${netErr.message}`;
+    }
+  } else {
+    // SendGrid or other API providers
+    testSuccess = false;
+    testMessage = `Provider ${config.provider} verification adapter pending setup.`;
+  }
+
+  // Update institution verification status based on empirical outcome
+  const newStatus: EmailVerificationStatus = testSuccess ? "VERIFIED" : "FAILED";
+  config.status = newStatus;
+  config.lastVerifiedAt = testSuccess ? new Date().toISOString() : config.lastVerifiedAt;
+  config.lastError = testSuccess ? null : testMessage;
+  config.updatedAt = new Date().toISOString();
+
+  institutionConfigCache.set(institutionId, config);
+
+  // Persist updated status
+  try {
+    const settingKey = `email_config:${institutionId}`;
+    await db.platformSetting.update({
+      where: { key: settingKey },
+      data: {
+        value: {
+          institutionId,
+          provider: config.provider,
+          isEnabled: config.isEnabled,
+          senderEmail: config.senderEmail,
+          senderName: config.senderName,
+          replyToEmail: config.replyToEmail,
+          status: newStatus,
+          encryptedCredentials: config.encryptedCredentials,
+          lastVerifiedAt: config.lastVerifiedAt,
+          lastError: config.lastError,
+          updatedAt: config.updatedAt,
+        },
+        updatedAt: new Date(),
+      },
+    });
+  } catch {}
+
+  return {
+    success: testSuccess,
+    provider: config.provider,
+    senderVerified: testSuccess,
+    message: testMessage,
+    testedAt: new Date().toISOString(),
+    details,
+  };
+}
+
+/**
+ * Records an email delivery event in the persistent audit log and delivery history.
+ * Distinguishes QUEUED, ACCEPTED, DELIVERED, BOUNCED, FAILED.
+ * CRITICAL: Provider acceptance (ACCEPTED) is NEVER represented as confirmed inbox delivery (DELIVERED).
+ */
+export async function recordEmailDeliveryLog(
+  log: Omit<EmailDeliveryLogRecord, "id" | "timestamp">
+): Promise<EmailDeliveryLogRecord> {
+  const record: EmailDeliveryLogRecord = {
+    ...log,
+    id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    timestamp: new Date().toISOString(),
+  };
+
+  deliveryLogBuffer.unshift(record);
+  if (deliveryLogBuffer.length > MAX_LOG_BUFFER_SIZE) {
+    deliveryLogBuffer.pop();
+  }
+
+  // Persist to physical PostgreSQL AuditLog table for auditable compliance
+  try {
+    await recordAudit({
+      institutionId: log.institutionId || "SUPER_ADMIN",
+      action: log.deliveryStatus === "FAILED" ? "EMAIL_DELIVERY_FAILED" : "EMAIL_DISPATCH",
+      entityType: "EMAIL_DELIVERY",
+      entityId: record.id,
+      newValues: {
+        recipientEmail: log.recipientEmail,
+        subject: log.subject,
+        purpose: log.purpose,
+        provider: log.provider,
+        fallbackUsed: log.fallbackUsed,
+        providerMessageId: log.providerMessageId,
+        deliveryStatus: log.deliveryStatus,
+        failureReason: log.failureReason,
+        retryCount: log.retryCount,
+      },
+    });
+  } catch {}
+
+  return record;
+}
+
+/**
+ * Retrieves delivery logs with filtering options.
+ * Enforces tenant isolation: Institution Admins only see their institution's logs;
+ * Super Admin can view cross-institution logs.
+ */
+export async function getEmailDeliveryLogs(options: {
+  institutionId?: string | null;
+  status?: EmailDeliveryStatus;
+  purpose?: EmailPurpose;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ logs: EmailDeliveryLogRecord[]; total: number }> {
+  let filtered = deliveryLogBuffer;
+
+  if (options.institutionId) {
+    filtered = filtered.filter((l) => l.institutionId === options.institutionId);
+  }
+
+  if (options.status) {
+    filtered = filtered.filter((l) => l.deliveryStatus === options.status);
+  }
+
+  if (options.purpose) {
+    filtered = filtered.filter((l) => l.purpose === options.purpose);
+  }
+
+  if (options.search) {
+    const q = options.search.toLowerCase();
+    filtered = filtered.filter(
+      (l) =>
+        l.recipientEmail.toLowerCase().includes(q) ||
+        l.subject.toLowerCase().includes(q) ||
+        l.senderIdentity.toLowerCase().includes(q) ||
+        (l.providerMessageId && l.providerMessageId.toLowerCase().includes(q))
+    );
+  }
+
+  const total = filtered.length;
+  const limit = options.limit || 50;
+  const offset = options.offset || 0;
+  const logs = filtered.slice(offset, offset + limit);
+
+  return { logs, total };
+}

@@ -200,7 +200,7 @@ export default function RolesPermissionsPage() {
         </p>
       </Alert>
 
-      {saveSuccess && (
+      {saveSuccess && selectedRole && (
         <Alert variant="success" title="Permission Grant Updated">
           Role permissions for <strong>{selectedRole?.name || "Selected Role"}</strong> were updated and persisted.
         </Alert>
@@ -283,17 +283,24 @@ export default function RolesPermissionsPage() {
                     {selectedRole?.permissions?.length || 0} total permissions enabled for this role
                   </p>
                 </div>
-                <Badge variant={selectedRole?.isSystemRole ? "navy" : "teal"} size="md">
-                  {selectedRole?.isSystemRole ? "System Built-In Role" : "Custom User Role"}
-                </Badge>
+                {selectedRole && (
+                  <Badge variant={selectedRole.isSystemRole ? "navy" : "teal"} size="md">
+                    {selectedRole.isSystemRole ? "System Built-In Role" : "Custom User Role"}
+                  </Badge>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-              {permissionCategories.map((cat) => {
-                const catIds = cat.permissions.map((p: any) => p.id);
-                const selectedCount = catIds.filter((id: any) =>
-                  selectedRole.permissions.includes(id)
-                ).length;
+              {!selectedRole ? (
+                <div className="p-8 text-center text-sm text-[#64748B]">
+                  No security role selected. Choose a role from the left to configure permissions.
+                </div>
+              ) : (
+                permissionCategories.map((cat) => {
+                  const catIds = cat.permissions.map((p: any) => p.id);
+                  const selectedCount = catIds.filter((id: any) =>
+                    selectedRole.permissions.includes(id)
+                  ).length;
                 const allSelected = selectedCount === catIds.length;
 
                 return (
@@ -351,7 +358,7 @@ export default function RolesPermissionsPage() {
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </CardContent>
           </Card>
         </div>

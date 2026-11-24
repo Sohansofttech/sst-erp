@@ -145,14 +145,14 @@ export default function HodDashboardPage() {
         title="Department of Mathematics — HoD Leadership"
         subtitle="Departmental leadership workspace: internal assessment approvals & locking, faculty workload balancing, and faculty leave substitution allocations."
         action={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
               <Link href={`${base}/ia-approvals`}>
                 <ClipboardCheck className="mr-1.5 size-4 text-[#123B5A]" />
                 IA Approval Queue ({pendingIA.length})
               </Link>
             </Button>
-            <Button asChild className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
               <Link href={`${base}/leave-approvals`}>
                 <BookOpen className="mr-1.5 size-4" />
                 Faculty Leave ({pendingLeaves.length})
@@ -163,7 +163,7 @@ export default function HodDashboardPage() {
       />
 
       {/* 5 Core KPIs Matching Demo Metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="Department Faculty"
           value={facultyLoad.length}
@@ -230,36 +230,38 @@ export default function HodDashboardPage() {
                 />
               </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-[#EEF1F5]/80">
-                  <TableRow>
-                    <TableHead className="font-bold text-[#788391]">Assessment</TableHead>
-                    <TableHead className="font-bold text-[#788391]">Section</TableHead>
-                    <TableHead className="font-bold text-[#788391]">Max Marks</TableHead>
-                    <TableHead className="text-right font-bold text-[#788391]">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-[#E5E9EF]">
-                  {pendingIA.slice(0, 4).map((ia) => (
-                    <TableRow key={ia.id} className="hover:bg-[#EEF1F5]/50">
-                      <TableCell className="font-bold text-[#202936]">
-                        {ia.title}
-                      </TableCell>
-                      <TableCell className="font-semibold text-xs text-[#123B5A]">
-                        {ia.className} - {ia.section}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-[#788391]">
-                        {ia.maxMarks} marks
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button asChild size="sm" className="h-8 rounded-lg bg-[#123B5A] text-xs font-bold text-white hover:bg-[#1B4D70]">
-                          <Link href={`${base}/ia-approvals`}>Review</Link>
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[500px]">
+                  <TableHeader className="bg-[#EEF1F5]/80">
+                    <TableRow>
+                      <TableHead className="font-bold text-[#788391]">Assessment</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Section</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Max Marks</TableHead>
+                      <TableHead className="text-right font-bold text-[#788391]">Action</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-[#E5E9EF]">
+                    {pendingIA.slice(0, 4).map((ia) => (
+                      <TableRow key={ia.id} className="hover:bg-[#EEF1F5]/50">
+                        <TableCell className="font-bold text-[#202936]">
+                          {ia.title}
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs text-[#123B5A]">
+                          {ia.className} - {ia.section}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-[#788391]">
+                          {ia.maxMarks} marks
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild size="sm" className="h-8 rounded-lg bg-[#123B5A] text-xs font-bold text-white hover:bg-[#1B4D70]">
+                            <Link href={`${base}/ia-approvals`}>Review</Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -306,7 +308,7 @@ export default function HodDashboardPage() {
       </div>
 
       {/* Leadership Quick Hub */}
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="rounded-2xl border-[#E5E9EF] bg-white p-5 shadow-xs hover:border-[#123B5A] transition-colors">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-[#123B5A]/10 text-[#123B5A]">

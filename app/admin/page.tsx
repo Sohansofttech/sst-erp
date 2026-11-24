@@ -40,11 +40,8 @@ import {
 export default function DashboardPage() {
   const {
     stats,
-    profile,
     activeAcademicYear,
-    recentActivities,
-    students,
-    departments,
+    isAcademicYearsLoading,
     getClassAttendanceSummaries,
   } = useInstitution();
 
@@ -120,38 +117,39 @@ export default function DashboardPage() {
   const totalStudents = liveStats?.totalStudents !== undefined ? liveStats.totalStudents : (stats.totalStudents ?? 0);
   const totalStaff = liveStats?.totalFaculty !== undefined ? liveStats.totalFaculty : (stats.totalStaff ?? 0);
   const totalAdmissions = liveStats?.pendingAdmissions !== undefined ? liveStats.pendingAdmissions : (stats.totalAdmissions ?? 0);
-  const pendingApprovalsCount = approvals.length || (stats.pendingApprovals ?? 0);
+  const pendingApprovalsCount = liveStats?.pendingApprovals !== undefined
+    ? liveStats.pendingApprovals
+    : (loadingApprovals ? 0 : approvals.length);
   const totalFeesCollected = liveStats?.totalFeesCollected !== undefined
     ? `₹${(liveStats.totalFeesCollected / 100000).toFixed(2)}L`
     : (stats.totalFeesCollected ? `₹${(stats.totalFeesCollected / 100000).toFixed(1)}L` : "₹0.00L");
   const attendanceRate = liveStats?.attendanceRate || (stats.attendanceRateToday ? `${stats.attendanceRateToday}%` : "N/A");
+  const totalDepartments = liveStats?.totalDepartments !== undefined ? liveStats.totalDepartments : 0;
 
-  const effectiveActivities = dashboardData?.recentActivities?.length
+  const effectiveActivities = Array.isArray(dashboardData?.recentActivities)
     ? dashboardData.recentActivities.map((a: any) => ({
         id: a.id,
         user: a.userName || "Administrator",
         action: a.action,
         target: a.tableName || a.entity || "general",
-        timestamp: new Date(a.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: a.timestamp
+          ? new Date(a.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : "Recently",
       }))
-    : recentActivities;
+    : [];
 
-  // Real department enrollment calculated from store departments & students
-  // Matching reference chart colors: alternating Navy (#123B5A), Orange (#F5A000), Blue (#F5A000), Amber (#F59E0B)
+  // Real department enrollment calculated from authenticated database departments
   const deptColors = ["bg-[#16466C]", "bg-[#F5A000]", "bg-[#16466C]", "bg-[#F5A000]", "bg-[#16466C]", "bg-[#F5A000]"];
-  const dynamicDeptEnrollment = departments.map((dept, index) => {
-    const studentCount = students.filter((s) => s.departmentId === dept.id).length || Math.round(dept.studentCapacity * 0.85);
-    const capacity = dept.studentCapacity || 500;
-    const percentage = Math.min(100, Math.round((studentCount / capacity) * 100));
-    return {
-      name: dept.name,
-      code: dept.code,
-      count: studentCount,
-      capacity,
-      percentage,
-      color: deptColors[index % deptColors.length],
-    };
-  });
+  const dynamicDeptEnrollment = Array.isArray(dashboardData?.departmentEnrollment)
+    ? dashboardData.departmentEnrollment.map((dept: any, index: number) => ({
+        name: dept.name,
+        code: dept.code,
+        count: dept.count || 0,
+        capacity: dept.capacity || 0,
+        percentage: dept.percentage || 0,
+        color: deptColors[index % deptColors.length],
+      }))
+    : [];
 
   return (
     <div className="space-y-6">
@@ -167,7 +165,7 @@ export default function DashboardPage() {
           <div className="hidden sm:flex items-center gap-2 bg-[#F1F5F9] px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-xs">
             <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
             <span className="font-semibold text-[#1E293B]">Session:</span>
-            <span className="font-bold text-[#F5A000]">{activeAcademicYear?.name || "2026-2027"}</span>
+            <span className="font-bold text-[#F5A000]">{isAcademicYearsLoading ? "Loading..." : (dashboardData?.activeAcademicYear?.name || activeAcademicYear?.name || "Not Set")}</span>
           </div>
 
           <Button
@@ -204,7 +202,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-[#38BDF8] font-bold mt-1">
               <TrendingUp className="w-3 h-3" />
-              <span>{totalStudents > 0 ? "+8.4% from last term" : "No active students"}</span>
+              <span>{totalStudents > 0 ? (liveStats?.studentGrowth || "Growth data unavailable") : "No active students"}</span>
             </div>
           </CardContent>
         </Card>
@@ -285,7 +283,11 @@ export default function DashboardPage() {
               <span>
                 {dashboardData?.schemaStatus?.departments === "PENDING_MIGRATION"
                   ? "Departments pending setup"
-                  : `Across ${departments.length} departments`}
+                  : totalDepartments === 1
+                  ? "Across 1 department"
+                  : totalDepartments > 1
+                  ? `Across ${totalDepartments} departments`
+                  : "No departments configured"}
               </span>
             </div>
           </CardContent>
@@ -303,8 +305,12 @@ export default function DashboardPage() {
             <div className="text-2xl font-black text-[#1E293B] mt-1.5">
               {loadingApprovals ? "..." : pendingApprovalsCount}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#F5A000] font-bold mt-1">
-              <span>Action required</span>
+            <div className="flex items-center gap-1.5 text-[11px] mt-1 font-bold">
+              {pendingApprovalsCount > 0 ? (
+                <span className="text-[#F5A000]">Action required</span>
+              ) : (
+                <span className="text-[#10B981]">Queue clear</span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -372,31 +378,45 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between text-xs text-[#64748B]">
                 <span>Department Enrollment Quota vs Registered Students</span>
                 <span className="font-semibold text-[#1E293B]">
-                  Active Cohorts: {dynamicDeptEnrollment.reduce((acc, d) => acc + d.count, 0).toLocaleString()} Registered
+                  Active Cohorts: {totalStudents > 0 ? `${totalStudents.toLocaleString()} Enrolled` : "No active students"}
                 </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {dynamicDeptEnrollment.map((dept) => (
-                  <div key={dept.code} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-bold text-[#1E293B] truncate max-w-[200px]" title={dept.name}>
-                        {dept.name}
-                      </span>
-                      <span className="font-mono font-bold text-[#F5A000]">{dept.count}</span>
+              {dynamicDeptEnrollment.length === 0 ? (
+                <div className="text-center py-8 space-y-2 border border-dashed border-[#CBD5E1] rounded-xl bg-[#F8FAFC]">
+                  <Layers className="w-8 h-8 text-[#94A3B8] mx-auto opacity-60" />
+                  <p className="text-xs font-semibold text-[#1E293B]">
+                    {dashboardData?.schemaStatus?.departments === "PENDING_MIGRATION"
+                      ? "Departments Pending Setup"
+                      : "No Department Cohorts Configured"}
+                  </p>
+                  <p className="text-[11px] text-[#64748B]">
+                    Academic departments have not been created for this institution yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {dynamicDeptEnrollment.map((dept: any) => (
+                    <div key={dept.code || dept.name} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-bold text-[#1E293B] truncate max-w-[200px]" title={dept.name}>
+                          {dept.name}
+                        </span>
+                        <span className="font-mono font-bold text-[#F5A000]">{dept.count}</span>
+                      </div>
+                      <div className="w-full bg-[#E2E8F0] rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full ${dept.color}`}
+                          style={{ width: `${dept.percentage}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-[#64748B] mt-1.5">
+                        <span>Capacity: {dept.capacity}</span>
+                        <span className="font-semibold text-[#1E293B]">{dept.percentage}% Filled</span>
+                      </div>
                     </div>
-                    <div className="w-full bg-[#E2E8F0] rounded-full h-2 overflow-hidden">
-                      <div
-                        className={`h-2 rounded-full ${dept.color}`}
-                        style={{ width: `${dept.percentage}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-[#64748B] mt-1.5">
-                      <span>Capacity: {dept.capacity}</span>
-                      <span className="font-semibold text-[#1E293B]">{dept.percentage}% Filled</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -406,33 +426,68 @@ export default function DashboardPage() {
                 <span className="text-xs font-bold text-[#F5A000] uppercase tracking-wider block">
                   Collected Revenues
                 </span>
-                <div className="text-2xl font-black text-[#1E293B]">₹98,50,000</div>
-                <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#16466C] h-2 rounded-full" style={{ width: "79.4%" }} />
+                <div className="text-2xl font-black text-[#1E293B]">
+                  ₹{(liveStats?.feeMetrics?.totalCollected ?? 0).toLocaleString()}
                 </div>
-                <span className="text-[11px] text-[#64748B] block">79.4% collected on time</span>
+                <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#16466C] h-2 rounded-full transition-all"
+                    style={{ width: `${liveStats?.feeMetrics?.collectionRate ?? 0}%` }}
+                  />
+                </div>
+                <span className="text-[11px] text-[#64748B] block">
+                  {liveStats?.feeMetrics?.totalInvoiced > 0
+                    ? `${liveStats?.feeMetrics?.collectionRate ?? 0}% collected on time`
+                    : "No fee collections recorded yet"}
+                </span>
               </div>
 
               <div className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-2">
                 <span className="text-xs font-bold text-[#F5A000] uppercase tracking-wider block">
                   Pending Due (0-30 Days)
                 </span>
-                <div className="text-2xl font-black text-[#1E293B]">₹15,60,000</div>
-                <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#F5A000] h-2 rounded-full" style={{ width: "12.6%" }} />
+                <div className="text-2xl font-black text-[#1E293B]">
+                  ₹{(liveStats?.feeMetrics?.pendingDue ?? 0).toLocaleString()}
                 </div>
-                <span className="text-[11px] text-[#64748B] block">Invoices within grace cycle</span>
+                <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#F5A000] h-2 rounded-full transition-all"
+                    style={{
+                      width: `${
+                        liveStats?.feeMetrics?.totalInvoiced > 0
+                          ? Math.min(100, Math.round(((liveStats?.feeMetrics?.pendingDue ?? 0) / liveStats.feeMetrics.totalInvoiced) * 100))
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <span className="text-[11px] text-[#64748B] block">
+                  {liveStats?.feeMetrics?.pendingDue > 0 ? "Invoices within grace cycle" : "No pending dues"}
+                </span>
               </div>
 
               <div className="p-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] space-y-2">
                 <span className="text-xs font-bold text-[#EF4444] uppercase tracking-wider block">
                   Overdue (60+ Days)
                 </span>
-                <div className="text-2xl font-black text-[#1E293B]">₹9,90,000</div>
-                <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#EF4444] h-2 rounded-full" style={{ width: "8.0%" }} />
+                <div className="text-2xl font-black text-[#1E293B]">
+                  ₹{(liveStats?.feeMetrics?.overdue ?? 0).toLocaleString()}
                 </div>
-                <span className="text-[11px] text-[#64748B] block">Notice alerts dispatched</span>
+                <div className="w-full bg-[#E2E8F0] h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#EF4444] h-2 rounded-full transition-all"
+                    style={{
+                      width: `${
+                        liveStats?.feeMetrics?.totalInvoiced > 0
+                          ? Math.min(100, Math.round(((liveStats?.feeMetrics?.overdue ?? 0) / liveStats.feeMetrics.totalInvoiced) * 100))
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <span className="text-[11px] text-[#64748B] block">
+                  {liveStats?.feeMetrics?.overdue > 0 ? "Notice alerts dispatched" : "No overdue invoices"}
+                </span>
               </div>
             </div>
           )}
@@ -590,12 +645,18 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="p-4">
               <div className="space-y-3">
-                {recentActivities.length === 0 ? (
+                {loadingDashboard ? (
                   <p className="text-xs text-[#64748B] text-center py-6">
-                    No recent activities recorded yet.
+                    Loading recent activities...
                   </p>
+                ) : effectiveActivities.length === 0 ? (
+                  <div className="text-center py-6 space-y-1">
+                    <History className="w-7 h-7 text-[#94A3B8] mx-auto opacity-60" />
+                    <p className="text-xs font-semibold text-[#1E293B]">No Recent Activity</p>
+                    <p className="text-[11px] text-[#64748B]">No audit events recorded for this institution yet.</p>
+                  </div>
                 ) : (
-                  recentActivities.slice(0, 6).map((activity) => (
+                  effectiveActivities.slice(0, 6).map((activity: any) => (
                     <div
                       key={activity.id}
                       className="flex items-start gap-3 p-2.5 rounded-lg border border-[#F1F5F9] bg-[#F8FAFC] hover:bg-white hover:border-[#E2E8F0] transition-colors"

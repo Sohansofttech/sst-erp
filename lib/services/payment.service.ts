@@ -2,6 +2,8 @@ import db from "../db";
 import { recordAudit } from "./audit.service";
 import { sendNotification } from "./notification.service";
 import crypto from "crypto";
+import { PaymentGatewayService } from "./payment-gateway.service";
+import { RazorpayAdapter } from "./payments/razorpay.adapter";
 
 export interface VerifyPaymentInput {
   institutionId: string;
@@ -63,7 +65,7 @@ export async function verifyAndProcessPayment(input: VerifyPaymentInput) {
   }
 
   // 2. Cryptographic/Backend validation
-  // Mock gateway signature verification: Ensure transactionRef is unique and not previously used
+  // Ensure transactionRef is unique and not previously used
   const existingTxn = await db.feePayment.findUnique({
     where: { transactionRef: gatewayTransactionId },
   });
@@ -72,22 +74,40 @@ export async function verifyAndProcessPayment(input: VerifyPaymentInput) {
     throw new Error("Double payment detected: Transaction reference has already been processed.");
   }
 
-  // Verify backend signature hash (simulating payment gateway secret verification)
-  const gatewaySecret = process.env.PAYMENT_GATEWAY_SECRET || "MOCK_GATEWAY_SECRET_KEY";
-  const expectedSignature = crypto
-    .createHmac("sha256", gatewaySecret)
-    .update(`${gatewayOrderId}|${gatewayTransactionId}|${amount}`)
-    .digest("hex");
+  // Retrieve institution's active default payment gateway to verify merchant signature
+  const defaultGateway = await PaymentGatewayService.getDecryptedDefaultGateway(institutionId).catch(() => null);
+  const merchantSecret = defaultGateway
+    ? (defaultGateway.credentials as any)?.keySecret || (defaultGateway.credentials as any)?.secretKey
+    : null;
 
-  // In production, mock signatures (sig_mock_ or VALID_DEMO_SIG) must be strictly rejected
   const isProduction = process.env.NODE_ENV === "production";
   const allowMockSignatures = !isProduction || process.env.ENABLE_MOCK_PAYMENT_SIGNATURES === "true";
-
   const isMockSignature =
     Boolean(gatewaySignature?.startsWith("sig_mock_")) || gatewaySignature === "VALID_DEMO_SIG";
 
-  const isSignatureValid =
-    gatewaySignature === expectedSignature || (allowMockSignatures && isMockSignature);
+  let isSignatureValid = false;
+
+  if (merchantSecret && gatewaySignature && !isMockSignature) {
+    // Verify using institution's specific merchant secret
+    isSignatureValid = RazorpayAdapter.verifyPaymentSignature(
+      gatewayOrderId,
+      gatewayTransactionId,
+      gatewaySignature,
+      merchantSecret
+    );
+  }
+
+  if (!isSignatureValid) {
+    // Fallback: system-level HMAC verification or demo mode
+    const gatewaySecret = process.env.PAYMENT_GATEWAY_SECRET || "MOCK_GATEWAY_SECRET_KEY";
+    const expectedSignature = crypto
+      .createHmac("sha256", gatewaySecret)
+      .update(`${gatewayOrderId}|${gatewayTransactionId}|${amount}`)
+      .digest("hex");
+
+    isSignatureValid =
+      gatewaySignature === expectedSignature || (allowMockSignatures && isMockSignature);
+  }
 
   if (!isSignatureValid) {
     throw new Error("Payment signature verification failed. Untrusted payment attempt rejected.");

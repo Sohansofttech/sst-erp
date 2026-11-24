@@ -72,7 +72,7 @@ export async function authorizeStudentOrParentAccess(
   }
 
   // Admin / Teacher within same institution
-  if (["ADMIN", "SUPER_ADMIN", "TEACHER"].includes(session.role)) {
+  if (["ADMIN", "SUPER_ADMIN", "TEACHER", "INSTITUTION_ADMIN"].includes((session.role || "").toUpperCase())) {
     return { studentId: targetStudentId, isParent: false };
   }
 

@@ -18,7 +18,8 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
     throw new UnauthorizedError("Authentication required. Please log in to access Institution Admin.");
   }
 
-  if (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN") {
+  const roleUpper = (session.role || "").toUpperCase();
+  if (roleUpper !== "ADMIN" && roleUpper !== "INSTITUTION_ADMIN" && roleUpper !== "SUPER_ADMIN") {
     throw new ForbiddenError("Forbidden: Account does not have Institution Admin privileges.");
   }
 
@@ -28,7 +29,7 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
   }
 
   // Anti-spoofing check: standard Admin can NEVER supply an x-institution-id header different from their session
-  if (session.role !== "SUPER_ADMIN") {
+  if (roleUpper !== "SUPER_ADMIN") {
     const headerInstId = req.headers.get("x-institution-id");
     if (headerInstId && headerInstId !== session.institutionId) {
       throw new ForbiddenError("Tenant violation: Cross-institution administrative access is forbidden.");

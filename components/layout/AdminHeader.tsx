@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useInstitution } from "@/lib/store";
+import { fetchClientSession } from "@/lib/auth/client-session";
 import {
   Menu,
   Calendar,
@@ -25,10 +26,68 @@ interface AdminHeaderProps {
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => {
   const router = useRouter();
-  const { profile, activeAcademicYear, academicYears, setActiveAcademicYear } = useInstitution();
+  const {
+    profile,
+    activeAcademicYear,
+    academicYears,
+    isAcademicYearsLoading,
+    setActiveAcademicYear,
+  } = useInstitution();
   const [showYearMenu, setShowYearMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+
+  // Authenticated user identity derived from secure server session
+  const [currentUser, setCurrentUser] = useState<{
+    fullName: string;
+    email: string;
+    role: string;
+  } | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchClientSession()
+      .then((data) => {
+        if (isMounted && data?.success && data?.data?.session) {
+          const sess = data.data.session;
+          setCurrentUser({
+            fullName: sess.fullName || "Administrator",
+            email: sess.email || "",
+            role: sess.role || "INSTITUTION_ADMIN",
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setIsLoadingUser(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const userInitials = useMemo(() => {
+    if (!currentUser?.fullName) return "AD";
+    const parts = currentUser.fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }, [currentUser]);
+
+  const roleDisplay = useMemo(() => {
+    switch (currentUser?.role) {
+      case "SUPER_ADMIN":
+        return "Super Admin";
+      case "TEACHER":
+        return "Faculty / Staff";
+      case "STUDENT":
+        return "Student";
+      case "PARENT":
+        return "Parent / Guardian";
+      default:
+        return "Institution Admin";
+    }
+  }, [currentUser?.role]);
 
   const handleLogout = async () => {
     try {
@@ -102,11 +161,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 Academic Year
               </span>
               <span className="text-xs font-bold text-[#123B5A] leading-none">
-                {activeAcademicYear?.name || "Not Set"}
+                {isAcademicYearsLoading ? "Loading..." : (activeAcademicYear?.name || "Not Set")}
               </span>
             </div>
             <span className="text-xs font-bold text-[#123B5A] md:hidden">
-              {activeAcademicYear?.name}
+              {isAcademicYearsLoading ? "Loading..." : (activeAcademicYear?.name || "Not Set")}
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
           </button>
@@ -117,27 +176,37 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 Select Active Year
               </div>
               <div className="py-1">
-                {academicYears.map((ay) => (
-                  <button
-                    key={ay.id}
-                    onClick={() => {
-                      setActiveAcademicYear(ay.id);
-                      setShowYearMenu(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors cursor-pointer ${
-                      ay.isActive
-                        ? "bg-[#FEF3C7] text-[#D97706] font-bold"
-                        : "text-[#1E293B] hover:bg-[#F8FAFC]"
-                    }`}
-                  >
-                    <span>{ay.name}</span>
-                    {ay.isActive && (
-                      <span className="text-[10px] font-semibold bg-[#F5A000] text-white px-1.5 py-0.5 rounded">
-                        Active
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {isAcademicYearsLoading ? (
+                  <div className="px-3 py-3 text-xs text-[#64748B] text-center">
+                    Loading academic years...
+                  </div>
+                ) : academicYears.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-[#64748B] text-center">
+                    No academic years configured.
+                  </div>
+                ) : (
+                  academicYears.map((ay) => (
+                    <button
+                      key={ay.id}
+                      onClick={() => {
+                        setActiveAcademicYear(ay.id);
+                        setShowYearMenu(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-lg text-left transition-colors cursor-pointer ${
+                        ay.isActive
+                          ? "bg-[#FEF3C7] text-[#D97706] font-bold"
+                          : "text-[#1E293B] hover:bg-[#F8FAFC]"
+                      }`}
+                    >
+                      <span>{ay.name}</span>
+                      {ay.isActive && (
+                        <span className="text-[10px] font-semibold bg-[#F5A000] text-white px-1.5 py-0.5 rounded">
+                          Active
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -151,24 +220,38 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-[#F1F5F9] transition-colors cursor-pointer"
+            aria-label="User Profile Menu"
           >
             <div className="w-8 h-8 rounded-full bg-[#123B5A] text-white flex items-center justify-center font-bold text-xs ring-2 ring-[#F5A000]/20">
-              AD
+              {isLoadingUser ? "..." : userInitials}
             </div>
             <div className="hidden lg:block text-left leading-none">
-              <span className="text-xs font-bold text-[#1E293B] block">Administrator</span>
-              <span className="text-[11px] text-[#F5A000] font-semibold">Institution Admin</span>
+              <span className="text-xs font-bold text-[#1E293B] block">
+                {isLoadingUser ? "Loading..." : (currentUser?.fullName || "Administrator")}
+              </span>
+              <span className="text-[11px] text-[#F5A000] font-semibold">
+                {roleDisplay}
+              </span>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-[#64748B] hidden lg:block" />
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-lg border border-[#E2E8F0] p-1.5 z-40 animate-in fade-in">
+            <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#E2E8F0] p-1.5 z-40 animate-in fade-in">
               <div className="px-3 py-2 border-b border-[#F1F5F9]">
-                <p className="text-xs font-bold text-[#1E293B]">Admin User</p>
-                <p className="text-[11px] text-[#64748B]">admin@sohansoft.in</p>
+                <p className="text-xs font-bold text-[#1E293B] truncate">
+                  {isLoadingUser ? "Loading..." : (currentUser?.fullName || "Administrator")}
+                </p>
+                <p className="text-[11px] text-[#64748B] truncate font-medium mt-0.5" title={currentUser?.email || undefined}>
+                  {isLoadingUser ? "Loading..." : (currentUser?.email || "No email available")}
+                </p>
                 <div className="mt-1 flex items-center gap-1 text-[10px] text-[#14B8A6] font-bold">
-                  <ShieldCheck className="w-3 h-3" /> System Administrator
+                  <ShieldCheck className="w-3 h-3" />
+                  {currentUser?.role === "SUPER_ADMIN"
+                    ? "Platform Administrator"
+                    : currentUser?.role === "TEACHER"
+                    ? "Faculty Member"
+                    : "System Administrator"}
                 </div>
               </div>
               <div className="py-1">

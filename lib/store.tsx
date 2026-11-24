@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import {
   InstitutionThemeConfig,
   DEFAULT_INSTITUTION_THEME,
@@ -18,6 +18,7 @@ import {
   DashboardStats,
   AdmissionApplication,
   AdmissionStatus,
+  DocumentSubmissionStatus,
   StudentItem,
   StudentStatus,
   GuardianItem,
@@ -82,6 +83,7 @@ import {
   calculateAttendance,
   RawAttendanceRecord,
 } from "@/lib/services/attendance-calculator";
+import { isTeachingFacultyTitle } from "@/lib/utils/credential-helpers";
 import {
   initialInstitutionProfile,
   initialAcademicYears,
@@ -135,28 +137,42 @@ interface InstitutionContextType {
   profile: InstitutionProfile;
   updateProfile: (data: Partial<InstitutionProfile>) => void;
   refreshProfile: () => Promise<void>;
+  isProfileLoading: boolean;
+  profileError: string | null;
   theme: InstitutionThemeConfig;
   updateTheme: (newTheme: Partial<InstitutionThemeConfig>) => void;
   resetThemeToDefaults: () => void;
 
   academicYears: AcademicYear[];
   activeAcademicYear: AcademicYear | undefined;
+  isAcademicYearsLoading: boolean;
+  academicYearsError: string | null;
+  refreshAcademicYears: (tenantId?: string) => Promise<AcademicYear[]>;
   addAcademicYear: (data: Omit<AcademicYear, "id" | "createdAt">) => void;
   updateAcademicYear: (id: string, data: Partial<AcademicYear>) => void;
   setActiveAcademicYear: (id: string) => void;
   deleteAcademicYear: (id: string) => void;
 
   departments: Department[];
+  isDepartmentsLoading: boolean;
+  departmentsError: string | null;
+  refreshDepartments: (tenantId?: string) => Promise<Department[]>;
   addDepartment: (data: Omit<Department, "id">) => void;
   updateDepartment: (id: string, data: Partial<Department>) => void;
   deleteDepartment: (id: string) => void;
 
   courses: Course[];
+  isCoursesLoading: boolean;
+  coursesError: string | null;
+  refreshCourses: (tenantId?: string) => Promise<Course[]>;
   addCourse: (data: Omit<Course, "id">) => void;
   updateCourse: (id: string, data: Partial<Course>) => void;
   deleteCourse: (id: string) => void;
 
   classes: ClassItem[];
+  isClassesLoading: boolean;
+  classesError: string | null;
+  refreshClasses: (tenantId?: string) => Promise<ClassItem[]>;
   addClass: (data: Omit<ClassItem, "id">) => void;
   updateClass: (id: string, data: Partial<ClassItem>) => void;
   deleteClass: (id: string) => void;
@@ -167,6 +183,9 @@ interface InstitutionContextType {
   deleteSection: (id: string) => void;
 
   subjects: SubjectItem[];
+  isSubjectsLoading: boolean;
+  subjectsError: string | null;
+  refreshSubjects: (tenantId?: string) => Promise<SubjectItem[]>;
   addSubject: (data: Omit<SubjectItem, "id">) => void;
   updateSubject: (id: string, data: Partial<SubjectItem>) => void;
   deleteSubject: (id: string) => void;
@@ -178,36 +197,54 @@ interface InstitutionContextType {
 
   // Admission Management
   admissions: AdmissionApplication[];
+  isAdmissionsLoading: boolean;
+  admissionsError: string | null;
+  refreshAdmissions: (tenantId?: string) => Promise<AdmissionApplication[]>;
   addAdmission: (data: Omit<AdmissionApplication, "id" | "applicationNumber" | "statusHistory" | "appliedDate" | "isConvertedToStudent">) => AdmissionApplication;
-  updateAdmission: (id: string, data: Partial<AdmissionApplication>) => void;
+  updateAdmission: (id: string, data: Partial<AdmissionApplication>) => Promise<any> | void;
   deleteAdmission: (id: string) => void;
   updateAdmissionStatus: (id: string, status: AdmissionStatus, remarks?: string) => void;
   convertAdmissionToStudent: (
     applicationId: string,
     options?: { classId?: string; sectionId?: string; rollNumber?: string }
-  ) => ConvertStudentResult;
+  ) => Promise<ConvertStudentResult> | ConvertStudentResult;
 
   // Student Management
   students: StudentItem[];
+  isStudentsLoading: boolean;
+  studentsError: string | null;
+  refreshStudents: (tenantId?: string) => Promise<StudentItem[]>;
   addStudent: (data: Omit<StudentItem, "id" | "enrollmentHistory"> & { id?: string }) => StudentItem;
   updateStudent: (id: string, data: Partial<StudentItem>) => void;
   deactivateStudent: (id: string) => void;
+  archiveStudent: (id: string, mode?: "ARCHIVE" | "DELETE") => Promise<{ success: boolean; message: string }>;
+  restoreStudent: (id: string) => Promise<{ success: boolean; message: string }>;
   linkGuardianToStudent: (studentId: string, guardianId: string) => boolean;
   unlinkGuardianFromStudent: (studentId: string, guardianId: string) => void;
 
   // Guardian Management
   guardians: GuardianItem[];
+  isGuardiansLoading: boolean;
+  guardiansError: string | null;
+  refreshGuardians: (tenantId?: string) => Promise<GuardianItem[]>;
   addGuardian: (data: Omit<GuardianItem, "id" | "guardianId" | "createdAt"> & { id?: string }) => GuardianItem;
   updateGuardian: (id: string, data: Partial<GuardianItem>) => void;
   deactivateGuardian: (id: string) => void;
+  archiveGuardian: (id: string, force?: boolean) => Promise<{ success: boolean; message: string; hasActiveStudents?: boolean; linkedStudents?: any[] }>;
+  restoreGuardian: (id: string) => Promise<{ success: boolean; message: string }>;
   linkStudentToGuardian: (guardianId: string, studentId: string) => boolean;
   unlinkStudentFromGuardian: (guardianId: string, studentId: string) => void;
 
   // Staff Management
   staff: StaffItem[];
+  isStaffLoading: boolean;
+  staffError: string | null;
+  refreshStaff: (tenantId?: string) => Promise<StaffItem[]>;
   addStaff: (data: Omit<StaffItem, "id"> & { id?: string }) => StaffItem;
   updateStaff: (id: string, data: Partial<StaffItem>) => void;
   deactivateStaff: (id: string) => void;
+  archiveStaff: (id: string, force?: boolean) => Promise<{ success: boolean; message: string; hasActiveAssignments?: boolean; activeSlots?: any[] }>;
+  restoreStaff: (id: string) => Promise<{ success: boolean; message: string }>;
 
   // Timetable Management (Phase 3)
   periodConfigs: PeriodConfig[];
@@ -622,29 +659,382 @@ interface InstitutionContextType {
   resetToDefaults: () => void;
 }
 
+function mapDbStudentToItem(s: any): StudentItem {
+  const nameParts = (s.fullName || "").trim().split(" ");
+  const firstName = nameParts[0] || "Student";
+  const lastName = nameParts.slice(1).join(" ") || "";
+  const hasUser = !!s.user;
+  const hasPassword = !!s.user?.passwordHash && s.user.passwordHash !== "UNPROVISIONED";
+  const isActive = !!s.user?.isActive && s.user?.status === "ACTIVE";
+  const portalStatus: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" = !hasUser
+    ? "NOT_CREATED"
+    : !hasPassword
+    ? "PENDING_SETUP"
+    : isActive
+    ? "ACTIVE"
+    : "DISABLED";
+
+  return {
+    id: s.id,
+    studentId: s.rollNumber || s.admissionNumber || s.id,
+    admissionNumber: s.admissionNumber || s.rollNumber || `ADM-${s.id.slice(0, 8)}`,
+    rollNumber: s.rollNumber || `ROLL-${s.id.slice(0, 8)}`,
+    firstName,
+    lastName,
+    fullName: s.fullName || `${firstName} ${lastName}`.trim(),
+    dob: s.dateOfBirth ? String(s.dateOfBirth).split("T")[0] : "2006-01-01",
+    gender: s.gender === "FEMALE" ? "Female" : s.gender === "OTHER" ? "Other" : "Male",
+    bloodGroup: s.bloodGroup || "O+",
+    category: s.category || "General",
+    email: s.email || s.user?.email || "",
+    institutionalEmail: s.email || s.user?.email || "",
+    phone: s.phone || "",
+    emergencyPhone: s.emergencyPhone || "",
+    addressLine: s.addressLine || "",
+    city: s.city || "",
+    state: s.state || "",
+    postalCode: s.postalCode || "",
+    academicYearId: s.currentAcademicYearId || s.academicYearId || "",
+    academicYearName: s.currentAcademicYear?.name || s.academicYearName || "Current",
+    departmentId: s.departmentId || "",
+    departmentName: s.departmentName || s.currentCourse?.department || "General",
+    courseId: s.currentCourseId || s.courseId || "",
+    courseName: s.currentCourse?.name || s.courseName || "Course",
+    classId: s.currentClassId || s.classId || "",
+    className: s.currentClass?.name || s.className || "Class",
+    sectionId: s.sectionId || "",
+    sectionName: s.sectionName || "",
+    batch: s.batch || "2026-2030",
+    admissionDate: s.admissionDate ? String(s.admissionDate).split("T")[0] : (s.createdAt ? String(s.createdAt).split("T")[0] : "2026-01-01"),
+    status: (s.status === "ACTIVE" ? "Active" : s.status === "INACTIVE" ? "Inactive" : s.status === "SUSPENDED" ? "Suspended" : s.status === "ALUMNI" ? "Alumni" : "Active") as StudentStatus,
+    guardianIds: Array.isArray(s.guardianLinks) ? s.guardianLinks.map((g: any) => g.guardianAccountId || g.guardianId) : [],
+    enrollmentHistory: [],
+    portalUserId: s.user?.id || s.userId,
+    portalStatus,
+    portalAccess: portalStatus === "ACTIVE",
+    portalEmail: s.user?.email || s.email,
+  };
+}
+
+function mapDbStaffToItem(u: any): StaffItem {
+  const nameParts = (u.fullName || u.name || "").trim().split(" ");
+  const firstName = nameParts[0] || "Staff";
+  const lastName = nameParts.slice(1).join(" ") || "";
+  const tp = u.teacherProfile;
+  const hasUser = !!u.id;
+  const hasPassword =
+    !!u.passwordHash &&
+    u.passwordHash !== "UNPROVISIONED" &&
+    !u.passwordHash.startsWith("INVITED_") &&
+    u.passwordHash.startsWith("$2");
+  const isActive = !!u.isActive && u.status === "ACTIVE";
+  const portalStatus: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" = !hasUser
+    ? "NOT_CREATED"
+    : !hasPassword
+    ? "PENDING_SETUP"
+    : isActive
+    ? "ACTIVE"
+    : "DISABLED";
+
+  const resolvedRole = u.role || "TEACHER";
+  const resolvedDesignation =
+    tp?.designation ||
+    (resolvedRole === "TEACHER"
+      ? "Assistant Professor"
+      : resolvedRole === "ADMIN"
+      ? "Administrator"
+      : "Faculty");
+
+  const resolvedDepartmentName = tp?.department || "General";
+  const resolvedDepartmentId = tp?.departmentId || "";
+  const employeeId =
+    tp?.employeeId || (u.id ? `EMP-${u.id.slice(0, 8)}` : "EMP-STAFF");
+
+  const isTeachingFaculty = isTeachingFacultyTitle(resolvedDesignation, resolvedRole);
+
+  return {
+    id: u.id,
+    employeeId,
+    firstName,
+    lastName,
+    fullName: u.fullName || u.name || `${firstName} ${lastName}`.trim(),
+    email: u.email,
+    phone: u.phone || tp?.phone || "",
+    designation: resolvedDesignation,
+    departmentId: resolvedDepartmentId,
+    departmentName: resolvedDepartmentName,
+    employmentType: (tp?.employmentType || "Full-Time") as any,
+    joiningDate: tp?.joiningDate ? String(tp.joiningDate).split("T")[0] : (u.createdAt ? String(u.createdAt).split("T")[0] : "2026-01-01"),
+    qualification: tp?.qualification || "Postgraduate",
+    assignedRoleId: resolvedRole,
+    assignedRoleName: resolvedRole,
+    status: (u.isArchived ? "Archived" : u.status === "ACTIVE" ? "Active" : "Inactive") as StaffStatus,
+    gender: tp?.gender === "FEMALE" ? "Female" : tp?.gender === "OTHER" ? "Other" : "Male",
+    dob: tp?.dateOfBirth ? String(tp.dateOfBirth).split("T")[0] : undefined,
+    addressLine: tp?.address || undefined,
+    specialization: tp?.specialization || undefined,
+    portalAccess: portalStatus === "ACTIVE",
+    portalStatus,
+    portalUserId: u.id,
+    portalEmail: u.email,
+    isTeachingFaculty,
+  };
+}
+
+function mapDbGuardianToItem(ga: any): GuardianItem {
+  return {
+    id: ga.id,
+    guardianId: ga.guardianUniqueId || `GRD-${ga.id.slice(-4)}`,
+    fullName: ga.fullName,
+    relationship: (ga.relationship || "Father") as any,
+    phone: ga.phone || "",
+    email: ga.email || ga.user?.email || "",
+    addressLine: ga.addressLine || "",
+    city: ga.city || "",
+    state: ga.state || "",
+    postalCode: ga.postalCode || "",
+    occupation: ga.occupation || "Guardian",
+    isEmergencyContact: true,
+    status: ga.isArchived ? "Archived" : "Active",
+    studentIds: Array.isArray(ga.students) ? ga.students.map((s: any) => s.studentId || s.id) : [],
+    createdAt: ga.createdAt ? String(ga.createdAt).split("T")[0] : new Date().toISOString().split("T")[0],
+    portalUserId: ga.userId || ga.portalUserId,
+    portalStatus: ga.portalStatus || (ga.portalAccess ? "ACTIVE" : "NOT_CREATED"),
+    portalAccess: ga.portalAccess !== undefined ? ga.portalAccess : false,
+    hasVerifiedRelationship: ga.hasVerifiedRelationship,
+    lastLoginAt: ga.lastLoginAt,
+  };
+}
+
+function mapDbDepartmentToItem(d: any): Department {
+  return {
+    id: d.id,
+    code: d.code || (d.name ? d.name.substring(0, 4).toUpperCase() : "DEPT"),
+    name: d.name,
+    headOfDepartment: d.headOfDepartment || d.hod || "Unassigned",
+    email: d.email || "",
+    phone: d.phone || "",
+    facultyCount: typeof d.facultyCount === "number" ? d.facultyCount : (Array.isArray(d.staff) ? d.staff.length : 0),
+    studentCapacity: typeof d.studentCapacity === "number" ? d.studentCapacity : 240,
+    description: d.description || undefined,
+  };
+}
+
+function mapDbCourseToItem(c: any): Course {
+  return {
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    degreeType: (c.degreeType ? (c.degreeType.charAt(0).toUpperCase() + c.degreeType.slice(1).toLowerCase()) : "Undergraduate") as any,
+    departmentId: c.departmentId || "",
+    departmentName: c.departmentName || c.department || undefined,
+    durationYears: c.durationYears || 4,
+    totalSemesters: c.totalSemesters || 8,
+    totalCredits: c.totalCredits || 160,
+    status: (c.status === "ACTIVE" ? "Active" : "Inactive") as any,
+    description: c.description || undefined,
+  };
+}
+
+function mapDbClassToItem(cl: any): ClassItem {
+  return {
+    id: cl.id,
+    name: cl.name,
+    code: cl.code || cl.name.replace(/\s+/g, "-").toUpperCase(),
+    courseId: cl.courseId,
+    courseName: cl.courseName || cl.course?.name || undefined,
+    academicYearId: cl.academicYearId,
+    academicYearName: cl.academicYearName || cl.academicYear?.name || undefined,
+    stream: cl.stream || "Core",
+    semester: cl.semester || 1,
+    sectionsCount: cl.sectionsCount || (Array.isArray(cl.sections) ? cl.sections.length : 0),
+    totalStudents: cl.totalStudents || 0,
+  };
+}
+
+function mapDbSubjectToItem(s: any): SubjectItem {
+  return {
+    id: s.id,
+    code: s.code,
+    name: s.name,
+    credits: s.credits || 3,
+    hoursPerWeek: s.hoursPerWeek || 3,
+    type: (s.type === "PRACTICAL_LAB" ? "Practical / Lab" : s.type === "DEPARTMENT_ELECTIVE" ? "Department Elective" : s.type === "OPEN_ELECTIVE" ? "Open Elective" : s.type === "PROJECT_SEMINAR" ? "Project / Seminar" : "Core Theory") as any,
+    courseId: s.courseId,
+    courseName: s.courseName || s.course?.name || undefined,
+    classId: s.classId || undefined,
+    className: s.className || undefined,
+    departmentId: s.departmentId || "",
+    departmentName: s.departmentName || undefined,
+    semester: s.semester || 1,
+    allocatedTeacherName: s.allocatedTeacherName || undefined,
+    status: (s.status === "INACTIVE" ? "Inactive" : "Active") as any,
+  };
+}
+
+function mapDbAdmissionToItem(app: any): AdmissionApplication {
+  const rawStatus = app.status || "SUBMITTED";
+  const status: AdmissionStatus =
+    rawStatus === "APPROVED" || rawStatus === "Approved"
+      ? "Approved"
+      : rawStatus === "REJECTED" || rawStatus === "Rejected"
+      ? "Rejected"
+      : rawStatus === "UNDER_REVIEW" || rawStatus === "Under Review"
+      ? "Under Review"
+      : rawStatus === "WAITLISTED" || rawStatus === "Waitlisted"
+      ? "Waitlisted"
+      : "Submitted";
+
+  const firstName =
+    app.firstName ||
+    app.applicantFirstName ||
+    (app.fullName ? app.fullName.split(" ")[0] : "Applicant");
+  const lastName =
+    app.lastName ||
+    app.applicantLastName ||
+    (app.fullName ? app.fullName.split(" ").slice(1).join(" ") : "");
+  const fullName =
+    app.fullName || app.applicantFullName || `${firstName} ${lastName}`.trim();
+
+  const rawGender = app.gender ? String(app.gender).toUpperCase() : "MALE";
+  const gender: "Male" | "Female" | "Other" =
+    rawGender === "FEMALE" ? "Female" : rawGender === "OTHER" ? "Other" : "Male";
+
+  let documents: DocumentSubmissionStatus[] = [
+    { documentName: "10th Grade Marksheet", isSubmitted: true },
+    { documentName: "12th Grade Marksheet", isSubmitted: true },
+    { documentName: "Transfer Certificate (TC)", isSubmitted: false },
+    { documentName: "Aadhaar Card / ID Proof", isSubmitted: true },
+  ];
+  let parsedRawDocs = null;
+  if (app.documentsJson) {
+    try {
+      parsedRawDocs = typeof app.documentsJson === "string" ? JSON.parse(app.documentsJson) : app.documentsJson;
+    } catch {}
+  }
+  const rawDocs = Array.isArray(app.documents) ? app.documents : parsedRawDocs;
+  if (Array.isArray(rawDocs) && rawDocs.length > 0) {
+    documents = rawDocs.map((d: any) => ({
+      documentName: String(d.documentName || d.name || ""),
+      isSubmitted: Boolean(d.isSubmitted),
+      verifiedAt: d.verifiedAt ? String(d.verifiedAt) : undefined,
+    }));
+  }
+
+  const appliedDate = app.createdAt
+    ? String(app.createdAt).split("T")[0]
+    : new Date().toISOString().split("T")[0];
+
+  return {
+    id: app.id,
+    applicationNumber: app.applicationNumber || `APP-${app.id.slice(0, 8)}`,
+    applicantFirstName: firstName,
+    applicantLastName: lastName,
+    applicantFullName: fullName,
+    dob: app.dob
+      ? String(app.dob).split("T")[0]
+      : app.dateOfBirth
+      ? String(app.dateOfBirth).split("T")[0]
+      : "2006-05-15",
+    gender,
+    email: app.email || "",
+    phone: app.phone || "",
+    addressLine: app.addressLine || "",
+    city: app.city || "Bengaluru",
+    state: app.state || "Karnataka",
+    postalCode: app.postalCode || "560001",
+    guardianName: app.guardianName || "",
+    guardianRelation: (app.guardianRelationship || app.guardianRelation || "Father") as any,
+    guardianPhone: app.guardianPhone || app.phone || "",
+    guardianEmail: app.guardianEmail || "",
+    guardianOccupation: app.guardianOccupation || "Guardian",
+    academicYearId: app.academicYearId || "",
+    academicYearName: app.academicYear?.name || app.academicYearName || "Academic Year",
+    departmentId: app.departmentId || app.course?.departmentId || "",
+    departmentName: app.departmentName || app.course?.department || "Department",
+    courseId: app.courseId || "",
+    courseName: app.course?.name || app.courseName || "Course",
+    previousSchoolOrCollege: app.previousSchool || app.previousSchoolOrCollege || "",
+    previousBoardOrUniversity: app.previousBoard || app.previousBoardOrUniversity || "CBSE Class 12",
+    previousScorePercentage:
+      typeof app.previousScore === "number"
+        ? app.previousScore
+        : typeof app.previousScorePercentage === "number"
+        ? app.previousScorePercentage
+        : 85,
+    passingYear: app.passingYear || 2026,
+    documents,
+    status,
+    statusHistory: [
+      {
+        status,
+        changedAt: appliedDate,
+        changedBy: app.reviewedByUserId ? "Institution Admin" : "Admissions Desk",
+        remarks: app.remarks || app.reviewRemarks || "Application submitted",
+      },
+    ],
+    appliedDate,
+    reviewRemarks: app.remarks || app.reviewRemarks || undefined,
+    isConvertedToStudent: Boolean(app.convertedStudentId) || status === "Approved",
+    convertedStudentId: app.convertedStudentId || undefined,
+  };
+}
+
 const InstitutionContext = createContext<InstitutionContextType | undefined>(undefined);
 
 const STORAGE_KEY_PREFIX = "sst_erp_inst_admin_";
 
-export function InstitutionProvider({ children }: { children: React.ReactNode }) {
+export function InstitutionProvider({
+  children,
+  initialTheme = DEFAULT_INSTITUTION_THEME,
+}: {
+  children: React.ReactNode;
+  initialTheme?: InstitutionThemeConfig;
+}) {
   const [profile, setProfile] = useState<InstitutionProfile>(initialInstitutionProfile);
-  const [theme, setTheme] = useState<InstitutionThemeConfig>(() => {
-    return initialInstitutionProfile.themeConfig || DEFAULT_INSTITUTION_THEME;
-  });
-  const [academicYears, setAcademicYears] = useState<AcademicYear[]>(initialAcademicYears);
-  const [departments, setDepartments] = useState<Department[]>(initialDepartments);
-  const [courses, setCourses] = useState<Course[]>(initialCourses);
-  const [classes, setClasses] = useState<ClassItem[]>(initialClasses);
-  const [sections, setSections] = useState<SectionItem[]>(initialSections);
-  const [subjects, setSubjects] = useState<SubjectItem[]>(initialSubjects);
-  const [roles, setRoles] = useState<RoleItem[]>(initialRoles);
-  const [recentActivities] = useState<RecentActivity[]>(initialRecentActivities);
+  // SSR-deterministic theme state: initialized from server cookie (or default).
+  // Strictly avoiding localStorage in useState initializer eliminates hydration mismatch.
+  const [theme, setTheme] = useState<InstitutionThemeConfig>(initialTheme);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [isAcademicYearsLoading, setIsAcademicYearsLoading] = useState<boolean>(true);
+  const [academicYearsError, setAcademicYearsError] = useState<string | null>(null);
 
-  // Phase 2 Entities
-  const [admissions, setAdmissions] = useState<AdmissionApplication[]>(initialAdmissions);
-  const [students, setStudents] = useState<StudentItem[]>(initialStudents);
-  const [guardians, setGuardians] = useState<GuardianItem[]>(initialGuardians);
-  const [staff, setStaff] = useState<StaffItem[]>(initialStaff);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isDepartmentsLoading, setIsDepartmentsLoading] = useState<boolean>(true);
+  const [departmentsError, setDepartmentsError] = useState<string | null>(null);
+
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isCoursesLoading, setIsCoursesLoading] = useState<boolean>(true);
+  const [coursesError, setCoursesError] = useState<string | null>(null);
+
+  const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [isClassesLoading, setIsClassesLoading] = useState<boolean>(true);
+  const [classesError, setClassesError] = useState<string | null>(null);
+
+  const [sections, setSections] = useState<SectionItem[]>([]);
+
+  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
+  const [isSubjectsLoading, setIsSubjectsLoading] = useState<boolean>(true);
+  const [subjectsError, setSubjectsError] = useState<string | null>(null);
+
+  const [roles, setRoles] = useState<RoleItem[]>(initialRoles);
+  const [recentActivities] = useState<RecentActivity[]>([]);
+
+  // Phase 2 Entities - Initialized to empty arrays; hydrated from DB / authentic tenant state
+  const [admissions, setAdmissions] = useState<AdmissionApplication[]>([]);
+  const [isAdmissionsLoading, setIsAdmissionsLoading] = useState<boolean>(true);
+  const [admissionsError, setAdmissionsError] = useState<string | null>(null);
+  const [students, setStudents] = useState<StudentItem[]>([]);
+  const [isStudentsLoading, setIsStudentsLoading] = useState<boolean>(true);
+  const [studentsError, setStudentsError] = useState<string | null>(null);
+
+  const [guardians, setGuardians] = useState<GuardianItem[]>([]);
+  const [isGuardiansLoading, setIsGuardiansLoading] = useState<boolean>(true);
+  const [guardiansError, setGuardiansError] = useState<string | null>(null);
+
+  const [staff, setStaff] = useState<StaffItem[]>([]);
+  const [isStaffLoading, setIsStaffLoading] = useState<boolean>(true);
+  const [staffError, setStaffError] = useState<string | null>(null);
 
   // Phase 3 Entities
   const [periodConfigs, setPeriodConfigs] = useState<PeriodConfig[]>(initialPeriodConfigs);
@@ -692,14 +1082,23 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
           const parsed = JSON.parse(savedProfile);
           currentInstId = parsed.id || currentInstId;
           setProfile(parsed);
-          if (parsed.themeConfig) setTheme(parsed.themeConfig);
+          if (parsed.themeConfig) {
+            setTheme(parsed.themeConfig);
+            try {
+              document.cookie = `sst_theme_active=${encodeURIComponent(JSON.stringify(parsed.themeConfig))}; path=/; max-age=31536000; SameSite=Lax`;
+            } catch {}
+          }
         }
 
-        const savedTheme = localStorage.getItem(`${STORAGE_KEY_PREFIX}theme_${currentInstId}`);
-        if (savedTheme) {
-          try {
-            setTheme(JSON.parse(savedTheme));
-          } catch {}
+        if (currentInstId) {
+          const savedTheme = localStorage.getItem(`${STORAGE_KEY_PREFIX}theme_${currentInstId}`);
+          if (savedTheme) {
+            try {
+              const parsedTheme = JSON.parse(savedTheme);
+              setTheme(parsedTheme);
+              document.cookie = `sst_theme_active=${encodeURIComponent(savedTheme)}; path=/; max-age=31536000; SameSite=Lax`;
+            } catch {}
+          }
         }
 
         // Phase C: Decoupled ERP domain entities (admissions, certificates, examinations,
@@ -712,73 +1111,11 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     return () => clearTimeout(timer);
   }, []);
 
-  const refreshProfile = async () => {
-    try {
-      const res = await fetch("/api/admin/settings");
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success && json.data) {
-        const serverProfile = json.data as InstitutionProfile;
-        setProfile((prev) => {
-          const merged = {
-            ...prev,
-            ...serverProfile,
-            id: serverProfile.id || prev.id,
-            name: serverProfile.name || prev.name,
-            code: serverProfile.code || prev.code,
-          };
-          saveState("profile", merged);
-          return merged;
-        });
-
-        if (serverProfile.themeConfig) {
-          setTheme(serverProfile.themeConfig);
-        }
-      }
-    } catch (err) {
-      console.warn("Could not refresh institution profile from /api/admin/settings:", err);
-    }
-  };
-
-  // Hydrate authenticated institution profile and settings from backend on mount
-  useEffect(() => {
-    let isMounted = true;
-    async function hydrate() {
-      try {
-        const res = await fetch("/api/admin/settings");
-        if (!res.ok) return;
-        const json = await res.json();
-        if (json.success && json.data && isMounted) {
-          const serverProfile = json.data as InstitutionProfile;
-          setProfile((prev) => {
-            const merged = {
-              ...prev,
-              ...serverProfile,
-              id: serverProfile.id || prev.id,
-              name: serverProfile.name || prev.name,
-              code: serverProfile.code || prev.code,
-            };
-            saveState("profile", merged);
-            return merged;
-          });
-
-          if (serverProfile.themeConfig) {
-            setTheme(serverProfile.themeConfig);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not hydrate institution profile from /api/admin/settings:", err);
-      }
-    }
-
-    hydrate();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   // Save state helper
-  const saveState = (key: string, data: unknown) => {
+  const saveState = useCallback((key: string, data: unknown) => {
     // Phase C: ERP domain entities are database-backed and must not be written to localStorage
     const decoupledKeys = [
       "admissions", "certificates", "certificate_templates", "certificate_numbering",
@@ -797,17 +1134,78 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     } catch {
       // Ignore storage errors
     }
-  };
+  }, []);
 
-  const updateProfile = (data: Partial<InstitutionProfile>) => {
+  const refreshProfile = useCallback(async () => {
+    try {
+      setIsProfileLoading(true);
+      setProfileError(null);
+      const res = await fetch("/api/admin/settings");
+      const json = await res.json();
+      if (!res.ok || !json.success || !json.data) {
+        throw new Error(json.error || "Failed to load institution settings from server.");
+      }
+
+      const serverProfile = json.data as InstitutionProfile;
+      // Verification check: tenant must match
+      if (
+        json.institutionId &&
+        serverProfile.id &&
+        serverProfile.id.trim().toLowerCase() !== json.institutionId.trim().toLowerCase()
+      ) {
+        throw new Error("Security mismatch: Retrieved institution profile does not match authenticated tenant.");
+      }
+
+      setProfile((prev) => {
+        const merged = {
+          ...prev,
+          ...serverProfile,
+          id: serverProfile.id || prev.id,
+          name: serverProfile.name || prev.name,
+          code: serverProfile.code || prev.code,
+        };
+        saveState("profile", merged);
+        return merged;
+      });
+
+      if (serverProfile.themeConfig) {
+        setTheme(serverProfile.themeConfig);
+        if (typeof window !== "undefined") {
+          try {
+            const serialized = JSON.stringify(serverProfile.themeConfig);
+            localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_active`, serialized);
+            if (serverProfile.id) {
+              localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_${serverProfile.id}`, serialized);
+            }
+            document.cookie = `sst_theme_active=${encodeURIComponent(serialized)}; path=/; max-age=31536000; SameSite=Lax`;
+            if (serverProfile.id) {
+              document.cookie = `sst_theme_${serverProfile.id}=${encodeURIComponent(serialized)}; path=/; max-age=31536000; SameSite=Lax`;
+            }
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      console.warn("Could not refresh institution profile from /api/admin/settings:", err);
+      setProfileError(err?.message || "Failed to load institution profile from database.");
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [saveState]);
+
+  // Hydrate authenticated institution profile and settings from backend on mount
+  useEffect(() => {
+    refreshProfile();
+  }, [refreshProfile]);
+
+  const updateProfile = useCallback((data: Partial<InstitutionProfile>) => {
     setProfile((prev) => {
       const updated = { ...prev, ...data };
       saveState("profile", updated);
       return updated;
     });
-  };
+  }, []);
 
-  const updateTheme = (newTheme: Partial<InstitutionThemeConfig>) => {
+  const updateTheme = useCallback((newTheme: Partial<InstitutionThemeConfig>) => {
     setTheme((prev) => {
       const updated: InstitutionThemeConfig = { ...prev, ...newTheme };
       setProfile((p) => {
@@ -818,13 +1216,27 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
           accentColor: updated.accentColor,
         };
         saveState("profile", updatedProfile);
+        if (typeof window !== "undefined") {
+          try {
+            const serialized = JSON.stringify(updated);
+            localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_active`, serialized);
+            localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_${p.id}`, serialized);
+            document.cookie = `sst_theme_active=${encodeURIComponent(serialized)}; path=/; max-age=31536000; SameSite=Lax`;
+            if (typeof document !== "undefined") {
+              const r = document.documentElement;
+              r.style.setProperty('--admin-sidebar-bg', updated.sidebarBackground);
+              r.style.setProperty('--admin-primary-btn', updated.primaryButtonColor);
+              r.style.setProperty('--admin-active-nav', updated.activeSidebarNav);
+              r.style.setProperty('--admin-workspace-bg', updated.workspaceBackground);
+              r.style.setProperty('--admin-card-bg', updated.cardBackground);
+              r.style.setProperty('--admin-text-primary', updated.primaryTextColor);
+              r.style.setProperty('--admin-text-secondary', updated.secondaryTextColor);
+              r.style.setProperty('--admin-accent', updated.accentColor);
+            }
+          } catch {}
+        }
         return updatedProfile;
       });
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_${profile.id}`, JSON.stringify(updated));
-        } catch {}
-      }
       try {
         fetch("/api/admin/settings/theme", {
           method: "POST",
@@ -834,10 +1246,17 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       } catch {}
       return updated;
     });
-  };
+  }, []);
 
-  const resetThemeToDefaults = () => {
+  const resetThemeToDefaults = useCallback(() => {
     updateTheme(DEFAULT_INSTITUTION_THEME);
+    if (typeof window !== "undefined") {
+      try {
+        const serialized = JSON.stringify(DEFAULT_INSTITUTION_THEME);
+        localStorage.setItem(`${STORAGE_KEY_PREFIX}theme_active`, serialized);
+        document.cookie = `sst_theme_active=${encodeURIComponent(serialized)}; path=/; max-age=31536000; SameSite=Lax`;
+      } catch {}
+    }
     try {
       fetch("/api/admin/settings/theme", {
         method: "POST",
@@ -845,64 +1264,291 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         body: JSON.stringify({ action: "RESET" }),
       }).catch(() => {});
     } catch {}
-  };
+  }, [updateTheme]);
 
-  const addAcademicYear = (data: Omit<AcademicYear, "id" | "createdAt">) => {
-    const newAY: AcademicYear = {
-      ...data,
-      id: `ay-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    setAcademicYears((prev) => {
-      let updated = [...prev];
-      if (newAY.isActive) {
-        updated = updated.map((ay) => ({ ...ay, isActive: false }));
-      }
-      updated.unshift(newAY);
-      saveState("ay", updated);
-      return updated;
-    });
-
+  const refreshAcademicYears = useCallback(async (tenantId?: string) => {
     try {
-      fetch("/api/admin/academics/academic-years", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }).catch(() => {});
-    } catch {
-      // Offline fallback
-    }
-  };
+      setIsAcademicYearsLoading(true);
+      setAcademicYearsError(null);
+      const res = await fetch("/api/admin/academics/academic-years");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load academic years.");
+      }
+      const mapped: AcademicYear[] = json.data.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        startDate: item.startDate ? String(item.startDate).split("T")[0] : "",
+        endDate: item.endDate ? String(item.endDate).split("T")[0] : "",
+        isActive: Boolean(item.isCurrent),
+        terms: (item.terms || []).map((t: any, idx: number) => ({
+          id: t.id || `term-${idx}`,
+          name: t.name,
+          startDate: t.startDate ? String(t.startDate).split("T")[0] : "",
+          endDate: t.endDate ? String(t.endDate).split("T")[0] : "",
+          isCurrent: Boolean(t.isCurrent),
+        })),
+        createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+      }));
 
-  const updateAcademicYear = (id: string, data: Partial<AcademicYear>) => {
+      setAcademicYears(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load academic years:", err);
+      setAcademicYearsError(err?.message || "Failed to load academic years from server.");
+      return [];
+    } finally {
+      setIsAcademicYearsLoading(false);
+    }
+  }, []);
+
+  const refreshDepartments = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsDepartmentsLoading(true);
+      setDepartmentsError(null);
+      const res = await fetch("/api/admin/academics/departments");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load departments.");
+      }
+      const mapped = json.data.map(mapDbDepartmentToItem);
+      setDepartments(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load departments:", err);
+      setDepartmentsError(err?.message || "Failed to load departments from server.");
+      return [];
+    } finally {
+      setIsDepartmentsLoading(false);
+    }
+  }, []);
+
+  const refreshCourses = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsCoursesLoading(true);
+      setCoursesError(null);
+      const res = await fetch("/api/admin/academics/courses");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load courses.");
+      }
+      const mapped = json.data.map(mapDbCourseToItem);
+      setCourses(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load courses:", err);
+      setCoursesError(err?.message || "Failed to load courses from server.");
+      return [];
+    } finally {
+      setIsCoursesLoading(false);
+    }
+  }, []);
+
+  const refreshClasses = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsClassesLoading(true);
+      setClassesError(null);
+      const res = await fetch("/api/admin/academics/classes");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load classes.");
+      }
+      const mapped = json.data.map(mapDbClassToItem);
+      setClasses(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load classes:", err);
+      setClassesError(err?.message || "Failed to load classes from server.");
+      return [];
+    } finally {
+      setIsClassesLoading(false);
+    }
+  }, []);
+
+  const refreshSubjects = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsSubjectsLoading(true);
+      setSubjectsError(null);
+      const res = await fetch("/api/admin/academics/subjects");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load subjects.");
+      }
+      const mapped = json.data.map(mapDbSubjectToItem);
+      setSubjects(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load subjects:", err);
+      setSubjectsError(err?.message || "Failed to load subjects from server.");
+      return [];
+    } finally {
+      setIsSubjectsLoading(false);
+    }
+  }, []);
+
+  const refreshAdmissions = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsAdmissionsLoading(true);
+      setAdmissionsError(null);
+      const res = await fetch("/api/admin/admissions");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load admissions.");
+      }
+      const mapped = json.data.map(mapDbAdmissionToItem);
+      setAdmissions(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load admissions:", err);
+      setAdmissionsError(err?.message || "Failed to load admissions from server.");
+      return [];
+    } finally {
+      setIsAdmissionsLoading(false);
+    }
+  }, []);
+
+  const refreshStudents = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsStudentsLoading(true);
+      setStudentsError(null);
+      const res = await fetch("/api/admin/students?take=200");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load students.");
+      }
+      const mapped = json.data.map(mapDbStudentToItem);
+      setStudents(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load students:", err);
+      setStudentsError(err?.message || "Failed to load students from server.");
+      return [];
+    } finally {
+      setIsStudentsLoading(false);
+    }
+  }, []);
+
+  const refreshStaff = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsStaffLoading(true);
+      setStaffError(null);
+      const res = await fetch("/api/admin/staff");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load staff.");
+      }
+      const mapped = json.data.map(mapDbStaffToItem);
+      setStaff(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load staff:", err);
+      setStaffError(err?.message || "Failed to load staff from server.");
+      return [];
+    } finally {
+      setIsStaffLoading(false);
+    }
+  }, []);
+
+  const refreshGuardians = useCallback(async (_tenantId?: string) => {
+    try {
+      setIsGuardiansLoading(true);
+      setGuardiansError(null);
+      const res = await fetch("/api/admin/guardians");
+      const json = await res.json();
+      if (!res.ok || !json.success || !Array.isArray(json.data)) {
+        throw new Error(json.error || "Failed to load guardians.");
+      }
+      const mapped = json.data.map(mapDbGuardianToItem);
+      setGuardians(mapped);
+      return mapped;
+    } catch (err: any) {
+      console.warn("Could not load guardians:", err);
+      setGuardiansError(err?.message || "Failed to load guardians from server.");
+      return [];
+    } finally {
+      setIsGuardiansLoading(false);
+    }
+  }, []);
+
+  // Synchronize academic years and all core entities with authenticated institution context & prevent cross-tenant leaks
+  const [activeHydratedTenantId, setActiveHydratedTenantId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile.id && profile.id !== activeHydratedTenantId) {
+      setActiveHydratedTenantId(profile.id);
+      // Immediately clear previous tenant's records so stale data never lingers
+      setAcademicYears([]);
+      setDepartments([]);
+      setCourses([]);
+      setClasses([]);
+      setSections([]);
+      setSubjects([]);
+      setAdmissions([]);
+      setStudents([]);
+      setStaff([]);
+      setGuardians([]);
+
+      setIsAcademicYearsLoading(true);
+      setIsDepartmentsLoading(true);
+      setIsCoursesLoading(true);
+      setIsClassesLoading(true);
+      setIsSubjectsLoading(true);
+      setIsAdmissionsLoading(true);
+      setIsStudentsLoading(true);
+      setIsStaffLoading(true);
+      setIsGuardiansLoading(true);
+
+      refreshAcademicYears(profile.id);
+      refreshDepartments(profile.id);
+      refreshCourses(profile.id);
+      refreshClasses(profile.id);
+      refreshSubjects(profile.id);
+      refreshAdmissions(profile.id);
+      refreshStudents(profile.id);
+      refreshStaff(profile.id);
+      refreshGuardians(profile.id);
+    }
+  }, [
+    profile.id,
+    activeHydratedTenantId,
+    refreshAcademicYears,
+    refreshDepartments,
+    refreshCourses,
+    refreshClasses,
+    refreshSubjects,
+    refreshAdmissions,
+    refreshStudents,
+    refreshStaff,
+    refreshGuardians,
+  ]);
+
+  const addAcademicYear = useCallback((_data: Omit<AcademicYear, "id" | "createdAt">) => {
+    // Database API is single source of truth; trigger fresh synchronization
+    refreshAcademicYears();
+  }, [refreshAcademicYears]);
+
+  const updateAcademicYear = useCallback((id: string, data: Partial<AcademicYear>) => {
     setAcademicYears((prev) => {
       let updated = prev.map((ay) => (ay.id === id ? { ...ay, ...data } : ay));
       if (data.isActive) {
         updated = updated.map((ay) => (ay.id === id ? ay : { ...ay, isActive: false }));
       }
-      saveState("ay", updated);
       return updated;
     });
-  };
+  }, []);
 
-  const setActiveAcademicYear = (id: string) => {
+  const setActiveAcademicYear = useCallback((id: string) => {
     setAcademicYears((prev) => {
-      const updated = prev.map((ay) => ({
+      return prev.map((ay) => ({
         ...ay,
         isActive: ay.id === id,
       }));
-      saveState("ay", updated);
-      return updated;
     });
-  };
+  }, []);
 
-  const deleteAcademicYear = (id: string) => {
-    setAcademicYears((prev) => {
-      const updated = prev.filter((ay) => ay.id !== id);
-      saveState("ay", updated);
-      return updated;
-    });
-  };
+  const deleteAcademicYear = useCallback((id: string) => {
+    setAcademicYears((prev) => prev.filter((ay) => ay.id !== id));
+  }, []);
 
   const addDepartment = (data: Omit<Department, "id">) => {
     const newDept: Department = {
@@ -914,6 +1560,13 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("dept", updated);
       return updated;
     });
+    try {
+      fetch("/api/admin/academics/departments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(() => refreshDepartments()).catch(() => {});
+    } catch {}
   };
 
   const updateDepartment = (id: string, data: Partial<Department>) => {
@@ -930,6 +1583,11 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("dept", updated);
       return updated;
     });
+    try {
+      fetch(`/api/admin/academics/departments?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    } catch {}
   };
 
   const addCourse = (data: Omit<Course, "id">) => {
@@ -942,6 +1600,13 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("courses", updated);
       return updated;
     });
+    try {
+      fetch("/api/admin/academics/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(() => refreshCourses()).catch(() => {});
+    } catch {}
   };
 
   const updateCourse = (id: string, data: Partial<Course>) => {
@@ -958,6 +1623,11 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("courses", updated);
       return updated;
     });
+    try {
+      fetch(`/api/admin/academics/courses?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    } catch {}
   };
 
   const addClass = (data: Omit<ClassItem, "id">) => {
@@ -970,6 +1640,13 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("classes", updated);
       return updated;
     });
+    try {
+      fetch("/api/admin/academics/classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(() => refreshClasses()).catch(() => {});
+    } catch {}
   };
 
   const updateClass = (id: string, data: Partial<ClassItem>) => {
@@ -986,6 +1663,11 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("classes", updated);
       return updated;
     });
+    try {
+      fetch(`/api/admin/academics/classes?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    } catch {}
   };
 
   const addSection = (data: Omit<SectionItem, "id">) => {
@@ -1026,6 +1708,13 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("subjects", updated);
       return updated;
     });
+    try {
+      fetch("/api/admin/academics/subjects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(() => refreshSubjects()).catch(() => {});
+    } catch {}
   };
 
   const updateSubject = (id: string, data: Partial<SubjectItem>) => {
@@ -1042,6 +1731,11 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("subjects", updated);
       return updated;
     });
+    try {
+      fetch(`/api/admin/academics/subjects?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    } catch {}
   };
 
   const updateRolePermissions = (roleId: string, permissions: string[]) => {
@@ -1075,12 +1769,14 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
   const addAdmission = (
     data: Omit<AdmissionApplication, "id" | "applicationNumber" | "statusHistory" | "appliedDate" | "isConvertedToStudent">
   ): AdmissionApplication => {
-    const nextNum = admissions.length + 1;
     const today = new Date().toISOString().split("T")[0];
+    const tempId = `temp-${Date.now()}`;
+    const tempAppNum = `APP-PENDING-${Date.now().toString().slice(-4)}`;
+
     const newApp: AdmissionApplication = {
       ...data,
-      id: `app-${Date.now()}`,
-      applicationNumber: `SST-2026-APP-${String(nextNum).padStart(3, "0")}`,
+      id: tempId,
+      applicationNumber: tempAppNum,
       applicantFullName: `${data.applicantFirstName} ${data.applicantLastName}`.trim(),
       appliedDate: today,
       isConvertedToStudent: false,
@@ -1094,16 +1790,53 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       ],
     };
 
-    setAdmissions((prev) => {
-      const updated = [newApp, ...prev];
-      saveState("admissions", updated);
-      return updated;
-    });
+    setAdmissions((prev) => [newApp, ...prev]);
+
+    // Persist to actual database via API
+    try {
+      fetch("/api/admin/admissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicantName: newApp.applicantFullName,
+          applicantFirstName: newApp.applicantFirstName,
+          applicantLastName: newApp.applicantLastName,
+          email: newApp.email,
+          phone: newApp.phone,
+          courseId: newApp.courseId,
+          academicYearId: newApp.academicYearId,
+          dob: newApp.dob,
+          gender: newApp.gender,
+          addressLine: newApp.addressLine,
+          city: newApp.city,
+          state: newApp.state,
+          postalCode: newApp.postalCode,
+          guardianName: newApp.guardianName,
+          guardianRelation: newApp.guardianRelation,
+          guardianPhone: newApp.guardianPhone,
+          guardianEmail: newApp.guardianEmail,
+          guardianOccupation: newApp.guardianOccupation,
+          documents: newApp.documents,
+        }),
+      })
+        .then(async (res) => {
+          const json = await res.json();
+          if (json.success && json.data) {
+            const mapped = mapDbAdmissionToItem(json.data);
+            setAdmissions((prev) =>
+              prev.map((app) => (app.id === tempId ? mapped : app))
+            );
+          }
+        })
+        .catch((err) => {
+          console.warn("Could not persist admission to database:", err);
+        });
+    } catch {}
 
     return newApp;
   };
 
-  const updateAdmission = (id: string, data: Partial<AdmissionApplication>) => {
+  const updateAdmission = async (id: string, data: Partial<AdmissionApplication>) => {
     setAdmissions((prev) => {
       const updated = prev.map((app) => {
         if (app.id === id) {
@@ -1115,17 +1848,40 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         }
         return app;
       });
-      saveState("admissions", updated);
       return updated;
     });
+
+    try {
+      const res = await fetch("/api/admin/admissions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          ...data,
+          email: data.email?.trim().toLowerCase(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        console.warn("Could not persist admission update to database:", json.error);
+        throw new Error(json.error || "Failed to persist admission changes to database.");
+      }
+      if (json.data) {
+        const mapped = mapDbAdmissionToItem(json.data);
+        setAdmissions((prev) =>
+          prev.map((app) => (app.id === id ? mapped : app))
+        );
+      }
+      return { success: true, data: json.data };
+    } catch (err: any) {
+      console.error("updateAdmission error:", err);
+      refreshAdmissions();
+      throw err;
+    }
   };
 
   const deleteAdmission = (id: string) => {
-    setAdmissions((prev) => {
-      const updated = prev.filter((a) => a.id !== id);
-      saveState("admissions", updated);
-      return updated;
-    });
+    setAdmissions((prev) => prev.filter((a) => a.id !== id));
   };
 
   const updateAdmissionStatus = (id: string, status: AdmissionStatus, remarks?: string) => {
@@ -1148,21 +1904,37 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         }
         return app;
       });
-      saveState("admissions", updated);
       return updated;
     });
+
+    try {
+      const dbStatus =
+        status === "Approved"
+          ? "APPROVED"
+          : status === "Rejected"
+          ? "REJECTED"
+          : status === "Under Review"
+          ? "UNDER_REVIEW"
+          : status === "Waitlisted"
+          ? "WAITLISTED"
+          : "SUBMITTED";
+
+      fetch("/api/admin/admissions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: dbStatus, remarks }),
+      })
+        .then(() => refreshAdmissions())
+        .catch(() => {});
+    } catch {}
   };
 
-  const convertAdmissionToStudent = (
+  const convertAdmissionToStudent = async (
     applicationId: string,
     options?: { classId?: string; sectionId?: string; rollNumber?: string }
-  ): ConvertStudentResult => {
+  ): Promise<ConvertStudentResult> => {
     const app = admissions.find((a) => a.id === applicationId);
-    if (!app) {
-      return { success: false, message: "Application not found." };
-    }
-
-    if (app.isConvertedToStudent && app.convertedStudentId) {
+    if (app?.isConvertedToStudent && app.convertedStudentId) {
       return {
         success: false,
         studentId: app.convertedStudentId,
@@ -1170,171 +1942,40 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       };
     }
 
-    // Check for duplicate student email
-    const duplicateStudent = students.find(
-      (s) => s.email.toLowerCase() === app.email.toLowerCase()
-    );
-    if (duplicateStudent) {
+    try {
+      const res = await fetch("/api/admin/approvals", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: applicationId,
+          status: "APPROVED",
+          adminRemarks: "Application approved and student account provisioned via admissions portal.",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to approve admission on server.");
+      }
+
+      await Promise.all([refreshStudents(), refreshAdmissions(), refreshGuardians()]);
+
+      const studentId =
+        json.data?.student?.id ||
+        json.data?.student?.rollNumber ||
+        json.data?.convertedStudentId ||
+        "STU-PROVISIONED";
+      return {
+        success: true,
+        studentId,
+        message: "Applicant successfully approved and enrolled as student with welcome email dispatched.",
+      };
+    } catch (err: any) {
+      console.warn("Server approval conversion failed:", err.message);
       return {
         success: false,
-        studentId: duplicateStudent.studentId,
-        message: `A student with email "${app.email}" already exists (ID: ${duplicateStudent.studentId}).`,
+        message: err.message || "Failed to convert admission application to student.",
       };
     }
-
-    // Find suitable class & section
-    const targetClass = classes.find((c) => c.id === options?.classId) ||
-      classes.find((c) => c.courseId === app.courseId) ||
-      classes[0];
-
-    const targetSection = sections.find((s) => s.id === options?.sectionId) ||
-      sections.find((s) => s.classId === targetClass?.id) ||
-      sections[0];
-
-    const nextStudentIndex = students.length + 1;
-    const newStudentId = `STU-2026-${String(nextStudentIndex).padStart(3, "0")}`;
-    const newAdmissionNo = `ADM-2026-${String(nextStudentIndex + 100).padStart(4, "0")}`;
-    const deptPrefix = app.departmentName ? app.departmentName.substring(0, 3).toUpperCase() : "GEN";
-    const rollNo = options?.rollNumber || `26${deptPrefix}${String(nextStudentIndex).padStart(3, "0")}`;
-    const today = new Date().toISOString().split("T")[0];
-
-    // Check or create Guardian
-    let linkedGuardianId = "";
-    if (app.guardianName) {
-      const existingGuardian = guardians.find(
-        (g) =>
-          g.fullName.toLowerCase() === app.guardianName.toLowerCase() ||
-          (g.phone && g.phone === app.guardianPhone) ||
-          (g.email && g.email.toLowerCase() === app.guardianEmail.toLowerCase())
-      );
-
-      if (existingGuardian) {
-        linkedGuardianId = existingGuardian.id;
-        // Link new student to existing guardian
-        setGuardians((prev) => {
-          const updated = prev.map((g) => {
-            if (g.id === existingGuardian.id && !g.studentIds.includes(newStudentId)) {
-              return { ...g, studentIds: [...g.studentIds, newStudentId] };
-            }
-            return g;
-          });
-          saveState("guardians", updated);
-          return updated;
-        });
-      } else {
-        // Create new guardian record
-        const newGuardian: GuardianItem = {
-          id: `grd-${Date.now()}`,
-          guardianId: `GRD-${String(guardians.length + 1).padStart(3, "0")}`,
-          fullName: app.guardianName,
-          relationship: app.guardianRelation || "Father",
-          phone: app.guardianPhone || app.phone,
-          email: app.guardianEmail || "",
-          addressLine: app.addressLine,
-          city: app.city,
-          state: app.state,
-          postalCode: app.postalCode,
-          occupation: app.guardianOccupation || "Guardian",
-          isEmergencyContact: true,
-          status: "Active",
-          studentIds: [newStudentId],
-          createdAt: new Date().toISOString(),
-        };
-        linkedGuardianId = newGuardian.id;
-        setGuardians((prev) => {
-          const updated = [...prev, newGuardian];
-          saveState("guardians", updated);
-          return updated;
-        });
-      }
-    }
-
-    const newStudent: StudentItem = {
-      id: newStudentId,
-      studentId: newStudentId,
-      admissionNumber: newAdmissionNo,
-      rollNumber: rollNo,
-      firstName: app.applicantFirstName,
-      lastName: app.applicantLastName,
-      fullName: app.applicantFullName,
-      dob: app.dob,
-      gender: app.gender,
-      bloodGroup: "O+",
-      category: "General",
-      email: app.email,
-      institutionalEmail: `${app.applicantFirstName.toLowerCase()}.${newStudentId.toLowerCase()}@sst.edu.in`,
-      phone: app.phone,
-      addressLine: app.addressLine,
-      city: app.city,
-      state: app.state,
-      postalCode: app.postalCode,
-      academicYearId: app.academicYearId,
-      academicYearName: app.academicYearName,
-      departmentId: app.departmentId,
-      departmentName: app.departmentName,
-      courseId: app.courseId,
-      courseName: app.courseName,
-      classId: targetClass?.id || "class-y1",
-      className: targetClass?.name || "First Year",
-      sectionId: targetSection?.id,
-      sectionName: targetSection?.name,
-      batch: "2026-2030",
-      admissionDate: today,
-      status: "Active",
-      guardianIds: linkedGuardianId ? [linkedGuardianId] : [],
-      sourceApplicationId: app.id,
-      enrollmentHistory: [
-        {
-          id: `enh-${Date.now()}`,
-          academicYearId: app.academicYearId,
-          academicYearName: app.academicYearName,
-          classId: targetClass?.id || "class-y1",
-          className: targetClass?.name || "First Year",
-          sectionId: targetSection?.id,
-          sectionName: targetSection?.name,
-          enrolledAt: today,
-          status: "Active",
-          remarks: `Admitted via Application ${app.applicationNumber}`,
-        },
-      ],
-    };
-
-    // Save student
-    setStudents((prev) => {
-      const updated = [newStudent, ...prev];
-      saveState("students", updated);
-      return updated;
-    });
-
-    // Mark application as approved and converted
-    setAdmissions((prev) => {
-      const updated = prev.map((a) => {
-        if (a.id === applicationId) {
-          const historyEntry = {
-            status: "Approved" as AdmissionStatus,
-            changedAt: today,
-            changedBy: "Admissions Desk",
-            remarks: `Enrolled as Student ${newStudentId}`,
-          };
-          return {
-            ...a,
-            status: "Approved" as AdmissionStatus,
-            isConvertedToStudent: true,
-            convertedStudentId: newStudentId,
-            statusHistory: [historyEntry, ...(a.statusHistory || [])],
-          };
-        }
-        return a;
-      });
-      saveState("admissions", updated);
-      return updated;
-    });
-
-    return {
-      success: true,
-      studentId: newStudentId,
-      message: `Applicant successfully registered as student ${newStudent.fullName} (${newStudentId}).`,
-    };
   };
 
   // =========================================================================
@@ -1439,6 +2080,63 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     });
   };
 
+  const archiveStudent = useCallback(
+    async (id: string, mode: "ARCHIVE" | "DELETE" = "ARCHIVE") => {
+      try {
+        const res = await fetch(
+          `/api/admin/students?id=${encodeURIComponent(id)}&mode=${mode}`,
+          { method: "DELETE" }
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to archive student on server.");
+        }
+        await refreshStudents();
+        return {
+          success: true,
+          message: json.message || "Student archived successfully.",
+        };
+      } catch (err: any) {
+        console.warn("Archive student error:", err);
+        setStudents((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, status: "Archived" as any } : s))
+        );
+        return {
+          success: false,
+          message: err?.message || "Failed to archive student.",
+        };
+      }
+    },
+    [refreshStudents]
+  );
+
+  const restoreStudent = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(
+          `/api/admin/students?id=${encodeURIComponent(id)}&mode=RESTORE`,
+          { method: "DELETE" }
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to restore student on server.");
+        }
+        await refreshStudents();
+        return {
+          success: true,
+          message: json.message || "Student restored successfully.",
+        };
+      } catch (err: any) {
+        console.warn("Restore student error:", err);
+        return {
+          success: false,
+          message: err?.message || "Failed to restore student.",
+        };
+      }
+    },
+    [refreshStudents]
+  );
+
   const linkGuardianToStudent = (studentId: string, guardianId: string): boolean => {
     let studentUpdated = false;
     setStudents((prev) => {
@@ -1540,6 +2238,26 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       saveState("guardians", updated);
       return updated;
     });
+
+    // Background server synchronization to ensure database persistence
+    fetch("/api/admin/guardians", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...data }),
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data) {
+          setGuardians((prev) => {
+            const reSynced = prev.map((g) => (g.id === id ? { ...g, ...mapDbGuardianToItem(json.data) } : g));
+            saveState("guardians", reSynced);
+            return reSynced;
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Background updateGuardian server sync note:", err.message);
+      });
   };
 
   const deactivateGuardian = (id: string) => {
@@ -1594,6 +2312,66 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     unlinkGuardianFromStudent(studentId, guardianId);
   };
 
+  const archiveGuardian = useCallback(
+    async (id: string, force: boolean = false) => {
+      try {
+        const res = await fetch(
+          `/api/admin/guardians?id=${encodeURIComponent(id)}${force ? "&force=true" : ""}`,
+          { method: "DELETE" }
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          return {
+            success: false,
+            message: json.error || "Failed to archive guardian on server.",
+            hasActiveStudents: json.hasActiveStudents,
+            linkedStudents: json.linkedStudents,
+          };
+        }
+        await refreshGuardians();
+        return {
+          success: true,
+          message: json.message || "Guardian archived successfully.",
+        };
+      } catch (err: any) {
+        console.warn("Archive guardian error:", err);
+        return {
+          success: false,
+          message: err?.message || "Failed to archive guardian.",
+        };
+      }
+    },
+    [refreshGuardians]
+  );
+
+  const restoreGuardian = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/admin/guardians`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, action: "RESTORE" }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to restore guardian on server.");
+        }
+        await refreshGuardians();
+        return {
+          success: true,
+          message: json.message || "Guardian restored successfully.",
+        };
+      } catch (err: any) {
+        console.warn("Restore guardian error:", err);
+        return {
+          success: false,
+          message: err?.message || "Failed to restore guardian.",
+        };
+      }
+    },
+    [refreshGuardians]
+  );
+
   // =========================================================================
   // Staff Management Handlers
   // =========================================================================
@@ -1647,6 +2425,66 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
       return updated;
     });
   };
+
+  const archiveStaff = useCallback(
+    async (id: string, force: boolean = false) => {
+      try {
+        const res = await fetch(
+          `/api/admin/staff?id=${encodeURIComponent(id)}${force ? "&force=true" : ""}`,
+          { method: "DELETE" }
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          return {
+            success: false,
+            message: json.error || "Failed to archive staff member on server.",
+            hasActiveAssignments: json.hasActiveAssignments,
+            activeSlots: json.activeSlots,
+          };
+        }
+        await refreshStaff();
+        return {
+          success: true,
+          message: json.message || "Staff member archived successfully.",
+        };
+      } catch (err: any) {
+        console.warn("Archive staff error:", err);
+        return {
+          success: false,
+          message: err?.message || "Failed to archive staff member.",
+        };
+      }
+    },
+    [refreshStaff]
+  );
+
+  const restoreStaff = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/admin/staff`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, action: "RESTORE" }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Failed to restore staff member on server.");
+        }
+        await refreshStaff();
+        return {
+          success: true,
+          message: json.message || "Staff member restored successfully.",
+        };
+      } catch (err: any) {
+        console.warn("Restore staff error:", err);
+        return {
+          success: false,
+          message: err?.message || "Failed to restore staff member.",
+        };
+      }
+    },
+    [refreshStaff]
+  );
 
   // =========================================================================
   // Timetable Management Handlers (Phase 3)
@@ -4041,7 +4879,7 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         params.batchName?.trim() ||
         `${crs?.name || "Program"} - Sem ${params.semester} (${secName}) Results`,
       academicYearId: params.academicYearId,
-      academicYearName: ay?.name || "2026-2027",
+      academicYearName: ay?.name || "N/A",
       courseId: crs?.id || cls.courseId,
       courseName: crs?.name || "Course",
       classId: cls.id,
@@ -6156,17 +6994,17 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
 
   const resetToDefaults = () => {
     setProfile(initialInstitutionProfile);
-    setAcademicYears(initialAcademicYears);
-    setDepartments(initialDepartments);
-    setCourses(initialCourses);
-    setClasses(initialClasses);
-    setSections(initialSections);
-    setSubjects(initialSubjects);
-    setRoles(initialRoles);
-    setAdmissions(initialAdmissions);
-    setStudents(initialStudents);
-    setGuardians(initialGuardians);
-    setStaff(initialStaff);
+    setAcademicYears([]);
+    setDepartments([]);
+    setCourses([]);
+    setClasses([]);
+    setSections([]);
+    setSubjects([]);
+    setRoles([]);
+    setAdmissions([]);
+    setStudents([]);
+    setGuardians([]);
+    setStaff([]);
     setPeriodConfigs(initialPeriodConfigs);
     setTimetableSlots(initialTimetableSlots);
     setAttendanceThreshold(initialAttendanceThreshold);
@@ -6199,10 +7037,9 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     }
   };
 
-  const activeAY = academicYears.find((ay) => ay.isActive) || academicYears[0];
+  const activeAY = academicYears.find((ay) => ay.isActive) || undefined;
 
   const stats: DashboardStats = {
-    ...initialDashboardStats,
     activeAcademicYear: activeAY ? activeAY.name : "None",
     totalCourses: courses.length,
     totalDepartments: departments.length,
@@ -6211,6 +7048,9 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
     totalStaff: staff.filter((s) => s.status === "Active").length,
     totalAdmissions: admissions.length,
     totalGuardians: guardians.length,
+    pendingApprovals: 0,
+    attendanceRateToday: 0,
+    totalFeesCollected: 0,
   };
 
   return (
@@ -6219,24 +7059,38 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         profile,
         updateProfile,
         refreshProfile,
+        isProfileLoading,
+        profileError,
         theme,
         updateTheme,
         resetThemeToDefaults,
         academicYears,
         activeAcademicYear: activeAY,
+        isAcademicYearsLoading,
+        academicYearsError,
+        refreshAcademicYears,
         addAcademicYear,
         updateAcademicYear,
         setActiveAcademicYear,
         deleteAcademicYear,
         departments,
+        isDepartmentsLoading,
+        departmentsError,
+        refreshDepartments,
         addDepartment,
         updateDepartment,
         deleteDepartment,
         courses,
+        isCoursesLoading,
+        coursesError,
+        refreshCourses,
         addCourse,
         updateCourse,
         deleteCourse,
         classes,
+        isClassesLoading,
+        classesError,
+        refreshClasses,
         addClass,
         updateClass,
         deleteClass,
@@ -6245,6 +7099,9 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         updateSection,
         deleteSection,
         subjects,
+        isSubjectsLoading,
+        subjectsError,
+        refreshSubjects,
         addSubject,
         updateSubject,
         deleteSubject,
@@ -6255,6 +7112,9 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
 
         // Phase 2: Student Lifecycle
         admissions,
+        isAdmissionsLoading,
+        admissionsError,
+        refreshAdmissions,
         addAdmission,
         updateAdmission,
         deleteAdmission,
@@ -6262,23 +7122,38 @@ export function InstitutionProvider({ children }: { children: React.ReactNode })
         convertAdmissionToStudent,
 
         students,
+        isStudentsLoading,
+        studentsError,
+        refreshStudents,
         addStudent,
         updateStudent,
         deactivateStudent,
+        archiveStudent,
+        restoreStudent,
         linkGuardianToStudent,
         unlinkGuardianFromStudent,
 
         guardians,
+        isGuardiansLoading,
+        guardiansError,
+        refreshGuardians,
         addGuardian,
         updateGuardian,
         deactivateGuardian,
+        archiveGuardian,
+        restoreGuardian,
         linkStudentToGuardian,
         unlinkStudentFromGuardian,
 
         staff,
+        isStaffLoading,
+        staffError,
+        refreshStaff,
         addStaff,
         updateStaff,
         deactivateStaff,
+        archiveStaff,
+        restoreStaff,
 
         // Phase 3: Timetable Management
         periodConfigs,

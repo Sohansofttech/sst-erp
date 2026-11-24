@@ -528,13 +528,15 @@ export default function TeacherAssessmentsPage() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-xl grid-cols-3">
-          <TabsTrigger value="define">Define IA Components</TabsTrigger>
-          <TabsTrigger value="enter">Enter Marks</TabsTrigger>
-          <TabsTrigger value="corrections">
-            Correction Requests ({correctionAssessments.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:max-w-xl sm:grid-cols-3">
+            <TabsTrigger value="define" className="shrink-0">Define IA Components</TabsTrigger>
+            <TabsTrigger value="enter" className="shrink-0">Enter Marks</TabsTrigger>
+            <TabsTrigger value="corrections" className="shrink-0">
+              Correction Requests ({correctionAssessments.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Tab 1: Define IA Components */}
         <TabsContent value="define" className="mt-4 grid gap-6 lg:grid-cols-5">
@@ -836,11 +838,11 @@ export default function TeacherAssessmentsPage() {
                   </div>
 
                   {!isLocked && (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
                       <Button
                         type="button"
                         variant="outline"
-                        className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                        className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                         disabled={savingMarks}
                         onClick={() => void handleSaveMarks("draft", false)}
                       >
@@ -850,7 +852,7 @@ export default function TeacherAssessmentsPage() {
                       <Button
                         type="button"
                         variant="secondary"
-                        className="rounded-xl"
+                        className="w-full sm:w-auto rounded-xl"
                         disabled={savingMarks}
                         onClick={() => void handleSaveMarks("submitted", true)}
                       >
@@ -859,7 +861,7 @@ export default function TeacherAssessmentsPage() {
                       </Button>
                       <Button
                         type="button"
-                        className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                        className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
                         disabled={savingMarks}
                         onClick={() => void handlePublishToStudents()}
                       >
@@ -871,11 +873,11 @@ export default function TeacherAssessmentsPage() {
                 </CardHeader>
 
                 <CardContent className="pt-5">
-                  <div className="overflow-hidden rounded-xl border border-[#E5E9EF]">
-                    <Table>
+                  <div className="overflow-x-auto rounded-xl border border-[#E5E9EF]">
+                    <Table className="min-w-[680px]">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-28">Roll No</TableHead>
+                          <TableHead className="w-24 sticky left-0 bg-white z-10 shadow-xs">Roll No</TableHead>
                           <TableHead>Student Name</TableHead>
                           <TableHead className="w-24">Max Marks</TableHead>
                           <TableHead className="w-48">Marks Obtained</TableHead>
@@ -890,7 +892,7 @@ export default function TeacherAssessmentsPage() {
                           const rowErr = markErrors[row.studentId]
                           return (
                             <TableRow key={row.studentId}>
-                              <TableCell className="font-mono text-[13px] font-semibold">
+                              <TableCell className="font-mono text-[13px] font-semibold sticky left-0 bg-white z-10 shadow-xs">
                                 {row.rollNo}
                               </TableCell>
                               <TableCell className="font-medium">
@@ -1050,7 +1052,7 @@ export default function TeacherAssessmentsPage() {
                   .map((ia) => (
                     <div
                       key={ia.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border p-3.5"
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border p-3.5"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[14px] font-semibold text-foreground">
@@ -1064,6 +1066,7 @@ export default function TeacherAssessmentsPage() {
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="w-full sm:w-auto"
                         onClick={() => {
                           setCorrectionTarget(ia)
                           setCorrectionNote("")
@@ -1087,7 +1090,7 @@ export default function TeacherAssessmentsPage() {
           if (!open) setCorrectionTarget(null)
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-md">
           <form onSubmit={(e) => void handleRequestCorrection(e)}>
             <DialogHeader>
               <DialogTitle>Request Marks Correction</DialogTitle>
@@ -1107,15 +1110,16 @@ export default function TeacherAssessmentsPage() {
                 placeholder="Specify student roll no(s) and verification reason..."
               />
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
+                className="w-full sm:w-auto"
                 onClick={() => setCorrectionTarget(null)}
               >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" className="w-full sm:w-auto">
                 <CheckCircle2 className="size-4" />
                 Re-open for Correction
               </Button>

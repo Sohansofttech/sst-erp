@@ -140,7 +140,7 @@ export default function StudentLeaveApprovalsPage() {
         title="Student Leave & On-Duty (OD) Approvals"
         subtitle="Review parent-submitted medical and official co-curricular absence applications for Class 10-A. Approving updates attendance records atomically in one DB transaction."
         action={
-          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/class-teacher`}>
               <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
               Section Dashboard
@@ -149,7 +149,7 @@ export default function StudentLeaveApprovalsPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <StatCard
           label="Pending Queue"
           value={pendingCount}
@@ -192,27 +192,28 @@ export default function StudentLeaveApprovalsPage() {
               />
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-[#EEF1F5]/80">
-                <TableRow>
-                  <TableHead className="font-bold text-[#788391]">Roll No</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Student Name</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Type & Duration</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Dates</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Reason / Justification</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Status</TableHead>
-                  <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-[#E5E9EF]">
-                {leaveRequests.map((leave) => {
-                  const isPending = leave.status === "pending"
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader className="bg-[#EEF1F5]/80">
+                  <TableRow>
+                    <TableHead className="font-bold text-[#788391] sticky left-0 z-10 bg-[#EEF1F5]">Roll No</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Student Name</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Type & Duration</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Dates</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Reason / Justification</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Status</TableHead>
+                    <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#E5E9EF]">
+                  {leaveRequests.map((leave) => {
+                    const isPending = leave.status === "pending"
 
-                  return (
-                    <TableRow key={leave.id} className="hover:bg-[#EEF1F5]/50">
-                      <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
-                        {leave.rollNo}
-                      </TableCell>
+                    return (
+                      <TableRow key={leave.id} className="hover:bg-[#EEF1F5]/50">
+                        <TableCell className="font-mono text-xs font-bold text-[#123B5A] sticky left-0 z-10 bg-white">
+                          {leave.rollNo}
+                        </TableCell>
                       <TableCell className="font-bold text-[#202936]">
                         {leave.studentName}
                       </TableCell>
@@ -270,13 +271,14 @@ export default function StudentLeaveApprovalsPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Decision Dialog */}
       <Dialog open={!!selectedLeave} onOpenChange={(open) => !open && setSelectedLeave(null)}>
-        <DialogContent className="rounded-2xl sm:max-w-md bg-white border-[#E5E9EF]">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-md rounded-2xl bg-white border-[#E5E9EF]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#123B5A]">
               {decision === "approved" ? "Approve Student Leave" : "Reject Student Leave"}
@@ -296,15 +298,15 @@ export default function StudentLeaveApprovalsPage() {
                 rows={3}
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
-                className="mt-1 rounded-xl border-[#E5E9EF] text-xs"
+                className="mt-1 rounded-xl border-[#E5E9EF] text-base sm:text-xs"
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => setSelectedLeave(null)}
-              className="rounded-xl border-[#E5E9EF] text-[#202936]"
+              className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936]"
             >
               Cancel
             </Button>
@@ -312,7 +314,7 @@ export default function StudentLeaveApprovalsPage() {
               disabled={submitting}
               onClick={handleConfirmDecision}
               className={cn(
-                "rounded-xl font-bold text-white",
+                "w-full sm:w-auto rounded-xl font-bold text-white",
                 decision === "approved"
                   ? "bg-emerald-600 hover:bg-emerald-700"
                   : "bg-rose-600 hover:bg-rose-700"

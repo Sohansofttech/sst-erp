@@ -271,6 +271,7 @@ async function runTests() {
     const studentInvoices = await getFeeInvoices(ctx.instAlphaId, ctx.studentAlpha.id);
     const targetInv = studentInvoices.find((i: any) => i.id === invoiceAlphaId);
     assert(Boolean(targetInv), "Student can see their newly assigned fee invoice");
+    if (!targetInv) throw new Error("Target invoice not found");
     assert(targetInv.totalAmount === feeAmount, `Invoice totalAmount matches ₹${feeAmount}`);
     assert(targetInv.outstandingAmount === feeAmount, "Initial outstanding amount equals total fee");
     assert(targetInv.status === "UNPAID", "Initial invoice status is UNPAID");
@@ -564,7 +565,7 @@ async function runTests() {
     const adminNotifs = await getNotifications(ctx.instAlphaId);
     const targetAdminNotif = adminNotifs.find((n: any) => n.id === notifId);
     assert(Boolean(targetAdminNotif), "Admin can view announcement list with tracking metrics");
-    assert(targetAdminNotif?.readCount >= 1, `Admin tracking shows readCount >= 1 (${targetAdminNotif?.readCount})`);
+    assert((targetAdminNotif?.readCount ?? 0) >= 1, `Admin tracking shows readCount >= 1 (${targetAdminNotif?.readCount})`);
   } catch (err: any) {
     assert(false, `Admin notification tracking error: ${err.message}`);
   }

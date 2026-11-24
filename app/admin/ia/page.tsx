@@ -1473,8 +1473,8 @@ export default function InternalAssessmentsPage() {
                     </TableCell>
 
                     {/* Actions */}
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                         <Link
                           href={`/admin/ia/marks-entry?assessmentId=${assessment.id}&classId=${assessment.classId}&sectionId=${assessment.sectionId || "ALL"}`}
                         >
@@ -1713,18 +1713,20 @@ export default function InternalAssessmentsPage() {
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          handleOpenCreateModal();
-                          setFormClassId(subj.classId || classes[0]?.id || "");
-                          setFormSubjectId(subj.id);
-                        }}
-                      >
-                        + Add IA
-                      </Button>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end whitespace-nowrap">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            handleOpenCreateModal();
+                            setFormClassId(subj.classId || classes[0]?.id || "");
+                            setFormSubjectId(subj.id);
+                          }}
+                        >
+                          + Add IA
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

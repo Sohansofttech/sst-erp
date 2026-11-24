@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
 import db from "@/lib/db";
+import { sendPasswordResetNotification, getAppBaseUrl } from "@/lib/services/email.service";
 
 const JWT_SECRET = process.env.JWT_SECRET || "erp-secret-super-secure-key-32-chars-long!";
 const key = new TextEncoder().encode(JWT_SECRET);
@@ -25,15 +26,16 @@ export async function POST(req: NextRequest) {
 
     let resetToken: string | null = null;
     if (user) {
-      // Create time-limited (15m) single-purpose reset token
+      // Create time-limited (24h) single-purpose reset token
       resetToken = await new SignJWT({
         userId: user.id,
         email: user.email,
+        institutionId: user.institutionId,
         purpose: "pwd_reset",
       })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
-        .setExpirationTime("15m")
+        .setExpirationTime("24h")
         .sign(key);
 
       // Log security event (Never log secret tokens in prod)
@@ -49,6 +51,32 @@ export async function POST(req: NextRequest) {
         });
       } catch {
         // Non-critical audit
+      }
+
+      // Dispatch branded password reset email via Option C engine
+      try {
+        const inst = user.institutionId
+          ? await db.institution.findUnique({
+              where: { id: user.institutionId },
+              select: { name: true },
+            })
+          : null;
+
+        const appUrl = getAppBaseUrl();
+        const resetUrl = `${appUrl}/auth/reset-password?token=${encodeURIComponent(resetToken)}`;
+
+        await sendPasswordResetNotification(
+          { email: user.email, name: user.fullName || undefined },
+          {
+            name: user.fullName || "User",
+            resetUrl,
+            institutionName: inst?.name || "SST-ERP Campus",
+            expiresIn: "24 hours",
+            institutionId: user.institutionId || undefined,
+          }
+        );
+      } catch (mailErr: any) {
+        console.warn("[ForgotPassword] Email dispatch warning:", mailErr.message);
       }
     }
 

@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import db from "@/lib/db";
-import { sendAnnouncementNotification, sendPasswordSetupInvitation, sendRoleCredentialInvitation, getAppBaseUrl } from "./email.service";
+import { sendAnnouncementNotification, sendPasswordSetupInvitation, sendRoleCredentialInvitation, getAppBaseUrl, getRolePortalLoginUrl } from "./email.service";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
+import { isValidUuid } from "@/lib/utils/credential-helpers";
 import {
   loadAllPersistedFeedbacks,
   addOrUpdatePersistedFeedback,
@@ -28,19 +29,52 @@ export async function recordAuditLog(
     action: string;
     entityType?: string | null;
     entityId?: string | null;
+    oldValuesJson?: string | null;
     newValuesJson?: string | null;
   }
 ) {
   try {
     const id = crypto.randomUUID();
+    let effectiveActorUserId = data.actorUserId || null;
+    let effectiveUserId = data.userId || null;
+
+    // Verify foreign keys to prevent constraint violations that abort transactions
+    if (effectiveActorUserId && client.user) {
+      try {
+        const actorExists = await client.user.findUnique({
+          where: { id: effectiveActorUserId },
+          select: { id: true },
+        });
+        if (!actorExists) {
+          effectiveActorUserId = null;
+        }
+      } catch {
+        effectiveActorUserId = null;
+      }
+    }
+
+    if (effectiveUserId && client.user) {
+      try {
+        const userExists = await client.user.findUnique({
+          where: { id: effectiveUserId },
+          select: { id: true },
+        });
+        if (!userExists) {
+          effectiveUserId = null;
+        }
+      } catch {
+        effectiveUserId = null;
+      }
+    }
+
     await client.$executeRawUnsafe(
       `INSERT INTO audit_logs (
         "id", "institutionId", "userId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt"
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
       id,
       data.institutionId || null,
-      data.userId || null,
-      data.actorUserId || null,
+      effectiveUserId,
+      effectiveActorUserId,
       data.action,
       data.entityType || "SYSTEM",
       data.entityId || crypto.randomUUID(),
@@ -48,6 +82,7 @@ export async function recordAuditLog(
     );
   } catch (err: any) {
     console.warn("[recordAuditLog] Warning recording audit:", err.message);
+    throw err;
   }
 }
 
@@ -66,6 +101,7 @@ export async function getDashboardMetrics(institutionId: string) {
       admRes,
       feePayRes,
       feeInvRes,
+      feeMetricsRes,
       attRes,
       appRes,
       evRes,
@@ -73,7 +109,9 @@ export async function getDashboardMetrics(institutionId: string) {
     ] = await Promise.allSettled([
       db.$queryRaw`
         SELECT COUNT(*)::int as count,
-               COUNT(*) FILTER (WHERE status = 'ACTIVE' OR status IS NULL)::int as active_count
+               COUNT(*) FILTER (WHERE status = 'ACTIVE' OR status IS NULL)::int as active_count,
+               COUNT(*) FILTER (WHERE "createdAt" >= NOW() - INTERVAL '30 days')::int as current_term_count,
+               COUNT(*) FILTER (WHERE "createdAt" < NOW() - INTERVAL '30 days')::int as prior_term_count
         FROM students
         WHERE "institutionId" = ${institutionId}
       `,
@@ -89,9 +127,12 @@ export async function getDashboardMetrics(institutionId: string) {
         WHERE "institutionId" = ${institutionId}
       `,
       db.$queryRaw`
-        SELECT COUNT(*)::int as count
-        FROM "Department"
-        WHERE "institutionId" = ${institutionId}
+        SELECT COUNT(DISTINCT d)::int as count
+        FROM (
+          SELECT department as d FROM courses WHERE "institutionId" = ${institutionId} AND department IS NOT NULL AND department != ''
+          UNION
+          SELECT department as d FROM teachers WHERE "institutionId" = ${institutionId} AND department IS NOT NULL AND department != ''
+        ) depts
       `,
       db.$queryRaw`
         SELECT COUNT(*)::int as count
@@ -105,6 +146,15 @@ export async function getDashboardMetrics(institutionId: string) {
       `,
       db.$queryRaw`
         SELECT COALESCE(SUM("paidAmount"), 0)::float as total_paid
+        FROM fee_invoices
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT
+          COALESCE(SUM("totalAmount"), 0)::float as total_invoiced,
+          COALESCE(SUM("paidAmount"), 0)::float as total_collected,
+          COALESCE(SUM("outstandingAmount") FILTER (WHERE status = 'UNPAID' OR status = 'PARTIAL' OR (status != 'PAID' AND "dueDate" >= NOW())), 0)::float as pending_due,
+          COALESCE(SUM("outstandingAmount") FILTER (WHERE status = 'OVERDUE' OR (status != 'PAID' AND "dueDate" < NOW())), 0)::float as overdue_due
         FROM fee_invoices
         WHERE "institutionId" = ${institutionId}
       `,
@@ -140,11 +190,18 @@ export async function getDashboardMetrics(institutionId: string) {
 
     let studentsCount = 0;
     let activeStudentsCount = 0;
+    let studentGrowth: string | null = null;
     let studentsStatus: "OK" | "UNAVAILABLE" = "OK";
     if (studentsRes.status === "fulfilled") {
       const rows = studentsRes.value as any[];
       studentsCount = rows[0]?.count ?? 0;
       activeStudentsCount = rows[0]?.active_count ?? 0;
+      const currentCount = rows[0]?.current_term_count ?? 0;
+      const priorCount = rows[0]?.prior_term_count ?? 0;
+      if (priorCount >= 10 && currentCount >= 0) {
+        const rate = (((currentCount - priorCount) / priorCount) * 100).toFixed(1);
+        studentGrowth = `${Number(rate) >= 0 ? "+" : ""}${rate}% from prior period`;
+      }
     } else {
       studentsStatus = "UNAVAILABLE";
     }
@@ -176,6 +233,29 @@ export async function getDashboardMetrics(institutionId: string) {
       totalFeesCollected = (feePayRes.value as any[])[0].total;
     } else if (feeInvRes.status === "fulfilled") {
       totalFeesCollected = (feeInvRes.value as any[])[0]?.total_paid ?? 0;
+    }
+
+    let feeMetrics = {
+      totalInvoiced: 0,
+      totalCollected: totalFeesCollected,
+      pendingDue: 0,
+      overdue: 0,
+      collectionRate: 0,
+    };
+    if (feeMetricsRes.status === "fulfilled") {
+      const row = (feeMetricsRes.value as any[])[0];
+      const invoiced = row?.total_invoiced ?? 0;
+      const collected = totalFeesCollected > 0 ? totalFeesCollected : (row?.total_collected ?? 0);
+      const pending = row?.pending_due ?? 0;
+      const overdue = row?.overdue_due ?? 0;
+      const rate = invoiced > 0 ? Math.min(100, Math.round((collected / invoiced) * 100)) : 0;
+      feeMetrics = {
+        totalInvoiced: invoiced,
+        totalCollected: collected,
+        pendingDue: pending,
+        overdue,
+        collectionRate: rate,
+      };
     }
 
     let attendanceRate = "N/A";
@@ -230,6 +310,7 @@ export async function getDashboardMetrics(institutionId: string) {
       stats: {
         totalStudents: studentsCount,
         activeStudents: activeStudentsCount,
+        studentGrowth,
         totalFaculty: staffCount,
         totalDepartments: departmentsCount,
         totalCourses: coursesCount,
@@ -239,20 +320,16 @@ export async function getDashboardMetrics(institutionId: string) {
         activeEvents: eventsCount,
         attendanceRate,
         attendanceRateNumber,
+        feeMetrics,
       },
+      departmentEnrollment: [],
       schemaStatus: {
         students: studentsStatus,
         departments: departmentsAvailable ? "OK" : "PENDING_MIGRATION",
         admissions: admissionsAvailable ? "OK" : "PENDING_MIGRATION",
         auditLogs: "OK",
       },
-      activeAcademicYear: activeAcademicYear || {
-        id: "ay_2026_27",
-        name: "2026-2027",
-        startDate: new Date("2026-06-01"),
-        endDate: new Date("2027-05-31"),
-        isCurrent: true,
-      },
+      activeAcademicYear: activeAcademicYear || null,
       recentActivities,
     };
   } catch (err: any) {
@@ -269,7 +346,7 @@ export async function getDashboardMetrics(institutionId: string) {
 // ----------------------------------------------------------------------------
 export async function getAdmissions(institutionId: string, status?: string) {
   try {
-    return await db.admissionApplication.findMany({
+    const apps = await db.admissionApplication.findMany({
       where: {
         institutionId,
         ...(status ? { status: status as any } : {}),
@@ -280,66 +357,143 @@ export async function getAdmissions(institutionId: string, status?: string) {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    if (apps && apps.length > 0) {
+      try {
+        const rawExtras: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "documentsJson", remarks, "guardianOccupation" FROM admission_applications WHERE "institutionId" = $1`,
+          institutionId
+        );
+        const extrasMap = new Map<string, any>();
+        for (const row of rawExtras) {
+          extrasMap.set(row.id, row);
+        }
+        return apps.map((app) => {
+          const extra = extrasMap.get(app.id);
+          let parsedDocs = null;
+          if (extra?.documentsJson) {
+            try {
+              parsedDocs = typeof extra.documentsJson === "string" ? JSON.parse(extra.documentsJson) : extra.documentsJson;
+            } catch {}
+          }
+          return {
+            ...app,
+            documents: parsedDocs,
+            documentsJson: extra?.documentsJson || null,
+            remarks: extra?.remarks || (app as any).remarks || null,
+            guardianOccupation: extra?.guardianOccupation || null,
+          };
+        });
+      } catch {
+        return apps;
+      }
+    }
+    return apps;
   } catch (err: any) {
-    console.warn("getAdmissions error (table pending migration):", err.message);
-    return [];
+    console.error("getAdmissions error:", err.message);
+    throw new Error(`Failed to load admissions from database: ${err.message}`);
   }
 }
 
 export async function createAdmissionApplication(
   institutionId: string,
   data: {
-    applicantName: string;
+    applicantName?: string;
+    applicantFirstName?: string;
+    applicantLastName?: string;
     email: string;
     phone: string;
     courseId: string;
     academicYearId: string;
     gender?: any;
-    dob?: Date;
+    dob?: Date | string;
+    addressLine?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    guardianName?: string;
+    guardianRelation?: string;
+    guardianRelationship?: string;
+    guardianPhone?: string;
+    guardianEmail?: string;
+    guardianOccupation?: string;
+    documents?: any[];
   }
 ) {
-  let count = 0;
-  try {
-    count = await db.admissionApplication.count({ where: { institutionId } });
-  } catch {}
+  const count = await db.admissionApplication.count({ where: { institutionId } });
   const appNumber = `APP-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
-  const parts = data.applicantName.trim().split(" ");
-  const firstName = parts[0] || "Applicant";
-  const lastName = parts.slice(1).join(" ") || "Student";
 
-  try {
-    return await db.admissionApplication.create({
-      data: {
-        institutionId,
-        applicationNumber: appNumber,
-        firstName,
-        lastName,
-        fullName: data.applicantName,
-        email: data.email.toLowerCase(),
-        phone: data.phone,
-        courseId: data.courseId,
-        academicYearId: data.academicYearId,
-        dob: data.dob || new Date("2005-01-01"),
-        gender: data.gender || "MALE",
-        status: "SUBMITTED",
-      },
-    });
-  } catch {
-    return {
-      id: crypto.randomUUID(),
+  const fullName =
+    data.applicantName ||
+    `${data.applicantFirstName || ""} ${data.applicantLastName || ""}`.trim() ||
+    "Applicant";
+  const parts = fullName.trim().split(" ");
+  const firstName = data.applicantFirstName || parts[0] || "Applicant";
+  const lastName = data.applicantLastName || parts.slice(1).join(" ") || "Student";
+  const dobVal = data.dob ? new Date(data.dob) : new Date("2005-01-01");
+  const rawGender = data.gender ? String(data.gender).toUpperCase() : "MALE";
+  const genderVal = rawGender === "FEMALE" ? "FEMALE" : rawGender === "OTHER" ? "OTHER" : "MALE";
+
+  const created = await db.admissionApplication.create({
+    data: {
       institutionId,
       applicationNumber: appNumber,
       firstName,
       lastName,
-      fullName: data.applicantName,
-      email: data.email.toLowerCase(),
-      phone: data.phone,
+      fullName,
+      email: data.email.toLowerCase().trim(),
+      phone: data.phone.trim(),
       courseId: data.courseId,
       academicYearId: data.academicYearId,
+      dob: dobVal,
+      gender: genderVal as any,
+      addressLine: data.addressLine || null,
+      city: data.city || null,
+      state: data.state || null,
+      postalCode: data.postalCode || null,
+      guardianName: data.guardianName || null,
+      guardianRelationship: data.guardianRelationship || data.guardianRelation || null,
+      guardianPhone: data.guardianPhone || null,
+      guardianEmail: data.guardianEmail || null,
       status: "SUBMITTED",
-      createdAt: new Date(),
-    };
+      documentStatus: "PENDING",
+    },
+    include: {
+      course: true,
+      academicYear: true,
+    },
+  });
+
+  if (data.documents !== undefined || data.guardianOccupation !== undefined) {
+    try {
+      const docsJson = data.documents ? JSON.stringify(data.documents) : null;
+      const allSubmitted = Array.isArray(data.documents) && data.documents.length > 0 && data.documents.every((d: any) => d.isSubmitted);
+      const anySubmitted = Array.isArray(data.documents) && data.documents.some((d: any) => d.isSubmitted);
+      const docStatus = allSubmitted ? "VERIFIED" : anySubmitted ? "PARTIALLY_SUBMITTED" : "PENDING";
+
+      if (docsJson) {
+        await db.$executeRawUnsafe(
+          `UPDATE admission_applications SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3`,
+          docsJson,
+          docStatus,
+          created.id
+        );
+      }
+      if (data.guardianOccupation) {
+        await db.$executeRawUnsafe(
+          `UPDATE admission_applications SET "guardianOccupation" = $1 WHERE id = $2`,
+          data.guardianOccupation.trim() || null,
+          created.id
+        );
+      }
+    } catch {}
   }
+
+  return {
+    ...created,
+    documents: data.documents || null,
+    guardianOccupation: data.guardianOccupation || null,
+  };
 }
 
 export async function updateAdmissionStatus(
@@ -352,11 +506,20 @@ export async function updateAdmissionStatus(
     where: { id: applicationId, institutionId },
     data: {
       status,
-      ...(remarks !== undefined ? { remarks } : {}),
     },
   });
   if (result.count === 0) {
     throw new Error("Admission application not found or access denied.");
+  }
+  if (remarks !== undefined) {
+    try {
+      await db.$executeRawUnsafe(
+        `UPDATE admission_applications SET remarks = $1 WHERE id = $2 AND "institutionId" = $3`,
+        remarks,
+        applicationId,
+        institutionId
+      );
+    } catch {}
   }
   return await db.admissionApplication.findFirst({
     where: { id: applicationId, institutionId },
@@ -434,6 +597,154 @@ export async function convertAdmissionApplicationToStudent(
   };
 }
 
+export async function updateAdmissionApplication(
+  institutionId: string,
+  applicationId: string,
+  data: {
+    applicantFirstName?: string;
+    applicantLastName?: string;
+    applicantFullName?: string;
+    email?: string;
+    phone?: string;
+    dob?: Date | string;
+    gender?: any;
+    addressLine?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    guardianName?: string;
+    guardianRelation?: string;
+    guardianRelationship?: string;
+    guardianPhone?: string;
+    guardianEmail?: string;
+    guardianOccupation?: string;
+    courseId?: string;
+    academicYearId?: string;
+    status?: string;
+    documentStatus?: string;
+    documents?: any[];
+    remarks?: string;
+  }
+) {
+  // 1. Verify existence and tenant ownership
+  const existing = await db.admissionApplication.findFirst({
+    where: { id: applicationId, institutionId },
+  });
+  if (!existing) {
+    throw new Error("Admission application not found or access denied.");
+  }
+
+  // 2. Validate email if provided
+  let normalizedEmail: string | undefined = undefined;
+  if (data.email !== undefined) {
+    const trimmed = data.email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trimmed || !emailRegex.test(trimmed)) {
+      const err = new Error("A valid applicant email address is required (e.g. name@example.com).");
+      (err as any).statusCode = 400;
+      throw err;
+    }
+    normalizedEmail = trimmed;
+  }
+
+  // 3. Compute name fields if partial names provided
+  const firstName = data.applicantFirstName?.trim() || existing.firstName;
+  const lastName = data.applicantLastName?.trim() || existing.lastName;
+  const fullName =
+    data.applicantFullName?.trim() ||
+    (data.applicantFirstName || data.applicantLastName
+      ? `${firstName} ${lastName}`.trim()
+      : existing.fullName);
+
+  let dobVal: Date | undefined = undefined;
+  if (data.dob !== undefined) {
+    const parsed = new Date(data.dob);
+    dobVal = isNaN(parsed.getTime()) ? existing.dob : parsed;
+  }
+
+  let genderVal: string | undefined = undefined;
+  if (data.gender !== undefined) {
+    const raw = String(data.gender).toUpperCase();
+    genderVal = ["MALE", "FEMALE", "OTHER"].includes(raw) ? raw : existing.gender;
+  }
+
+  // 4. Update the admission application
+  const updated = await db.admissionApplication.update({
+    where: { id: applicationId },
+    data: {
+      ...(normalizedEmail ? { email: normalizedEmail } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone.trim() } : {}),
+      ...(data.applicantFirstName !== undefined ? { firstName } : {}),
+      ...(data.applicantLastName !== undefined ? { lastName } : {}),
+      fullName,
+      ...(dobVal ? { dob: dobVal } : {}),
+      ...(genderVal ? { gender: genderVal as any } : {}),
+      ...(data.addressLine !== undefined ? { addressLine: data.addressLine.trim() || null } : {}),
+      ...(data.city !== undefined ? { city: data.city.trim() || null } : {}),
+      ...(data.state !== undefined ? { state: data.state.trim() || null } : {}),
+      ...(data.postalCode !== undefined ? { postalCode: data.postalCode.trim() || null } : {}),
+      ...(data.guardianName !== undefined ? { guardianName: data.guardianName.trim() || null } : {}),
+      ...(data.guardianRelationship !== undefined || data.guardianRelation !== undefined
+        ? { guardianRelationship: (data.guardianRelationship || data.guardianRelation)?.trim() || null }
+        : {}),
+      ...(data.guardianPhone !== undefined ? { guardianPhone: data.guardianPhone.trim() || null } : {}),
+      ...(data.guardianEmail !== undefined ? { guardianEmail: data.guardianEmail.trim().toLowerCase() || null } : {}),
+      ...(data.courseId ? { courseId: data.courseId } : {}),
+      ...(data.academicYearId ? { academicYearId: data.academicYearId } : {}),
+      ...(data.status ? { status: data.status as any } : {}),
+      ...(data.documentStatus ? { documentStatus: data.documentStatus as any } : {}),
+    },
+    include: {
+      course: true,
+      academicYear: true,
+    },
+  });
+
+  // 5. Update raw SQL remarks, documentsJson, or guardian occupation if provided
+  let updatedDocs = data.documents;
+  try {
+    if (data.documents !== undefined) {
+      const docsJson = JSON.stringify(data.documents);
+      const allSubmitted = Array.isArray(data.documents) && data.documents.length > 0 && data.documents.every((d: any) => d.isSubmitted);
+      const anySubmitted = Array.isArray(data.documents) && data.documents.some((d: any) => d.isSubmitted);
+      const docStatus = allSubmitted ? "VERIFIED" : anySubmitted ? "PARTIALLY_SUBMITTED" : "PENDING";
+
+      await db.$executeRawUnsafe(
+        `UPDATE admission_applications SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3 AND "institutionId" = $4`,
+        docsJson,
+        docStatus,
+        applicationId,
+        institutionId
+      );
+    }
+    if (data.remarks !== undefined) {
+      await db.$executeRawUnsafe(
+        `UPDATE admission_applications SET remarks = $1 WHERE id = $2 AND "institutionId" = $3`,
+        data.remarks,
+        applicationId,
+        institutionId
+      );
+    }
+    if (data.guardianOccupation !== undefined) {
+      await db.$executeRawUnsafe(
+        `UPDATE admission_applications SET "guardianOccupation" = $1 WHERE id = $2 AND "institutionId" = $3`,
+        data.guardianOccupation.trim() || null,
+        applicationId,
+        institutionId
+      );
+    }
+  } catch (err: any) {
+    console.warn("Raw SQL update in updateAdmissionApplication failed:", err.message);
+  }
+
+  return {
+    ...updated,
+    documents: updatedDocs !== undefined ? updatedDocs : (updated as any).documents,
+    remarks: data.remarks !== undefined ? data.remarks : (updated as any).remarks,
+    guardianOccupation: data.guardianOccupation !== undefined ? data.guardianOccupation : (updated as any).guardianOccupation,
+  };
+}
+
 // ----------------------------------------------------------------------------
 // 2. STUDENTS & ENROLLMENT
 // ----------------------------------------------------------------------------
@@ -448,8 +759,8 @@ export async function getStudents(institutionId: string, options?: { search?: st
                c.name as "courseName",
                ay.name as "academicYearName"
         FROM students s
-        LEFT JOIN courses c ON s."currentCourseId" = c.id
-        LEFT JOIN academic_years ay ON s."currentAcademicYearId" = ay.id
+        LEFT JOIN courses c ON s."currentCourseId"::text = c.id
+        LEFT JOIN academic_years ay ON s."currentAcademicYearId"::text = ay.id
         WHERE s."institutionId" = ${institutionId}
           AND s.status = ${status}
           AND (${search}::text IS NULL OR LOWER(s."fullName") LIKE ${search} OR LOWER(s."rollNumber") LIKE ${search} OR LOWER(s.email) LIKE ${search})
@@ -476,7 +787,6 @@ export async function getStudents(institutionId: string, options?: { search?: st
         user: true,
         currentCourse: true,
         currentAcademicYear: true,
-        currentClass: true,
         guardianLinks: {
           include: { guardianAccount: true },
         },
@@ -492,8 +802,8 @@ export async function getStudents(institutionId: string, options?: { search?: st
                c.name as "courseName",
                ay.name as "academicYearName"
         FROM students s
-        LEFT JOIN courses c ON s."currentCourseId" = c.id
-        LEFT JOIN academic_years ay ON s."currentAcademicYearId" = ay.id
+        LEFT JOIN courses c ON s."currentCourseId"::text = c.id
+        LEFT JOIN academic_years ay ON s."currentAcademicYearId"::text = ay.id
         WHERE s."institutionId" = ${institutionId}
         ORDER BY s."createdAt" DESC
         LIMIT ${options?.take || 100};
@@ -513,22 +823,37 @@ export async function createStudent(
     lastName?: string;
     email: string;
     rollNumber: string;
+    admissionNumber?: string;
     usn?: string;
     phone?: string;
     gender?: any;
-    dateOfBirth?: Date;
+    dateOfBirth?: Date | string;
     courseId?: string;
     academicYearId?: string;
     classId?: string;
     sectionId?: string;
     department?: string;
+    departmentId?: string;
     semester?: number;
     section?: string;
+    bloodGroup?: string;
+    category?: string;
+    addressLine?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    admissionDate?: Date | string;
+    batch?: string;
+    status?: string;
   }
 ) {
+  const isUuid = (val?: string | null): boolean =>
+    !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
   const email = data.email.trim().toLowerCase();
   const fullName = (data.fullName || `${data.firstName || "Student"} ${data.lastName || ""}`).trim();
   const rollNumber = data.rollNumber.trim();
+  const admissionNumber = data.admissionNumber?.trim() || rollNumber;
 
   // 1. Database Transaction: Atomic Student, User & Active Enrollment Provisioning
   const { student, user, enrollment } = await db.$transaction(async (tx) => {
@@ -587,10 +912,90 @@ export async function createStudent(
     const lastName = parts.slice(1).join(" ") || "Enrolled";
 
     const studentId = crypto.randomUUID();
-    const dob = data.dateOfBirth ? new Date(data.dateOfBirth) : new Date("2002-01-01");
+
+    let safeDob: Date = new Date("2004-01-01");
+    if (data.dateOfBirth) {
+      const parsed = new Date(data.dateOfBirth);
+      if (!isNaN(parsed.getTime())) {
+        safeDob = parsed;
+      }
+    }
+
     const rawGender = (data.gender || "MALE").toString().toUpperCase();
     const genderStr = ["MALE", "FEMALE", "OTHER"].includes(rawGender) ? rawGender : "MALE";
-    const statusStr = "ACTIVE";
+    const rawStatus = (data.status || "ACTIVE").toString().toUpperCase();
+    const statusStr = ["ACTIVE", "INACTIVE", "SUSPENDED", "ALUMNI"].includes(rawStatus) ? rawStatus : "ACTIVE";
+
+    // Safe UUID resolution for foreign key columns:
+    // If frontend sends mock string slugs (e.g. "course-btech-cse", "ay-2026-27"),
+    // attempt to resolve to live database UUID or safely nullify to prevent PostgreSQL 22P02 uuid syntax errors.
+    let resolvedCourseId: string | null = null;
+    if (data.courseId) {
+      if (isUuid(data.courseId)) {
+        try {
+          const course = await tx.course.findFirst({
+            where: { id: data.courseId, institutionId },
+            select: { id: true },
+          });
+          if (course) resolvedCourseId = course.id;
+        } catch {
+          // Keep null if table query fails
+        }
+      } else {
+        try {
+          const cleanCode = data.courseId.replace(/^course-/, "").toUpperCase();
+          const course = await tx.course.findFirst({
+            where: {
+              institutionId,
+              OR: [
+                { code: { equals: cleanCode, mode: "insensitive" } },
+                { name: { contains: cleanCode, mode: "insensitive" } },
+              ],
+            },
+            select: { id: true },
+          });
+          if (course) resolvedCourseId = course.id;
+        } catch {
+          // Keep null if lookup fails
+        }
+      }
+    }
+
+    let resolvedAcademicYearId: string | null = null;
+    if (data.academicYearId) {
+      if (isUuid(data.academicYearId)) {
+        try {
+          const ay = await tx.academicYear.findFirst({
+            where: { id: data.academicYearId, institutionId },
+            select: { id: true },
+          });
+          if (ay) resolvedAcademicYearId = ay.id;
+        } catch {
+          // Keep null if table query fails
+        }
+      } else {
+        try {
+          const ay = await tx.academicYear.findFirst({
+            where: {
+              institutionId,
+              OR: [
+                { isCurrent: true },
+                { code: data.academicYearId },
+                { name: { contains: "2026", mode: "insensitive" } },
+              ],
+            },
+            select: { id: true },
+          });
+          if (ay) resolvedAcademicYearId = ay.id;
+        } catch {
+          // Keep null if lookup fails
+        }
+      }
+    }
+
+    // Class and Section tables do not exist in live DB schema; preserve UUID if supplied without issuing invalid queries inside the transaction
+    const resolvedClassId: string | null = data.classId && isUuid(data.classId) ? data.classId : null;
+    const resolvedSectionId: string | null = data.sectionId && isUuid(data.sectionId) ? data.sectionId : null;
 
     // Direct SQL INSERT avoids Prisma client casting to non-existent public.Gender / public.StudentStatus PostgreSQL enums
     const insertResult: any = await tx.$queryRawUnsafe(`
@@ -615,15 +1020,15 @@ export async function createStudent(
       fullName,
       email,
       rollNumber,
-      rollNumber,
+      admissionNumber,
       data.phone?.trim() || null,
       genderStr,
       statusStr,
-      dob,
-      data.courseId || null,
-      data.academicYearId || null,
-      data.classId || null,
-      data.sectionId || null
+      safeDob,
+      resolvedCourseId,
+      resolvedAcademicYearId,
+      resolvedClassId,
+      resolvedSectionId
     );
 
     const newStudent = insertResult[0];
@@ -683,22 +1088,24 @@ export async function createStudent(
     );
     const enrollmentRecord = enrollmentResult[0];
 
-    if (effectiveAyId && data.classId) {
+    const targetClassId = resolvedClassId || data.classId;
+    const targetSectionId = resolvedSectionId || data.sectionId;
+    if (effectiveAyId && targetClassId) {
       try {
         await tx.studentEnrollmentHistory.create({
           data: {
             institutionId,
             studentId: newStudent.id,
             academicYearId: effectiveAyId,
-            classId: data.classId,
-            sectionId: data.sectionId,
+            classId: targetClassId,
+            sectionId: targetSectionId || undefined,
             semester: 1,
             status: "ACTIVE",
             enrolledAt: new Date(),
           },
         });
-      } catch (histErr) {
-        console.warn("[createStudent] studentEnrollmentHistory non-blocking error:", histErr);
+      } catch (histErr: any) {
+        console.warn("[createStudent] StudentEnrollmentHistory creation skipped (table not migrated or FK constraint):", histErr?.message);
       }
     }
 
@@ -711,6 +1118,7 @@ export async function createStudent(
       entityId: newStudent.id,
       newValuesJson: JSON.stringify({
         rollNumber: newStudent.rollNumber,
+        admissionNumber: newStudent.admissionNumber,
         email: newStudent.email,
         enrollmentId: enrollmentRecord.id,
         provisionedLogin: true,
@@ -832,34 +1240,78 @@ export async function updateStudent(
 // ----------------------------------------------------------------------------
 export async function getGuardians(institutionId: string) {
   try {
-    const accounts = await db.guardianAccount.findMany({
-      where: { institutionId },
-      include: {
-        guardianLinks: {
-          include: { student: true },
+    const [accounts, archivedSetting] = await Promise.all([
+      db.guardianAccount.findMany({
+        where: { institutionId },
+        include: {
+          guardianLinks: {
+            include: { student: true },
+          },
+          user: true,
         },
-        user: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+      }),
+      db.platformSetting
+        .findUnique({
+          where: { key: `archived_guardians:${institutionId}` },
+        })
+        .catch(() => null),
+    ]);
+
+    const archivedList: any[] = Array.isArray(archivedSetting?.value)
+      ? (archivedSetting?.value as any[])
+      : [];
+    const archivedMap = new Map(archivedList.map((a: any) => [a.id, a]));
+
     if (accounts) {
-      return accounts.map((ga) => ({
-        id: ga.id,
-        guardianUniqueId: `GRD-${ga.id.slice(-4)}`,
-        fullName: ga.fullName,
-        phone: ga.phone,
-        email: ga.user?.email || null,
-        occupation: ga.occupation,
-        relationship: ga.relationship,
-        students: ga.guardianLinks.map((gl) => ({
-          studentId: gl.studentId,
-          student: gl.student,
-          isVerified: gl.isVerified,
-          canAccessPortal: gl.canAccessPortal,
-          relationship: gl.relationship,
-        })),
-        createdAt: ga.createdAt,
-      }));
+      return accounts.map((ga) => {
+        const archiveRecord =
+          archivedMap.get(ga.id) ||
+          (ga.userId ? archivedMap.get(ga.userId) : null);
+        const verifiedCount = ga.guardianLinks.filter((gl) => gl.isVerified).length;
+        const hasUser = !!ga.user;
+        const hasPassword = !!ga.user?.passwordHash && ga.user.passwordHash.startsWith("$2");
+        const isActive = !!ga.user?.isActive && ga.user?.status === "ACTIVE";
+
+        let portalStatus: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" | "UNVERIFIED" = "NOT_CREATED";
+        if (verifiedCount === 0) {
+          portalStatus = "UNVERIFIED";
+        } else if (!hasUser) {
+          portalStatus = "NOT_CREATED";
+        } else if (!hasPassword) {
+          portalStatus = "PENDING_SETUP";
+        } else {
+          portalStatus = isActive ? "ACTIVE" : "DISABLED";
+        }
+
+        return {
+          id: ga.id,
+          guardianUniqueId: `GRD-${ga.id.slice(-4)}`,
+          fullName: ga.fullName,
+          phone: ga.phone,
+          email: ga.user?.email || null,
+          occupation: ga.occupation,
+          relationship: ga.relationship,
+          isArchived: Boolean(archiveRecord),
+          archivedAt: archiveRecord?.archivedAt || null,
+          archivedBy: archiveRecord?.archivedBy || null,
+          archiveReason: archiveRecord?.reason || null,
+          userId: ga.userId,
+          portalUserId: ga.userId,
+          portalAccess: isActive && verifiedCount > 0,
+          portalStatus,
+          hasVerifiedRelationship: verifiedCount > 0,
+          lastLoginAt: ga.user?.lastLoginAt || null,
+          students: ga.guardianLinks.map((gl) => ({
+            studentId: gl.studentId,
+            student: gl.student,
+            isVerified: gl.isVerified,
+            canAccessPortal: gl.canAccessPortal,
+            relationship: gl.relationship,
+          })),
+          createdAt: ga.createdAt,
+        };
+      });
     }
   } catch (err: any) {
     console.warn("GuardianAccount lookup error:", err.message);
@@ -1013,27 +1465,37 @@ export async function createGuardian(
     };
   }, { maxWait: 15000, timeout: 30000 });
 
-  // 5. Post-Transaction Automation: Invitation Email & Notification ONLY if relationship is verified
+  // 5. Post-Transaction Automation: Invitation Email & Notification for Guardian Onboarding
   let invitationSent = false;
   let invitationPreviewUrl: string | false = false;
   let invitationError: string | null = null;
 
-  if (isAuthorized) {
+  // Invite guardian if link is verified OR if account was newly provisioned by an admin
+  const shouldInviteGuardian = isAuthorized || !user.passwordHash || user.status === "INACTIVE";
+
+  if (shouldInviteGuardian) {
     try {
+      // Invalidate previous setup token by setting an initial unique invited marker
+      const initialMarker = `INVITED_${Date.now()}_${crypto.randomUUID()}`;
+      await db.user.update({
+        where: { id: user.id },
+        data: { passwordHash: initialMarker },
+      });
+
       const setupToken = await signPasswordSetupToken({
         userId: user.id,
         email: user.email,
         institutionId,
-        passwordHash: user.passwordHash || null,
+        passwordHash: initialMarker,
       });
 
       const appUrl = getAppBaseUrl();
       const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
-      const loginUrl = `${appUrl}/login`;
       const inst = await db.institution.findUnique({
         where: { id: institutionId },
-        select: { name: true },
+        select: { name: true, slug: true },
       });
+      const portalLoginUrl = getRolePortalLoginUrl("PARENT", inst?.slug, appUrl);
 
       const emailRes = await sendRoleCredentialInvitation(
         { email: user.email, name: guardianAccount.fullName || undefined },
@@ -1042,8 +1504,9 @@ export async function createGuardian(
           institutionName: inst?.name || "Campus Administration",
           expiresIn: "24 hours",
           role: "PARENT",
-          loginUrl,
+          loginUrl: portalLoginUrl,
           username: user.email,
+          institutionId,
         }
       );
 
@@ -1107,65 +1570,290 @@ export async function createGuardian(
   };
 }
 
+export async function updateGuardian(
+  institutionId: string,
+  id: string,
+  data: {
+    fullName?: string;
+    relationship?: string;
+    phone?: string;
+    alternatePhone?: string;
+    email?: string;
+    addressLine?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    occupation?: string;
+    company?: string;
+    isEmergencyContact?: boolean;
+    status?: string;
+  },
+  actorUserId?: string
+) {
+  if (!id || typeof id !== "string" || !id.trim()) {
+    throw new Error("Guardian ID is required.");
+  }
+
+  const cleanId = id.trim();
+
+  // 1. Locate the target guardian account under the authenticated institution
+  let guardianAccount = null;
+  if (isValidUuid(cleanId)) {
+    guardianAccount = await db.guardianAccount.findFirst({
+      where: {
+        institutionId,
+        OR: [{ id: cleanId }, { userId: cleanId }],
+      },
+      include: {
+        user: true,
+        guardianLinks: {
+          include: { student: true },
+        },
+      },
+    });
+  } else if (cleanId.startsWith("GRD-")) {
+    const suffix = cleanId.slice(4).toLowerCase();
+    const candidates = await db.guardianAccount.findMany({
+      where: { institutionId },
+      include: {
+        user: true,
+        guardianLinks: {
+          include: { student: true },
+        },
+      },
+    });
+    guardianAccount = candidates.find((ga) => ga.id.toLowerCase().endsWith(suffix)) || null;
+  }
+
+  if (!guardianAccount) {
+    throw new Error("Guardian not found or access denied.");
+  }
+
+  // 2. Validate and check email uniqueness if email update requested
+  let normalizedEmail: string | undefined = undefined;
+  if (data.email !== undefined) {
+    const rawEmail = String(data.email).trim().toLowerCase();
+    if (!rawEmail) {
+      throw new Error("Guardian email address cannot be empty.");
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z0-9._-]+$/.test(rawEmail)) {
+      throw new Error("Please enter a valid email address.");
+    }
+    normalizedEmail = rawEmail;
+
+    // Check if another user already has this email
+    const conflictingUser = await db.user.findFirst({
+      where: {
+        email: { equals: normalizedEmail, mode: "insensitive" },
+        id: { not: guardianAccount.userId },
+      },
+      select: { id: true, institutionId: true, role: true },
+    });
+
+    if (conflictingUser) {
+      throw new Error(`Email address "${normalizedEmail}" is already registered to another user account.`);
+    }
+  }
+
+  // 3. Transactional update across GuardianAccount and linked User
+  const result = await db.$transaction(async (tx) => {
+    // A. Update GuardianAccount
+    const updatedGa = await tx.guardianAccount.update({
+      where: { id: guardianAccount.id },
+      data: {
+        ...(data.fullName ? { fullName: data.fullName.trim() } : {}),
+        ...(data.phone ? { phone: data.phone.trim() } : {}),
+        ...(data.relationship ? { relationship: data.relationship } : {}),
+        ...(data.occupation !== undefined ? { occupation: data.occupation ? data.occupation.trim() : null } : {}),
+        ...(data.addressLine || data.city ? {
+          address: [data.addressLine, data.city, data.state, data.postalCode].filter(Boolean).join(", ")
+        } : {}),
+      },
+      include: {
+        user: true,
+        guardianLinks: {
+          include: { student: true },
+        },
+      },
+    });
+
+    // B. Synchronize User login & notification email
+    let updatedUser = guardianAccount.user;
+    if (guardianAccount.userId) {
+      updatedUser = await tx.user.update({
+        where: { id: guardianAccount.userId },
+        data: {
+          ...(normalizedEmail ? { email: normalizedEmail } : {}),
+          ...(data.fullName ? { fullName: data.fullName.trim(), name: data.fullName.trim() } : {}),
+          ...(data.phone ? { phone: data.phone.trim() } : {}),
+        },
+      });
+    }
+
+    // C. Audit log for email/profile update
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: guardianAccount.userId,
+      actorUserId,
+      action: "GUARDIAN_UPDATED",
+      entityType: "GUARDIAN",
+      entityId: guardianAccount.id,
+      oldValuesJson: JSON.stringify({
+        email: guardianAccount.user?.email,
+        fullName: guardianAccount.fullName,
+        phone: guardianAccount.phone,
+      }),
+      newValuesJson: JSON.stringify({
+        email: normalizedEmail || guardianAccount.user?.email,
+        fullName: data.fullName || guardianAccount.fullName,
+        phone: data.phone || guardianAccount.phone,
+      }),
+    });
+
+    return {
+      guardianAccount: updatedGa,
+      user: updatedUser,
+    };
+  });
+
+  const verifiedCount = result.guardianAccount.guardianLinks.filter((gl) => gl.isVerified).length;
+  const hasUser = !!result.user;
+  const hasPassword = !!result.user?.passwordHash && result.user.passwordHash.startsWith("$2");
+  const isActive = !!result.user?.isActive && result.user?.status === "ACTIVE";
+
+  let portalStatus: "ACTIVE" | "PENDING_SETUP" | "DISABLED" | "NOT_CREATED" | "UNVERIFIED" = "NOT_CREATED";
+  if (verifiedCount === 0) {
+    portalStatus = "UNVERIFIED";
+  } else if (!hasUser) {
+    portalStatus = "NOT_CREATED";
+  } else if (!hasPassword) {
+    portalStatus = "PENDING_SETUP";
+  } else {
+    portalStatus = isActive ? "ACTIVE" : "DISABLED";
+  }
+
+  return {
+    id: result.guardianAccount.id,
+    guardianUniqueId: `GRD-${result.guardianAccount.id.slice(-4)}`,
+    fullName: result.guardianAccount.fullName,
+    phone: result.guardianAccount.phone,
+    email: result.user?.email || null,
+    occupation: result.guardianAccount.occupation,
+    relationship: result.guardianAccount.relationship,
+    userId: result.guardianAccount.userId,
+    portalUserId: result.guardianAccount.userId,
+    portalAccess: isActive && verifiedCount > 0,
+    portalStatus,
+    hasVerifiedRelationship: verifiedCount > 0,
+    lastLoginAt: result.user?.lastLoginAt || null,
+    students: result.guardianAccount.guardianLinks.map((gl) => ({
+      studentId: gl.studentId,
+      student: gl.student,
+      isVerified: gl.isVerified,
+      canAccessPortal: gl.canAccessPortal,
+      relationship: gl.relationship,
+    })),
+    createdAt: result.guardianAccount.createdAt,
+  };
+}
+
 // ----------------------------------------------------------------------------
 // 4. FACULTY & STAFF
 // ----------------------------------------------------------------------------
 export async function getStaff(institutionId: string) {
-  const users = await db.user.findMany({
-    where: {
-      institutionId,
-      role: { in: ["TEACHER", "ADMIN", "STAFF"] },
-    },
-    include: {
-      teacherProfile: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    const [users, archivedSetting] = await Promise.all([
+      db.user.findMany({
+        where: {
+          institutionId,
+          role: { in: ["TEACHER", "ADMIN", "STAFF"] },
+        },
+        include: {
+          teacherProfile: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      db.platformSetting
+        .findUnique({
+          where: { key: `archived_staff:${institutionId}` },
+        })
+        .catch(() => null),
+    ]);
 
-  return users.map((u) => {
-    const tp = u.teacherProfile;
-    const parts = (u.fullName || "Staff Member").trim().split(/\s+/);
-    const firstName = parts[0] || "Staff";
-    const lastName = parts.slice(1).join(" ") || "Member";
+    const archivedList: any[] = Array.isArray(archivedSetting?.value)
+      ? (archivedSetting?.value as any[])
+      : [];
+    const archivedMap = new Map(archivedList.map((a: any) => [a.id, a]));
 
-    const staffObj = tp
-      ? {
-          id: tp.id,
-          institutionId: tp.institutionId,
+    return users.map((u) => {
+      let teacherProfile = u.teacherProfile;
+      const isTeacherRole = u.role === "TEACHER" || u.role === "HOD";
+
+      if (isTeacherRole && !teacherProfile) {
+        teacherProfile = {
+          id: `teach-${u.id}`,
+          institutionId: u.institutionId || institutionId,
           userId: u.id,
-          staffEmployeeId: tp.employeeId,
-          firstName,
-          lastName,
-          fullName: u.fullName || `${firstName} ${lastName}`,
-          email: u.email,
-          phone: u.phone || "",
-          designation: tp.designation,
-          department: tp.department,
-          departmentId: tp.department,
-          status: u.isActive ? "ACTIVE" : "INACTIVE",
-        }
-      : {
-          id: u.id,
-          institutionId: u.institutionId,
-          userId: u.id,
-          staffEmployeeId: `ADM-${u.id.slice(0, 6)}`,
-          firstName,
-          lastName,
-          fullName: u.fullName || `${firstName} ${lastName}`,
-          email: u.email,
-          phone: u.phone || "",
-          designation: u.role === "ADMIN" ? "Administrator" : "Staff Member",
-          department: "Administration",
-          departmentId: "Administration",
-          status: u.isActive ? "ACTIVE" : "INACTIVE",
-        };
+          employeeId: `EMP-${u.id.slice(0, 8)}`,
+          department: "General Academics",
+          designation: u.role === "HOD" ? "Professor & HOD" : "Assistant Professor",
+        } as any;
+      }
 
-    return {
-      ...u,
-      teacherProfile: tp,
-      staff: staffObj,
-    };
-  });
+      const parts = (u.fullName || "Staff Member").trim().split(/\s+/);
+      const firstName = parts[0] || "Staff";
+      const lastName = parts.slice(1).join(" ") || "Member";
+
+      const staffObj = teacherProfile
+        ? {
+            id: teacherProfile.id,
+            institutionId: teacherProfile.institutionId,
+            userId: u.id,
+            staffEmployeeId: teacherProfile.employeeId,
+            firstName,
+            lastName,
+            fullName: u.fullName || `${firstName} ${lastName}`,
+            email: u.email,
+            phone: u.phone || "",
+            designation: teacherProfile.designation,
+            department: teacherProfile.department,
+            departmentId: teacherProfile.department,
+            status: u.isActive ? "ACTIVE" : "INACTIVE",
+          }
+        : {
+            id: u.id,
+            institutionId: u.institutionId,
+            userId: u.id,
+            staffEmployeeId: `ADM-${u.id.slice(0, 6)}`,
+            firstName,
+            lastName,
+            fullName: u.fullName || `${firstName} ${lastName}`,
+            email: u.email,
+            phone: u.phone || "",
+            designation: u.role === "ADMIN" ? "Administrator" : "Staff Member",
+            department: "Administration",
+            departmentId: "Administration",
+            status: u.isActive ? "ACTIVE" : "INACTIVE",
+          };
+
+      const archiveRecord =
+        archivedMap.get(u.id) ||
+        (teacherProfile ? archivedMap.get(teacherProfile.id) : null);
+
+      return {
+        ...u,
+        teacherProfile,
+        staff: staffObj,
+        isArchived: Boolean(archiveRecord),
+        archivedAt: archiveRecord?.archivedAt || null,
+        archivedBy: archiveRecord?.archivedBy || null,
+        archiveReason: archiveRecord?.reason || null,
+      };
+    });
+  } catch (err: any) {
+    console.warn("[getStaff] Query failed, returning empty list:", err?.message);
+    return [];
+  }
 }
 
 export async function createStaff(
@@ -1173,7 +1861,7 @@ export async function createStaff(
   data: {
     fullName: string;
     email: string;
-    role?: "TEACHER" | "ADMIN";
+    role?: "TEACHER" | "ADMIN" | "STAFF" | "HOD";
     phone?: string;
     designation?: string;
     departmentId?: string;
@@ -1183,7 +1871,9 @@ export async function createStaff(
 ) {
   const email = data.email.trim().toLowerCase();
   const fullName = data.fullName.trim();
-  const role = data.role || "TEACHER";
+  const effectiveRole = data.role || "TEACHER";
+  const isFacultyRole = effectiveRole === "TEACHER" || effectiveRole === "HOD";
+  const userRole = effectiveRole === "HOD" ? "TEACHER" : effectiveRole;
 
   // 1. Database Transaction: Atomic Teacher, Staff & User Account Provisioning
   const { user, teacher, staff } = await db.$transaction(async (tx) => {
@@ -1196,7 +1886,7 @@ export async function createStaff(
       if (userRecord.institutionId && userRecord.institutionId !== institutionId) {
         throw new Error("Email is already registered under another institution.");
       }
-      if (role === "TEACHER" && userRecord.teacherProfile) {
+      if (isFacultyRole && userRecord.teacherProfile) {
         throw new Error("A faculty profile is already linked to this email address.");
       }
       userRecord = await tx.user.update({
@@ -1204,7 +1894,7 @@ export async function createStaff(
         data: {
           institutionId,
           fullName,
-          role,
+          role: userRole,
           phone: data.phone?.trim() || userRecord.phone || undefined,
         },
         include: { teacherProfile: true },
@@ -1215,7 +1905,7 @@ export async function createStaff(
           institutionId,
           email,
           fullName,
-          role,
+          role: userRole,
           phone: data.phone?.trim(),
           isActive: false, // Dormant until password setup
           status: "INACTIVE",
@@ -1229,12 +1919,11 @@ export async function createStaff(
     const parts = fullName.trim().split(/\s+/);
     const firstName = parts[0] || "Faculty";
     const lastName = parts.slice(1).join(" ") || "Member";
-    const designation = data.designation?.trim() || (role === "ADMIN" ? "Administrator" : "Assistant Professor");
+    const designation = data.designation?.trim() || (data.role === "HOD" ? "Professor & HOD" : data.role === "ADMIN" ? "Administrator" : "Assistant Professor");
     const departmentName = data.department?.trim() || data.departmentId?.trim() || "General Academics";
 
-    // Atomic sync: Provision Teacher model in live database (teachers table)
-    let teacherRecord = userRecord.teacherProfile;
-    if (!teacherRecord && role === "TEACHER") {
+    let teacherRecord: any = null;
+    if (isFacultyRole) {
       teacherRecord = await tx.teacher.create({
         data: {
           institutionId,
@@ -1267,11 +1956,11 @@ export async function createStaff(
       institutionId,
       userId: userRecord.id,
       action: "STAFF_CREATED",
-      entityType: role === "TEACHER" ? "TEACHER" : "STAFF",
+      entityType: isFacultyRole ? (data.role === "HOD" ? "HOD" : "TEACHER") : (data.role === "ADMIN" ? "ADMIN" : "STAFF"),
       entityId: teacherRecord?.id || userRecord.id,
       newValuesJson: JSON.stringify({
         email,
-        role,
+        role: data.role,
         employeeId,
         teacherId: teacherRecord?.id,
         staffEmployeeId: staffRecord.staffEmployeeId,
@@ -1281,69 +1970,100 @@ export async function createStaff(
     return { user: userRecord, teacher: teacherRecord, staff: staffRecord };
   }, { maxWait: 15000, timeout: 30000 });
 
-  // 2. Post-Transaction Automation: Non-blocking Invitation for Teaching Faculty
+  // 2. Post-Transaction Automation: Non-blocking Invitation for Staff/Faculty/HOD/Admin
   let invitationSent = false;
   let invitationPreviewUrl: string | false = false;
   let invitationError: string | null = null;
 
-  if (role === "TEACHER") {
-    try {
-      const setupToken = await signPasswordSetupToken({
-        userId: user.id,
-        email: user.email,
-        institutionId,
-        passwordHash: user.passwordHash || null,
-      });
+  try {
+    const rawRole = (data.role || "STAFF").toUpperCase();
+    const designationUpper = (data.designation || "").toUpperCase();
+    const isHod =
+      rawRole === "HOD" ||
+      designationUpper.includes("HOD") ||
+      designationUpper.includes("HEAD OF DEPARTMENT");
 
-      const appUrl = getAppBaseUrl();
-      const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
-      const inst = await db.institution.findUnique({
-        where: { id: institutionId },
-        select: { name: true, slug: true },
-      });
-
-      const emailRes = await sendRoleCredentialInvitation(
-        { email: user.email, name: fullName },
-        {
-          setupUrl,
-          institutionName: inst?.name || "Campus Administration",
-          expiresIn: "24 hours",
-          role: "TEACHER",
-          loginUrl: `${appUrl}/campus/${inst?.slug || "portal"}/teacher`,
-          username: user.email,
-        }
-      );
-
-      invitationSent = emailRes.success;
-      invitationPreviewUrl = emailRes.previewUrl || false;
-      if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
-
-      await recordAuditLog(db, {
-        institutionId,
-        userId: user.id,
-        action: emailRes.success ? "INVITATION_SENT" : "INVITATION_FAILED",
-        entityType: "TEACHER",
-        entityId: teacher?.id || user.id,
-        newValuesJson: JSON.stringify({
-          recipient: user.email,
-          previewUrl: invitationPreviewUrl || undefined,
-          error: invitationError || undefined,
-        }),
-      });
-    } catch (err: any) {
-      console.warn("[createStaff] Post-creation invitation error (non-blocking):", err.message);
-      invitationError = err.message;
+    let invitationRole: string = rawRole;
+    if (isHod) {
+      invitationRole = "HOD";
+    } else if (rawRole === "TEACHER") {
+      invitationRole = "TEACHER";
+    } else if (rawRole === "ADMIN") {
+      invitationRole = "ADMIN";
+    } else {
+      invitationRole = "STAFF";
     }
 
-    // In-App Notification for Faculty Member
+    // Invalidate previous setup token by setting an initial unique invited marker
+    const initialMarker = `INVITED_${Date.now()}_${crypto.randomUUID()}`;
+    await db.user.update({
+      where: { id: user.id },
+      data: { passwordHash: initialMarker },
+    });
+
+    const setupToken = await signPasswordSetupToken({
+      userId: user.id,
+      email: user.email,
+      institutionId,
+      passwordHash: initialMarker,
+    });
+
+    const appUrl = getAppBaseUrl();
+    const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+    const inst = await db.institution.findUnique({
+      where: { id: institutionId },
+      select: { name: true, slug: true },
+    });
+
+    const portalLoginUrl = getRolePortalLoginUrl(invitationRole, inst?.slug, appUrl);
+
+    const emailRes = await sendRoleCredentialInvitation(
+      { email: user.email, name: fullName },
+      {
+        setupUrl,
+        institutionName: inst?.name || "Campus Administration",
+        expiresIn: "24 hours",
+        role: invitationRole as any,
+        loginUrl: portalLoginUrl,
+        username: user.email,
+        departmentName: data.departmentId || undefined,
+        institutionId,
+      }
+    );
+
+    invitationSent = emailRes.success;
+    invitationPreviewUrl = emailRes.previewUrl || false;
+    if (!emailRes.success) invitationError = emailRes.error || "Email delivery failed";
+
+    await recordAuditLog(db, {
+      institutionId,
+      userId: user.id,
+      action: emailRes.success ? "INVITATION_SENT" : "INVITATION_FAILED",
+      entityType: invitationRole,
+      entityId: teacher?.id || user.id,
+      newValuesJson: JSON.stringify({
+        recipient: user.email,
+        role: invitationRole,
+        previewUrl: invitationPreviewUrl || undefined,
+        error: invitationError || undefined,
+      }),
+    });
+
+    // In-App Notification for Member
     try {
+      const notifTitles: Record<string, string> = {
+        HOD: "Welcome to SST-ERP Departmental Leadership Workspace",
+        TEACHER: "Welcome to SST-ERP Faculty Portal",
+        ADMIN: "Welcome to SST-ERP Institution Administration Portal",
+        STAFF: "Welcome to SST-ERP Administrative Staff Portal",
+      };
       await db.notification.create({
         data: {
           institutionId,
-          title: "Welcome to SST-ERP Faculty Portal",
-          message: `Welcome, ${fullName}! Your faculty portal account has been provisioned. Please complete your security profile.`,
+          title: notifTitles[invitationRole] || "Welcome to SST-ERP Portal",
+          message: `Welcome, ${fullName}! Your ${invitationRole} account has been provisioned. Please complete your security profile.`,
           category: "ACADEMIC",
-          audienceRole: "TEACHER",
+          audienceRole: (invitationRole === "HOD" ? "TEACHER" : invitationRole) as any,
           recipients: {
             create: {
               userId: user.id,
@@ -1355,6 +2075,9 @@ export async function createStaff(
     } catch (notifErr: any) {
       console.warn("[createStaff] Post-creation notification error (non-blocking):", notifErr.message);
     }
+  } catch (err: any) {
+    console.warn("[createStaff] Post-creation invitation error (non-blocking):", err.message);
+    invitationError = err.message;
   }
 
   return {
@@ -1373,23 +2096,46 @@ export async function createStaff(
 // 5, 6, 7 & 8. ACADEMIC STRUCTURE
 // ----------------------------------------------------------------------------
 export async function getAcademicYears(institutionId: string) {
+  const years = await db.academicYear.findMany({
+    where: { institutionId },
+    orderBy: { startDate: "desc" },
+  });
+
+  // Query terms relational table scoped strictly to the authenticated institution
+  let termsByYearId: Record<string, any[]> = {};
   try {
-    return await db.academicYear.findMany({
-      where: { institutionId },
-      include: { terms: true },
-      orderBy: { startDate: "desc" },
-    });
-  } catch {
-    // If AcademicTerm table does not exist in live DB, query without terms
-    try {
-      return await db.academicYear.findMany({
-        where: { institutionId },
-        orderBy: { startDate: "desc" },
-      });
-    } catch {
-      return [];
+    const tableCheck: any[] = await db.$queryRaw`SELECT to_regclass('public.academic_terms')::text as tbl;`;
+    if (tableCheck && tableCheck[0]?.tbl !== null) {
+      const termRows: any[] = await db.$queryRaw`
+        SELECT
+          "id"::text,
+          "institutionId"::text,
+          "academicYearId"::text,
+          "name",
+          "code",
+          "startDate",
+          "endDate",
+          "isCurrent",
+          "status"
+        FROM academic_terms
+        WHERE "institutionId" = ${institutionId}
+        ORDER BY "startDate" ASC;
+      `;
+      for (const t of termRows) {
+        if (!termsByYearId[t.academicYearId]) {
+          termsByYearId[t.academicYearId] = [];
+        }
+        termsByYearId[t.academicYearId].push(t);
+      }
     }
+  } catch {
+    // academic_terms table pending migration in production database
   }
+
+  return years.map((ay) => ({
+    ...ay,
+    terms: termsByYearId[ay.id] || [],
+  }));
 }
 
 export async function createAcademicYear(
@@ -1399,10 +2145,85 @@ export async function createAcademicYear(
     startDate: Date;
     endDate: Date;
     isCurrent?: boolean;
-    terms?: { name: string; termNumber: number; startDate: Date; endDate: Date; isCurrent?: boolean }[];
+    terms?: { name: string; termNumber?: number; startDate: Date; endDate: Date; isCurrent?: boolean }[];
   }
 ) {
+  const normalizedName = (data.name || "").trim();
+  if (!normalizedName) {
+    throw new Error("Academic year name is required.");
+  }
+
+  const ayStart = new Date(data.startDate);
+  const ayEnd = new Date(data.endDate);
+  if (ayStart >= ayEnd) {
+    throw new Error("Academic year start date must precede end date.");
+  }
+
+  // Validate terms if provided
+  const validatedTerms: { name: string; startDate: Date; endDate: Date; isCurrent: boolean }[] = [];
+  if (data.terms && Array.isArray(data.terms) && data.terms.length > 0) {
+    const seenNames = new Set<string>();
+    for (let i = 0; i < data.terms.length; i++) {
+      const t = data.terms[i];
+      const tName = (t.name || "").trim();
+      if (!tName) {
+        throw new Error(`Term #${i + 1} must have a valid title.`);
+      }
+      const lowerName = tName.toLowerCase();
+      if (seenNames.has(lowerName)) {
+        throw new Error(`Duplicate term title "${tName}". Each term in an academic cycle must have a unique title.`);
+      }
+      seenNames.add(lowerName);
+      const tStart = new Date(t.startDate);
+      const tEnd = new Date(t.endDate);
+      if (isNaN(tStart.getTime()) || isNaN(tEnd.getTime())) {
+        throw new Error(`Term "${tName}" has invalid date values.`);
+      }
+      if (tStart >= tEnd) {
+        throw new Error(`Term "${tName}" start date must precede its end date.`);
+      }
+      if (tStart < ayStart || tEnd > ayEnd) {
+        throw new Error(
+          `Term "${tName}" dates (${tStart.toISOString().split("T")[0]} to ${tEnd.toISOString().split("T")[0]}) must fall within academic year boundary (${ayStart.toISOString().split("T")[0]} to ${ayEnd.toISOString().split("T")[0]}).`
+        );
+      }
+      validatedTerms.push({
+        name: tName,
+        startDate: tStart,
+        endDate: tEnd,
+        isCurrent: Boolean(t.isCurrent),
+      });
+    }
+
+    // Chronological sort and sequential overlap check
+    validatedTerms.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+    for (let i = 0; i < validatedTerms.length - 1; i++) {
+      const cur = validatedTerms[i];
+      const nxt = validatedTerms[i + 1];
+      if (cur.endDate > nxt.startDate) {
+        throw new Error(
+          `Terms cannot overlap: "${cur.name}" ends on ${cur.endDate.toISOString().split("T")[0]}, but "${nxt.name}" starts on ${nxt.startDate.toISOString().split("T")[0]}.`
+        );
+      }
+    }
+  }
+
   return await db.$transaction(async (tx) => {
+    // Advisory lock serialized per institution to safely prevent concurrent duplicate inserts
+    await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext('ay_' || $1))`, institutionId);
+
+    // Case-insensitive duplicate name check scoped strictly to the authenticated institution
+    const existing = await tx.academicYear.findFirst({
+      where: {
+        institutionId,
+        name: { equals: normalizedName, mode: "insensitive" },
+      },
+    });
+
+    if (existing) {
+      throw new Error(`Academic year "${normalizedName}" already exists for this institution.`);
+    }
+
     if (data.isCurrent) {
       await tx.academicYear.updateMany({
         where: { institutionId },
@@ -1410,109 +2231,185 @@ export async function createAcademicYear(
       });
     }
 
-    try {
-      return await tx.academicYear.create({
-        data: {
+    const created = await tx.academicYear.create({
+      data: {
+        institutionId,
+        name: normalizedName,
+        startDate: ayStart,
+        endDate: ayEnd,
+        isCurrent: !!data.isCurrent,
+        status: "ACTIVE",
+      },
+    });
+
+    // Relational persistence for academic terms
+    let persistedTerms: any[] = [];
+    if (validatedTerms.length > 0) {
+      const tableCheck: any[] = await tx.$queryRaw`SELECT to_regclass('public.academic_terms')::text as tbl;`;
+      const hasTermsTable = tableCheck && tableCheck[0]?.tbl !== null;
+
+      if (hasTermsTable) {
+        for (const t of validatedTerms) {
+          const termId = crypto.randomUUID();
+          await tx.$executeRawUnsafe(
+            `INSERT INTO academic_terms ("id", "institutionId", "academicYearId", "name", "startDate", "endDate", "isCurrent", "status", "createdAt", "updatedAt")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
+            termId,
+            institutionId,
+            created.id,
+            t.name,
+            t.startDate,
+            t.endDate,
+            t.isCurrent,
+            "ACTIVE"
+          );
+          persistedTerms.push({
+            id: termId,
+            institutionId,
+            academicYearId: created.id,
+            name: t.name,
+            startDate: t.startDate,
+            endDate: t.endDate,
+            isCurrent: t.isCurrent,
+            status: "ACTIVE",
+          });
+        }
+      } else {
+        persistedTerms = validatedTerms.map((t, idx) => ({
+          id: `term-${idx + 1}`,
           institutionId,
-          name: data.name,
-          startDate: data.startDate,
-          endDate: data.endDate,
-          isCurrent: !!data.isCurrent,
-          terms: data.terms?.length
-            ? {
-                create: data.terms.map((t) => ({
-                  institutionId,
-                  name: t.name,
-                  termNumber: t.termNumber,
-                  startDate: t.startDate,
-                  endDate: t.endDate,
-                  isCurrent: !!t.isCurrent,
-                })),
-              }
-            : undefined,
-        },
-        include: { terms: true },
-      });
-    } catch {
-      return await tx.academicYear.create({
-        data: {
-          institutionId,
-          name: data.name,
-          startDate: data.startDate,
-          endDate: data.endDate,
-          isCurrent: !!data.isCurrent,
-        },
-      });
+          academicYearId: created.id,
+          name: t.name,
+          startDate: t.startDate,
+          endDate: t.endDate,
+          isCurrent: t.isCurrent,
+          status: "ACTIVE",
+        }));
+      }
     }
+
+    return {
+      ...created,
+      terms: persistedTerms,
+    };
   });
 }
 
 export async function getDepartments(institutionId: string) {
   try {
-    const list = await db.department.findMany({
-      where: { institutionId },
-      include: { courses: true, staff: true },
-      orderBy: { name: "asc" },
-    });
-    if (list && list.length > 0) return list;
-  } catch {
-    // Fall through to dynamic discovery
-  }
+    // Derive active departments dynamically from live courses and teachers tables
+    const [courseDepts, teacherDepts] = await Promise.all([
+      db.course.findMany({
+        where: { institutionId },
+        select: { id: true, name: true, code: true, department: true },
+      }),
+      db.teacher.findMany({
+        where: { institutionId },
+        select: {
+          id: true,
+          department: true,
+          designation: true,
+          employeeId: true,
+          user: {
+            select: {
+              fullName: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      }),
+    ]);
 
-  try {
-    // Derive active departments dynamically from courses and teachers tables
-    const courseDepts = await db.course.findMany({
-      where: { institutionId },
-      select: { department: true },
-      distinct: ["department"],
-    });
-    const teacherDepts = await db.teacher.findMany({
-      where: { institutionId },
-      select: { department: true },
-      distinct: ["department"],
-    });
+    // Aggregate distinct non-empty department names
     const deptNames = Array.from(
-      new Set([...courseDepts.map((c) => c.department), ...teacherDepts.map((t) => t.department)])
+      new Set([
+        ...courseDepts.map((c) => c.department?.trim()),
+        ...teacherDepts.map((t) => t.department?.trim()),
+      ])
     ).filter((d): d is string => Boolean(d));
 
-    return deptNames.map((name, idx) => ({
-      id: `dept_${idx + 1}`,
-      institutionId,
-      name,
-      code: name.substring(0, 4).toUpperCase(),
-      description: `${name} Department`,
-      courses: [],
-      staff: [],
-    }));
-  } catch {
+    return deptNames.map((name, idx) => {
+      const matchingTeachers = teacherDepts.filter(
+        (t) => t.department?.trim().toLowerCase() === name.toLowerCase()
+      );
+      const matchingCourses = courseDepts.filter(
+        (c) => c.department?.trim().toLowerCase() === name.toLowerCase()
+      );
+      const hod = matchingTeachers.find(
+        (t) =>
+          t.designation?.toUpperCase().includes("HOD") ||
+          t.designation?.toUpperCase().includes("HEAD OF")
+      ) || matchingTeachers[0];
+
+      const cleanCode =
+        name.replace(/[^a-zA-Z0-9]/g, "").substring(0, 4).toUpperCase() ||
+        `D${idx + 1}`;
+
+      return {
+        id: `dept_${cleanCode.toLowerCase()}`,
+        institutionId,
+        name,
+        code: cleanCode,
+        headOfDepartment: hod?.user?.fullName || "Unassigned",
+        email: hod?.user?.email || "",
+        phone: hod?.user?.phone || "",
+        facultyCount: matchingTeachers.length,
+        studentCapacity: matchingCourses.length > 0 ? matchingCourses.length * 60 : 120,
+        description: `${name} Department`,
+        courses: matchingCourses,
+        staff: matchingTeachers,
+      };
+    });
+  } catch (err: any) {
+    console.warn("[getDepartments] Error deriving departments:", err?.message);
     return [];
   }
 }
 
 export async function createDepartment(
   institutionId: string,
-  data: { name: string; code: string; description?: string }
-) {
-  try {
-    return await db.department.create({
-      data: {
-        institutionId,
-        name: data.name,
-        code: data.code.toUpperCase(),
-        description: data.description,
-      },
-    });
-  } catch {
-    return {
-      id: `dept_${Date.now()}`,
-      institutionId,
-      name: data.name,
-      code: data.code.toUpperCase(),
-      description: data.description || `${data.name} Department`,
-      courses: [],
-      staff: [],
-    };
+  data: {
+    name: string;
+    code: string;
+    description?: string;
+    hodName?: string;
+    hodEmail?: string;
   }
+) {
+  const cleanCode = data.code.trim().toUpperCase();
+  const cleanName = data.name.trim();
+
+  // If HOD details are provided during department creation, provision and invite HOD
+  // This automatically anchors the department in the teachers table
+  if (data.hodEmail && data.hodEmail.includes("@")) {
+    try {
+      await createStaff(institutionId, {
+        fullName: data.hodName?.trim() || `HOD ${cleanName}`,
+        email: data.hodEmail.trim().toLowerCase(),
+        role: "HOD",
+        designation: `Professor & HOD (${cleanCode})`,
+        departmentId: cleanName,
+      });
+    } catch (hodErr: any) {
+      console.warn("[createDepartment] HOD provisioning warning:", hodErr?.message);
+    }
+  }
+
+  return {
+    id: `dept_${cleanCode.toLowerCase()}`,
+    institutionId,
+    name: cleanName,
+    code: cleanCode,
+    headOfDepartment: data.hodName?.trim() || "Unassigned",
+    email: data.hodEmail?.trim() || "",
+    phone: "",
+    facultyCount: data.hodEmail ? 1 : 0,
+    studentCapacity: 120,
+    description: data.description || `${cleanName} Department`,
+    courses: [],
+    staff: [],
+  };
 }
 
 export async function getCourses(institutionId: string) {
@@ -1703,20 +2600,7 @@ export async function updateCourse(
 }
 
 export async function getClasses(institutionId: string) {
-  try {
-    const list = await db.class.findMany({
-      where: { institutionId },
-      include: {
-        course: true,
-        sections: true,
-      },
-      orderBy: { name: "asc" },
-    });
-    if (list && list.length > 0) return list;
-  } catch {
-    // If public.Class does not exist, derive classes dynamically from active courses & semesters
-  }
-
+  // In the current database schema, classes and cohorts are derived from approved courses and semester offerings
   try {
     const courses = await db.course.findMany({
       where: { institutionId },
@@ -1758,29 +2642,16 @@ export async function createClass(
   }
 ) {
   const code = data.code || `CLS-${data.semester}-${Date.now().toString().slice(-3)}`;
-  try {
-    return await db.class.create({
-      data: {
-        institutionId,
-        name: data.name,
-        code,
-        courseId: data.courseId,
-        academicYearId: data.academicYearId,
-        semester: data.semester,
-      },
-    });
-  } catch {
-    return {
-      id: crypto.randomUUID(),
-      institutionId,
-      name: data.name,
-      code,
-      courseId: data.courseId,
-      academicYearId: data.academicYearId,
-      semester: data.semester,
-      sections: [{ id: crypto.randomUUID(), name: "Section A" }],
-    };
-  }
+  return {
+    id: crypto.randomUUID(),
+    institutionId,
+    name: data.name,
+    code,
+    courseId: data.courseId,
+    academicYearId: data.academicYearId,
+    semester: data.semester,
+    sections: [{ id: crypto.randomUUID(), name: "Section A" }],
+  };
 }
 
 export async function getSubjects(institutionId: string, courseId?: string) {
@@ -3144,112 +4015,6 @@ export async function getIssuedCertificates(institutionId: string) {
 // 18. FEES & FINANCE
 // ----------------------------------------------------------------------------
 
-const globalFeeInvoicesRegistry: Map<string, any[]> = new Map();
-
-function getInitialFeeInvoices(institutionId: string): any[] {
-  return [
-    {
-      id: "inv_demo_01",
-      institutionId,
-      studentId: "s_cs_01",
-      invoiceNumber: "INV-2026-00101",
-      title: "Semester 5 Tuition & Laboratory Fee",
-      totalAmount: 48500,
-      paidAmount: 48500,
-      outstandingAmount: 0,
-      status: "PAID",
-      dueDate: new Date("2026-08-10").toISOString(),
-      student: { id: "s_cs_01", fullName: "Aarav Sharma", rollNumber: "CS2023001" },
-      items: [
-        { id: "item_01", description: "Semester 5 Tuition Fee", amount: 42000 },
-        { id: "item_02", description: "Computing Lab & Internet Fee", amount: 6500 },
-      ],
-      payments: [
-        {
-          id: "pay_01",
-          amount: 48500,
-          paymentMethod: "UPI",
-          transactionRef: "UPI-SBIN-8921049",
-          status: "SUCCESS",
-          createdAt: new Date("2026-08-05T10:30:00Z").toISOString(),
-        },
-      ],
-    },
-    {
-      id: "inv_demo_02",
-      institutionId,
-      studentId: "s_cs_02",
-      invoiceNumber: "INV-2026-00102",
-      title: "Semester 5 Tuition & Library Fee",
-      totalAmount: 45000,
-      paidAmount: 25000,
-      outstandingAmount: 20000,
-      status: "PARTIAL",
-      dueDate: new Date("2026-09-15").toISOString(),
-      student: { id: "s_cs_02", fullName: "Diya Patel", rollNumber: "CS2023002" },
-      items: [
-        { id: "item_03", description: "Tuition Fee Installment 1", amount: 25000 },
-        { id: "item_04", description: "Tuition Fee Installment 2", amount: 20000 },
-      ],
-      payments: [
-        {
-          id: "pay_02",
-          amount: 25000,
-          paymentMethod: "NETBANKING",
-          transactionRef: "HDFC-TX-998812",
-          status: "SUCCESS",
-          createdAt: new Date("2026-09-10T14:15:00Z").toISOString(),
-        },
-      ],
-    },
-    {
-      id: "inv_demo_03",
-      institutionId,
-      studentId: "s_ec_01",
-      invoiceNumber: "INV-2026-00103",
-      title: "Semester 5 Annual Examination & Campus Fee",
-      totalAmount: 38000,
-      paidAmount: 0,
-      outstandingAmount: 38000,
-      status: "UNPAID",
-      dueDate: new Date("2026-11-30").toISOString(),
-      student: { id: "s_ec_01", fullName: "Rohan Deshmukh", rollNumber: "EC2023001" },
-      items: [
-        { id: "item_05", description: "Examination & Assessment Fee", amount: 8000 },
-        { id: "item_06", description: "Campus Development Fee", amount: 30000 },
-      ],
-      payments: [],
-    },
-    {
-      id: "inv_demo_04",
-      institutionId,
-      studentId: "s_me_01",
-      invoiceNumber: "INV-2026-00104",
-      title: "Hostel & Dining Term 1 Dues",
-      totalAmount: 52000,
-      paidAmount: 52000,
-      outstandingAmount: 0,
-      status: "PAID",
-      dueDate: new Date("2026-07-20").toISOString(),
-      student: { id: "s_me_01", fullName: "Sneha Kulkarni", rollNumber: "ME2023001" },
-      items: [
-        { id: "item_07", description: "Hostel Room Rent (Block A)", amount: 32000 },
-        { id: "item_08", description: "Mess & Dining Charges", amount: 20000 },
-      ],
-      payments: [
-        {
-          id: "pay_03",
-          amount: 52000,
-          paymentMethod: "NEFT",
-          transactionRef: "NEFT-ICIC-445566",
-          status: "SUCCESS",
-          createdAt: new Date("2026-07-18T11:00:00Z").toISOString(),
-        },
-      ],
-    },
-  ];
-}
-
 export async function getFeeInvoices(institutionId: string, studentId?: string) {
   try {
     const invoices = await db.feeInvoice.findMany({
@@ -3264,17 +4029,11 @@ export async function getFeeInvoices(institutionId: string, studentId?: string) 
       },
       orderBy: { dueDate: "asc" },
     });
-    if (invoices && invoices.length > 0) return invoices;
+    return invoices || [];
   } catch (err: any) {
-    console.warn("Fee invoices query fallback:", err.message);
+    console.error("Fee invoices database query error:", err.message);
+    throw new Error(`Failed to load fee invoices from database: ${err.message}`);
   }
-
-  let list = globalFeeInvoicesRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialFeeInvoices(institutionId);
-    globalFeeInvoicesRegistry.set(institutionId, list);
-  }
-  return studentId ? list.filter((i) => i.studentId === studentId) : list;
 }
 
 export async function createFeeInvoice(
@@ -3287,51 +4046,28 @@ export async function createFeeInvoice(
     items: { description: string; amount: number }[];
   }
 ) {
-  try {
-    const count = await db.feeInvoice.count({ where: { institutionId } });
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
+  const count = await db.feeInvoice.count({ where: { institutionId } });
+  const invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
 
-    return await db.feeInvoice.create({
-      data: {
-        institutionId,
-        studentId: data.studentId,
-        invoiceNumber,
-        title: data.title,
-        totalAmount: data.totalAmount,
-        outstandingAmount: data.totalAmount,
-        dueDate: data.dueDate,
-        status: "UNPAID",
-        items: {
-          create: data.items.map((item) => ({
-            description: item.description,
-            amount: item.amount,
-          })),
-        },
-      },
-      include: { items: true },
-    });
-  } catch (err: any) {
-    console.warn("Fee invoice create fallback:", err.message);
-    const current = await getFeeInvoices(institutionId);
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${String(current.length + 101).padStart(5, "0")}`;
-    const newInvoice = {
-      id: `inv_${Date.now()}`,
+  return await db.feeInvoice.create({
+    data: {
       institutionId,
       studentId: data.studentId,
       invoiceNumber,
       title: data.title,
       totalAmount: data.totalAmount,
-      paidAmount: 0,
       outstandingAmount: data.totalAmount,
-      dueDate: data.dueDate.toISOString(),
+      dueDate: data.dueDate,
       status: "UNPAID",
-      student: { id: data.studentId, fullName: "Student " + data.studentId, rollNumber: "ST" + Date.now().toString().slice(-4) },
-      items: data.items.map((item, idx) => ({ id: `it_${idx}_${Date.now()}`, description: item.description, amount: item.amount })),
-      payments: [],
-    };
-    globalFeeInvoicesRegistry.set(institutionId, [newInvoice, ...current]);
-    return newInvoice;
-  }
+      items: {
+        create: data.items.map((item) => ({
+          description: item.description,
+          amount: item.amount,
+        })),
+      },
+    },
+    include: { items: true },
+  });
 }
 
 export async function recordFeePayment(
@@ -3354,127 +4090,74 @@ export async function recordFeePayment(
     throw new Error("Payment method is required.");
   }
 
-  try {
-    return await db.$transaction(async (tx) => {
-      const invoice = await tx.feeInvoice.findFirst({
-        where: { id: data.invoiceId, institutionId },
-      });
-
-      if (!invoice) {
-        throw new Error("DB_FALLBACK_INVOICE_NOT_FOUND");
-      }
-
-      if (invoice.status === "PAID" || invoice.outstandingAmount <= 0) {
-        throw new Error(`Invoice ${invoice.invoiceNumber || data.invoiceId} is already fully settled.`);
-      }
-
-      if (data.amount > invoice.outstandingAmount) {
-        throw new Error(`Payment amount (₹${data.amount}) exceeds outstanding balance (₹${invoice.outstandingAmount}).`);
-      }
-
-      if (data.transactionRef) {
-        const existingTx = await tx.feePayment.findFirst({
-          where: { transactionRef: data.transactionRef, institutionId },
-        });
-        if (existingTx) {
-          throw new Error(`Duplicate payment transaction reference: ${data.transactionRef} has already been recorded.`);
-        }
-      }
-
-      const payment = await tx.feePayment.create({
-        data: {
-          institutionId,
-          invoiceId: data.invoiceId,
-          studentId: data.studentId || invoice.studentId,
-          amount: data.amount,
-          paymentMethod: data.paymentMethod,
-          transactionRef: data.transactionRef || `TXN-${Date.now()}`,
-          status: "SUCCESS",
-          backendVerified: true,
-          verifiedAt: new Date(),
-        },
-      });
-
-      const receiptCount = await tx.feeReceipt.count({ where: { institutionId } });
-      const receiptNumber = `REC-${new Date().getFullYear()}-${String(receiptCount + 1).padStart(5, "0")}`;
-
-      const receipt = await tx.feeReceipt.create({
-        data: {
-          institutionId,
-          feePaymentId: payment.id,
-          receiptNumber,
-          amountPaid: data.amount,
-          paymentMode: data.paymentMethod,
-        },
-      });
-
-      const newPaid = invoice.paidAmount + data.amount;
-      const newOutstanding = Math.max(0, invoice.totalAmount - newPaid);
-      const newStatus = newOutstanding === 0 ? "PAID" : "PARTIAL";
-
-      await tx.feeInvoice.update({
-        where: { id: data.invoiceId },
-        data: {
-          paidAmount: newPaid,
-          outstandingAmount: newOutstanding,
-          status: newStatus,
-        },
-      });
-
-      return { payment, receipt };
+  return await db.$transaction(async (tx) => {
+    const invoice = await tx.feeInvoice.findFirst({
+      where: { id: data.invoiceId, institutionId },
     });
-  } catch (err: any) {
-    if (
-      err.message?.includes("must be greater") ||
-      err.message?.includes("already fully settled") ||
-      err.message?.includes("exceeds outstanding") ||
-      err.message?.includes("not found or does not belong") ||
-      err.message?.includes("Duplicate payment transaction reference")
-    ) {
-      throw err;
-    }
-    console.warn("Fee payment record fallback:", err.message);
-    const current = await getFeeInvoices(institutionId);
-    const target = current.find((i) => i.id === data.invoiceId);
-    if (!target) {
+
+    if (!invoice) {
       throw new Error("Fee invoice not found or does not belong to this institution.");
     }
-    if (target.status === "PAID" || (target.outstandingAmount !== undefined && target.outstandingAmount <= 0)) {
-      throw new Error(`Invoice ${target.invoiceNumber || data.invoiceId} is already fully settled.`);
-    }
-    if (target.outstandingAmount !== undefined && data.amount > target.outstandingAmount) {
-      throw new Error(`Payment amount (â‚¹${data.amount}) exceeds outstanding balance (â‚¹${target.outstandingAmount}).`);
+
+    if (invoice.status === "PAID" || invoice.outstandingAmount <= 0) {
+      throw new Error(`Invoice ${invoice.invoiceNumber || data.invoiceId} is already fully settled.`);
     }
 
-    const payment = {
-      id: `pay_${Date.now()}`,
-      institutionId,
-      invoiceId: data.invoiceId,
-      studentId: data.studentId || target.studentId,
-      amount: data.amount,
-      paymentMethod: data.paymentMethod,
-      transactionRef: data.transactionRef || `TXN-${Date.now()}`,
-      status: "SUCCESS",
-      createdAt: new Date().toISOString(),
-    };
-    const receiptNumber = `REC-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
-    const receipt = {
-      id: `rec_${Date.now()}`,
-      institutionId,
-      feePaymentId: payment.id,
-      receiptNumber,
-      amountPaid: data.amount,
-      paymentMode: data.paymentMethod,
-    };
+    if (data.amount > invoice.outstandingAmount) {
+      throw new Error(`Payment amount (₹${data.amount}) exceeds outstanding balance (₹${invoice.outstandingAmount}).`);
+    }
 
-    target.paidAmount = (target.paidAmount || 0) + data.amount;
-    target.outstandingAmount = Math.max(0, target.totalAmount - target.paidAmount);
-    target.status = target.outstandingAmount === 0 ? "PAID" : "PARTIAL";
-    target.payments = [payment, ...(target.payments || [])];
+    if (data.transactionRef) {
+      const existingTx = await tx.feePayment.findFirst({
+        where: { transactionRef: data.transactionRef, institutionId },
+      });
+      if (existingTx) {
+        throw new Error(`Duplicate payment transaction reference: ${data.transactionRef} has already been recorded.`);
+      }
+    }
 
-    globalFeeInvoicesRegistry.set(institutionId, current);
+    const payment = await tx.feePayment.create({
+      data: {
+        institutionId,
+        invoiceId: data.invoiceId,
+        studentId: data.studentId || invoice.studentId,
+        amount: data.amount,
+        paymentMethod: data.paymentMethod,
+        transactionRef: data.transactionRef || `TXN-${Date.now()}`,
+        status: "SUCCESS",
+        backendVerified: true,
+        verifiedAt: new Date(),
+      },
+    });
+
+    const receiptCount = await tx.feeReceipt.count({ where: { institutionId } });
+    const receiptNumber = `REC-${new Date().getFullYear()}-${String(receiptCount + 1).padStart(5, "0")}`;
+
+    const receipt = await tx.feeReceipt.create({
+      data: {
+        institutionId,
+        feePaymentId: payment.id,
+        receiptNumber,
+        amountPaid: data.amount,
+        paymentMode: data.paymentMethod,
+      },
+    });
+
+    const newPaid = invoice.paidAmount + data.amount;
+    const newOutstanding = Math.max(0, invoice.totalAmount - newPaid);
+    const newStatus = newOutstanding === 0 ? "PAID" : "PARTIAL";
+
+    await tx.feeInvoice.update({
+      where: { id: data.invoiceId },
+      data: {
+        paidAmount: newPaid,
+        outstandingAmount: newOutstanding,
+        status: newStatus,
+      },
+    });
+
     return { payment, receipt };
-  }
+  });
 }
 
 export async function assignFeeStructure(
@@ -3667,61 +4350,6 @@ export async function applyFeeConcession(
 // 19. HOSTEL
 // ----------------------------------------------------------------------------
 
-const globalHostelRegistry: Map<string, any[]> = new Map();
-
-function getInitialHostelAllocations(institutionId: string): any[] {
-  return [
-    {
-      id: "hostel_01",
-      institutionId,
-      studentId: "s_cs_01",
-      hostelName: "Kaveri Hostel Block A (Boys)",
-      roomNumber: "A-204",
-      bedNumber: "Bed 1",
-      wardenName: "Mr. Ramesh Rao",
-      wardenContact: "+91 98450 11223",
-      allocatedDate: new Date("2026-07-15").toISOString(),
-      student: { id: "s_cs_01", fullName: "Aarav Sharma", rollNumber: "CS2023001" },
-    },
-    {
-      id: "hostel_02",
-      institutionId,
-      studentId: "s_cs_02",
-      hostelName: "Sharavathi Hostel Block B (Girls)",
-      roomNumber: "B-108",
-      bedNumber: "Bed 2",
-      wardenName: "Mrs. Shobha K",
-      wardenContact: "+91 98450 22334",
-      allocatedDate: new Date("2026-07-16").toISOString(),
-      student: { id: "s_cs_02", fullName: "Diya Patel", rollNumber: "CS2023002" },
-    },
-    {
-      id: "hostel_03",
-      institutionId,
-      studentId: "s_me_01",
-      hostelName: "Sharavathi Hostel Block B (Girls)",
-      roomNumber: "B-212",
-      bedNumber: "Bed 1",
-      wardenName: "Mrs. Shobha K",
-      wardenContact: "+91 98450 22334",
-      allocatedDate: new Date("2026-07-18").toISOString(),
-      student: { id: "s_me_01", fullName: "Sneha Kulkarni", rollNumber: "ME2023001" },
-    },
-    {
-      id: "hostel_04",
-      institutionId,
-      studentId: "s_ec_01",
-      hostelName: "Kaveri Hostel Block A (Boys)",
-      roomNumber: "A-302",
-      bedNumber: "Bed 2",
-      wardenName: "Mr. Ramesh Rao",
-      wardenContact: "+91 98450 11223",
-      allocatedDate: new Date("2026-07-20").toISOString(),
-      student: { id: "s_ec_01", fullName: "Rohan Deshmukh", rollNumber: "EC2023001" },
-    },
-  ];
-}
-
 export async function getHostelAllocations(institutionId: string) {
   try {
     const list = await db.hostelAllocation.findMany({
@@ -3729,17 +4357,11 @@ export async function getHostelAllocations(institutionId: string) {
       include: { student: true },
       orderBy: { allocatedDate: "desc" },
     });
-    if (list && list.length > 0) return list;
+    return list || [];
   } catch (err: any) {
-    console.warn("Hostel allocations query fallback:", err.message);
+    console.error("Hostel allocations database query error:", err.message);
+    throw new Error(`Failed to load hostel allocations from database: ${err.message}`);
   }
-
-  let list = globalHostelRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialHostelAllocations(institutionId);
-    globalHostelRegistry.set(institutionId, list);
-  }
-  return list;
 }
 
 export async function createHostelAllocation(
@@ -3757,47 +4379,21 @@ export async function createHostelAllocation(
     throw new Error("Student ID, hostel name, room number, and bed number are required.");
   }
 
-  try {
-    const existing = await db.hostelAllocation.findFirst({
-      where: {
-        institutionId,
-        hostelName: data.hostelName,
-        roomNumber: data.roomNumber,
-        bedNumber: data.bedNumber,
-      },
-    });
+  const existing = await db.hostelAllocation.findFirst({
+    where: {
+      institutionId,
+      hostelName: data.hostelName,
+      roomNumber: data.roomNumber,
+      bedNumber: data.bedNumber,
+    },
+  });
 
-    if (existing) {
-      throw new Error(`Bed ${data.bedNumber} in ${data.hostelName} Room ${data.roomNumber} is already occupied.`);
-    }
+  if (existing) {
+    throw new Error(`Bed ${data.bedNumber} in ${data.hostelName} Room ${data.roomNumber} is already occupied.`);
+  }
 
-    return await db.hostelAllocation.create({
-      data: {
-        institutionId,
-        studentId: data.studentId,
-        hostelName: data.hostelName,
-        roomNumber: data.roomNumber,
-        bedNumber: data.bedNumber,
-        wardenName: data.wardenName,
-        wardenContact: data.wardenContact,
-      },
-      include: { student: true },
-    });
-  } catch (err: any) {
-    if (err.message?.includes("is already occupied") || err.message?.includes("are required")) {
-      throw err;
-    }
-    console.warn("Hostel allocation create fallback:", err.message);
-    const current = await getHostelAllocations(institutionId);
-    const existing = current.find(
-      (h) => h.hostelName === data.hostelName && h.roomNumber === data.roomNumber && h.bedNumber === data.bedNumber
-    );
-    if (existing) {
-      throw new Error(`Bed ${data.bedNumber} in ${data.hostelName} Room ${data.roomNumber} is already occupied.`);
-    }
-
-    const newAllocation = {
-      id: `hostel_${Date.now()}`,
+  return await db.hostelAllocation.create({
+    data: {
       institutionId,
       studentId: data.studentId,
       hostelName: data.hostelName,
@@ -3805,33 +4401,18 @@ export async function createHostelAllocation(
       bedNumber: data.bedNumber,
       wardenName: data.wardenName,
       wardenContact: data.wardenContact,
-      allocatedDate: new Date().toISOString(),
-      student: { id: data.studentId, fullName: "Student " + data.studentId, rollNumber: "ST" + Date.now().toString().slice(-4) },
-    };
-    globalHostelRegistry.set(institutionId, [newAllocation, ...current]);
-    return newAllocation;
-  }
+    },
+    include: { student: true },
+  });
 }
 
 export async function deleteHostelAllocation(institutionId: string, id: string) {
-  try {
-    const result = await db.hostelAllocation.deleteMany({
-      where: { id, institutionId },
-    });
-    if (result.count > 0) {
-      return { success: true };
-    }
-  } catch (err: any) {
-    console.warn("Hostel allocation delete fallback:", err.message);
-  }
-
-  const current = await getHostelAllocations(institutionId);
-  const target = current.find((h) => h.id === id);
-  if (!target) {
+  const result = await db.hostelAllocation.deleteMany({
+    where: { id, institutionId },
+  });
+  if (result.count === 0) {
     throw new Error("Hostel allocation not found or access denied.");
   }
-  const filtered = current.filter((h) => h.id !== id);
-  globalHostelRegistry.set(institutionId, filtered);
   return { success: true };
 }
 
@@ -3863,58 +4444,6 @@ export async function vacateHostelBed(institutionId: string, id: string, adminUs
 // 20. TRANSPORT
 // ----------------------------------------------------------------------------
 
-const globalTransportRegistry: Map<string, any[]> = new Map();
-
-function getInitialTransportAllocations(institutionId: string): any[] {
-  return [
-    {
-      id: "trans_01",
-      institutionId,
-      studentId: "s_cs_01",
-      routeName: "Route 12 - Airport Road via Indiranagar",
-      routeNumber: "R-12",
-      vehicleNumber: "KA-01-F-4921",
-      driverName: "Mr. Manjunath S",
-      driverContact: "+91 98450 77889",
-      pickupPoint: "Sony Signal Koramangala",
-      pickupTime: "07:30 AM",
-      dropTime: "05:15 PM",
-      allocatedDate: new Date("2026-07-10").toISOString(),
-      student: { id: "s_cs_01", fullName: "Aarav Sharma", rollNumber: "CS2023001" },
-    },
-    {
-      id: "trans_02",
-      institutionId,
-      studentId: "s_ec_01",
-      routeName: "Route 05 - Whitefield ITPL via Marathahalli",
-      routeNumber: "R-05",
-      vehicleNumber: "KA-04-E-8812",
-      driverName: "Mr. Suresh Gowda",
-      driverContact: "+91 98450 66554",
-      pickupPoint: "Kundalahalli Gate",
-      pickupTime: "07:15 AM",
-      dropTime: "05:30 PM",
-      allocatedDate: new Date("2026-07-12").toISOString(),
-      student: { id: "s_ec_01", fullName: "Rohan Deshmukh", rollNumber: "EC2023001" },
-    },
-    {
-      id: "trans_03",
-      institutionId,
-      studentId: "s_me_01",
-      routeName: "Route 08 - Jayanagar 4th Block via Banashankari",
-      routeNumber: "R-08",
-      vehicleNumber: "KA-05-G-1902",
-      driverName: "Mr. Anand Murthy",
-      driverContact: "+91 98450 33441",
-      pickupPoint: "South End Circle",
-      pickupTime: "07:20 AM",
-      dropTime: "05:10 PM",
-      allocatedDate: new Date("2026-07-14").toISOString(),
-      student: { id: "s_me_01", fullName: "Sneha Kulkarni", rollNumber: "ME2023001" },
-    },
-  ];
-}
-
 export async function getTransportAllocations(institutionId: string) {
   try {
     const list = await db.transportAllocation.findMany({
@@ -3922,17 +4451,11 @@ export async function getTransportAllocations(institutionId: string) {
       include: { student: true },
       orderBy: { routeNumber: "asc" },
     });
-    if (list && list.length > 0) return list;
+    return list || [];
   } catch (err: any) {
-    console.warn("Transport allocations query fallback:", err.message);
+    console.error("Transport allocations database query error:", err.message);
+    throw new Error(`Failed to load transport allocations from database: ${err.message}`);
   }
-
-  let list = globalTransportRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialTransportAllocations(institutionId);
-    globalTransportRegistry.set(institutionId, list);
-  }
-  return list;
 }
 
 export async function createTransportAllocation(
@@ -3950,50 +4473,25 @@ export async function createTransportAllocation(
     vehicleCapacity?: number;
   }
 ) {
-  try {
-    // 1. Check vehicle capacity
-    const capacity = data.vehicleCapacity || 40;
-    const currentAllocCount = await db.transportAllocation.count({
-      where: { institutionId, routeNumber: data.routeNumber, vehicleNumber: data.vehicleNumber },
-    });
-    if (currentAllocCount >= capacity) {
-      throw new Error(`Vehicle '${data.vehicleNumber}' on Route '${data.routeNumber}' has reached maximum passenger seating capacity (${capacity} seats).`);
-    }
+  // 1. Check vehicle capacity
+  const capacity = data.vehicleCapacity || 40;
+  const currentAllocCount = await db.transportAllocation.count({
+    where: { institutionId, routeNumber: data.routeNumber, vehicleNumber: data.vehicleNumber },
+  });
+  if (currentAllocCount >= capacity) {
+    throw new Error(`Vehicle '${data.vehicleNumber}' on Route '${data.routeNumber}' has reached maximum passenger seating capacity (${capacity} seats).`);
+  }
 
-    // 2. Prevent duplicate allocation for the same student
-    const existingStudentAlloc = await db.transportAllocation.findFirst({
-      where: { institutionId, studentId: data.studentId },
-    });
-    if (existingStudentAlloc) {
-      throw new Error(`Student already has an active allocation on Route '${existingStudentAlloc.routeNumber}'. Revoke existing allocation first.`);
-    }
+  // 2. Prevent duplicate allocation for the same student
+  const existingStudentAlloc = await db.transportAllocation.findFirst({
+    where: { institutionId, studentId: data.studentId },
+  });
+  if (existingStudentAlloc) {
+    throw new Error(`Student already has an active allocation on Route '${existingStudentAlloc.routeNumber}'. Revoke existing allocation first.`);
+  }
 
-    return await db.transportAllocation.create({
-      data: {
-        institutionId,
-        studentId: data.studentId,
-        routeName: data.routeName,
-        routeNumber: data.routeNumber,
-        vehicleNumber: data.vehicleNumber,
-        driverName: data.driverName,
-        driverContact: data.driverContact,
-        pickupPoint: data.pickupPoint,
-        pickupTime: data.pickupTime,
-        dropTime: data.dropTime,
-      },
-      include: { student: true },
-    });
-  } catch (err: any) {
-    if (
-      err.message?.includes("maximum passenger seating capacity") ||
-      err.message?.includes("already has an active allocation")
-    ) {
-      throw err;
-    }
-    console.warn("Transport allocation create fallback:", err.message);
-    const current = await getTransportAllocations(institutionId);
-    const newAllocation = {
-      id: `trans_${Date.now()}`,
+  return await db.transportAllocation.create({
+    data: {
       institutionId,
       studentId: data.studentId,
       routeName: data.routeName,
@@ -4004,33 +4502,18 @@ export async function createTransportAllocation(
       pickupPoint: data.pickupPoint,
       pickupTime: data.pickupTime,
       dropTime: data.dropTime,
-      allocatedDate: new Date().toISOString(),
-      student: { id: data.studentId, fullName: "Student " + data.studentId, rollNumber: "ST" + Date.now().toString().slice(-4) },
-    };
-    globalTransportRegistry.set(institutionId, [newAllocation, ...current]);
-    return newAllocation;
-  }
+    },
+    include: { student: true },
+  });
 }
 
 export async function deleteTransportAllocation(institutionId: string, id: string) {
-  try {
-    const result = await db.transportAllocation.deleteMany({
-      where: { id, institutionId },
-    });
-    if (result.count > 0) {
-      return { success: true };
-    }
-  } catch (err: any) {
-    console.warn("Transport allocation delete fallback:", err.message);
-  }
-
-  const current = await getTransportAllocations(institutionId);
-  const target = current.find((t) => t.id === id);
-  if (!target) {
+  const result = await db.transportAllocation.deleteMany({
+    where: { id, institutionId },
+  });
+  if (result.count === 0) {
     throw new Error("Transport allocation not found or access denied.");
   }
-  const filtered = current.filter((t) => t.id !== id);
-  globalTransportRegistry.set(institutionId, filtered);
   return { success: true };
 }
 
@@ -4038,116 +4521,17 @@ export async function deleteTransportAllocation(institutionId: string, id: strin
 // 21. EVENTS & RESOURCE BOOKINGS
 // ----------------------------------------------------------------------------
 
-const globalEventsRegistry: Map<string, any[]> = new Map();
-const globalResourceBookingsRegistry: Map<string, any[]> = new Map();
-
-function getInitialEvents(institutionId: string): any[] {
-  return [
-    {
-      id: "ev_01",
-      institutionId,
-      title: "National Robotics & AI Symposium 2026",
-      description: "Annual technical symposium with industry keynotes, paper presentations, and autonomous drone demonstration.",
-      category: "ACADEMIC",
-      eventDate: new Date("2026-11-25").toISOString(),
-      venue: "Main Auditorium & Tech Lab",
-      organizer: "Dept of Computer Science & Engineering",
-    },
-    {
-      id: "ev_02",
-      institutionId,
-      title: "Inter-Collegiate Sports Championship 2026",
-      description: "Cricket, football, badminton, and track events across 16 university institutions.",
-      category: "SPORTS",
-      eventDate: new Date("2026-12-05").toISOString(),
-      venue: "Campus Athletics Complex & Gymnasium",
-      organizer: "Department of Physical Education",
-    },
-    {
-      id: "ev_03",
-      institutionId,
-      title: "Annual Cultural Fest â€“ Kalothsava 2026",
-      description: "Music concerts, classical dance competitions, fashion showcase, and literary debates.",
-      category: "CULTURAL",
-      eventDate: new Date("2026-12-18").toISOString(),
-      venue: "Open Air Amphitheatre",
-      organizer: "Student Cultural Guild",
-    },
-    {
-      id: "ev_04",
-      institutionId,
-      title: "Campus Placement Masterclass by Microsoft & AWS",
-      description: "Cloud computing and generative AI career track preparation for 3rd and 4th year students.",
-      category: "SEMINAR",
-      eventDate: new Date("2026-11-20").toISOString(),
-      venue: "Sir M. Visvesvaraya Seminar Hall",
-      organizer: "Career Development Cell",
-    },
-  ];
-}
-
-function getInitialResourceBookings(institutionId: string): any[] {
-  return [
-    {
-      id: "res_01",
-      institutionId,
-      resourceName: "Sir M. Visvesvaraya Seminar Hall",
-      bookingDate: new Date("2026-11-22").toISOString(),
-      timeSlot: "10:00 AM - 01:00 PM",
-      purpose: "Guest Lecture on Quantum Cryptography",
-      status: "APPROVED",
-      student: { id: "s_cs_01", fullName: "Aarav Sharma", rollNumber: "CS2023001" },
-    },
-    {
-      id: "res_02",
-      institutionId,
-      resourceName: "Main Campus Auditorium",
-      bookingDate: new Date("2026-11-24").toISOString(),
-      timeSlot: "02:00 PM - 06:00 PM",
-      purpose: "Symposium Stage Setup and Rehearsal",
-      status: "APPROVED",
-      student: { id: "s_ec_01", fullName: "Rohan Deshmukh", rollNumber: "EC2023001" },
-    },
-    {
-      id: "res_03",
-      institutionId,
-      resourceName: "Advanced Computing Lab 3",
-      bookingDate: new Date("2026-11-28").toISOString(),
-      timeSlot: "09:00 AM - 12:00 PM",
-      purpose: "ACM Student Chapter Hackathon Trials",
-      status: "PENDING",
-      student: { id: "s_cs_02", fullName: "Diya Patel", rollNumber: "CS2023002" },
-    },
-    {
-      id: "res_04",
-      institutionId,
-      resourceName: "AV Studio & Media Suite",
-      bookingDate: new Date("2026-11-29").toISOString(),
-      timeSlot: "03:00 PM - 05:00 PM",
-      purpose: "College Podcast Recording Episode 8",
-      status: "PENDING",
-      student: { id: "s_me_01", fullName: "Sneha Kulkarni", rollNumber: "ME2023001" },
-    },
-  ];
-}
-
 export async function getEvents(institutionId: string) {
   try {
     const list = await db.event.findMany({
       where: { institutionId },
       orderBy: { eventDate: "asc" },
     });
-    if (list && list.length > 0) return list;
+    return list || [];
   } catch (err: any) {
-    console.warn("Events query fallback:", err.message);
+    console.error("Events database query error:", err.message);
+    throw new Error(`Failed to load events from database: ${err.message}`);
   }
-
-  let list = globalEventsRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialEvents(institutionId);
-    globalEventsRegistry.set(institutionId, list);
-  }
-  return list;
 }
 
 export async function createEvent(
@@ -4161,34 +4545,17 @@ export async function createEvent(
     organizer: string;
   }
 ) {
-  try {
-    return await db.event.create({
-      data: {
-        institutionId,
-        title: data.title,
-        description: data.description,
-        category: data.category,
-        eventDate: data.eventDate,
-        venue: data.venue,
-        organizer: data.organizer,
-      },
-    });
-  } catch (err: any) {
-    console.warn("Event create fallback:", err.message);
-    const current = await getEvents(institutionId);
-    const newEvent = {
-      id: `ev_${Date.now()}`,
+  return await db.event.create({
+    data: {
       institutionId,
       title: data.title,
       description: data.description,
       category: data.category,
-      eventDate: data.eventDate.toISOString(),
+      eventDate: data.eventDate,
       venue: data.venue,
       organizer: data.organizer,
-    };
-    globalEventsRegistry.set(institutionId, [newEvent, ...current]);
-    return newEvent;
-  }
+    },
+  });
 }
 
 export async function getResourceBookings(institutionId: string) {
@@ -4198,17 +4565,11 @@ export async function getResourceBookings(institutionId: string) {
       include: { student: true },
       orderBy: { bookingDate: "desc" },
     });
-    if (list && list.length > 0) return list;
+    return list || [];
   } catch (err: any) {
-    console.warn("Resource bookings query fallback:", err.message);
+    console.error("Resource bookings database query error:", err.message);
+    throw new Error(`Failed to load resource bookings from database: ${err.message}`);
   }
-
-  let list = globalResourceBookingsRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialResourceBookings(institutionId);
-    globalResourceBookingsRegistry.set(institutionId, list);
-  }
-  return list;
 }
 
 export async function updateResourceBookingStatus(
@@ -4216,76 +4577,21 @@ export async function updateResourceBookingStatus(
   bookingId: string,
   status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED"
 ) {
-  try {
-    const result = await db.resourceBooking.updateMany({
-      where: { id: bookingId, institutionId },
-      data: { status },
-    });
-    if (result.count === 0) {
-      throw new Error("Resource booking not found or access denied.");
-    }
-    return await db.resourceBooking.findFirst({
-      where: { id: bookingId, institutionId },
-    });
-  } catch (err: any) {
-    if (err.message?.includes("not found or access denied")) {
-      throw err;
-    }
-    console.warn("Resource booking status update fallback:", err.message);
-    const current = await getResourceBookings(institutionId);
-    const target = current.find((b) => b.id === bookingId);
-    if (!target) {
-      throw new Error("Resource booking not found or access denied.");
-    }
-    const updated = current.map((b) => (b.id === bookingId ? { ...b, status } : b));
-    globalResourceBookingsRegistry.set(institutionId, updated);
-    return updated.find((b) => b.id === bookingId);
+  const result = await db.resourceBooking.updateMany({
+    where: { id: bookingId, institutionId },
+    data: { status },
+  });
+  if (result.count === 0) {
+    throw new Error("Resource booking not found or access denied.");
   }
+  return await db.resourceBooking.findFirst({
+    where: { id: bookingId, institutionId },
+  });
 }
 
 // ----------------------------------------------------------------------------
 // 22. COMMUNICATION & NOTIFICATIONS
 // ----------------------------------------------------------------------------
-
-const globalNotificationRegistry: Map<string, any[]> = new Map();
-
-function getInitialNotifications(institutionId: string): any[] {
-  return [
-    {
-      id: "notif_01",
-      institutionId,
-      title: "Semester End Examination Guidelines 2026",
-      message: "All students and faculty are required to review the updated hall ticket guidelines and seating allotment rules before Nov 20.",
-      category: "ACADEMIC",
-      createdAt: new Date("2026-11-14T09:00:00Z").toISOString(),
-      recipients: [
-        { id: "r1", userId: "u_all", isRead: false, user: { fullName: "All Students & Faculty", email: "campus@sst-erp.edu" } },
-      ],
-    },
-    {
-      id: "notif_02",
-      institutionId,
-      title: "Hostel Fee Realization Notice for Term 2",
-      message: "Hostel residents must clear pending dining and room accommodation dues through the student finance portal by Nov 25.",
-      category: "FINANCE",
-      createdAt: new Date("2026-11-12T11:30:00Z").toISOString(),
-      recipients: [
-        { id: "r2", userId: "u_hostel", isRead: true, user: { fullName: "Hostel Residents", email: "hostel@sst-erp.edu" } },
-      ],
-    },
-    {
-      id: "notif_03",
-      institutionId,
-      title: "Campus Placement Drive â€“ Tata Consultancy Services",
-      message: "Final year B.Tech students registered with CDC are requested to report to the placement cell in formal attire by 8:30 AM on Nov 18.",
-      category: "PLACEMENT",
-      createdAt: new Date("2026-11-10T14:00:00Z").toISOString(),
-      recipients: [
-        { id: "r3", userId: "u_placement", isRead: true, user: { fullName: "Final Year Students", email: "placement@sst-erp.edu" } },
-      ],
-    },
-  ];
-}
 
 export async function getNotifications(institutionId: string) {
   try {
@@ -4318,16 +4624,11 @@ export async function getNotifications(institutionId: string) {
         recipients: n.recipients,
       }));
     }
+    return [];
   } catch (err: any) {
-    console.warn("Notifications query fallback:", err.message);
+    console.error("Notifications database query error:", err.message);
+    throw new Error(`Failed to load notifications from database: ${err.message}`);
   }
-
-  let list = globalNotificationRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialNotifications(institutionId);
-    globalNotificationRegistry.set(institutionId, list);
-  }
-  return list;
 }
 
 export async function broadcastNotification(
@@ -4343,113 +4644,67 @@ export async function broadcastNotification(
     priority?: string;
   }
 ) {
-  try {
-    let emailRecipients: Array<{ email: string; name?: string }> = [];
+  let emailRecipients: Array<{ email: string; name?: string }> = [];
 
-    const result = await db.$transaction(async (tx) => {
-      const notification = await tx.notification.create({
-        data: {
-          institutionId,
-          title: data.title,
-          message: data.message,
-          category: data.category || "ANNOUNCEMENT",
-          audienceRole: data.targetRole || "ALL",
-        },
-      });
-
-      let users: Array<{ id: string; email: string; name: string | null }> = [];
-
-      if (data.targetCourseId || data.targetSemester !== undefined || data.targetSectionId) {
-        const enrollments = await tx.enrollment.findMany({
-          where: {
-            institutionId,
-            ...(data.targetCourseId ? { courseId: data.targetCourseId } : {}),
-            ...(data.targetSemester !== undefined ? { semester: data.targetSemester } : {}),
-            ...(data.targetSectionId ? { sectionId: data.targetSectionId } : {}),
-          },
-          select: { student: { select: { userId: true } } },
-        });
-        const studentUserIds = enrollments.map((e) => e.student?.userId).filter(Boolean) as string[];
-        users = await tx.user.findMany({
-          where: {
-            id: { in: studentUserIds },
-            institutionId,
-          },
-          select: { id: true, email: true, name: true },
-        });
-      } else {
-        users = await tx.user.findMany({
-          where: {
-            institutionId,
-            ...(data.targetRole && data.targetRole !== "ALL"
-              ? { role: data.targetRole as any }
-              : {}),
-          },
-          select: { id: true, email: true, name: true },
-        });
-      }
-
-      if (users.length > 0) {
-        emailRecipients = users
-          .filter((u) => Boolean(u.email))
-          .map((u) => ({ email: u.email, name: u.name || undefined }));
-
-        await tx.notificationRecipient.createMany({
-          data: users.map((u) => ({
-            notificationId: notification.id,
-            userId: u.id,
-            isRead: false,
-          })),
-          skipDuplicates: true,
-        });
-      }
-
-      return notification;
+  const result = await db.$transaction(async (tx) => {
+    const notification = await tx.notification.create({
+      data: {
+        institutionId,
+        title: data.title,
+        message: data.message,
+        category: data.category,
+      },
     });
 
-    // Background email dispatch (non-blocking for fast UI responses)
-    if (emailRecipients.length > 0) {
-      db.institution
-        .findUnique({
-          where: { id: institutionId },
-          select: { name: true },
-        })
-        .then((inst) => {
-          sendAnnouncementNotification(emailRecipients, {
-            title: data.title,
-            message: data.message,
-            category: data.category,
-            institutionName: inst?.name || "Campus Administration",
-          }).catch((emailErr) => {
-            console.warn("[broadcastNotification] Background email dispatch warning:", emailErr.message);
-          });
-        })
-        .catch(() => {});
+    const users = await tx.user.findMany({
+      where: {
+        institutionId,
+        ...(data.targetRole && data.targetRole !== "ALL"
+          ? { role: data.targetRole as any }
+          : {}),
+      },
+      select: { id: true, email: true, name: true },
+    });
+
+    if (users.length > 0) {
+      emailRecipients = users
+        .filter((u) => Boolean(u.email))
+        .map((u) => ({ email: u.email, name: u.name || undefined }));
+
+      await tx.notificationRecipient.createMany({
+        data: users.map((u) => ({
+          notificationId: notification.id,
+          userId: u.id,
+          isRead: false,
+        })),
+        skipDuplicates: true,
+      });
     }
 
-    return result;
-  } catch (err: any) {
-    console.warn("Notification broadcast fallback:", err.message);
-    const current = await getNotifications(institutionId);
-    const newNotif = {
-      id: `notif_${Date.now()}`,
-      institutionId,
-      title: data.title,
-      message: data.message,
-      category: data.category,
-      createdAt: new Date().toISOString(),
-      recipients: [
-        {
-          id: `r_${Date.now()}`,
-          userId: "u_broadcast",
-          isRead: false,
-          user: { fullName: `Broadcast Recipients (${data.targetRole || "ALL"})`, email: "all@sst-erp.edu" },
-        },
-      ],
-    };
-    globalNotificationRegistry.set(institutionId, [newNotif, ...current]);
-    return newNotif;
+    return notification;
+  });
+
+  // Background email dispatch (non-blocking for fast UI responses)
+  if (emailRecipients.length > 0) {
+    db.institution
+      .findUnique({
+        where: { id: institutionId },
+        select: { name: true },
+      })
+      .then((inst) => {
+        sendAnnouncementNotification(emailRecipients, {
+          title: data.title,
+          message: data.message,
+          category: data.category,
+          institutionName: inst?.name || "Campus Administration",
+        }).catch((emailErr) => {
+          console.warn("[broadcastNotification] Background email dispatch warning:", emailErr.message);
+        });
+      })
+      .catch(() => {});
   }
+
+  return result;
 }
 
 export async function updateNotification(
@@ -4503,51 +4758,6 @@ export async function deleteNotification(
 // 23. APPROVAL REQUESTS
 // ----------------------------------------------------------------------------
 
-const globalApprovalRequestsRegistry: Map<string, any[]> = new Map();
-
-function getInitialApprovalRequests(institutionId: string): any[] {
-  return [
-    {
-      id: "appr_01",
-      institutionId,
-      requestType: "PROFILE_UPDATE",
-      status: "PENDING",
-      description: "Request to update permanent address and guardian phone number due to city relocation.",
-      createdAt: new Date("2026-11-15T08:30:00Z").toISOString(),
-      user: { id: "u_std_01", fullName: "Aarav Sharma (USN: CS2023001)", email: "aarav.sharma@sst-erp.edu", role: "STUDENT" },
-    },
-    {
-      id: "appr_02",
-      institutionId,
-      requestType: "ELECTIVE_COURSE_SELECTION",
-      status: "PENDING",
-      description: "Elective change request from Advanced Computer Networks (CS502) to Cloud Architecture (CS504).",
-      createdAt: new Date("2026-11-14T14:15:00Z").toISOString(),
-      user: { id: "u_std_02", fullName: "Diya Patel (USN: CS2023002)", email: "diya.patel@sst-erp.edu", role: "STUDENT" },
-    },
-    {
-      id: "appr_03",
-      institutionId,
-      requestType: "CAMPUS_LEAVE_PERMISSION",
-      status: "PENDING",
-      description: "Hostel night-out pass request for attending IEEE Conference Bangalore from Nov 20 to Nov 22.",
-      createdAt: new Date("2026-11-14T10:00:00Z").toISOString(),
-      user: { id: "u_std_03", fullName: "Rohan Deshmukh (USN: EC2023001)", email: "rohan.deshmukh@sst-erp.edu", role: "STUDENT" },
-    },
-    {
-      id: "appr_04",
-      institutionId,
-      requestType: "FEE_CONCESSION_REQUEST",
-      status: "APPROVED",
-      description: "Merit scholarship concession of 25% on annual tuition fee based on University Top 10 rank.",
-      adminRemarks: "Approved as per Academic Council resolution AC-2026-09.",
-      createdAt: new Date("2026-11-10T09:00:00Z").toISOString(),
-      user: { id: "u_std_04", fullName: "Sneha Kulkarni (USN: ME2023001)", email: "sneha.kulkarni@sst-erp.edu", role: "STUDENT" },
-      reviewedByUser: { id: "admin_01", fullName: "Dr. Anand Rao (Director)", email: "director@sst-erp.edu" },
-    },
-  ];
-}
-
 export async function getApprovalRequests(institutionId: string, status?: string) {
   try {
     const list = await db.approvalRequest.findMany({
@@ -4561,17 +4771,100 @@ export async function getApprovalRequests(institutionId: string, status?: string
       },
       orderBy: { createdAt: "desc" },
     });
-    if (list && list.length > 0) return list;
-  } catch (err: any) {
-    console.warn("Approval requests query fallback:", err.message);
-  }
 
-  let list = globalApprovalRequestsRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialApprovalRequests(institutionId);
-    globalApprovalRequestsRegistry.set(institutionId, list);
+    // Also query admission applications from admission_applications
+    let admissionWhere: any = { institutionId };
+    if (status) {
+      if (status === "PENDING") {
+        admissionWhere.status = { in: ["SUBMITTED", "UNDER_REVIEW"] };
+      } else if (status === "APPROVED") {
+        admissionWhere.status = "APPROVED";
+      } else if (status === "REJECTED") {
+        admissionWhere.status = "REJECTED";
+      } else {
+        admissionWhere.status = status;
+      }
+    }
+
+    const admissions = await db.admissionApplication.findMany({
+      where: admissionWhere,
+      include: {
+        course: { select: { id: true, name: true, code: true } },
+        academicYear: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    let extraMap = new Map<string, any>();
+    if (admissions.length > 0) {
+      try {
+        const extraRows: any[] = await db.$queryRawUnsafe(
+          `SELECT id, "documentsJson", remarks, "guardianOccupation" FROM admission_applications WHERE "institutionId" = $1`,
+          institutionId
+        );
+        for (const row of extraRows) {
+          extraMap.set(row.id, row);
+        }
+      } catch {}
+    }
+
+    const admissionApprovalItems = admissions.map((app) => {
+      const extra = extraMap.get(app.id);
+      let parsedDocs = null;
+      if (extra?.documentsJson) {
+        try {
+          parsedDocs = typeof extra.documentsJson === "string" ? JSON.parse(extra.documentsJson) : extra.documentsJson;
+        } catch {}
+      }
+
+      return {
+        id: app.id,
+        institutionId: app.institutionId,
+        requestType: "STUDENT_ADMISSION",
+        status: app.status === "SUBMITTED" || app.status === "UNDER_REVIEW" ? "PENDING" : app.status,
+        title: `Admission Application: ${app.fullName}`,
+        description: `Application #${app.applicationNumber} • Course: ${app.course?.name || "General"} (${app.academicYear?.name || "Academic Year"})`,
+        adminRemarks: extra?.remarks || (app as any).remarks || undefined,
+        createdAt: app.createdAt,
+        reviewedAt: (app as any).reviewedAt || undefined,
+        isAdmissionApplication: true,
+        user: {
+          id: app.id,
+          fullName: app.fullName,
+          name: app.fullName,
+          email: app.email,
+          role: "APPLICANT",
+        },
+        details: {
+          applicationNumber: app.applicationNumber,
+          email: app.email,
+          phone: app.phone,
+          courseId: app.courseId,
+          courseName: app.course?.name,
+          academicYearId: app.academicYearId,
+          academicYearName: app.academicYear?.name,
+          gender: app.gender,
+          dob: app.dob,
+          addressLine: app.addressLine,
+          city: app.city,
+          guardianName: app.guardianName,
+          guardianPhone: app.guardianPhone,
+          guardianEmail: app.guardianEmail,
+          guardianRelationship: app.guardianRelationship,
+          guardianOccupation: extra?.guardianOccupation || null,
+          documents: parsedDocs,
+          convertedStudentId: app.convertedStudentId,
+        },
+      };
+    });
+
+    return [...admissionApprovalItems, ...(list || [])].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  } catch (err: any) {
+    console.error("Approval requests database query error:", err.message);
+    throw new Error(`Failed to load approval requests from database: ${err.message}`);
   }
-  return status ? list.filter((r) => r.status === status) : list;
 }
 
 export async function processApprovalRequest(
@@ -4585,71 +4878,1189 @@ export async function processApprovalRequest(
     throw new Error("Invalid status decision. Must be APPROVED or REJECTED.");
   }
 
-  try {
-    const result = await db.approvalRequest.updateMany({
-      where: { id: requestId, institutionId, status: "PENDING" },
-      data: {
-        status,
-        adminRemarks,
-        reviewedByUserId: reviewerUserId,
-        reviewedAt: new Date(),
-      },
-    });
-    if (result.count > 0) {
-      const updatedReq = await db.approvalRequest.findFirst({
-        where: { id: requestId, institutionId },
+  // 1. Check if requestId belongs to admission_applications
+  const admissionApp = await db.admissionApplication.findFirst({
+    where: { id: requestId, institutionId },
+    include: { course: true, academicYear: true },
+  });
+
+  if (admissionApp) {
+    try {
+      const extraRows: any[] = await db.$queryRawUnsafe(
+        `SELECT "documentsJson", remarks, "guardianOccupation" FROM admission_applications WHERE id = $1`,
+        admissionApp.id
+      );
+      if (extraRows && extraRows.length > 0) {
+        (admissionApp as any).guardianOccupation = extraRows[0].guardianOccupation;
+        (admissionApp as any).remarks = extraRows[0].remarks;
+        (admissionApp as any).documentsJson = extraRows[0].documentsJson;
+      }
+    } catch {}
+
+    // Idempotent handling if already decided
+    if (admissionApp.status === "APPROVED") {
+      if (status === "APPROVED") {
+        const student = admissionApp.convertedStudentId
+          ? await db.student.findUnique({
+              where: { id: admissionApp.convertedStudentId },
+            })
+          : await db.student.findFirst({
+              where: { institutionId, email: admissionApp.email.toLowerCase() },
+            });
+        return {
+          ...admissionApp,
+          requestType: "STUDENT_ADMISSION",
+          isAdmissionApplication: true,
+          student,
+          alreadyApproved: true,
+        };
+      }
+      throw new Error(
+        `Cannot decide application ${admissionApp.applicationNumber}: application has already been APPROVED.`
+      );
+    }
+
+    if (admissionApp.status === "REJECTED") {
+      if (status === "REJECTED") {
+        return {
+          ...admissionApp,
+          requestType: "STUDENT_ADMISSION",
+          isAdmissionApplication: true,
+          alreadyRejected: true,
+        };
+      }
+      throw new Error(
+        `Cannot decide application ${admissionApp.applicationNumber}: application has already been REJECTED.`
+      );
+    }
+
+    if (admissionApp.status !== "SUBMITTED" && admissionApp.status !== "UNDER_REVIEW") {
+      throw new Error(
+        `Cannot decide application ${admissionApp.applicationNumber}: current status is already ${admissionApp.status}. Only PENDING applications can be adjudicated.`
+      );
+    }
+
+    if (status === "REJECTED") {
+      const updated = await db.admissionApplication.update({
+        where: { id: requestId },
+        data: {
+          status: "REJECTED",
+        },
       });
-      if (updatedReq && updatedReq.requestType === "RESOURCE_BOOKING") {
-        try {
-          const payload = JSON.parse(updatedReq.requestedDataJson || "{}");
-          if (payload.bookingId) {
-            await db.resourceBooking.updateMany({
-              where: { id: payload.bookingId, institutionId },
-              data: { status },
+
+      try {
+        await db.$executeRawUnsafe(
+          `UPDATE admission_applications SET remarks = $1, "reviewedByUserId" = $2, "reviewedAt" = NOW() WHERE id = $3`,
+          adminRemarks || "Application rejected by administration.",
+          reviewerUserId || null,
+          requestId
+        );
+      } catch {}
+
+      await recordAuditLog(db, {
+        institutionId,
+        userId: reviewerUserId || null,
+        actorUserId: reviewerUserId || null,
+        action: "ADMISSION_REJECTED",
+        entityType: "ADMISSION_APPLICATION",
+        entityId: requestId,
+        newValuesJson: JSON.stringify({ status: "REJECTED", remarks: adminRemarks }),
+      });
+
+      return {
+        ...updated,
+        requestType: "STUDENT_ADMISSION",
+        isAdmissionApplication: true,
+      };
+    }
+
+    // Status is APPROVED: Execute Atomic Student & User Provisioning
+    const result = await db.$transaction(async (tx) => {
+      // Re-validate and ensure exclusive processing
+      const app = await tx.admissionApplication.findUnique({
+        where: { id: requestId },
+      });
+      if (!app || (app.status !== "SUBMITTED" && app.status !== "UNDER_REVIEW")) {
+        if (app?.status === "APPROVED") {
+          const student = app.convertedStudentId
+            ? await tx.student.findUnique({ where: { id: app.convertedStudentId } })
+            : null;
+          return {
+            student,
+            user: null,
+            enrollment: null,
+            application: app,
+            isExisting: true,
+          };
+        }
+        throw new Error("Application status changed during adjudication. Please refresh.");
+      }
+
+      const applicantEmail = app.email.trim().toLowerCase();
+
+      // Check globally if user account with same email already exists
+      let userRecord = await tx.user.findUnique({
+        where: { email: applicantEmail },
+        include: { studentProfile: true },
+      });
+
+      // Tenant isolation: if user is registered under another institution, reject with clear actionable conflict
+      if (userRecord && userRecord.institutionId && userRecord.institutionId !== institutionId) {
+        const conflictErr = new Error(
+          `Cannot approve application: An account with email "${applicantEmail}" is registered under another institution. Multi-tenant email conflict must be resolved by administration.`
+        );
+        (conflictErr as any).statusCode = 409;
+        throw conflictErr;
+      }
+
+      // Role conflict safeguard: user already exists in same institution with non-student role
+      if (userRecord && userRecord.role && userRecord.role !== "STUDENT") {
+        const roleErr = new Error(
+          `Cannot approve application: An account with email "${applicantEmail}" already exists with role "${userRecord.role}".`
+        );
+        (roleErr as any).statusCode = 409;
+        throw roleErr;
+      }
+
+      let isExistingStudent = false;
+      let student = userRecord?.studentProfile || null;
+
+      if (userRecord) {
+        // Link user to this institution if previously unassociated
+        if (!userRecord.institutionId) {
+          userRecord = await tx.user.update({
+            where: { id: userRecord.id },
+            data: { institutionId, role: "STUDENT" },
+            include: { studentProfile: true },
+          });
+        }
+
+        if (student) {
+          // Verify student tenant isolation
+          if (student.institutionId !== institutionId) {
+            const studentTenantErr = new Error(
+              `Cannot approve application: Student profile for email "${applicantEmail}" belongs to another institution.`
+            );
+            (studentTenantErr as any).statusCode = 409;
+            throw studentTenantErr;
+          }
+          isExistingStudent = true;
+        }
+      } else {
+        // Create brand new User login account (dormant until password setup link redeemed)
+        userRecord = await tx.user.create({
+          data: {
+            institutionId,
+            email: applicantEmail,
+            fullName: app.fullName,
+            role: "STUDENT",
+            status: "ACTIVE",
+            isActive: false, // Dormant until password setup token is redeemed
+          },
+          include: { studentProfile: true },
+        });
+      }
+
+      // If student profile does not exist yet, generate collision-free rollNumber & admissionNumber
+      if (!student) {
+        const existingStudentCount = await tx.student.count({
+          where: { institutionId },
+        });
+        const yearPrefix = new Date().getFullYear().toString().slice(-2);
+        const courseCode =
+          admissionApp.course?.code?.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "GEN";
+
+        let seq = existingStudentCount + 1;
+        let rollNumber = `${yearPrefix}${courseCode}${String(seq).padStart(4, "0")}`;
+        while (await tx.student.findFirst({ where: { institutionId, rollNumber }, select: { id: true } })) {
+          seq++;
+          rollNumber = `${yearPrefix}${courseCode}${String(seq).padStart(4, "0")}`;
+        }
+
+        let admSeq = seq;
+        let admissionNumber = `ADM-${new Date().getFullYear()}-${String(admSeq).padStart(4, "0")}`;
+        while (await tx.student.findFirst({ where: { institutionId, admissionNumber }, select: { id: true } })) {
+          admSeq++;
+          admissionNumber = `ADM-${new Date().getFullYear()}-${String(admSeq).padStart(4, "0")}`;
+        }
+
+        const applicantDob = app.dob ? new Date(app.dob) : new Date(2005, 0, 1);
+        const applicantGender = (app.gender ? String(app.gender).toUpperCase() : "MALE") as any;
+
+        student = await tx.student.create({
+          data: {
+            institutionId,
+            userId: userRecord.id,
+            admissionNumber,
+            rollNumber,
+            firstName: app.firstName,
+            lastName: app.lastName,
+            fullName: app.fullName || `${app.firstName} ${app.lastName}`.trim(),
+            dateOfBirth: applicantDob,
+            gender: applicantGender,
+            email: applicantEmail,
+            phone: app.phone,
+            currentCourseId: app.courseId || null,
+            currentAcademicYearId: app.academicYearId || null,
+            currentSemester: 1,
+            currentSection: "A",
+            status: "ACTIVE",
+          },
+        });
+      }
+
+      if (!student) {
+        throw new Error("Failed to create or resolve student record during admission approval.");
+      }
+
+      // Create or find Enrollment record
+      let enrollment = await tx.enrollment.findFirst({
+        where: {
+          institutionId,
+          studentId: student.id,
+          courseId: app.courseId,
+          academicYearId: app.academicYearId,
+        },
+      });
+
+      if (!enrollment) {
+        enrollment = await tx.enrollment.create({
+          data: {
+            institutionId,
+            studentId: student.id,
+            courseId: app.courseId,
+            academicYearId: app.academicYearId,
+            semester: 1,
+            section: "A",
+            status: "ACTIVE",
+          },
+        });
+      }
+
+      // 4. Guardian Provisioning & Student Linking Workflow
+      let guardianAccountRecord: any = null;
+      let guardianLinkRecord: any = null;
+
+      const gName = (app.guardianName || "").trim();
+      const gEmail = (app.guardianEmail || "").trim().toLowerCase();
+      const gPhone = (app.guardianPhone || "").trim();
+      const gRelation = (app.guardianRelationship || "Guardian").trim();
+      const gOccupation = (app as any).guardianOccupation || null;
+
+      if (gName || gEmail || gPhone) {
+        let guardianUser: any = null;
+        if (gEmail) {
+          guardianUser = await tx.user.findUnique({
+            where: { email: gEmail },
+            include: { guardianAccount: true },
+          });
+
+          // Multi-tenant email conflict check
+          if (guardianUser && guardianUser.institutionId && guardianUser.institutionId !== institutionId) {
+            const conflictErr = new Error(
+              `Cannot link guardian: Account with email "${gEmail}" belongs to another institution.`
+            );
+            (conflictErr as any).statusCode = 409;
+            throw conflictErr;
+          }
+
+          if (
+            guardianUser &&
+            guardianUser.role &&
+            guardianUser.role !== "PARENT" &&
+            guardianUser.role !== "GUARDIAN"
+          ) {
+            console.warn(
+              `[processApprovalRequest] Guardian email ${gEmail} exists with role "${guardianUser.role}". Linking student without role mutation.`
+            );
+          }
+        }
+
+        // If no user by email, search existing guardian account in this institution by phone and full name
+        if (!guardianUser && gPhone && gName) {
+          const existingGa = await tx.guardianAccount.findFirst({
+            where: {
+              institutionId,
+              phone: gPhone,
+              fullName: { equals: gName, mode: "insensitive" },
+            },
+            include: { user: true },
+          });
+          if (existingGa) {
+            guardianAccountRecord = existingGa;
+            guardianUser = existingGa.user;
+          }
+        }
+
+        // If no user found, create dormant PARENT user
+        if (!guardianUser) {
+          const effectiveEmail =
+            gEmail || `guardian_${institutionId.slice(0, 8)}_${student.id.slice(0, 8)}@guardian.internal`;
+
+          guardianUser = await tx.user.create({
+            data: {
+              institutionId,
+              email: effectiveEmail,
+              fullName: gName || "Guardian",
+              phone: gPhone || null,
+              role: "PARENT",
+              status: "INACTIVE",
+              isActive: false,
+              passwordHash: null,
+            },
+            include: { guardianAccount: true },
+          });
+        }
+
+        // Resolve or create GuardianAccount
+        if (!guardianAccountRecord) {
+          if (guardianUser.guardianAccount) {
+            guardianAccountRecord = guardianUser.guardianAccount;
+          } else {
+            guardianAccountRecord = await tx.guardianAccount.findFirst({
+              where: { userId: guardianUser.id, institutionId },
             });
           }
-        } catch {}
+        }
+
+        if (!guardianAccountRecord) {
+          guardianAccountRecord = await tx.guardianAccount.create({
+            data: {
+              institutionId,
+              userId: guardianUser.id,
+              fullName: gName || guardianUser.fullName || "Guardian",
+              phone: gPhone || guardianUser.phone || "",
+              relationship: gRelation,
+              occupation: gOccupation,
+            },
+          });
+        } else {
+          // Update contact / occupation info
+          guardianAccountRecord = await tx.guardianAccount.update({
+            where: { id: guardianAccountRecord.id },
+            data: {
+              fullName: gName || guardianAccountRecord.fullName,
+              phone: gPhone || guardianAccountRecord.phone,
+              relationship: gRelation || guardianAccountRecord.relationship,
+              ...(gOccupation ? { occupation: gOccupation } : {}),
+            },
+          });
+        }
+
+        // Link student to guardian account
+        guardianLinkRecord = await tx.guardianLink.upsert({
+          where: {
+            guardianAccountId_studentId: {
+              guardianAccountId: guardianAccountRecord.id,
+              studentId: student.id,
+            },
+          },
+          update: {
+            relationship: gRelation,
+            isVerified: true,
+            canAccessPortal: true,
+            isPrimary: true,
+          },
+          create: {
+            institutionId,
+            guardianAccountId: guardianAccountRecord.id,
+            studentId: student.id,
+            relationship: gRelation,
+            isVerified: true,
+            canAccessPortal: true,
+            isPrimary: true,
+          },
+        });
       }
-      return updatedReq;
+
+      // Update Admission Application to APPROVED with converted student link
+      const updatedApp = await tx.admissionApplication.update({
+        where: { id: requestId },
+        data: {
+          status: "APPROVED",
+          convertedStudentId: student.id,
+        },
+      });
+
+      let effectiveReviewerUserId = reviewerUserId || null;
+      if (effectiveReviewerUserId) {
+        try {
+          const reviewerExists = await tx.user.findUnique({
+            where: { id: effectiveReviewerUserId },
+            select: { id: true },
+          });
+          if (!reviewerExists) {
+            effectiveReviewerUserId = null;
+          }
+        } catch {
+          effectiveReviewerUserId = null;
+        }
+      }
+
+      await tx.$executeRawUnsafe(
+        `UPDATE admission_applications SET remarks = $1, "reviewedByUserId" = $2, "reviewedAt" = NOW() WHERE id = $3`,
+        adminRemarks || "Application approved. Student enrolled.",
+        effectiveReviewerUserId,
+        requestId
+      );
+
+      // Audit log
+      await recordAuditLog(tx, {
+        institutionId,
+        userId: userRecord.id,
+        actorUserId: effectiveReviewerUserId,
+        action: "ADMISSION_APPROVED",
+        entityType: "STUDENT",
+        entityId: student.id,
+        newValuesJson: JSON.stringify({
+          rollNumber: student.rollNumber,
+          admissionNumber: student.admissionNumber,
+          courseId: app.courseId,
+          applicationNumber: app.applicationNumber,
+          isExistingStudent,
+          guardianAccountId: guardianAccountRecord?.id || null,
+        }),
+      });
+
+      return {
+        student,
+        user: userRecord,
+        enrollment,
+        application: updatedApp,
+        isExisting: isExistingStudent,
+        guardianAccount: guardianAccountRecord,
+        guardianLink: guardianLinkRecord,
+      };
+    }, { timeout: 30000, maxWait: 10000 });
+
+    // Outside transaction: Welcome Email Dispatch
+    let invitationSent = false;
+    let invitationError: string | null = null;
+    if (result.user && (!result.user.passwordHash || !result.user.isActive || !result.isExisting)) {
+      try {
+        const setupToken = await signPasswordSetupToken({
+          userId: result.user.id,
+          email: result.user.email,
+          institutionId,
+          passwordHash: result.user.passwordHash || null,
+        });
+
+        const appUrl = getAppBaseUrl();
+        const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
+        const inst = await db.institution.findUnique({
+          where: { id: institutionId },
+          select: { name: true },
+        });
+
+        const emailRes = await sendRoleCredentialInvitation(
+          { email: result.user.email, name: result.student?.fullName || undefined },
+          {
+            setupUrl,
+            institutionName: inst?.name || "Campus Administration",
+            expiresIn: "24 hours",
+            role: "STUDENT",
+            loginUrl: `${appUrl}/login`,
+            username: result.user.email,
+          }
+        );
+        invitationSent = emailRes.success;
+        if (!emailRes.success) {
+          invitationError = (emailRes as any).error || "Failed to dispatch email";
+        }
+      } catch (emailErr: any) {
+        invitationError = emailErr.message;
+        console.warn("Welcome email non-blocking dispatch note:", emailErr.message);
+      }
     }
-    const check = await db.approvalRequest.findFirst({
+
+    return {
+      ...result.application,
+      requestType: "STUDENT_ADMISSION",
+      isAdmissionApplication: true,
+      student: result.student,
+      guardianAccount: result.guardianAccount,
+      guardianLink: result.guardianLink,
+      invitationSent,
+      invitationError,
+    };
+  }
+
+  // 2. Standard approval_requests table processing
+  const result = await db.approvalRequest.updateMany({
+    where: { id: requestId, institutionId, status: "PENDING" },
+    data: {
+      status,
+      adminRemarks,
+      reviewedByUserId: reviewerUserId,
+      reviewedAt: new Date(),
+    },
+  });
+  if (result.count > 0) {
+    const updatedReq = await db.approvalRequest.findFirst({
       where: { id: requestId, institutionId },
     });
-    if (check && check.status !== "PENDING") {
-      throw new Error(`Cannot decide request ${requestId}: status is already ${check.status}. Only PENDING requests can be adjudicated.`);
-    }
-  } catch (err: any) {
-    if (
-      err.message?.includes("Invalid status decision") ||
-      err.message?.includes("Only PENDING requests can be adjudicated")
-    ) {
-      throw err;
-    }
-    console.warn("Approval request decision fallback:", err.message);
-  }
-
-  const current = await getApprovalRequests(institutionId);
-  const target = current.find((r) => r.id === requestId);
-  if (!target) {
-    throw new Error("Approval request not found or does not belong to this institution.");
-  }
-  if (target.status !== "PENDING") {
-    throw new Error(`Cannot decide request ${requestId}: status is already ${target.status}. Only PENDING requests can be adjudicated.`);
-  }
-
-  const updated = current.map((r) =>
-    r.id === requestId
-      ? {
-          ...r,
-          status,
-          adminRemarks: adminRemarks || `Marked as ${status.toLowerCase()} by administration.`,
-          reviewedAt: new Date().toISOString(),
-          reviewedByUser: { id: reviewerUserId || "admin_01", fullName: "Administrator", email: "admin@sst-erp.edu" },
+    if (updatedReq && updatedReq.requestType === "RESOURCE_BOOKING") {
+      try {
+        const payload = JSON.parse(updatedReq.requestedDataJson || "{}");
+        if (payload.bookingId) {
+          await db.resourceBooking.updateMany({
+            where: { id: payload.bookingId, institutionId },
+            data: { status },
+          });
         }
-      : r
+      } catch {}
+    }
+    return updatedReq;
+  }
+  const check = await db.approvalRequest.findFirst({
+    where: { id: requestId, institutionId },
+  });
+  if (check && check.status !== "PENDING") {
+    throw new Error(
+      `Cannot decide request ${requestId}: status is already ${check.status}. Only PENDING requests can be adjudicated.`
+    );
+  }
+  throw new Error("Approval request not found or does not belong to this institution.");
+}
+
+export async function archiveOrDeleteStudent(
+  institutionId: string,
+  studentId: string,
+  mode: "ARCHIVE" | "DELETE" = "ARCHIVE"
+) {
+  const student = await db.student.findFirst({
+    where: { id: studentId, institutionId },
+  });
+
+  if (!student) {
+    throw new Error("Student not found or access denied.");
+  }
+
+  // Check for dependent records (attendance, exams, fees)
+  let hasHistoricalRecords = false;
+  let dependentReason = "";
+
+  try {
+    const attCount: any[] = await db.$queryRawUnsafe(
+      `SELECT count(*) as count FROM attendance_records WHERE "studentId" = $1`,
+      studentId
+    );
+    if (parseInt(attCount[0]?.count || "0", 10) > 0) {
+      hasHistoricalRecords = true;
+      dependentReason = "attendance records";
+    }
+  } catch {}
+
+  if (!hasHistoricalRecords) {
+    try {
+      const feeCount: any[] = await db.$queryRawUnsafe(
+        `SELECT count(*) as count FROM fee_payments WHERE "studentId" = $1`,
+        studentId
+      );
+      if (parseInt(feeCount[0]?.count || "0", 10) > 0) {
+        hasHistoricalRecords = true;
+        dependentReason = "fee payment records";
+      }
+    } catch {}
+  }
+
+  if (!hasHistoricalRecords) {
+    try {
+      const examCount: any[] = await db.$queryRawUnsafe(
+        `SELECT count(*) as count FROM exam_results WHERE "studentId" = $1`,
+        studentId
+      );
+      if (parseInt(examCount[0]?.count || "0", 10) > 0) {
+        hasHistoricalRecords = true;
+        dependentReason = "examination results";
+      }
+    } catch {}
+  }
+
+  if (hasHistoricalRecords && mode === "DELETE") {
+    throw new Error(
+      `Cannot permanently delete student ${student.fullName}: dependent ${dependentReason} exist. Student must be ARCHIVED to preserve historical academic and financial integrity.`
+    );
+  }
+
+  // Soft-delete / Archive
+  const updated = await db.student.update({
+    where: { id: studentId },
+    data: {
+      status: "ARCHIVED" as any,
+    },
+  });
+
+  // Deactivate associated user login
+  if (student.userId) {
+    await db.user.updateMany({
+      where: { id: student.userId, institutionId },
+      data: { isActive: false, status: "INACTIVE" },
+    });
+  }
+
+  await recordAuditLog(db, {
+    institutionId,
+    userId: student.userId || null,
+    actorUserId: null,
+    action: "STUDENT_ARCHIVED",
+    entityType: "STUDENT",
+    entityId: studentId,
+    newValuesJson: JSON.stringify({ status: "ARCHIVED", mode }),
+  });
+
+  return updated;
+}
+
+export async function restoreStudent(
+  institutionId: string,
+  studentId: string,
+  actorUserId?: string
+) {
+  const student = await db.student.findFirst({
+    where: { id: studentId, institutionId },
+  });
+
+  if (!student) {
+    throw new Error("Student not found or access denied.");
+  }
+
+  if ((student.status as string) !== "ARCHIVED" && (student.status as string) !== "Archived") {
+    return {
+      success: true,
+      message: "Student is not archived.",
+      alreadyActive: true,
+      data: student,
+    };
+  }
+
+  const updated = await db.student.update({
+    where: { id: studentId },
+    data: {
+      status: "ACTIVE",
+    },
+  });
+
+  await recordAuditLog(db, {
+    institutionId,
+    userId: student.userId || null,
+    actorUserId: actorUserId || null,
+    action: "STUDENT_RESTORED",
+    entityType: "STUDENT",
+    entityId: studentId,
+    newValuesJson: JSON.stringify({
+      status: "ACTIVE",
+      restoredAt: new Date().toISOString(),
+      portalAccessRequiresSetup: true,
+    }),
+  });
+
+  return {
+    success: true,
+    message: `Student ${student.fullName} successfully restored to active directory.`,
+    data: updated,
+  };
+}
+
+// ----------------------------------------------------------------------------
+// 23b. TEACHER ARCHIVE & RESTORE
+// ----------------------------------------------------------------------------
+
+export async function getTeacherDependencies(institutionId: string, staffId: string) {
+  const user = await db.user.findFirst({
+    where: {
+      id: staffId,
+      institutionId,
+    },
+    include: {
+      teacherProfile: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("Staff member not found or access denied.");
+  }
+
+  const teacherProfileId = user.teacherProfile?.id;
+  const activeSlots = await db.timetableSlot.findMany({
+    where: {
+      institutionId,
+      OR: [
+        ...(teacherProfileId ? [{ teacherId: teacherProfileId }] : []),
+        { staffId: user.id },
+      ],
+      status: "ACTIVE",
+    },
+    include: {
+      subject: true,
+      course: true,
+    },
+  });
+
+  return {
+    user,
+    teacherProfile: user.teacherProfile,
+    activeSlots: activeSlots.map((s) => ({
+      id: s.id,
+      dayOfWeek: s.dayOfWeek,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      roomNumber: s.roomNumber,
+      subjectName: s.subject?.name || "Subject",
+      courseName: s.course?.name || "Course",
+      section: s.section,
+    })),
+    hasActiveAssignments: activeSlots.length > 0,
+  };
+}
+
+export async function archiveTeacher(
+  institutionId: string,
+  staffId: string,
+  actorUserId?: string,
+  forceWithAssignments: boolean = false
+) {
+  const { user, teacherProfile, activeSlots, hasActiveAssignments } =
+    await getTeacherDependencies(institutionId, staffId);
+
+  // If teacher has active teaching assignments, require explicit force/reassignment
+  if (hasActiveAssignments && !forceWithAssignments) {
+    const conflictErr = new Error(
+      `Cannot archive teacher "${user.fullName}": ${activeSlots.length} active teaching assignment(s) exist. Reassign timetable slots before completing archival.`
+    );
+    (conflictErr as any).statusCode = 409;
+    (conflictErr as any).hasActiveAssignments = true;
+    (conflictErr as any).activeSlots = activeSlots;
+    throw conflictErr;
+  }
+
+  const settingKey = `archived_staff:${institutionId}`;
+  const setting = await db.platformSetting
+    .findUnique({ where: { key: settingKey } })
+    .catch(() => null);
+
+  const archivedList: any[] = Array.isArray(setting?.value)
+    ? (setting?.value as any[])
+    : [];
+
+  const isAlreadyArchived = archivedList.some(
+    (a: any) =>
+      a.id === user.id || (teacherProfile && a.id === teacherProfile.id)
   );
-  globalApprovalRequestsRegistry.set(institutionId, updated);
-  return updated.find((r) => r.id === requestId);
+
+  if (isAlreadyArchived) {
+    return {
+      success: true,
+      message: `Teacher "${user.fullName}" is already archived.`,
+      alreadyArchived: true,
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+  const newArchivedRecord = {
+    id: user.id,
+    teacherId: teacherProfile?.id || null,
+    employeeId: teacherProfile?.employeeId || null,
+    fullName: user.fullName,
+    email: user.email,
+    archivedAt: nowIso,
+    archivedBy: actorUserId || "INSTITUTION_ADMIN",
+    activeSlotCount: activeSlots.length,
+  };
+
+  const nextList = [
+    ...archivedList.filter(
+      (a: any) => a.id !== user.id && (!teacherProfile || a.id !== teacherProfile.id)
+    ),
+    newArchivedRecord,
+  ];
+
+  await db.$transaction(async (tx) => {
+    // 1. Revoke portal login access safely
+    await tx.user.updateMany({
+      where: { id: user.id, institutionId },
+      data: {
+        isActive: false,
+        status: "INACTIVE",
+      },
+    });
+
+    // 2. Persist in tenant-isolated PlatformSetting
+    await tx.platformSetting.upsert({
+      where: { key: settingKey },
+      create: {
+        key: settingKey,
+        value: nextList,
+        description: `Archived staff for institution ${institutionId}`,
+      },
+      update: {
+        value: nextList,
+      },
+    });
+
+    // 3. Record audit log
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: user.id,
+      actorUserId: actorUserId || null,
+      action: "TEACHER_ARCHIVED",
+      entityType: "TEACHER",
+      entityId: teacherProfile?.id || user.id,
+      newValuesJson: JSON.stringify({
+        status: "ARCHIVED",
+        isActive: false,
+        archivedAt: nowIso,
+        activeSlotCount: activeSlots.length,
+      }),
+    });
+  });
+
+  return {
+    success: true,
+    message: `Teacher "${user.fullName}" archived safely. Historical academic, attendance, and exam records remain permanently preserved.`,
+    data: newArchivedRecord,
+  };
+}
+
+export async function restoreTeacher(
+  institutionId: string,
+  staffId: string,
+  actorUserId?: string
+) {
+  const user = await db.user.findFirst({
+    where: {
+      id: staffId,
+      institutionId,
+    },
+    include: {
+      teacherProfile: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("Staff member not found or access denied.");
+  }
+
+  const settingKey = `archived_staff:${institutionId}`;
+  const setting = await db.platformSetting
+    .findUnique({ where: { key: settingKey } })
+    .catch(() => null);
+
+  const archivedList: any[] = Array.isArray(setting?.value)
+    ? (setting?.value as any[])
+    : [];
+
+  const isArchived = archivedList.some(
+    (a: any) =>
+      a.id === user.id || (user.teacherProfile && a.id === user.teacherProfile.id)
+  );
+
+  if (!isArchived) {
+    return {
+      success: true,
+      message: `Teacher "${user.fullName}" is not archived.`,
+      notArchived: true,
+    };
+  }
+
+  const nextList = archivedList.filter(
+    (a: any) =>
+      a.id !== user.id && (!user.teacherProfile || a.id !== user.teacherProfile.id)
+  );
+
+  await db.$transaction(async (tx) => {
+    // 1. Remove from archived set
+    await tx.platformSetting.upsert({
+      where: { key: settingKey },
+      create: {
+        key: settingKey,
+        value: nextList,
+        description: `Archived staff for institution ${institutionId}`,
+      },
+      update: {
+        value: nextList,
+      },
+    });
+
+    // 2. Security: Portal access is NOT automatically re-enabled
+
+    // 3. Record audit log
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: user.id,
+      actorUserId: actorUserId || null,
+      action: "TEACHER_RESTORED",
+      entityType: "TEACHER",
+      entityId: user.teacherProfile?.id || user.id,
+      newValuesJson: JSON.stringify({
+        status: "RESTORED",
+        restoredAt: new Date().toISOString(),
+        portalAccessRequiresAuthorization: true,
+      }),
+    });
+  });
+
+  return {
+    success: true,
+    message: `Teacher "${user.fullName}" restored successfully. Portal access requires fresh credential activation.`,
+  };
+}
+
+// ----------------------------------------------------------------------------
+// 23c. PARENT / GUARDIAN ARCHIVE & RESTORE
+// ----------------------------------------------------------------------------
+
+export async function getGuardianDependencies(institutionId: string, guardianId: string) {
+  const guardianAccount = await db.guardianAccount.findFirst({
+    where: {
+      institutionId,
+      OR: [{ id: guardianId }, { userId: guardianId }],
+    },
+    include: {
+      guardianLinks: {
+        include: { student: true },
+      },
+      user: true,
+    },
+  });
+
+  if (!guardianAccount) {
+    throw new Error("Guardian not found or access denied.");
+  }
+
+  const linkedStudents = guardianAccount.guardianLinks.map((gl) => ({
+    studentId: gl.studentId,
+    fullName: gl.student?.fullName || "Student",
+    rollNumber: gl.student?.rollNumber || "N/A",
+    admissionNumber: gl.student?.admissionNumber || "N/A",
+    relationship: gl.relationship,
+    status: gl.student?.status || "ACTIVE",
+    canAccessPortal: gl.canAccessPortal,
+  }));
+
+  const activeStudents = linkedStudents.filter(
+    (s) => (s.status as string) === "ACTIVE" || (s.status as string) === "Active"
+  );
+
+  return {
+    guardianAccount,
+    linkedStudents,
+    activeStudents,
+    hasActiveStudents: activeStudents.length > 0,
+  };
+}
+
+export async function archiveGuardian(
+  institutionId: string,
+  guardianId: string,
+  actorUserId?: string,
+  forceWithActiveStudents: boolean = false
+) {
+  const { guardianAccount, linkedStudents, activeStudents, hasActiveStudents } =
+    await getGuardianDependencies(institutionId, guardianId);
+
+  // If guardian has active linked students and not explicitly confirmed, return detailed conflict
+  if (hasActiveStudents && !forceWithActiveStudents) {
+    const conflictErr = new Error(
+      `Cannot archive guardian "${guardianAccount.fullName}": Guardian is linked to ${activeStudents.length} active student(s) (${activeStudents.map((s) => s.fullName).join(", ")}). Administrator confirmation required.`
+    );
+    (conflictErr as any).statusCode = 409;
+    (conflictErr as any).hasActiveStudents = true;
+    (conflictErr as any).linkedStudents = linkedStudents;
+    throw conflictErr;
+  }
+
+  const settingKey = `archived_guardians:${institutionId}`;
+  const setting = await db.platformSetting
+    .findUnique({ where: { key: settingKey } })
+    .catch(() => null);
+
+  const archivedList: any[] = Array.isArray(setting?.value)
+    ? (setting?.value as any[])
+    : [];
+
+  const isAlreadyArchived = archivedList.some(
+    (a: any) => a.id === guardianAccount.id || a.id === guardianAccount.userId
+  );
+
+  if (isAlreadyArchived) {
+    return {
+      success: true,
+      message: `Guardian "${guardianAccount.fullName}" is already archived.`,
+      alreadyArchived: true,
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+  const newArchivedRecord = {
+    id: guardianAccount.id,
+    userId: guardianAccount.userId,
+    fullName: guardianAccount.fullName,
+    phone: guardianAccount.phone,
+    archivedAt: nowIso,
+    archivedBy: actorUserId || "INSTITUTION_ADMIN",
+    linkedStudentCount: linkedStudents.length,
+    activeStudentCount: activeStudents.length,
+  };
+
+  const nextList = [
+    ...archivedList.filter(
+      (a: any) => a.id !== guardianAccount.id && a.id !== guardianAccount.userId
+    ),
+    newArchivedRecord,
+  ];
+
+  await db.$transaction(async (tx) => {
+    // 1. Deactivate guardian portal login
+    if (guardianAccount.userId) {
+      await tx.user.updateMany({
+        where: { id: guardianAccount.userId, institutionId },
+        data: {
+          isActive: false,
+          status: "INACTIVE",
+        },
+      });
+    }
+
+    // 2. Revoke portal access permission to student records, preserving relationships
+    await tx.guardianLink.updateMany({
+      where: {
+        guardianAccountId: guardianAccount.id,
+        institutionId,
+      },
+      data: {
+        canAccessPortal: false,
+      },
+    });
+
+    // 3. Persist in tenant-isolated PlatformSetting
+    await tx.platformSetting.upsert({
+      where: { key: settingKey },
+      create: {
+        key: settingKey,
+        value: nextList,
+        description: `Archived guardians for institution ${institutionId}`,
+      },
+      update: {
+        value: nextList,
+      },
+    });
+
+    // 4. Record audit log
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: guardianAccount.userId || null,
+      actorUserId: actorUserId || null,
+      action: "GUARDIAN_ARCHIVED",
+      entityType: "GUARDIAN",
+      entityId: guardianAccount.id,
+      newValuesJson: JSON.stringify({
+        status: "ARCHIVED",
+        archivedAt: nowIso,
+        linkedStudentIds: linkedStudents.map((s) => s.studentId),
+      }),
+    });
+  });
+
+  return {
+    success: true,
+    message: `Guardian "${guardianAccount.fullName}" archived safely. Linked student records and historical relationships remain preserved.`,
+    data: newArchivedRecord,
+  };
+}
+
+export async function restoreGuardian(
+  institutionId: string,
+  guardianId: string,
+  actorUserId?: string
+) {
+  const guardianAccount = await db.guardianAccount.findFirst({
+    where: {
+      institutionId,
+      OR: [{ id: guardianId }, { userId: guardianId }],
+    },
+    include: {
+      guardianLinks: true,
+    },
+  });
+
+  if (!guardianAccount) {
+    throw new Error("Guardian not found or access denied.");
+  }
+
+  const settingKey = `archived_guardians:${institutionId}`;
+  const setting = await db.platformSetting
+    .findUnique({ where: { key: settingKey } })
+    .catch(() => null);
+
+  const archivedList: any[] = Array.isArray(setting?.value)
+    ? (setting?.value as any[])
+    : [];
+
+  const isArchived = archivedList.some(
+    (a: any) => a.id === guardianAccount.id || a.id === guardianAccount.userId
+  );
+
+  if (!isArchived) {
+    return {
+      success: true,
+      message: `Guardian "${guardianAccount.fullName}" is not archived.`,
+      notArchived: true,
+    };
+  }
+
+  const nextList = archivedList.filter(
+    (a: any) => a.id !== guardianAccount.id && a.id !== guardianAccount.userId
+  );
+
+  await db.$transaction(async (tx) => {
+    // 1. Remove from archived set
+    await tx.platformSetting.upsert({
+      where: { key: settingKey },
+      create: {
+        key: settingKey,
+        value: nextList,
+        description: `Archived guardians for institution ${institutionId}`,
+      },
+      update: {
+        value: nextList,
+      },
+    });
+
+    // 2. Restore portal access permissions ONLY on verified links (Requirement 12: Never grant access to every linked student automatically)
+    await tx.guardianLink.updateMany({
+      where: {
+        guardianAccountId: guardianAccount.id,
+        institutionId,
+        isVerified: true,
+      },
+      data: {
+        canAccessPortal: true,
+      },
+    });
+
+    // 3. Security: User login account remains inactive until explicitly enabled/credential issued
+
+    // 4. Record audit log
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: guardianAccount.userId || null,
+      actorUserId: actorUserId || null,
+      action: "GUARDIAN_RESTORED",
+      entityType: "GUARDIAN",
+      entityId: guardianAccount.id,
+      newValuesJson: JSON.stringify({
+        status: "RESTORED",
+        restoredAt: new Date().toISOString(),
+        portalAccessRequiresAuthorization: true,
+      }),
+    });
+  });
+
+  return {
+    success: true,
+    message: `Guardian "${guardianAccount.fullName}" restored successfully.`,
+  };
 }
 
 export async function getCampusServicesOverview(institutionId: string) {
@@ -4703,68 +6114,6 @@ export async function getCampusServicesOverview(institutionId: string) {
 // 24. ROLES, PERMISSIONS & AUDIT LOGS
 // ----------------------------------------------------------------------------
 
-const globalAuditLogsRegistry: Map<string, any[]> = new Map();
-
-function getInitialAuditLogs(institutionId: string): any[] {
-  return [
-    {
-      id: "audit_01",
-      institutionId,
-      action: "FEE_RECEIPT_ISSUED",
-      tableName: "fee_payments",
-      entity: "fee_payments",
-      recordId: "REC-2026-00101",
-      entityId: "REC-2026-00101",
-      createdAt: new Date("2026-11-15T10:30:00Z").toISOString(),
-      user: { id: "u_admin_01", fullName: "Finance Admin Suresh", email: "finance@sst-erp.edu", role: "ADMIN" },
-    },
-    {
-      id: "audit_02",
-      institutionId,
-      action: "APPROVAL_DECIDED",
-      tableName: "approval_requests",
-      entity: "approval_requests",
-      recordId: "appr_04",
-      entityId: "appr_04",
-      createdAt: new Date("2026-11-14T16:20:00Z").toISOString(),
-      user: { id: "u_admin_02", fullName: "Principal Academic Officer", email: "principal@sst-erp.edu", role: "ADMIN" },
-    },
-    {
-      id: "audit_03",
-      institutionId,
-      action: "ROOM_ALLOCATED",
-      tableName: "hostel_allocations",
-      entity: "hostel_allocations",
-      recordId: "hostel_01",
-      entityId: "hostel_01",
-      createdAt: new Date("2026-11-14T11:45:00Z").toISOString(),
-      user: { id: "u_warden_01", fullName: "Hostel Warden Ramesh", email: "warden@sst-erp.edu", role: "ADMIN" },
-    },
-    {
-      id: "audit_04",
-      institutionId,
-      action: "EVENT_SCHEDULED",
-      tableName: "events",
-      entity: "events",
-      recordId: "ev_01",
-      entityId: "ev_01",
-      createdAt: new Date("2026-11-13T14:10:00Z").toISOString(),
-      user: { id: "u_admin_03", fullName: "Events Incharge Prof. Meera", email: "events@sst-erp.edu", role: "ADMIN" },
-    },
-    {
-      id: "audit_05",
-      institutionId,
-      action: "BROADCAST_SENT",
-      tableName: "notifications",
-      entity: "notifications",
-      recordId: "notif_01",
-      entityId: "notif_01",
-      createdAt: new Date("2026-11-12T09:05:00Z").toISOString(),
-      user: { id: "u_admin_04", fullName: "Registrar Office", email: "registrar@sst-erp.edu", role: "ADMIN" },
-    },
-  ];
-}
-
 export async function getAuditLogs(institutionId: string, take = 50) {
   try {
     const rawList: any = await db.$queryRaw`
@@ -4797,7 +6146,7 @@ export async function getAuditLogs(institutionId: string, take = 50) {
       LIMIT ${take};
     `;
 
-    if (rawList && rawList.length > 0) {
+    if (rawList && Array.isArray(rawList)) {
       return rawList.map((r: any) => ({
         id: r.id,
         action: r.action,
@@ -4810,16 +6159,11 @@ export async function getAuditLogs(institutionId: string, take = 50) {
         user: { fullName: "Administrator", role: "ADMIN", email: "" },
       }));
     }
+    return [];
   } catch (err: any) {
-    console.warn("Audit logs raw query error:", err.message);
+    console.error("Audit logs database query error:", err.message);
+    throw new Error(`Failed to load audit logs from database: ${err.message}`);
   }
-
-  let list = globalAuditLogsRegistry.get(institutionId);
-  if (!list) {
-    list = getInitialAuditLogs(institutionId);
-    globalAuditLogsRegistry.set(institutionId, list);
-  }
-  return list.slice(0, take);
 }
 
 export async function createAuditLog(data: {
@@ -4839,21 +6183,8 @@ export async function createAuditLog(data: {
     `;
     return { id: newId, ...data, createdAt: new Date() };
   } catch (err: any) {
-    console.warn("Audit log creation bypassed:", err.message);
-    const newLog = {
-      id: `audit_${Date.now()}`,
-      institutionId: data.institutionId,
-      action: data.action,
-      tableName: data.tableName,
-      entity: data.tableName,
-      recordId: data.recordId,
-      entityId: data.recordId,
-      createdAt: new Date().toISOString(),
-      user: { id: data.userId || "u_sys", fullName: "Administrator", email: "admin@sst-erp.edu", role: "ADMIN" },
-    };
-    const current = await getAuditLogs(data.institutionId, 100);
-    globalAuditLogsRegistry.set(data.institutionId, [newLog, ...current]);
-    return newLog;
+    console.error("Audit log insertion failed:", err.message);
+    return null;
   }
 }
 
@@ -5026,36 +6357,6 @@ export async function checkoutVisitorPass(institutionId: string, passId: string)
 // 26. STUDENT GRIEVANCES & INSTITUTIONAL FEEDBACK
 // ----------------------------------------------------------------------------
 export const globalFeedbacksRegistry: Map<string, any[]> = new Map();
-
-function getInitialFeedbacks(institutionId: string): any[] {
-  return [
-    {
-      id: "18585eb9-3592-4738-b44f-0a2b855942d2",
-      institutionId,
-      studentId: "student_john_doe",
-      category: "INFRASTRUCTURE",
-      subject: "Wi-Fi Coverage in Library Reading Hall 3",
-      message: "The 5GHz signal drops frequently near the west wing cubicles in Library Hall 3.",
-      status: "RESOLVED",
-      response: "IT Network team has installed an additional Cisco access point in West Wing. Tested and operational at 150 Mbps.",
-      submittedAt: new Date("2026-11-13T09:00:00Z").toISOString(),
-      respondedAt: new Date("2026-11-14T11:30:00Z").toISOString(),
-      student: {
-        id: "student_john_doe",
-        firstName: "John",
-        lastName: "Doe",
-        fullName: "John Doe",
-        rollNumber: "23CS089",
-        admissionNumber: "ADM-2023-CS089",
-        email: "john.doe@student.apex.edu",
-        phone: "+91 98765 43210",
-        currentDepartment: { id: "dept_cse", name: "Computer Science and Engineering", code: "CSE" },
-        currentCourse: { id: "crs_btech", name: "B.Tech Computer Science and Engineering", code: "CS" },
-        user: { name: "John Doe", email: "john.doe@student.apex.edu", phone: "+91 98765 43210" },
-      },
-    },
-  ];
-}
 
 export async function getStudentFeedbacks(institutionId: string, status?: string) {
   let dbList: any[] = [];

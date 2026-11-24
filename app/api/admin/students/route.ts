@@ -4,6 +4,8 @@ import {
   getStudents,
   createStudent,
   updateStudent,
+  archiveOrDeleteStudent,
+  restoreStudent,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
       fullName: body.fullName,
       email: body.email,
       rollNumber: body.rollNumber,
+      admissionNumber: body.admissionNumber,
       usn: body.usn,
       phone: body.phone,
       gender: body.gender,
@@ -48,6 +51,16 @@ export async function POST(req: NextRequest) {
       academicYearId: body.academicYearId,
       classId: body.classId,
       sectionId: body.sectionId,
+      departmentId: body.departmentId,
+      bloodGroup: body.bloodGroup,
+      category: body.category,
+      addressLine: body.addressLine,
+      city: body.city,
+      state: body.state,
+      postalCode: body.postalCode,
+      admissionDate: body.admissionDate ? new Date(body.admissionDate) : undefined,
+      batch: body.batch,
+      status: body.status,
     });
 
     return NextResponse.json({
@@ -87,35 +100,58 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
     const id = req.nextUrl.searchParams.get("id");
+    const mode = (req.nextUrl.searchParams.get("mode") || "ARCHIVE").toUpperCase() as "ARCHIVE" | "DELETE" | "RESTORE";
 
     if (!id) {
       return NextResponse.json({ success: false, error: "Student ID required." }, { status: 400 });
     }
 
-    // Atomic soft delete / archive scoped to institutionId
-    const result = await db.student.updateMany({
-      where: { id, institutionId },
-      data: { status: "ARCHIVED" as any },
-    });
-
-    if (result.count === 0) {
-      return NextResponse.json(
-        { success: false, error: "Student not found or access denied." },
-        { status: 404 }
-      );
+    if (mode === "RESTORE") {
+      const result = await restoreStudent(institutionId, id, actorUserId);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        data: (result as any).data,
+      });
     }
 
-    const updated = await db.student.findFirst({
-      where: { id, institutionId },
-    });
+    const updated = await archiveOrDeleteStudent(institutionId, id, mode);
 
     return NextResponse.json({
       success: true,
-      message: "Student status transitioned to ARCHIVED.",
+      message: `Student status transitioned to ${updated.status}. Historical records safely preserved.`,
       data: updated,
     });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    const body = await req.json();
+    const { id, action } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Student ID required." }, { status: 400 });
+    }
+
+    if (action === "RESTORE") {
+      const result = await restoreStudent(institutionId, id, actorUserId);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        data: (result as any).data,
+      });
+    }
+
+    return NextResponse.json(
+      { success: false, error: `Invalid action: ${action}. Expected RESTORE.` },
+      { status: 400 }
+    );
   } catch (error) {
     return handleAdminApiError(error);
   }

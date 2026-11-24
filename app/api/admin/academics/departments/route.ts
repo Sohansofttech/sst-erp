@@ -73,23 +73,42 @@ export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
     const id = req.nextUrl.searchParams.get("id");
+    const name = req.nextUrl.searchParams.get("name");
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: "Department ID required." }, { status: 400 });
+    if (!id && !name) {
+      return NextResponse.json({ success: false, error: "Department ID or name required." }, { status: 400 });
     }
 
-    const result = await db.department.deleteMany({
-      where: { id, institutionId },
-    });
+    const targetIdentifier = (name || id) as string;
+    const [linkedCourses, linkedTeachers] = await Promise.all([
+      db.course.count({
+        where: {
+          institutionId,
+          OR: [
+            { department: targetIdentifier },
+            ...(id ? [{ departmentId: id }] : []),
+          ],
+        },
+      }),
+      db.teacher.count({
+        where: {
+          institutionId,
+          department: targetIdentifier,
+        },
+      }),
+    ]);
 
-    if (result.count === 0) {
+    if (linkedCourses > 0 || linkedTeachers > 0) {
       return NextResponse.json(
-        { success: false, error: "Department not found or access denied." },
-        { status: 404 }
+        {
+          success: false,
+          error: `Cannot delete department: ${linkedCourses} course(s) and ${linkedTeachers} faculty member(s) are actively assigned.`,
+        },
+        { status: 409 }
       );
     }
 
-    return NextResponse.json({ success: true, message: "Department deleted." });
+    return NextResponse.json({ success: true, message: "Department deleted successfully." });
   } catch (error) {
     return handleAdminApiError(error);
   }

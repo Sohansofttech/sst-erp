@@ -21,7 +21,7 @@ async function runStaffTeacherSyncTests() {
   const testPhone = "+91 99999 11111";
 
   let createdUserId: string | null = null;
-  let createdTeacherId: string | null = null;
+  let createdTeacherId: string | undefined = undefined;
   let createdStaffId: string | null = null;
 
   try {

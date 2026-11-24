@@ -470,7 +470,7 @@ export default function TeacherAttendancePage() {
           )
         }
         action={
-          <Button variant="outline" asChild>
+          <Button variant="outline" asChild className="w-full sm:w-auto">
             <Link href={`/campus/${slug}/teacher/attendance/history`}>
               <History className="size-4" />
               Attendance History
@@ -630,10 +630,11 @@ export default function TeacherAttendancePage() {
       {/* Quick Actions Bar + Live Summary Counter */}
       <Card className="py-4">
         <CardContent className="flex flex-col gap-4 px-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               disabled={isReadOnly || loadingStudents}
               onClick={handleMarkAllPresent}
             >
@@ -647,7 +648,7 @@ export default function TeacherAttendancePage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search student or roll no..."
-                className="pl-9"
+                className="pl-9 w-full"
               />
             </div>
           </div>
@@ -689,25 +690,26 @@ export default function TeacherAttendancePage() {
 
       {/* Fast Student Grid / Table */}
       <Card>
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <CalendarCheck className="size-4 text-primary" />
               {activeClass
                 ? `${activeClass.className} - Section ${activeClass.section}`
                 : "Section Register"}{" "}
-              · {activeSubject?.subjectName ?? "Subject"}
+                · {activeSubject?.subjectName ?? "Subject"}
             </CardTitle>
             <CardDescription>
               {selectedDate} · Period {selectedPeriod} · Toggle status pills for rapid attendance marking.
             </CardDescription>
           </div>
           {!isReadOnly && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               {!isAlreadySubmittedEditable && (
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full sm:w-auto"
                   disabled={submitting || loadingStudents}
                   onClick={() => void performSave("draft")}
                 >
@@ -717,6 +719,7 @@ export default function TeacherAttendancePage() {
               )}
               <Button
                 type="button"
+                className="w-full sm:w-auto"
                 disabled={submitting || loadingStudents || students.length === 0}
                 onClick={() => setConfirmOpen(true)}
               >
@@ -739,11 +742,11 @@ export default function TeacherAttendancePage() {
               description="No students matched your search filter in this section."
             />
           ) : (
-            <div className="overflow-hidden rounded-lg border">
-              <Table>
+            <div className="overflow-x-auto rounded-lg border">
+              <Table className="min-w-[620px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-28">Roll No</TableHead>
+                    <TableHead className="w-24 sticky left-0 bg-white z-10 shadow-xs">Roll No</TableHead>
                     <TableHead>Student</TableHead>
                     <TableHead className="hidden md:table-cell">
                       Term Attendance
@@ -756,7 +759,7 @@ export default function TeacherAttendancePage() {
                     const current = statuses[student.studentId] ?? "present"
                     return (
                       <TableRow key={student.studentId}>
-                        <TableCell className="font-mono text-[13px] font-semibold">
+                        <TableCell className="font-mono text-[13px] font-semibold sticky left-0 bg-white z-10 shadow-xs">
                           {student.rollNo}
                         </TableCell>
                         <TableCell>
@@ -842,7 +845,7 @@ export default function TeacherAttendancePage() {
 
       {/* Confirmation Modal */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {isAlreadySubmittedEditable
@@ -934,16 +937,18 @@ export default function TeacherAttendancePage() {
             </p>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => setConfirmOpen(false)}
             >
               Cancel
             </Button>
             <Button
               type="button"
+              className="w-full sm:w-auto"
               disabled={submitting}
               onClick={() => void performSave("submitted")}
             >

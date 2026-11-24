@@ -139,7 +139,7 @@ async function runCredentialTestSuite() {
     cleanupUserIds.push(testUser1.id);
 
     // Create temporary test student via raw SQL into base table students
-    const testStudentId = `${TEST_PREFIX}-stu1`;
+    const testStudentId = crypto.randomUUID();
     await db.$executeRawUnsafe(
       `INSERT INTO students (id, "institutionId", "userId", "rollNumber", "admissionNumber", "firstName", "lastName", "fullName", email, "dateOfBirth", gender, "admissionDate", "currentSemester", "currentSection", status, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
@@ -280,7 +280,7 @@ async function runCredentialTestSuite() {
     });
     cleanupUserIds.push(testUser2.id);
 
-    const dupStudentId = `${TEST_PREFIX}-stu2`;
+    const dupStudentId = crypto.randomUUID();
     await db.$executeRawUnsafe(
       `INSERT INTO students (id, "institutionId", "userId", "rollNumber", "admissionNumber", "firstName", "lastName", "fullName", email, "dateOfBirth", gender, "admissionDate", "currentSemester", "currentSection", status, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
@@ -329,7 +329,52 @@ async function runCredentialTestSuite() {
       "Parent credentials rejected when no students are linked"
     );
 
-    // 6B: Parent with 2 valid children
+    // 6B: Parent with 2 valid children (pre-link with verified status)
+    const seedUser = await db.user.create({
+      data: {
+        institutionId: TEST_INST_ID,
+        email: `${TEST_PREFIX}-parent@demo.edu`,
+        fullName: "Parent Two Children",
+        phone: "+91 98765 43210",
+        role: "PARENT",
+        isActive: false,
+        status: "INACTIVE",
+      },
+    });
+    cleanupUserIds.push(seedUser.id);
+
+    const seedGuardian = await db.guardianAccount.create({
+      data: {
+        institutionId: TEST_INST_ID,
+        userId: seedUser.id,
+        fullName: "Parent Two Children",
+        phone: "+91 98765 43210",
+        relationship: "Father",
+      },
+    });
+    cleanupGuardianAccountIds.push(seedGuardian.id);
+
+    await db.guardianLink.createMany({
+      data: [
+        {
+          institutionId: TEST_INST_ID,
+          guardianAccountId: seedGuardian.id,
+          studentId: testStudentId,
+          relationship: "Father",
+          isVerified: true,
+          canAccessPortal: true,
+        },
+        {
+          institutionId: TEST_INST_ID,
+          guardianAccountId: seedGuardian.id,
+          studentId: dupStudentId,
+          relationship: "Father",
+          isVerified: true,
+          canAccessPortal: true,
+        },
+      ],
+    });
+
     const parentResult = await issueParentCredentials({
       institutionId: TEST_INST_ID,
       email: `${TEST_PREFIX}-parent@demo.edu`,

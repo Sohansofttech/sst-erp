@@ -171,7 +171,7 @@ export default function HodFacultyLeaveApprovalsPage() {
         title="Faculty Leave & Timetable Substitutions"
         subtitle="Department of Mathematics faculty leave queue: approve absences and allocate qualified department substitute teachers to prevent untaught periods. (HoD self-applications are routed directly to the Principal)."
         action={
-          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/hod`}>
               <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
               Dept Dashboard
@@ -180,7 +180,7 @@ export default function HodFacultyLeaveApprovalsPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <StatCard
           label="Pending Queue"
           value={pendingCount}
@@ -223,27 +223,28 @@ export default function HodFacultyLeaveApprovalsPage() {
               />
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-[#EEF1F5]/80">
-                <TableRow>
-                  <TableHead className="font-bold text-[#788391]">Faculty Member</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Leave Type</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Duration & Dates</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Nominated Substitute</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Status</TableHead>
-                  <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-[#E5E9EF]">
-                {facultyLeaves.map((leave) => {
-                  const isPending =
-                    leave.status === "submitted" || leave.status === "in_review"
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader className="bg-[#EEF1F5]/80">
+                  <TableRow>
+                    <TableHead className="font-bold text-[#788391] sticky left-0 z-10 bg-[#EEF1F5]">Faculty Member</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Leave Type</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Duration & Dates</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Nominated Substitute</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Status</TableHead>
+                    <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#E5E9EF]">
+                  {facultyLeaves.map((leave) => {
+                    const isPending =
+                      leave.status === "submitted" || leave.status === "in_review"
 
-                  return (
-                    <TableRow key={leave.id} className="hover:bg-[#EEF1F5]/50">
-                      <TableCell className="font-bold text-[#202936]">
-                        {leave.teacherName}
-                      </TableCell>
+                    return (
+                      <TableRow key={leave.id} className="hover:bg-[#EEF1F5]/50">
+                        <TableCell className="font-bold text-[#202936] sticky left-0 z-10 bg-white">
+                          {leave.teacherName}
+                        </TableCell>
                       <TableCell className="text-xs text-[#202936]">
                         {leave.leaveType}
                       </TableCell>
@@ -299,13 +300,14 @@ export default function HodFacultyLeaveApprovalsPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Decision Dialog */}
       <Dialog open={!!selectedLeave} onOpenChange={(open) => !open && setSelectedLeave(null)}>
-        <DialogContent className="rounded-2xl sm:max-w-md bg-white border-[#E5E9EF]">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-md rounded-2xl bg-white border-[#E5E9EF]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#123B5A]">
               {decision === "approved"
@@ -354,15 +356,15 @@ export default function HodFacultyLeaveApprovalsPage() {
                 rows={3}
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
-                className="mt-1 rounded-xl border-[#E5E9EF] text-xs"
+                className="mt-1 rounded-xl border-[#E5E9EF] text-base sm:text-xs"
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => setSelectedLeave(null)}
-              className="rounded-xl border-[#E5E9EF] text-[#202936]"
+              className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936]"
             >
               Cancel
             </Button>
@@ -370,7 +372,7 @@ export default function HodFacultyLeaveApprovalsPage() {
               disabled={submitting}
               onClick={handleConfirmDecision}
               className={cn(
-                "rounded-xl font-bold text-white",
+                "w-full sm:w-auto rounded-xl font-bold text-white",
                 decision === "approved"
                   ? "bg-emerald-600 hover:bg-emerald-700"
                   : "bg-rose-600 hover:bg-rose-700"

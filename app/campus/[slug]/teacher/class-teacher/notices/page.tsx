@@ -118,7 +118,7 @@ export default function ParentNoticesPage() {
         title="Parent Notices Broadcast"
         subtitle="Send direct institutional notices to all parents of Class 10-A. Messages are delivered to the verified Parent Portal with contact privacy protection."
         action={
-          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/class-teacher`}>
               <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
               Section Dashboard
@@ -148,7 +148,7 @@ export default function ParentNoticesPage() {
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     required
-                    className="mt-1 rounded-xl border-[#E5E9EF] text-xs"
+                    className="mt-1 rounded-xl border-[#E5E9EF] text-base sm:text-xs"
                   />
                 </div>
 
@@ -177,19 +177,19 @@ export default function ParentNoticesPage() {
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     required
-                    className="mt-1 rounded-xl border-[#E5E9EF] text-xs"
+                    className="mt-1 rounded-xl border-[#E5E9EF] text-base sm:text-xs"
                   />
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-[#E5E9EF]">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-[#E5E9EF]">
                   <div className="flex items-center gap-1.5 text-xs text-[#788391]">
-                    <ShieldCheck className="size-4 text-emerald-600" />
+                    <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
                     <span>Parent phone numbers protected</span>
                   </div>
                   <Button
                     type="submit"
                     disabled={isSending}
-                    className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
+                    className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
                   >
                     <Send className="mr-1.5 size-4" />
                     {isSending ? "Broadcasting..." : "Broadcast to 18 Parents"}

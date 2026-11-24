@@ -107,21 +107,29 @@ export default function AdmissionsPage() {
   const [classes, setClasses] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [admissionsError, setAdmissionsError] = useState<string | null>(null);
 
   const loadAdmissions = useCallback(async () => {
     try {
       setIsLoading(true);
+      setAdmissionsError(null);
       const res = await fetch("/api/admin/admissions");
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setAdmissions(json.data.map(mapApiAdmission));
+      } else if (!json.success) {
+        setAdmissionsError(json.error || "Failed to load admissions.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load admissions:", err);
+      setAdmissionsError(err?.message || "Failed to load admissions.");
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  const refreshAdmissions = loadAdmissions;
+  const isAdmissionsLoading = isLoading;
 
   const loadAcademics = useCallback(async () => {
     try {
@@ -205,6 +213,7 @@ export default function AdmissionsPage() {
   ]);
 
   const [formError, setFormError] = useState("");
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState("");
 
   // Filtered Admissions List
   const filteredAdmissions = useMemo(() => {
@@ -308,7 +317,36 @@ export default function AdmissionsPage() {
     setPrevScore(String(app.previousScorePercentage));
     setPassingYear(String(app.passingYear));
 
-    setDocuments(app.documents || []);
+    const standardDocNames = [
+      "10th Grade Marksheet",
+      "12th Grade Marksheet",
+      "Transfer Certificate (TC)",
+      "Aadhaar Card / ID Proof",
+    ];
+    let initialDocs: DocumentSubmissionStatus[] = [];
+    if (Array.isArray(app.documents) && app.documents.length > 0) {
+      initialDocs = standardDocNames.map((name) => {
+        const found = app.documents?.find(
+          (d) => d.documentName.toLowerCase() === name.toLowerCase()
+        );
+        return found
+          ? { documentName: name, isSubmitted: Boolean(found.isSubmitted), verifiedAt: found.verifiedAt }
+          : { documentName: name, isSubmitted: false };
+      });
+      const extras = app.documents.filter(
+        (d) => !standardDocNames.some((sn) => sn.toLowerCase() === d.documentName.toLowerCase())
+      );
+      initialDocs.push(...extras);
+    } else {
+      initialDocs = [
+        { documentName: "10th Grade Marksheet", isSubmitted: true },
+        { documentName: "12th Grade Marksheet", isSubmitted: true },
+        { documentName: "Transfer Certificate (TC)", isSubmitted: false },
+        { documentName: "Aadhaar Card / ID Proof", isSubmitted: true },
+      ];
+    }
+
+    setDocuments(initialDocs);
     setFormError("");
     setIsFormModalOpen(true);
   };
@@ -429,8 +467,9 @@ export default function AdmissionsPage() {
       setFormError("Applicant first and last name are required.");
       return;
     }
-    if (!email.trim() || !email.includes("@")) {
-      setFormError("A valid applicant email address is required.");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setFormError("A valid applicant email address is required (e.g. name@example.com).");
       return;
     }
     if (!phone.trim() || phone.trim() === "+91") {
@@ -526,6 +565,7 @@ export default function AdmissionsPage() {
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
@@ -678,6 +718,26 @@ export default function AdmissionsPage() {
         </CardContent>
       </Card>
 
+      {saveSuccessMessage && (
+        <Alert variant="success">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="text-emerald-800 font-medium text-xs">{saveSuccessMessage}</span>
+          </div>
+        </Alert>
+      )}
+
+      {admissionsError && (
+        <Alert variant="error">
+          <div className="flex items-center justify-between w-full">
+            <span>{admissionsError}</span>
+            <Button size="sm" variant="outline" onClick={() => refreshAdmissions()}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      )}
+
       {/* Main Applications Table */}
       <Card>
         <CardContent className="p-0">
@@ -695,7 +755,13 @@ export default function AdmissionsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAdmissions.length === 0 ? (
+              {isAdmissionsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-sm text-[#64748B]">
+                    Loading admission applications from database...
+                  </TableCell>
+                </TableRow>
+              ) : filteredAdmissions.length === 0 ? (
                 <TableEmpty
                   colSpan={8}
                   message="No admission applications found matching your criteria."
@@ -709,10 +775,10 @@ export default function AdmissionsPage() {
                     <TableRow key={app.id}>
                       {/* Application ID */}
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                        <span className="font-mono text-xs font-bold text-[#123B5A] bg-[#EFF6FF] px-2 py-0.5 rounded border border-[#BFDBFE] whitespace-nowrap inline-block">
                           {app.applicationNumber}
                         </span>
-                        <span className="block text-[10px] text-[#94A3B8] mt-0.5">
+                        <span className="block text-[10px] text-[#94A3B8] mt-0.5 whitespace-nowrap">
                           {app.appliedDate}
                         </span>
                       </TableCell>
@@ -796,8 +862,8 @@ export default function AdmissionsPage() {
                       </TableCell>
 
                       {/* Actions */}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
                           <button
                             onClick={() => handleOpenDetails(app)}
                             className="p-1.5 rounded text-[#64748B] hover:text-[#F5A000] hover:bg-[#EFF6FF] transition-colors cursor-pointer"

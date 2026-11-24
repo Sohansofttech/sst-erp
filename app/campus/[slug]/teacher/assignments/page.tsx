@@ -372,6 +372,7 @@ export default function TeacherAssignmentsPage() {
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => setReviewingAssignment(null)}
             >
               <ArrowLeft className="size-4" />
@@ -393,11 +394,11 @@ export default function TeacherAssignmentsPage() {
             {loadingSubmissions ? (
               <LoadingState compact title="Loading submissions..." />
             ) : (
-              <div className="overflow-hidden rounded-lg border">
-                <Table>
+              <div className="overflow-x-auto rounded-lg border">
+                <Table className="min-w-[720px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-24">Roll No</TableHead>
+                      <TableHead className="w-24 sticky left-0 bg-white z-10 shadow-xs">Roll No</TableHead>
                       <TableHead>Student</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Attachment</TableHead>
@@ -418,7 +419,7 @@ export default function TeacherAssignmentsPage() {
                       const isPending = sub.status === "pending"
                       return (
                         <TableRow key={sub.id}>
-                          <TableCell className="font-mono text-[13px] font-semibold">
+                          <TableCell className="font-mono text-[13px] font-semibold sticky left-0 bg-white z-10 shadow-xs">
                             {sub.rollNo}
                           </TableCell>
                           <TableCell className="font-medium">
@@ -548,7 +549,7 @@ export default function TeacherAssignmentsPage() {
         title="Assignment Management"
         subtitle={`Create class assignments, track submission progress, and grade student work · AY ${academicYear}`}
         action={
-          <Button type="button" onClick={() => setCreateOpen(true)}>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
             Create Assignment
           </Button>
@@ -557,11 +558,11 @@ export default function TeacherAssignmentsPage() {
 
       {/* Filter Bar */}
       <Card className="py-4 rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5">
-          <div className="flex items-center gap-3">
-            <Label htmlFor="asg-filter">Class & Subject:</Label>
+        <CardContent className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-3 px-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+            <Label htmlFor="asg-filter" className="whitespace-nowrap">Class & Subject:</Label>
             <Select value={sectionFilter} onValueChange={setSectionFilter}>
-              <SelectTrigger id="asg-filter" className="w-64">
+              <SelectTrigger id="asg-filter" className="w-full sm:w-64">
                 <SelectValue placeholder="All Classes" />
               </SelectTrigger>
               <SelectContent>
@@ -679,7 +680,7 @@ export default function TeacherAssignmentsPage() {
 
       {/* Create Assignment Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-lg">
           <form onSubmit={handleSubmit(onCreateAssignment)}>
             <DialogHeader>
               <DialogTitle>Create Assignment</DialogTitle>
@@ -822,15 +823,16 @@ export default function TeacherAssignmentsPage() {
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
+                className="w-full sm:w-auto"
                 onClick={() => setCreateOpen(false)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                 {isSubmitting ? "Publishing..." : "Publish Assignment"}
               </Button>
             </DialogFooter>

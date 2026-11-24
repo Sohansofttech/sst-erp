@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,10 @@ import {
   AlertTriangle,
   RefreshCw,
   Eye,
+  CreditCard,
 } from "lucide-react";
+import { PaymentGatewaysSettings } from "@/components/admin/PaymentGatewaysSettings";
+import { InstitutionEmailSettings } from "@/components/admin/InstitutionEmailSettings";
 import {
   InstitutionThemeConfig,
   DEFAULT_INSTITUTION_THEME,
@@ -39,39 +42,50 @@ export default function InstitutionSettingsPage() {
   const {
     profile,
     updateProfile,
+    refreshProfile,
+    isProfileLoading,
+    profileError,
     theme: contextTheme,
     updateTheme,
     resetThemeToDefaults,
     resetToDefaults,
   } = useInstitution();
 
-  // Active settings tab: "profile" | "address" | "appearance"
-  const [activeTab, setActiveTab] = useState<"profile" | "address" | "appearance">("appearance");
+  // Active settings tab: "profile" | "address" | "appearance" | "gateways" | "email"
+  const [activeTab, setActiveTab] = useState<"profile" | "address" | "appearance" | "gateways" | "email">("appearance");
 
-  // Form states
+  // Authoritative state derived from InstitutionProvider
+  const isLoadingSettings = isProfileLoading;
+  const settingsError = profileError;
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Form states initialized from authoritative profile
   const [formData, setFormData] = useState(profile);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [themeSaveSuccess, setThemeSaveSuccess] = useState(false);
   const [logoPreview, setLogoPreview] = useState(profile.logoUrl || "");
 
-  // Sync form data when profile is hydrated from backend
-  const [lastHydratedId, setLastHydratedId] = useState(profile.id);
-  if (profile.id !== lastHydratedId) {
-    setLastHydratedId(profile.id);
+  // Sync form data whenever profile is hydrated from the authoritative store
+  useEffect(() => {
     setFormData(profile);
-    if (profile.logoUrl) setLogoPreview(profile.logoUrl);
-  }
+    if (profile.logoUrl) {
+      setLogoPreview(profile.logoUrl);
+    }
+  }, [profile]);
 
   // Local theme state for live preview before saving
   const [currentTheme, setCurrentTheme] = useState<InstitutionThemeConfig>(() => {
     return contextTheme || profile.themeConfig || DEFAULT_INSTITUTION_THEME;
   });
 
-  const [prevContextTheme, setPrevContextTheme] = useState(contextTheme);
-  if (contextTheme !== prevContextTheme) {
-    setPrevContextTheme(contextTheme);
-    setCurrentTheme(contextTheme);
-  }
+  useEffect(() => {
+    if (contextTheme) {
+      setCurrentTheme(contextTheme);
+    } else if (profile.themeConfig) {
+      setCurrentTheme(profile.themeConfig);
+    }
+  }, [contextTheme, profile.themeConfig]);
 
   // Accessibility / Contrast analysis
   const accessibility = useMemo(() => {
@@ -106,18 +120,48 @@ export default function InstitutionSettingsPage() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile(formData);
+    if (!formData) return;
+
+    if (isLoadingSettings) {
+      alert("Settings are still loading. Please wait.");
+      return;
+    }
+
+    // Protection check: Do not allow mock defaults to be saved as genuine settings
+    if (formData.id === "inst-sst-01" || formData.email === "admin@sohansoft.in") {
+      setSaveError("Security restriction: Hardcoded mock institution defaults cannot be saved as genuine settings.");
+      return;
+    }
+
+    if (!formData.name?.trim() || !formData.code?.trim()) {
+      setSaveError("Official Institution Name and Institutional Code are required.");
+      return;
+    }
+
     try {
-      await fetch("/api/admin/settings", {
+      setIsSaving(true);
+      setSaveError(null);
+      setSaveSuccess(false);
+
+      const res = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
-    } catch (err) {
-      console.warn("Could not persist settings to server:", err);
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to persist institution settings.");
+      }
+
+      updateProfile(formData);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 4000);
+    } catch (err: any) {
+      setSaveError(err.message || "Failed to update institution settings.");
+    } finally {
+      setIsSaving(false);
     }
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 4000);
   };
 
   // Theme property update handler
@@ -291,6 +335,32 @@ export default function InstitutionSettingsPage() {
         >
           <MapPin className="w-4 h-4" />
           <span>Campus Address & Contact</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("gateways")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 cursor-pointer ${
+            activeTab === "gateways"
+              ? "border-[#F5A000] text-[#F5A000] bg-white"
+              : "border-transparent text-[#64748B] hover:text-[#1E293B] hover:bg-slate-50"
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Payment Gateways</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("email")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 cursor-pointer ${
+            activeTab === "email"
+              ? "border-[#F5A000] text-[#F5A000] bg-white"
+              : "border-transparent text-[#64748B] hover:text-[#1E293B] hover:bg-slate-50"
+          }`}
+        >
+          <Mail className="w-4 h-4" />
+          <span>Email Infrastructure</span>
         </button>
       </div>
 
@@ -928,7 +998,34 @@ export default function InstitutionSettingsPage() {
 
       {/* TAB 2: PROFILE & IDENTITY */}
       {activeTab === "profile" && (
-        <form onSubmit={handleSaveProfile} className="space-y-6">
+        <div className="space-y-6">
+          {isLoadingSettings && (
+            <Card>
+              <CardContent className="p-8 text-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-[#F5A000] animate-spin mx-auto" />
+                <p className="text-sm font-semibold text-[#1E293B]">Loading Institutional Profile...</p>
+                <p className="text-xs text-[#64748B]">Retrieving verified settings from the server.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {settingsError && (
+            <Alert variant="error">
+              <div className="flex items-center justify-between w-full">
+                <span>{settingsError}</span>
+                <Button type="button" size="xs" variant="outline" onClick={() => refreshProfile()}>
+                  <RefreshCw className="w-3 h-3 mr-1" /> Retry
+                </Button>
+              </div>
+            </Alert>
+          )}
+
+          {saveError && (
+            <Alert variant="error">
+              <span>{saveError}</span>
+            </Alert>
+          )}
+
           {saveSuccess && (
             <Alert variant="success">
               <Check className="w-4 h-4 mr-2" />
@@ -936,90 +1033,126 @@ export default function InstitutionSettingsPage() {
             </Alert>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>General Institutional Metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Official Institution Name"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleInputChange}
-                />
+          {!isLoadingSettings && !settingsError && (
+            <form onSubmit={handleSaveProfile} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>General Institutional Metadata</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Official Institution Name"
+                      name="name"
+                      required
+                      value={formData.name}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="Institutional Code"
-                  name="code"
-                  required
-                  value={formData.code}
-                  onChange={handleInputChange}
-                  helperText="University or board registration code"
-                />
+                    <Input
+                      label="Institutional Code"
+                      name="code"
+                      required
+                      value={formData.code}
+                      onChange={handleInputChange}
+                      helperText="University or board registration code"
+                    />
 
-                <Select
-                  label="Institution Category"
-                  name="type"
-                  value={formData.type}
-                  onChange={handleInputChange}
-                  options={institutionTypeOptions}
-                />
+                    <Select
+                      label="Institution Category"
+                      name="type"
+                      value={formData.type}
+                      onChange={handleInputChange}
+                      options={institutionTypeOptions}
+                    />
 
-                <Input
-                  label="Established Year"
-                  name="establishedYear"
-                  type="number"
-                  value={formData.establishedYear}
-                  onChange={handleInputChange}
-                />
-              </div>
+                    <Input
+                      label="Established Year"
+                      name="establishedYear"
+                      type="number"
+                      value={formData.establishedYear}
+                      onChange={handleInputChange}
+                    />
+                  </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#F1F5F9]">
-                <Input
-                  label="Affiliating Body / University"
-                  name="affiliation"
-                  value={formData.affiliation}
-                  onChange={handleInputChange}
-                />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#F1F5F9]">
+                    <Input
+                      label="Affiliating Body / University"
+                      name="affiliation"
+                      value={formData.affiliation}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="Accreditation & Approvals"
-                  name="accreditation"
-                  value={formData.accreditation}
-                  onChange={handleInputChange}
-                />
+                    <Input
+                      label="Accreditation & Approvals"
+                      name="accreditation"
+                      value={formData.accreditation}
+                      onChange={handleInputChange}
+                    />
 
-                <Select
-                  label="Academic Term Model"
-                  name="academicCalendarType"
-                  value={formData.academicCalendarType}
-                  onChange={handleInputChange}
-                  options={calendarTypeOptions}
-                />
+                    <Select
+                      label="Academic Term Model"
+                      name="academicCalendarType"
+                      value={formData.academicCalendarType}
+                      onChange={handleInputChange}
+                      options={calendarTypeOptions}
+                    />
 
-                <Input
-                  label="Billing Currency Symbol"
-                  name="currencySymbol"
-                  value={formData.currencySymbol}
-                  onChange={handleInputChange}
-                  helperText="Displayed in invoices, fee receipts, and accounting"
-                />
-              </div>
-            </CardContent>
-            <CardFooter className="pt-4 border-t border-[#E2E8F0]">
-              <Button type="submit" variant="primary" leftIcon={<Check className="w-4 h-4" />}>
-                Save Profile Changes
-              </Button>
-            </CardFooter>
-          </Card>
-        </form>
+                    <Input
+                      label="Billing Currency Symbol"
+                      name="currencySymbol"
+                      value={formData.currencySymbol}
+                      onChange={handleInputChange}
+                      helperText="Displayed in invoices, fee receipts, and accounting"
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-4 border-t border-[#E2E8F0]">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={isSaving || isLoadingSettings}
+                    leftIcon={isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  >
+                    {isSaving ? "Saving..." : "Save Profile Changes"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+          )}
+        </div>
       )}
 
       {/* TAB 3: CAMPUS ADDRESS & CONTACT */}
       {activeTab === "address" && (
-        <form onSubmit={handleSaveProfile} className="space-y-6">
+        <div className="space-y-6">
+          {isLoadingSettings && (
+            <Card>
+              <CardContent className="p-8 text-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-[#F5A000] animate-spin mx-auto" />
+                <p className="text-sm font-semibold text-[#1E293B]">Loading Campus Contact Details...</p>
+                <p className="text-xs text-[#64748B]">Retrieving verified address information from the server.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {settingsError && (
+            <Alert variant="error">
+              <div className="flex items-center justify-between w-full">
+                <span>{settingsError}</span>
+                <Button type="button" size="xs" variant="outline" onClick={() => refreshProfile()}>
+                  <RefreshCw className="w-3 h-3 mr-1" /> Retry
+                </Button>
+              </div>
+            </Alert>
+          )}
+
+          {saveError && (
+            <Alert variant="error">
+              <span>{saveError}</span>
+            </Alert>
+          )}
+
           {saveSuccess && (
             <Alert variant="success">
               <Check className="w-4 h-4 mr-2" />
@@ -1027,114 +1160,133 @@ export default function InstitutionSettingsPage() {
             </Alert>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Campus Physical Address</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                label="Address Line 1"
-                name="addressLine1"
-                required
-                value={formData.addressLine1}
-                onChange={handleInputChange}
-                placeholder="Building, Street, Landmark"
-              />
+          {!isLoadingSettings && !settingsError && (
+            <form onSubmit={handleSaveProfile} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Campus Physical Address</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Input
+                    label="Address Line 1"
+                    name="addressLine1"
+                    required
+                    value={formData.addressLine1}
+                    onChange={handleInputChange}
+                    placeholder="Building, Street, Landmark"
+                  />
 
-              <Input
-                label="Address Line 2 (Optional)"
-                name="addressLine2"
-                value={formData.addressLine2 || ""}
-                onChange={handleInputChange}
-                placeholder="Area / Campus Extension"
-              />
+                  <Input
+                    label="Address Line 2 (Optional)"
+                    name="addressLine2"
+                    value={formData.addressLine2 || ""}
+                    onChange={handleInputChange}
+                    placeholder="Area / Campus Extension"
+                  />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Input
-                  label="City"
-                  name="city"
-                  required
-                  value={formData.city}
-                  onChange={handleInputChange}
-                />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Input
+                      label="City"
+                      name="city"
+                      required
+                      value={formData.city}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="State / Province"
-                  name="state"
-                  required
-                  value={formData.state}
-                  onChange={handleInputChange}
-                />
+                    <Input
+                      label="State / Province"
+                      name="state"
+                      required
+                      value={formData.state}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="Postal Code (PIN)"
-                  name="postalCode"
-                  required
-                  value={formData.postalCode}
-                  onChange={handleInputChange}
-                />
+                    <Input
+                      label="Postal Code (PIN)"
+                      name="postalCode"
+                      required
+                      value={formData.postalCode}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="Country"
-                  name="country"
-                  required
-                  value={formData.country}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                    <Input
+                      label="Country"
+                      name="country"
+                      required
+                      value={formData.country}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Official Contact Points</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Administrative Email"
-                  name="email"
-                  type="email"
-                  required
-                  leftIcon={<Mail className="w-4 h-4" />}
-                  value={formData.email}
-                  onChange={handleInputChange}
-                />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Official Contact Points</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Administrative Email"
+                      name="email"
+                      type="email"
+                      required
+                      leftIcon={<Mail className="w-4 h-4" />}
+                      value={formData.email}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="Primary Telephone"
-                  name="phone"
-                  required
-                  leftIcon={<Phone className="w-4 h-4" />}
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                />
+                    <Input
+                      label="Primary Telephone"
+                      name="phone"
+                      required
+                      leftIcon={<Phone className="w-4 h-4" />}
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="Alternate Mobile / Helpline"
-                  name="alternatePhone"
-                  leftIcon={<Phone className="w-4 h-4" />}
-                  value={formData.alternatePhone || ""}
-                  onChange={handleInputChange}
-                />
+                    <Input
+                      label="Alternate Mobile / Helpline"
+                      name="alternatePhone"
+                      leftIcon={<Phone className="w-4 h-4" />}
+                      value={formData.alternatePhone || ""}
+                      onChange={handleInputChange}
+                    />
 
-                <Input
-                  label="Official Website URL"
-                  name="website"
-                  type="url"
-                  leftIcon={<Globe className="w-4 h-4" />}
-                  value={formData.website}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </CardContent>
-            <CardFooter className="pt-4 border-t border-[#E2E8F0]">
-              <Button type="submit" variant="primary" leftIcon={<Check className="w-4 h-4" />}>
-                Save Contact Changes
-              </Button>
-            </CardFooter>
-          </Card>
-        </form>
+                    <Input
+                      label="Official Website URL"
+                      name="website"
+                      type="url"
+                      leftIcon={<Globe className="w-4 h-4" />}
+                      value={formData.website}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="pt-4 border-t border-[#E2E8F0]">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={isSaving || isLoadingSettings}
+                    leftIcon={isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  >
+                    {isSaving ? "Saving..." : "Save Contact Changes"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: PAYMENT GATEWAYS (RAZORPAY & CASHFREE) */}
+      {activeTab === "gateways" && (
+        <PaymentGatewaysSettings />
+      )}
+
+      {/* TAB 5: EMAIL INFRASTRUCTURE (OPTION C) */}
+      {activeTab === "email" && (
+        <InstitutionEmailSettings />
       )}
     </div>
   );

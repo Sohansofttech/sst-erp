@@ -6,6 +6,7 @@ import {
   createAdmissionApplication,
   updateAdmissionStatus,
   convertAdmissionApplicationToStudent,
+  updateAdmissionApplication,
 } from "@/lib/services/institution-admin.service";
 
 export async function GET(req: NextRequest) {
@@ -28,7 +29,8 @@ export async function POST(req: NextRequest) {
     const { institutionId } = await resolveAdminContext(req);
     const body = await req.json();
 
-    if (!body.applicantName || !body.email || !body.phone || !body.courseId || !body.academicYearId) {
+    const name = body.applicantName || `${body.applicantFirstName || ""} ${body.applicantLastName || ""}`.trim();
+    if (!name || !body.email || !body.phone || !body.courseId || !body.academicYearId) {
       return NextResponse.json(
         { success: false, error: "Missing required applicant details." },
         { status: 400 }
@@ -50,7 +52,7 @@ export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
     const body = await req.json();
-    const { status, remarks, action, classId, sectionId, rollNumber } = body;
+    const { status, remarks, action, classId, sectionId, rollNumber, ...details } = body;
     const targetId = body.id || body.applicationId;
 
     if (!targetId) {
@@ -73,22 +75,35 @@ export async function PUT(req: NextRequest) {
       });
     }
 
-    if (!status) {
-      return NextResponse.json(
-        { success: false, error: "Application status is required." },
-        { status: 400 }
-      );
+    // If only status change is requested
+    if (status && Object.keys(details).length === 0) {
+      const updated = await updateAdmissionStatus(institutionId, targetId, status, remarks);
+      return NextResponse.json({
+        success: true,
+        message: `Application status updated to ${status}.`,
+        data: updated,
+      });
     }
 
-    const updated = await updateAdmissionStatus(institutionId, targetId, status, remarks);
+    // Full application edit / update
+    const updated = await updateAdmissionApplication(institutionId, targetId, {
+      ...details,
+      ...(status ? { status } : {}),
+      ...(remarks !== undefined ? { remarks } : {}),
+    });
+
     return NextResponse.json({
       success: true,
-      message: `Application status updated to ${status}.`,
+      message: "Application details updated successfully.",
       data: updated,
     });
   } catch (error) {
     return handleAdminApiError(error);
   }
+}
+
+export async function PATCH(req: NextRequest) {
+  return PUT(req);
 }
 
 export async function DELETE(req: NextRequest) {

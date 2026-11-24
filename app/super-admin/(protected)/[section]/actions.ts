@@ -258,17 +258,99 @@ export async function renewSubscription(formData: FormData) {
 
 export async function updateTicket(formData: FormData) {
   const actor = await requireSuperAdmin();
-  const input = z.object({ id: z.uuid(), status: z.enum(["OPEN", "IN_PROGRESS", "WAITING_FOR_RESPONSE", "RESOLVED", "CLOSED"]), priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]), assignedToId: z.union([z.uuid(), z.literal("")]).optional(), note: z.string().trim().max(4000).optional() }).safeParse(Object.fromEntries(formData.entries()));
+  const input = z.object({
+    id: z.uuid(),
+    status: z.enum(["OPEN", "IN_PROGRESS", "WAITING_FOR_RESPONSE", "RESOLVED", "CLOSED"]),
+    priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),
+    assignedToId: z.union([z.uuid(), z.literal("")]).optional(),
+    reply: z.string().trim().max(4000).optional(),
+    note: z.string().trim().max(4000).optional(),
+  }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("Invalid ticket update.");
   if (input.data.assignedToId) {
     const assignee = await prisma.platformUser.findUnique({ where: { id: input.data.assignedToId }, select: { platformRole: true, status: true } });
     if (!assignee || assignee.platformRole !== "SUPER_ADMIN" || assignee.status !== "ACTIVE") throw new Error("Tickets can only be assigned to an active platform Super Admin account.");
   }
+  let institutionId = "";
+  let ticketNumber = "";
+  let ticketSubject = "";
+
   await prisma.$transaction(async (tx) => {
-    const ticket = await tx.supportTicket.update({ where: { id: input.data.id }, data: { status: input.data.status, priority: input.data.priority, assignedToId: input.data.assignedToId || null, resolvedAt: input.data.status === "RESOLVED" ? new Date() : null } });
-    if (input.data.note) await tx.supportTicketNote.create({ data: { ticketId: ticket.id, authorId: actor.id, body: input.data.note, isInternal: true } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: ticket.institutionId, action: "SUPPORT_TICKET_UPDATED", entity: "SupportTicket", entityId: ticket.id, result: "SUCCESS", metadata: { status: ticket.status, priority: ticket.priority } } });
+    const ticket = await tx.supportTicket.update({
+      where: { id: input.data.id },
+      data: {
+        status: input.data.status,
+        priority: input.data.priority,
+        assignedToId: input.data.assignedToId || null,
+        resolvedAt: input.data.status === "RESOLVED" || input.data.status === "CLOSED" ? new Date() : null,
+      },
+      include: { institution: { select: { name: true, email: true } } },
+    });
+    institutionId = ticket.institutionId;
+    ticketNumber = ticket.ticketNumber;
+    ticketSubject = ticket.subject;
+
+    // Public reply to institution
+    if (input.data.reply) {
+      await tx.supportTicketNote.create({
+        data: {
+          ticketId: ticket.id,
+          authorId: actor.id,
+          body: input.data.reply,
+          isInternal: false,
+        },
+      });
+    }
+
+    // Private internal note
+    if (input.data.note) {
+      await tx.supportTicketNote.create({
+        data: {
+          ticketId: ticket.id,
+          authorId: actor.id,
+          body: input.data.note,
+          isInternal: true,
+        },
+      });
+    }
+
+    await tx.platformAuditLog.create({
+      data: {
+        userId: actor.id,
+        institutionId: ticket.institutionId,
+        action: "SUPPORT_TICKET_UPDATED",
+        entity: "SupportTicket",
+        entityId: ticket.id,
+        result: "SUCCESS",
+        metadata: {
+          status: ticket.status,
+          priority: ticket.priority,
+          hasReply: !!input.data.reply,
+          hasInternalNote: !!input.data.note,
+        },
+      },
+    });
   });
+
+  // Notify Institution Admin if there's a public reply or status change
+  try {
+    if (input.data.reply || input.data.status) {
+      await prisma.notification.create({
+        data: {
+          institutionId,
+          title: `Update on Ticket ${ticketNumber}`,
+          message: input.data.reply
+            ? `Super Admin replied: "${ticketSubject}"`
+            : `Ticket status updated to ${input.data.status}.`,
+          category: "ALERT",
+          audienceRole: "ADMIN",
+        },
+      });
+    }
+  } catch (err: any) {
+    console.warn("[updateTicket] Non-blocking notification warning:", err?.message);
+  }
+
   revalidatePath("/super-admin/support");
 }
 

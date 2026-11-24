@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import db from "@/lib/db";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isValidUuid(id: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  return UUID_REGEX.test(id);
 }
 
 export async function GET(req: NextRequest) {
@@ -25,19 +27,29 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const roles = await db.role.findMany({
-      where: { institutionId },
-      include: {
-        permissions: {
-          include: { permission: true },
+    let roles: any[] = [];
+    try {
+      roles = await db.role.findMany({
+        where: { institutionId },
+        include: {
+          permissions: {
+            include: { permission: true },
+          },
         },
-      },
-      orderBy: { name: "asc" },
-    });
+        orderBy: { name: "asc" },
+      });
+    } catch (err: any) {
+      console.warn("Roles lookup notice (table may be empty or pending):", err?.message);
+    }
 
-    const permissions = await db.permission.findMany({
-      orderBy: { name: "asc" },
-    });
+    let permissions: any[] = [];
+    try {
+      permissions = await db.permission.findMany({
+        orderBy: { name: "asc" },
+      });
+    } catch {
+      // Permission table optional
+    }
 
     return NextResponse.json({
       success: true,
@@ -58,7 +70,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isValidUuid(institutionId)) {
-      return NextResponse.json({ success: false, error: "Invalid institution ID format for role assignment." }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Institution ID must be a valid UUID to create custom roles." },
+        { status: 400 }
+      );
     }
 
     const code = body.code || body.name.toUpperCase().replace(/\s+/g, "_");

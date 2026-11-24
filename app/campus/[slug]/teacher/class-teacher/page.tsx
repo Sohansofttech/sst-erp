@@ -128,14 +128,14 @@ export default function ClassTeacherDashboardPage() {
         title="Homeroom Workspace — Class 10-A"
         subtitle="Dedicated homeroom section management: student roster, attendance shortage alerts, student leave approvals, and parent communications."
         action={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
               <Link href={`${base}/leave-approvals`}>
                 <CheckCircle2 className="mr-1.5 size-4 text-[#123B5A]" />
                 Leave Approvals ({pendingLeaves.length})
               </Link>
             </Button>
-            <Button asChild className="rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
               <Link href={`${base}/notices`}>
                 <Megaphone className="mr-1.5 size-4" />
                 Broadcast Parent Notice
@@ -213,62 +213,64 @@ export default function ClassTeacherDashboardPage() {
                 />
               </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-[#EEF1F5]/80">
-                  <TableRow>
-                    <TableHead className="font-bold text-[#788391]">Roll No</TableHead>
-                    <TableHead className="font-bold text-[#788391]">Student</TableHead>
-                    <TableHead className="font-bold text-[#788391]">Attendance</TableHead>
-                    <TableHead className="text-right font-bold text-[#788391]">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-[#E5E9EF]">
-                  {[...defaulters, ...borderline].slice(0, 4).map((s) => {
-                    const isCritical =
-                      s.attendancePercent !== null && s.attendancePercent < 75
-                    return (
-                      <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
-                        <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
-                          {s.rollNo}
-                        </TableCell>
-                        <TableCell className="font-bold text-[#202936]">
-                          {s.fullName}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "font-mono font-bold text-xs",
-                              s.attendancePercent === null
-                                ? "text-[#788391]"
-                                : isCritical
-                                  ? "text-rose-600"
-                                  : "text-amber-600"
-                            )}
-                          >
-                            {s.attendancePercent !== null &&
-                            s.attendancePercent !== undefined
-                              ? `${s.attendancePercent}%`
-                              : "N/A"}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "rounded-full text-xs font-bold",
-                              isCritical
-                                ? "border-rose-300 bg-rose-50 text-rose-700"
-                                : "border-amber-300 bg-amber-50 text-amber-700"
-                            )}
-                          >
-                            {isCritical ? "Defaulter (<75%)" : "Borderline"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[500px]">
+                  <TableHeader className="bg-[#EEF1F5]/80">
+                    <TableRow>
+                      <TableHead className="font-bold text-[#788391]">Roll No</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Student</TableHead>
+                      <TableHead className="font-bold text-[#788391]">Attendance</TableHead>
+                      <TableHead className="text-right font-bold text-[#788391]">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-[#E5E9EF]">
+                    {[...defaulters, ...borderline].slice(0, 4).map((s) => {
+                      const isCritical =
+                        s.attendancePercent !== null && s.attendancePercent < 75
+                      return (
+                        <TableRow key={s.studentId} className="hover:bg-[#EEF1F5]/50">
+                          <TableCell className="font-mono text-xs font-bold text-[#123B5A]">
+                            {s.rollNo}
+                          </TableCell>
+                          <TableCell className="font-bold text-[#202936]">
+                            {s.fullName}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={cn(
+                                "font-mono font-bold text-xs",
+                                s.attendancePercent === null
+                                  ? "text-[#788391]"
+                                  : isCritical
+                                    ? "text-rose-600"
+                                    : "text-amber-600"
+                              )}
+                            >
+                              {s.attendancePercent !== null &&
+                              s.attendancePercent !== undefined
+                                ? `${s.attendancePercent}%`
+                                : "N/A"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "rounded-full text-xs font-bold",
+                                isCritical
+                                  ? "border-rose-300 bg-rose-50 text-rose-700"
+                                  : "border-amber-300 bg-amber-50 text-amber-700"
+                              )}
+                            >
+                              {isCritical ? "Defaulter (<75%)" : "Borderline"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -302,7 +304,7 @@ export default function ClassTeacherDashboardPage() {
             ) : (
               <div className="divide-y divide-[#E5E9EF] p-2">
                 {pendingLeaves.map((l) => (
-                  <div key={l.id} className="p-3 flex items-center justify-between gap-3">
+                  <div key={l.id} className="p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold text-[#202936]">
                         {l.studentName} ({l.rollNo})
@@ -314,7 +316,7 @@ export default function ClassTeacherDashboardPage() {
                         {l.reason}
                       </p>
                     </div>
-                    <Button asChild size="sm" className="h-8 rounded-lg bg-[#123B5A] text-xs font-bold text-white hover:bg-[#1B4D70]">
+                    <Button asChild size="sm" className="w-full sm:w-auto h-8 rounded-lg bg-[#123B5A] text-xs font-bold text-white hover:bg-[#1B4D70]">
                       <Link href={`${base}/leave-approvals`}>Review</Link>
                     </Button>
                   </div>
@@ -326,7 +328,7 @@ export default function ClassTeacherDashboardPage() {
       </div>
 
       {/* Homeroom Action Center */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card className="rounded-2xl border-[#E5E9EF] bg-white p-5 shadow-xs hover:border-[#123B5A] transition-colors">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-[#123B5A]/10 text-[#123B5A]">

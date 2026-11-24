@@ -417,8 +417,8 @@ export default function GateManagementPage() {
                           {v.status === "CHECKED_IN" ? "On Campus" : "Checked Out"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                           <Button
                             size="sm"
                             variant="outline"
