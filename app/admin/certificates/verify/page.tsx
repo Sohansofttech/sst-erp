@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useInstitution } from "@/lib/store";
 import {
   ShieldCheck,
   Search,
@@ -28,14 +27,42 @@ function VerifyContent() {
     searchParams.get("v") ||
     "";
 
-  const { verifyCertificateQuery, profile } = useInstitution();
   const [searchTerm, setSearchTerm] = useState(initialQuery);
   const [activeQuery, setActiveQuery] = useState(initialQuery);
+  const [result, setResult] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const result = useMemo(() => {
-    if (!activeQuery.trim()) return null;
-    return verifyCertificateQuery(activeQuery.trim());
-  }, [activeQuery, verifyCertificateQuery]);
+  useEffect(() => {
+    if (!activeQuery.trim()) {
+      setResult(null);
+      return;
+    }
+    let isCancelled = false;
+    setIsLoading(true);
+    fetch(`/api/admin/certificates?query=${encodeURIComponent(activeQuery.trim())}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!isCancelled) {
+          if (json.success && json.data) {
+            setResult(json.data);
+          } else {
+            setResult({ certificate: null, verified: false });
+          }
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setResult({ certificate: null, verified: false });
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeQuery]);
 
   const hasSearched = Boolean(activeQuery.trim());
 

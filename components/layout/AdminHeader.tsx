@@ -72,7 +72,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
     const parts = currentUser.fullName.trim().split(/\s+/).filter(Boolean);
     if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
-  }, [currentUser?.fullName]);
+  }, [currentUser]);
 
   const roleDisplay = useMemo(() => {
     switch (currentUser?.role) {

@@ -56,7 +56,7 @@ import type {
 import { useTeacherRole } from "../teacher-role-context"
 
 export default function HodDashboardPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
   const [facultyLoad, setFacultyLoad] = React.useState<DepartmentFacultyLoad[]>([])
   const [assessments, setAssessments] = React.useState<InternalAssessment[]>([])
   const [facultyLeaves, setFacultyLeaves] = React.useState<TeacherLeaveRequest[]>([])
@@ -74,11 +74,10 @@ export default function HodDashboardPage() {
       ])
 
       // HoD's own leave must not appear in their own approval queue (route to Principal)
-      const hodTeacherId = "teacher_demo_042"
       const deptLeaves = allLeaves.filter(
         (l) =>
-          l.teacherId !== hodTeacherId &&
-          !l.teacherName?.toLowerCase().includes("ananya")
+          l.teacherId !== user.employeeId &&
+          l.teacherName?.toLowerCase() !== user.name.toLowerCase()
       )
 
       setFacultyLoad(facs)

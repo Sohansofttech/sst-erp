@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,14 +116,8 @@ function mapApiToSubject(s: any): SubjectItem {
 }
 
 export default function SubjectsPage() {
-  const {
-    classes,
-    departments,
-    addSubject,
-    updateSubject: updateStoreSubject,
-    deleteSubject: deleteStoreSubject,
-  } = useInstitution();
-
+  const [classes, setClasses] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>(DEFAULT_DEPARTMENTS);
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -157,9 +150,11 @@ export default function SubjectsPage() {
     try {
       setIsLoading(true);
       setFetchError(null);
-      const [subRes, crsRes] = await Promise.all([
+      const [subRes, crsRes, clRes, deptRes] = await Promise.all([
         fetch("/api/admin/academics/subjects"),
         fetch("/api/admin/academics/courses"),
+        fetch("/api/admin/academics/classes").catch(() => null),
+        fetch("/api/admin/academics/departments").catch(() => null),
       ]);
 
       const [subJson, crsJson] = await Promise.all([subRes.json(), crsRes.json()]);
@@ -170,6 +165,20 @@ export default function SubjectsPage() {
 
       if (crsRes.ok && crsJson.success && crsJson.data) {
         setCourses(crsJson.data.map(mapApiToCourse));
+      }
+
+      if (clRes && clRes.ok) {
+        const clJson = await clRes.json();
+        if (clJson.success && clJson.data) {
+          setClasses(clJson.data);
+        }
+      }
+
+      if (deptRes && deptRes.ok) {
+        const dJson = await deptRes.json();
+        if (dJson.success && dJson.data?.length > 0) {
+          setDepartments(dJson.data);
+        }
       }
 
       setSubjects((subJson.data || []).map(mapApiToSubject));
@@ -255,18 +264,6 @@ export default function SubjectsPage() {
         if (!res.ok || !json.success) {
           throw new Error(json.error || "Failed to update subject.");
         }
-        updateStoreSubject(editingSubject.id, {
-          name,
-          code: code.toUpperCase(),
-          credits: Number(credits),
-          hoursPerWeek: Number(hoursPerWeek),
-          type,
-          courseId,
-          classId,
-          departmentId,
-          semester: Number(semester),
-          allocatedTeacherName,
-        });
       } else {
         const res = await fetch("/api/admin/academics/subjects", {
           method: "POST",
@@ -285,9 +282,6 @@ export default function SubjectsPage() {
         const json = await res.json();
         if (!res.ok || !json.success) {
           throw new Error(json.error || "Failed to create subject.");
-        }
-        if (json.data) {
-          addSubject(mapApiToSubject(json.data));
         }
       }
 
@@ -314,7 +308,6 @@ export default function SubjectsPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to delete subject.");
       }
-      deleteStoreSubject(id);
       await loadData();
     } catch (err: any) {
       alert(err.message || "Failed to delete subject.");

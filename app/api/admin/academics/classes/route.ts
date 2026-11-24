@@ -46,6 +46,36 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PUT(req: NextRequest) {
+  try {
+    const { institutionId } = await resolveAdminContext(req);
+    const body = await req.json();
+    const { id, name, courseId, academicYearId, semester } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Class ID required." }, { status: 400 });
+    }
+
+    const updated = await db.class.updateMany({
+      where: { id, institutionId },
+      data: {
+        ...(name ? { name } : {}),
+        ...(courseId ? { courseId } : {}),
+        ...(academicYearId ? { academicYearId } : {}),
+        ...(semester !== undefined ? { semester: parseInt(String(semester), 10) } : {}),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Class updated successfully.",
+      data: updated,
+    });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);

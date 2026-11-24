@@ -6,13 +6,43 @@ import { Card } from "@/components/shared/Card";
 import { StatCard } from "@/components/shared/StatCard";
 import { Badge } from "@/components/shared/Badge";
 import { Table } from "@/components/shared/Table";
-import { CheckCircle2, XCircle, Clock, AlertTriangle, LogIn, LogOut, ShieldCheck } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, AlertTriangle, LogIn, LogOut, ShieldCheck, RefreshCw } from "lucide-react";
+
+/**
+ * Format raw biometric verifier identifiers into user-friendly labels.
+ * Examples:
+ * - "BIO:RFID:sst-c69c65691062b1aa:d81f..." -> "RFID Scanner"
+ * - "BIO:FINGERPRINT:sst-..." -> "Fingerprint Scanner"
+ * - "Security Desk" -> "Security Desk"
+ * - null / undefined -> "Automated Turnstile"
+ */
+function formatVerifier(verifiedBy?: string | null): string {
+  if (!verifiedBy) return "Automated Turnstile";
+  if (typeof verifiedBy !== "string") return String(verifiedBy);
+
+  const trimmed = verifiedBy.trim();
+  if (trimmed.startsWith("BIO:")) {
+    const parts = trimmed.split(":");
+    const method = (parts[1] || "").toUpperCase();
+    if (method === "RFID") {
+      return "RFID Scanner";
+    }
+    if (method === "FINGERPRINT") {
+      return "Fingerprint Scanner";
+    }
+    return `Biometric Scanner (${parts[1] || "Automated"})`;
+  }
+
+  return trimmed || "Automated Turnstile";
+}
 
 export default function AttendancePage() {
   const [data, setData] = useState<any>(null);
   const [inOutLogs, setInOutLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"SUBJECT_WISE" | "MONTHLY" | "DAILY_HISTORY" | "IN_OUT">("SUBJECT_WISE");
+  const [refreshingInOut, setRefreshingInOut] = useState(false);
+  const [inOutError, setInOutError] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -28,6 +58,25 @@ export default function AttendancePage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefreshInOut = async () => {
+    if (refreshingInOut) return;
+    try {
+      setRefreshingInOut(true);
+      setInOutError(null);
+      const res = await fetch("/api/student/in-out", { credentials: "include" });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setInOutLogs(json.data);
+      } else {
+        setInOutError(json.error || "Unable to refresh in/out logs. Please try again.");
+      }
+    } catch (err: any) {
+      setInOutError("Network error while updating in/out logs. Please check your connection.");
+    } finally {
+      setRefreshingInOut(false);
     }
   };
 
@@ -320,7 +369,35 @@ export default function AttendancePage() {
         <Card
           title="Recorded Campus Entry & Exit Logs"
           subtitle="Automated gate RFID readers and physical security logs"
+          action={
+            <button
+              onClick={handleRefreshInOut}
+              disabled={refreshingInOut}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#E2E8F0] transition-colors ${
+                refreshingInOut
+                  ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                  : "bg-white text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#CBD5E1] shadow-2xs cursor-pointer active:scale-95"
+              }`}
+              title="Refresh In/Out Register"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshingInOut ? "animate-spin text-[#123B5A]" : "text-[#64748B]"}`} />
+              <span>{refreshingInOut ? "Refreshing..." : "Refresh"}</span>
+            </button>
+          }
         >
+          {inOutError && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center justify-between">
+              <span>{inOutError}</span>
+              <button
+                onClick={() => setInOutError(null)}
+                className="text-red-500 hover:text-red-700 font-bold ml-2 cursor-pointer"
+                title="Dismiss error"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           <Table
             columns={[
               {
@@ -357,7 +434,11 @@ export default function AttendancePage() {
               },
               {
                 header: "Verified By",
-                cell: (item: any) => item.verifiedBy || "Automated Turnstile",
+                cell: (item: any) => (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-[#334155] font-medium">
+                    {formatVerifier(item.verifiedBy)}
+                  </span>
+                ),
               },
             ]}
             data={inOutLogs}

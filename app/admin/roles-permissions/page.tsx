@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useInstitution } from "@/lib/store";
+import React, { useState, useEffect, useCallback } from "react";
+import { initialRoles, initialPermissionCategories } from "@/lib/mock-data";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,61 +18,153 @@ import {
 } from "lucide-react";
 
 export default function RolesPermissionsPage() {
-  const { roles, permissionCategories, updateRolePermissions, addRole } = useInstitution();
-
-  const [selectedRoleId, setSelectedRoleId] = useState<string>(roles[0]?.id || "");
+  const [roles, setRoles] = useState<any[]>(initialRoles);
+  const [permissionCategories] = useState<any[]>(initialPermissionCategories);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>(initialRoles[0]?.id || "");
   const [isNewRoleModalOpen, setIsNewRoleModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleCode, setNewRoleCode] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadRolesData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/admin/roles");
+      const json = await res.json();
+      if (json.success && json.data?.roles && json.data.roles.length > 0) {
+        const mapped = json.data.roles.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          code: r.code,
+          description: r.description || "",
+          isSystemRole: !!r.isSystem,
+          userCount: r.userCount || 0,
+          permissions: (r.permissions || []).map((p: any) => p.permissionId || p.permission?.id || p.id),
+        }));
+        setRoles(mapped);
+        if (!selectedRoleId || !mapped.some((m: any) => m.id === selectedRoleId)) {
+          setSelectedRoleId(mapped[0]?.id || "");
+        }
+      }
+    } catch (err) {
+      console.error("Error loading roles:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedRoleId]);
+
+  useEffect(() => {
+    loadRolesData();
+  }, [loadRolesData]);
 
   const selectedRole = roles.find((r) => r.id === selectedRoleId) || roles[0];
 
-  const handleTogglePermission = (permissionId: string) => {
+  const handleTogglePermission = async (permissionId: string) => {
     if (!selectedRole) return;
-    const currentPermissions = selectedRole.permissions;
+    const currentPermissions = selectedRole.permissions || [];
     const updated = currentPermissions.includes(permissionId)
-      ? currentPermissions.filter((p) => p !== permissionId)
+      ? currentPermissions.filter((p: string) => p !== permissionId)
       : [...currentPermissions, permissionId];
 
-    updateRolePermissions(selectedRole.id, updated);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    try {
+      const res = await fetch("/api/admin/roles", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedRole.id,
+          permissionIds: updated,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRoles((prev) =>
+          prev.map((r) => (r.id === selectedRole.id ? { ...r, permissions: updated } : r))
+        );
+        setSaveSuccess(true);
+        setErrorMessage("");
+        setTimeout(() => setSaveSuccess(false), 2500);
+      } else {
+        setErrorMessage(data.error || "Failed to update role permissions.");
+        setTimeout(() => setErrorMessage(""), 3500);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Network error updating permissions.");
+      setTimeout(() => setErrorMessage(""), 3500);
+    }
   };
 
-  const handleToggleCategory = (categoryPermissions: { id: string }[]) => {
+  const handleToggleCategory = async (categoryPermissions: { id: string }[]) => {
     if (!selectedRole) return;
     const catIds = categoryPermissions.map((p) => p.id);
-    const allSelected = catIds.every((id) => selectedRole.permissions.includes(id));
+    const currentPermissions = selectedRole.permissions || [];
+    const allSelected = catIds.every((id) => currentPermissions.includes(id));
 
     let updated: string[];
     if (allSelected) {
-      updated = selectedRole.permissions.filter((p) => !catIds.includes(p));
+      updated = currentPermissions.filter((p: string) => !catIds.includes(p));
     } else {
-      updated = Array.from(new Set([...selectedRole.permissions, ...catIds]));
+      updated = Array.from(new Set([...currentPermissions, ...catIds]));
     }
 
-    updateRolePermissions(selectedRole.id, updated);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    try {
+      const res = await fetch("/api/admin/roles", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedRole.id,
+          permissionIds: updated,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRoles((prev) =>
+          prev.map((r) => (r.id === selectedRole.id ? { ...r, permissions: updated } : r))
+        );
+        setSaveSuccess(true);
+        setErrorMessage("");
+        setTimeout(() => setSaveSuccess(false), 2500);
+      } else {
+        setErrorMessage(data.error || "Failed to update category permissions.");
+        setTimeout(() => setErrorMessage(""), 3500);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Network error updating category permissions.");
+      setTimeout(() => setErrorMessage(""), 3500);
+    }
   };
 
-  const handleCreateRole = (e: React.FormEvent) => {
+  const handleCreateRole = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRoleName.trim() || !newRoleCode.trim()) return;
 
-    addRole({
-      name: newRoleName,
-      code: newRoleCode.toUpperCase(),
-      description: newRoleDesc,
-      permissions: [],
-    });
-
-    setIsNewRoleModalOpen(false);
-    setNewRoleName("");
-    setNewRoleCode("");
-    setNewRoleDesc("");
+    try {
+      const res = await fetch("/api/admin/roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newRoleName.trim(),
+          code: newRoleCode.toUpperCase().trim(),
+          description: newRoleDesc.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadRolesData();
+        setIsNewRoleModalOpen(false);
+        setNewRoleName("");
+        setNewRoleCode("");
+        setNewRoleDesc("");
+      } else {
+        setErrorMessage(data.error || "Failed to create role.");
+        setTimeout(() => setErrorMessage(""), 3500);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Network error creating role.");
+      setTimeout(() => setErrorMessage(""), 3500);
+    }
   };
 
   return (
@@ -110,7 +202,13 @@ export default function RolesPermissionsPage() {
 
       {saveSuccess && selectedRole && (
         <Alert variant="success" title="Permission Grant Updated">
-          Role permissions for <strong>{selectedRole.name}</strong> were updated and persisted.
+          Role permissions for <strong>{selectedRole?.name || "Selected Role"}</strong> were updated and persisted.
+        </Alert>
+      )}
+
+      {errorMessage && (
+        <Alert variant="error" title="Action Prohibited">
+          {errorMessage}
         </Alert>
       )}
 
@@ -199,10 +297,10 @@ export default function RolesPermissionsPage() {
                 </div>
               ) : (
                 permissionCategories.map((cat) => {
-                const catIds = cat.permissions.map((p) => p.id);
-                const selectedCount = catIds.filter((id) =>
-                  selectedRole.permissions.includes(id)
-                ).length;
+                  const catIds = cat.permissions.map((p: any) => p.id);
+                  const selectedCount = catIds.filter((id: any) =>
+                    selectedRole.permissions.includes(id)
+                  ).length;
                 const allSelected = selectedCount === catIds.length;
 
                 return (
@@ -227,7 +325,7 @@ export default function RolesPermissionsPage() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                      {cat.permissions.map((perm) => {
+                      {cat.permissions.map((perm: any) => {
                         const isGranted = selectedRole.permissions.includes(perm.id);
                         return (
                           <div

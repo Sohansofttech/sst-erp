@@ -73,7 +73,7 @@ export default function SectionRecommendationsPage() {
     setLoading(true)
     setError(null)
     try {
-      const roster = await getSectionStudents("sec-10a")
+      const roster = await getSectionStudents()
       setStudents(roster)
       const initial: Record<string, RecommendationType> = {}
       for (const s of roster) {

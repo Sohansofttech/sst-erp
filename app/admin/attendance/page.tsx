@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useInstitution } from "@/lib/store";
 import {
@@ -84,6 +84,76 @@ export default function AttendancePage() {
     message: string;
   } | null>(null);
 
+  // Live Database Attendance Records
+  const [liveAttendanceRecords, setLiveAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [loadingLive, setLoadingLive] = useState<boolean>(true);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [isApplyingCorrection, setIsApplyingCorrection] = useState<boolean>(false);
+
+  // Fetch live attendance records from GET /api/admin/attendance
+  const fetchLiveAttendance = useCallback(async () => {
+    setLoadingLive(true);
+    setLiveError(null);
+    try {
+      const res = await fetch("/api/admin/attendance");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        const statusMap: Record<string, AttendanceStatus> = {
+          PRESENT: "Present",
+          ABSENT: "Absent",
+          LATE: "Late",
+          ON_DUTY: "Present",
+          HALF_DAY: "Present",
+          EXCUSED: "On Leave",
+          ON_LEAVE: "On Leave",
+        };
+
+        const mapped: AttendanceRecord[] = json.data.map((r: any) => {
+          const stName = r.student ? `${r.student.firstName} ${r.student.lastName}` : "Student";
+          const roll = r.student?.rollNumber || "ROLL";
+          const dateStr = r.date ? new Date(r.date).toISOString().split("T")[0] : "";
+          const mappedStatus = statusMap[r.status] || "Present";
+
+          return {
+            id: r.id,
+            studentId: r.studentId,
+            studentName: stName,
+            rollNumber: roll,
+            classId: r.enrollment?.courseId || "class-cse-3",
+            sectionId: r.enrollment?.section ? `sec-${r.enrollment.section.toLowerCase()}` : "sec-cse-3a",
+            courseId: r.enrollment?.courseId || "course-cse",
+            academicYearId: r.enrollment?.academicYearId || "ay-2026-27",
+            date: dateStr,
+            session: "Full Day",
+            status: mappedStatus,
+            markedBy: "Faculty / Automated Scanner",
+            recordedAt: r.recordedAt || new Date().toISOString(),
+            remarks: r.remarks || undefined,
+          };
+        });
+        setLiveAttendanceRecords(mapped);
+      }
+    } catch (err: any) {
+      console.warn("[AttendancePage] Live fetch notice:", err.message);
+      setLiveError(err.message || "Failed to load live attendance records from database.");
+    } finally {
+      setLoadingLive(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveAttendance();
+  }, [fetchLiveAttendance]);
+
+  // Live attendance records from database (strict, no mock fallbacks)
+  const effectiveAttendanceRecords = useMemo(() => {
+    return liveAttendanceRecords;
+  }, [liveAttendanceRecords]);
+
   // -------------------------------------------------------------
   // Mark Attendance State
   // -------------------------------------------------------------
@@ -123,14 +193,14 @@ export default function AttendancePage() {
 
   // Existing records if this session was already recorded
   const existingRecordsForSession = useMemo(() => {
-    return attendanceRecords.filter(
+    return effectiveAttendanceRecords.filter(
       (r) =>
         r.classId === markClassId &&
         r.sectionId === markSectionId &&
         r.date === markDate &&
         r.session === markSession
     );
-  }, [attendanceRecords, markClassId, markSectionId, markDate, markSession]);
+  }, [effectiveAttendanceRecords, markClassId, markSectionId, markDate, markSession]);
 
   // Local overrides for marking table
   const [overrideStatuses, setOverrideStatuses] = useState<
@@ -241,7 +311,7 @@ export default function AttendancePage() {
   const [historySearch, setHistorySearch] = useState<string>("");
 
   const filteredHistoryRecords = useMemo(() => {
-    return attendanceRecords.filter((r) => {
+    return effectiveAttendanceRecords.filter((r) => {
       if (historyFilterClass !== "all" && r.classId !== historyFilterClass) return false;
       if (historyFilterStatus !== "all" && r.status !== historyFilterStatus) return false;
       if (historyStartDate && r.date < historyStartDate) return false;
@@ -256,7 +326,7 @@ export default function AttendancePage() {
       return true;
     });
   }, [
-    attendanceRecords,
+    effectiveAttendanceRecords,
     historyFilterClass,
     historyFilterStatus,
     historyStartDate,
@@ -280,7 +350,7 @@ export default function AttendancePage() {
     setCorrectionError(null);
   };
 
-  const handleApplyCorrection = () => {
+  const handleApplyCorrection = async () => {
     if (!correctionTarget) return;
     if (!correctionReason.trim()) {
       setCorrectionError("A valid correction reason is required for institutional audit compliance.");
@@ -291,21 +361,47 @@ export default function AttendancePage() {
       return;
     }
 
-    const res = correctAttendanceRecord(
-      correctionTarget.id,
-      correctionNewStatus,
-      correctionReason,
-      correctionAuthor
-    );
+    setIsApplyingCorrection(true);
+    setCorrectionError(null);
 
-    if (res.success) {
+    const backendStatusMap: Record<string, string> = {
+      Present: "PRESENT",
+      Absent: "ABSENT",
+      Late: "LATE",
+      "On Duty": "ON_DUTY",
+      "Half Day": "HALF_DAY",
+      "On Leave": "ON_LEAVE",
+    };
+    const newStatusBackend = backendStatusMap[correctionNewStatus] || "PRESENT";
+
+    try {
+      const res = await fetch("/api/admin/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordId: correctionTarget.id,
+          status: newStatusBackend,
+          reason: correctionReason,
+          remarks: correctionReason,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update attendance in database.");
+      }
+
       setFeedback({
         type: "success",
-        message: res.message,
+        message: data.message || `Attendance for ${correctionTarget.studentName} updated to ${correctionNewStatus}.`,
       });
       setCorrectionTarget(null);
-    } else {
-      setCorrectionError(res.message);
+      await fetchLiveAttendance();
+    } catch (err: any) {
+      console.error("[handleApplyCorrection] API error:", err);
+      setCorrectionError(err.message || "Failed to update attendance record in database.");
+    } finally {
+      setIsApplyingCorrection(false);
     }
   };
 
@@ -371,7 +467,7 @@ export default function AttendancePage() {
 
   // Dynamically computed daily attendance trends from live database / store records
   const dailyAttendanceTrends = useMemo(() => {
-    if (!attendanceRecords || attendanceRecords.length === 0) return [];
+    if (!effectiveAttendanceRecords || effectiveAttendanceRecords.length === 0) return [];
 
     const dateMap = new Map<
       string,
@@ -391,7 +487,7 @@ export default function AttendancePage() {
       }
     >();
 
-    for (const r of attendanceRecords) {
+    for (const r of effectiveAttendanceRecords) {
       const dateStr = typeof r.date === "string" ? r.date.split("T")[0] : new Date(r.date).toISOString().split("T")[0];
       const normStatus = (r.status || "").toUpperCase().replace(/\s+/g, "_");
 
@@ -455,7 +551,7 @@ export default function AttendancePage() {
             ? Math.round((row.attendedCredits / row.countableSessions) * 1000) / 10
             : null,
       }));
-  }, [attendanceRecords]);
+  }, [effectiveAttendanceRecords]);
 
   // Guardian Alert Dispatch Modal State
   const [alertTargetStudent, setAlertTargetStudent] = useState<
@@ -1397,7 +1493,16 @@ export default function AttendancePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F1F5F9]">
-                    {filteredHistoryRecords.length === 0 ? (
+                    {loadingLive ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-[#64748B]">
+                          <div className="flex items-center justify-center gap-2">
+                            <Clock className="w-4 h-4 animate-spin text-[#006699]" />
+                            <span>Loading live institutional attendance records from database...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredHistoryRecords.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-[#64748B]">
                           No attendance records matched the specified filter criteria.
@@ -2035,9 +2140,10 @@ export default function AttendancePage() {
                 variant="primary"
                 size="sm"
                 onClick={handleApplyCorrection}
+                disabled={isApplyingCorrection}
                 leftIcon={<Save className="w-4 h-4" />}
               >
-                Apply & Record Audit
+                {isApplyingCorrection ? "Saving to Database..." : "Apply & Record Audit"}
               </Button>
             </div>
           </div>

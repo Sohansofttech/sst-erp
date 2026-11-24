@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -159,30 +159,162 @@ export default function TimetablePage() {
     setTimeout(() => setToastMessage(null), 5000);
   };
 
+  // Live Backend Data Integration
+  const [liveTimetableSlots, setLiveTimetableSlots] = useState<TimetableSlot[]>([]);
+  const [liveStaffList, setLiveStaffList] = useState<any[]>([]);
+  const [liveSubjectsList, setLiveSubjectsList] = useState<any[]>([]);
+  const [loadingLive, setLoadingLive] = useState<boolean>(true);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [isSavingSlot, setIsSavingSlot] = useState<boolean>(false);
+
+  // Fetch live timetable slots, staff, and subjects from Supabase backend APIs
+  const fetchLiveTimetableData = useCallback(async () => {
+    setLoadingLive(true);
+    setLiveError(null);
+    try {
+      const [slotsRes, staffRes, subjectsRes] = await Promise.all([
+        fetch("/api/admin/timetable"),
+        fetch("/api/admin/staff"),
+        fetch("/api/admin/academics/subjects"),
+      ]);
+
+      if (slotsRes.ok) {
+        const slotsJson = await slotsRes.json();
+        if (slotsJson.success && Array.isArray(slotsJson.data)) {
+          const dayMap: Record<string, TimetableDayOfWeek> = {
+            MONDAY: "Monday",
+            TUESDAY: "Tuesday",
+            WEDNESDAY: "Wednesday",
+            THURSDAY: "Thursday",
+            FRIDAY: "Friday",
+            SATURDAY: "Saturday",
+            SUNDAY: "Sunday" as any,
+          };
+
+          const mappedSlots: TimetableSlot[] = slotsJson.data.map((s: any) => {
+            const rawDay = (s.dayOfWeek || "MONDAY").toUpperCase();
+            const mappedDay = dayMap[rawDay] || "Monday";
+            const teacherUser = s.teacher?.user;
+            const teacherName = teacherUser ? (teacherUser.fullName || teacherUser.name) : (s.teacher?.employeeId || "Faculty Member");
+
+            return {
+              id: s.id,
+              academicYearId: selectedAYId,
+              academicYearName: currentAY?.name || "2026-2027",
+              termId: selectedTermId,
+              termName: "Current Term",
+              courseId: s.courseId || s.course?.id || selectedCourseId,
+              courseName: s.course?.name || "Academic Program",
+              classId: s.courseId || selectedClassId,
+              className: s.course?.name || activeClass?.name || "Class",
+              sectionId: s.sectionId || effectiveSectionId,
+              sectionName: s.section ? `Section ${s.section}` : "Section A",
+              dayOfWeek: mappedDay,
+              periodNumber: 1,
+              periodConfigId: s.periodConfigId || "p-1",
+              startTime: s.startTime || "09:00",
+              endTime: s.endTime || "09:50",
+              subjectId: s.subjectId,
+              subjectCode: s.subject?.code || "SUB",
+              subjectName: s.subject?.name || "Subject",
+              subjectType: (s.subject?.type === "PRACTICAL_LAB" ? "Practical Lab" : "Core Theory") as SubjectType,
+              teacherId: s.teacherId || s.staffId || "",
+              teacherName,
+              teacherEmployeeId: s.teacher?.employeeId,
+              roomNumber: s.roomNumber || "Main Hall",
+              remarks: s.remarks || undefined,
+            };
+          });
+          setLiveTimetableSlots(mappedSlots);
+        }
+      }
+
+      if (staffRes.ok) {
+        const staffJson = await staffRes.json();
+        if (staffJson.success && Array.isArray(staffJson.data)) {
+          setLiveStaffList(staffJson.data);
+        }
+      }
+
+      if (subjectsRes.ok) {
+        const subjectsJson = await subjectsRes.json();
+        if (subjectsJson.success && Array.isArray(subjectsJson.data)) {
+          setLiveSubjectsList(subjectsJson.data);
+        }
+      }
+    } catch (err: any) {
+      console.warn("[TimetablePage] Live timetable fetch notice:", err.message);
+      setLiveError(err.message || "Failed to load live timetable data from backend.");
+    } finally {
+      setLoadingLive(false);
+    }
+  }, [selectedAYId, currentAY?.name, selectedTermId, selectedCourseId, selectedClassId, activeClass?.name, effectiveSectionId]);
+
+  useEffect(() => {
+    fetchLiveTimetableData();
+  }, [fetchLiveTimetableData]);
+
+  // Live Timetable Slots from database (strict, no mock fallbacks)
+  const effectiveTimetableSlots = useMemo(() => {
+    return liveTimetableSlots;
+  }, [liveTimetableSlots]);
+
+  // Combined Faculty Roster prioritizing live institutional staff
+  const effectiveStaff = useMemo(() => {
+    if (liveStaffList.length > 0) {
+      return liveStaffList.map((s) => ({
+        id: s.teacherProfile?.id || s.id,
+        fullName: s.fullName || s.name || "Faculty Member",
+        employeeId: s.teacherProfile?.employeeId || s.staffEmployeeId || `FAC-${s.id.slice(0, 4)}`,
+        department: s.teacherProfile?.department || s.department || "General",
+        designation: s.teacherProfile?.designation || s.designation || "Faculty",
+      }));
+    }
+    return staff;
+  }, [liveStaffList, staff]);
+
+  // Combined Curriculum Subjects prioritizing live institutional subjects
+  const effectiveSubjects = useMemo(() => {
+    if (liveSubjectsList.length > 0) {
+      return liveSubjectsList.map((sub: any) => ({
+        id: sub.id,
+        code: sub.code,
+        name: sub.name,
+        type: sub.type === "PRACTICAL_LAB" ? "Practical Lab" : "Core Theory",
+        credits: sub.credits || 3,
+        courseId: sub.courseId,
+        hoursPerWeek: sub.hoursPerWeek || 3,
+        allocatedTeacherId: sub.allocatedTeacherId || undefined,
+        allocatedTeacherName: sub.allocatedTeacherName || undefined,
+      }));
+    }
+    return subjects;
+  }, [liveSubjectsList, subjects]);
+
   // Filtered Slots for the current Class & Section
   const classSectionSlots = useMemo(() => {
-    return timetableSlots.filter((slot) => {
+    return effectiveTimetableSlots.filter((slot) => {
       const matchAY = !selectedAYId || slot.academicYearId === selectedAYId;
       const matchTerm = !selectedTermId || slot.termId === selectedTermId;
       const matchClass = slot.classId === selectedClassId;
       const matchSection = slot.sectionId === effectiveSectionId;
       return matchAY && matchTerm && matchClass && matchSection;
     });
-  }, [timetableSlots, selectedAYId, selectedTermId, selectedClassId, effectiveSectionId]);
+  }, [effectiveTimetableSlots, selectedAYId, selectedTermId, selectedClassId, effectiveSectionId]);
 
   // Filtered Slots for selected Teacher
   const teacherSlots = useMemo(() => {
-    return timetableSlots.filter((slot) => {
+    return effectiveTimetableSlots.filter((slot) => {
       const matchAY = !selectedAYId || slot.academicYearId === selectedAYId;
       const matchTerm = !selectedTermId || slot.termId === selectedTermId;
       const matchTeacher = slot.teacherId === selectedTeacherId;
       return matchAY && matchTerm && matchTeacher;
     });
-  }, [timetableSlots, selectedAYId, selectedTermId, selectedTeacherId]);
+  }, [effectiveTimetableSlots, selectedAYId, selectedTermId, selectedTeacherId]);
 
   // Overall KPI statistics
   const kpiStats = useMemo(() => {
-    const termSlots = timetableSlots.filter((s) => {
+    const termSlots = effectiveTimetableSlots.filter((s) => {
       const matchAY = !selectedAYId || s.academicYearId === selectedAYId;
       const matchTerm = !selectedTermId || s.termId === selectedTermId;
       return matchAY && matchTerm;
@@ -201,12 +333,12 @@ export default function TimetablePage() {
     const totalHours = (totalMinutes / 60).toFixed(1);
 
     return { totalSlots, uniqueTeachers, uniqueRooms, totalHours };
-  }, [timetableSlots, selectedAYId, selectedTermId]);
+  }, [effectiveTimetableSlots, selectedAYId, selectedTermId]);
 
   // Subjects belonging to active class
   const classSubjects = useMemo(() => {
-    return subjects.filter((s) => !selectedClassId || s.classId === selectedClassId);
-  }, [subjects, selectedClassId]);
+    return effectiveSubjects.filter((s: any) => !selectedClassId || s.courseId === selectedClassId || !s.courseId);
+  }, [effectiveSubjects, selectedClassId]);
 
   // Available room suggestions
   const availableRoomsList = useMemo(() => getAvailableRooms(), [getAvailableRooms]);
@@ -258,14 +390,14 @@ export default function TimetablePage() {
 
     // Try to auto-select teacher allocated to subject, or fallback
     if (defaultSubj?.allocatedTeacherName) {
-      const matchedTeacher = staff.find(
-        (st) =>
+      const matchedTeacher = effectiveStaff.find(
+        (st: any) =>
           st.fullName.toLowerCase().includes(defaultSubj.allocatedTeacherName!.toLowerCase()) ||
-          defaultSubj.allocatedTeacherName!.toLowerCase().includes(st.lastName.toLowerCase())
+          (st.lastName && defaultSubj.allocatedTeacherName!.toLowerCase().includes(st.lastName.toLowerCase()))
       );
-      setSlotTeacherId(matchedTeacher?.id || staff[0]?.id || "");
+      setSlotTeacherId(matchedTeacher?.id || effectiveStaff[0]?.id || "");
     } else {
-      setSlotTeacherId(staff[0]?.id || "");
+      setSlotTeacherId(effectiveStaff[0]?.id || "");
     }
 
     // Default room from active section
@@ -301,9 +433,9 @@ export default function TimetablePage() {
   // When user selects a Subject in modal, try to match teacher
   const handleSubjectChange = (subjectId: string) => {
     setSlotSubjectId(subjectId);
-    const subj = subjects.find((s) => s.id === subjectId);
+    const subj = effectiveSubjects.find((s) => s.id === subjectId);
     if (subj?.allocatedTeacherName) {
-      const matchedTeacher = staff.find((st) =>
+      const matchedTeacher = effectiveStaff.find((st: any) =>
         st.fullName.toLowerCase().includes(subj.allocatedTeacherName!.toLowerCase())
       );
       if (matchedTeacher) {
@@ -313,7 +445,7 @@ export default function TimetablePage() {
   };
 
   // Handle Save Slot (Add or Update)
-  const handleSaveSlot = (e: React.FormEvent) => {
+  const handleSaveSlot = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!slotSubjectId) {
@@ -329,63 +461,61 @@ export default function TimetablePage() {
       return;
     }
 
-    const subj = subjects.find((s) => s.id === slotSubjectId);
-    const teacher = staff.find((st) => st.id === slotTeacherId);
-    const pConfig = periodConfigs.find((p) => p.id === slotPeriodConfigId);
+    setIsSavingSlot(true);
+    const normDay = slotDay.toUpperCase();
 
-    const slotPayload = {
-      academicYearId: selectedAYId,
-      academicYearName: currentAY?.name || "2026-2027",
-      termId: selectedTermId,
-      termName: currentAY?.terms.find((t) => t.id === selectedTermId)?.name || "Current Term",
-      courseId: activeClass?.courseId || selectedCourseId,
-      courseName: activeClass?.courseName || "B.Tech Program",
-      classId: selectedClassId,
-      className: activeClass?.name || "Selected Class",
-      sectionId: effectiveSectionId,
-      sectionName: activeSection?.name || "Section A",
-      dayOfWeek: slotDay,
-      periodNumber: pConfig ? pConfig.periodNumber : 1,
-      periodConfigId: slotPeriodConfigId,
-      startTime: slotStartTime,
-      endTime: slotEndTime,
-      subjectId: slotSubjectId,
-      subjectCode: subj ? subj.code : "SUBJ",
-      subjectName: subj ? subj.name : "Curriculum Subject",
-      subjectType: (subj ? subj.type : "Core Theory") as SubjectType,
-      teacherId: slotTeacherId,
-      teacherName: teacher ? teacher.fullName : "Faculty Member",
-      teacherEmployeeId: teacher?.employeeId,
-      roomNumber: slotRoomNumber.trim(),
-      remarks: slotRemarks.trim() || undefined,
-    };
+    try {
+      const res = await fetch("/api/admin/timetable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sectionId: effectiveSectionId || "A",
+          section: activeSection?.name || "A",
+          subjectId: slotSubjectId,
+          teacherId: slotTeacherId,
+          dayOfWeek: normDay,
+          startTime: slotStartTime,
+          endTime: slotEndTime,
+          roomNumber: slotRoomNumber.trim(),
+          courseId: activeClass?.courseId || selectedCourseId,
+        }),
+      });
 
-    if (editingSlot) {
-      const res = updateTimetableSlot(editingSlot.id, slotPayload);
-      if (!res.success) {
-        const errorMsg = res.conflicts?.[0]?.message || "Could not update slot due to scheduling conflict.";
-        showToast("error", errorMsg);
-        return;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to schedule slot.");
       }
-      showToast("success", `Updated slot: ${slotPayload.subjectCode} on ${slotDay} (${slotStartTime}-${slotEndTime}).`);
-    } else {
-      const res = addTimetableSlot(slotPayload);
-      if (!res.success) {
-        const errorMsg = res.conflicts?.[0]?.message || "Could not schedule slot due to scheduling conflict.";
-        showToast("error", errorMsg);
-        return;
-      }
-      showToast("success", `Scheduled slot: ${slotPayload.subjectCode} on ${slotDay} (${slotStartTime}-${slotEndTime}).`);
+
+      showToast("success", `Scheduled slot on ${slotDay} (${slotStartTime}-${slotEndTime}).`);
+      setIsSlotModalOpen(false);
+      await fetchLiveTimetableData();
+    } catch (err: any) {
+      console.error("[handleSaveSlot] API error:", err);
+      showToast("error", err.message || "Failed to schedule timetable slot.");
+    } finally {
+      setIsSavingSlot(false);
     }
-
-    setIsSlotModalOpen(false);
   };
 
   // Delete slot
-  const handleDeleteSlot = (id: string, code: string, day: string) => {
+  const handleDeleteSlot = async (id: string, code: string, day: string) => {
     if (window.confirm(`Are you sure you want to delete the scheduled slot for ${code} on ${day}?`)) {
-      deleteTimetableSlot(id);
-      showToast("info", `Removed timetable slot for ${code}.`);
+      try {
+        const res = await fetch(`/api/admin/timetable?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast("info", `Removed timetable slot for ${code}.`);
+          await fetchLiveTimetableData();
+          return;
+        } else {
+          showToast("error", data.error || `Could not remove timetable slot.`);
+        }
+      } catch (err: any) {
+        console.error("[handleDeleteSlot] API error:", err);
+        showToast("error", err.message || "Could not remove timetable slot.");
+      }
     }
   };
 
@@ -1166,7 +1296,7 @@ export default function TimetablePage() {
                 <tbody className="divide-y divide-slate-200">
                   {sections.map((sec) => {
                     const secClass = classes.find((c) => c.id === sec.classId);
-                    const secSlots = timetableSlots.filter(
+                    const secSlots = effectiveTimetableSlots.filter(
                       (s) =>
                         s.sectionId === sec.id &&
                         s.dayOfWeek === selectedDay &&
@@ -1353,9 +1483,9 @@ export default function TimetablePage() {
                 className="w-full text-xs font-medium bg-white border border-slate-300 rounded-md p-2.5 focus:outline-none focus:ring-1 focus:ring-[#F5A000]"
               >
                 <option value="">-- Select Instructor --</option>
-                {staff.map((st) => (
+                {effectiveStaff.map((st: any) => (
                   <option key={st.id} value={st.id}>
-                    {st.fullName} ({st.employeeId}) {st.status === "On Leave" ? "• On Leave" : ""}
+                    {st.fullName} ({st.employeeId || st.staffEmployeeId || "FAC"}) {st.status === "On Leave" ? "• On Leave" : ""}
                   </option>
                 ))}
               </select>

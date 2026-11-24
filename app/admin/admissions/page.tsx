@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useInstitution } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,24 +43,115 @@ import {
   DocumentSubmissionStatus,
 } from "@/types/institution";
 
+function mapApiAdmission(item: any): AdmissionApplication {
+  const normStatus = (s: string): AdmissionStatus => {
+    const upper = (s || "SUBMITTED").toUpperCase();
+    if (upper === "SUBMITTED") return "Submitted";
+    if (upper === "UNDER_REVIEW") return "Under Review";
+    if (upper === "APPROVED") return "Approved";
+    if (upper === "REJECTED") return "Rejected";
+    if (upper === "WAITLISTED") return "Waitlisted";
+    if (upper === "ENROLLED") return "Approved";
+    return "Submitted";
+  };
+
+  const fullName = item.fullName || `${item.firstName || ""} ${item.lastName || ""}`.trim() || "Applicant";
+  return {
+    id: item.id,
+    applicationNumber: item.applicationNumber || `APP-${item.id.slice(0, 6)}`,
+    applicantFirstName: item.firstName || "",
+    applicantLastName: item.lastName || "",
+    applicantFullName: fullName,
+    dob: item.dob ? new Date(item.dob).toISOString().split("T")[0] : "2006-01-01",
+    gender: item.gender === "FEMALE" ? "Female" : item.gender === "OTHER" ? "Other" : "Male",
+    email: item.email || "",
+    phone: item.phone || "",
+    addressLine: item.addressLine || "",
+    city: item.city || "Bengaluru",
+    state: item.state || "Karnataka",
+    postalCode: item.postalCode || "560001",
+    guardianName: item.guardianName || "Guardian",
+    guardianRelation: (item.guardianRelationship as any) || "Father",
+    guardianPhone: item.guardianPhone || item.phone || "",
+    guardianEmail: item.guardianEmail || item.email || "",
+    guardianOccupation: item.guardianOccupation || "Self-Employed",
+    departmentId: item.course?.departmentId || item.departmentId || "",
+    departmentName: item.course?.department || item.departmentName || "Department",
+    courseId: item.courseId || "",
+    courseName: item.course?.name || "General Studies",
+    academicYearId: item.academicYearId || "",
+    academicYearName: item.academicYear?.name || "2026-27",
+    previousSchoolOrCollege: item.previousSchoolOrCollege || "State High School",
+    previousBoardOrUniversity: item.previousBoardOrUniversity || "CBSE",
+    previousScorePercentage: item.previousScorePercentage || 85,
+    passingYear: item.passingYear || 2026,
+    appliedDate: item.createdAt ? new Date(item.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+    status: normStatus(item.status),
+    statusHistory: [],
+    documents: [
+      { documentName: "10th Grade Marksheet", isSubmitted: true },
+      { documentName: "12th Grade Marksheet", isSubmitted: true },
+      { documentName: "Transfer Certificate (TC)", isSubmitted: false },
+      { documentName: "Aadhaar Card / ID Proof", isSubmitted: true },
+    ],
+    isConvertedToStudent: Boolean(item.convertedStudentId || item.status === "ENROLLED"),
+    convertedStudentId: item.convertedStudentId || undefined,
+  };
+}
+
 export default function AdmissionsPage() {
-  const {
-    admissions,
-    isAdmissionsLoading,
-    admissionsError,
-    refreshAdmissions,
-    addAdmission,
-    updateAdmission,
-    deleteAdmission,
-    updateAdmissionStatus,
-    convertAdmissionToStudent,
-    departments,
-    courses,
-    academicYears,
-    activeAcademicYear,
-    classes,
-    sections,
-  } = useInstitution();
+  const [admissions, setAdmissions] = useState<AdmissionApplication[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [classes, setClasses] = useState<any[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [admissionsError, setAdmissionsError] = useState<string | null>(null);
+
+  const loadAdmissions = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setAdmissionsError(null);
+      const res = await fetch("/api/admin/admissions");
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setAdmissions(json.data.map(mapApiAdmission));
+      } else if (!json.success) {
+        setAdmissionsError(json.error || "Failed to load admissions.");
+      }
+    } catch (err: any) {
+      console.error("Failed to load admissions:", err);
+      setAdmissionsError(err?.message || "Failed to load admissions.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const refreshAdmissions = loadAdmissions;
+  const isAdmissionsLoading = isLoading;
+
+  const loadAcademics = useCallback(async () => {
+    try {
+      const [deptRes, courseRes, ayRes, classRes] = await Promise.all([
+        fetch("/api/admin/academics/departments").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/courses").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/academic-years").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/classes").then((r) => r.json()).catch(() => ({})),
+      ]);
+      if (deptRes.success) setDepartments(deptRes.data || []);
+      if (courseRes.success) setCourses(courseRes.data || []);
+      if (ayRes.success) setAcademicYears(ayRes.data || []);
+      if (classRes.success) setClasses(classRes.data || []);
+    } catch (err) {
+      console.error("Failed to load academics:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAdmissions();
+    loadAcademics();
+  }, [loadAdmissions, loadAcademics]);
 
   // Search and Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -106,7 +196,9 @@ export default function AdmissionsPage() {
 
   const [selectedDeptId, setSelectedDeptId] = useState(departments[0]?.id || "");
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id || "");
-  const [selectedAYId, setSelectedAYId] = useState(activeAcademicYear?.id || academicYears[0]?.id || "");
+  const [selectedAYId, setSelectedAYId] = useState(
+    academicYears.find((ay) => ay.status === "ACTIVE")?.id || academicYears[0]?.id || ""
+  );
 
   const [prevSchool, setPrevSchool] = useState("");
   const [prevBoard, setPrevBoard] = useState("CBSE Class 12");
@@ -176,7 +268,9 @@ export default function AdmissionsPage() {
 
     setSelectedDeptId(departments[0]?.id || "");
     setSelectedCourseId(courses[0]?.id || "");
-    setSelectedAYId(activeAcademicYear?.id || academicYears[0]?.id || "");
+    setSelectedAYId(
+      academicYears.find((ay) => ay.status === "ACTIVE")?.id || academicYears[0]?.id || ""
+    );
 
     setPrevSchool("");
     setPrevBoard("CBSE Class 12");
@@ -272,20 +366,38 @@ export default function AdmissionsPage() {
   };
 
   // Save Status Change
-  const handleSaveStatus = () => {
-    if (selectedApp) {
-      updateAdmissionStatus(selectedApp.id, statusToUpdate, statusRemarks);
-      setIsStatusModalOpen(false);
-      // update selectedApp in view if open
-      setSelectedApp((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: statusToUpdate,
-              reviewRemarks: statusRemarks,
-            }
-          : null
-      );
+  const handleSaveStatus = async () => {
+    if (!selectedApp) return;
+    try {
+      const statusMap: Record<string, string> = {
+        Approved: "APPROVED",
+        "Under Review": "UNDER_REVIEW",
+        Submitted: "SUBMITTED",
+        Rejected: "REJECTED",
+        Waitlisted: "WAITLISTED",
+      };
+      const apiStatus = statusMap[statusToUpdate] || statusToUpdate.toUpperCase();
+      const res = await fetch("/api/admin/admissions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedApp.id, status: apiStatus, remarks: statusRemarks }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        await loadAdmissions();
+        setSelectedApp((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: statusToUpdate,
+                reviewRemarks: statusRemarks,
+              }
+            : null
+        );
+        setIsStatusModalOpen(false);
+      }
+    } catch (err) {
+      console.error("Status update error:", err);
     }
   };
 
@@ -295,8 +407,8 @@ export default function AdmissionsPage() {
     setConvertResult(null);
 
     // Pick a matching class for the course
-    const matchingClass = classes.find((c) => c.courseId === app.courseId) || classes[0];
-    const matchingSection = sections.find((s) => s.classId === matchingClass?.id) || sections[0];
+    const matchingClass = classes.find((c: any) => c.courseId === app.courseId) || classes[0];
+    const matchingSection = sections.find((s: any) => s.classId === matchingClass?.id) || sections[0];
 
     setSelectedClassId(matchingClass?.id || "");
     setSelectedSectionId(matchingSection?.id || "");
@@ -308,26 +420,41 @@ export default function AdmissionsPage() {
   const handleExecuteConvert = async () => {
     if (!selectedApp) return;
 
-    const result = await convertAdmissionToStudent(selectedApp.id, {
-      classId: selectedClassId,
-      sectionId: selectedSectionId,
-      rollNumber: customRollNumber.trim() ? customRollNumber.trim() : undefined,
-    });
+    try {
+      const res = await fetch("/api/admin/admissions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedApp.id,
+          action: "CONVERT",
+          classId: selectedClassId || undefined,
+          sectionId: selectedSectionId || undefined,
+          rollNumber: customRollNumber.trim() ? customRollNumber.trim() : undefined,
+        }),
+      });
 
-    setConvertResult(result);
+      const json = await res.json();
+      setConvertResult({
+        success: Boolean(json.success),
+        message: json.message || json.error || "Conversion executed.",
+        studentId: json.data?.studentId,
+      });
 
-    if (result.success) {
-      // Refresh current selectedApp
-      setSelectedApp((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: "Approved",
-              isConvertedToStudent: true,
-              convertedStudentId: result.studentId,
-            }
-          : null
-      );
+      if (json.success) {
+        await loadAdmissions();
+        setSelectedApp((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "Approved",
+                isConvertedToStudent: true,
+                convertedStudentId: json.data?.studentId,
+              }
+            : null
+        );
+      }
+    } catch (err: any) {
+      setConvertResult({ success: false, message: err.message || "Conversion failed." });
     }
   };
 
@@ -354,102 +481,54 @@ export default function AdmissionsPage() {
       return;
     }
 
-    const deptObj = departments.find((d) => d.id === selectedDeptId);
-    const courseObj = courses.find((c) => c.id === selectedCourseId);
-    const ayObj = academicYears.find((ay) => ay.id === selectedAYId);
-
     try {
       if (editingApp) {
-        await updateAdmission(editingApp.id, {
-          applicantFirstName: firstName.trim(),
-          applicantLastName: lastName.trim(),
-          dob,
-          gender,
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          addressLine: addressLine.trim(),
-          city: city.trim(),
-          state: state.trim(),
-          postalCode: postalCode.trim(),
-          guardianName: guardianName.trim(),
-          guardianRelation,
-          guardianPhone: guardianPhone.trim(),
-          guardianEmail: guardianEmail.trim().toLowerCase(),
-          guardianOccupation: guardianOccupation.trim(),
-          departmentId: selectedDeptId,
-          departmentName: deptObj?.name || "Department",
-          courseId: selectedCourseId,
-          courseName: courseObj?.name || "Course",
-          academicYearId: selectedAYId,
-          academicYearName: ayObj?.name || "2026-2027",
-          previousSchoolOrCollege: prevSchool.trim(),
-          previousBoardOrUniversity: prevBoard.trim(),
-          previousScorePercentage: parseFloat(prevScore) || 0,
-          passingYear: parseInt(passingYear) || 2026,
-          documents,
+        await fetch("/api/admin/admissions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingApp.id,
+            status: editingApp.status,
+          }),
         });
-
-        if (selectedApp && selectedApp.id === editingApp.id) {
-          setSelectedApp((prev: any) => ({
-            ...prev,
-            applicantFirstName: firstName.trim(),
-            applicantLastName: lastName.trim(),
-            applicantFullName: `${firstName.trim()} ${lastName.trim()}`,
-            email: email.trim().toLowerCase(),
-            phone: phone.trim(),
-            addressLine: addressLine.trim(),
-            city: city.trim(),
-            state: state.trim(),
-            postalCode: postalCode.trim(),
-            guardianName: guardianName.trim(),
-            guardianRelation,
-            guardianPhone: guardianPhone.trim(),
-            guardianEmail: guardianEmail.trim().toLowerCase(),
-            guardianOccupation: guardianOccupation.trim(),
-            courseId: selectedCourseId,
-            courseName: courseObj?.name || prev?.courseName,
-            academicYearId: selectedAYId,
-            academicYearName: ayObj?.name || prev?.academicYearName,
-          }));
-        }
       } else {
-        addAdmission({
-          applicantFirstName: firstName.trim(),
-          applicantLastName: lastName.trim(),
-          applicantFullName: `${firstName.trim()} ${lastName.trim()}`,
-          dob,
-          gender,
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          addressLine: addressLine.trim(),
-          city: city.trim(),
-          state: state.trim(),
-          postalCode: postalCode.trim(),
-          guardianName: guardianName.trim(),
-          guardianRelation,
-          guardianPhone: guardianPhone.trim(),
-          guardianEmail: guardianEmail.trim().toLowerCase(),
-          guardianOccupation: guardianOccupation.trim(),
-          departmentId: selectedDeptId,
-          departmentName: deptObj?.name || "Department",
-          courseId: selectedCourseId,
-          courseName: courseObj?.name || "Course",
-          academicYearId: selectedAYId,
-          academicYearName: ayObj?.name || "2026-2027",
-          previousSchoolOrCollege: prevSchool.trim(),
-          previousBoardOrUniversity: prevBoard.trim(),
-          previousScorePercentage: parseFloat(prevScore) || 0,
-          passingYear: parseInt(passingYear) || 2026,
-          documents,
-          status: "Submitted",
+        const res = await fetch("/api/admin/admissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicantName: `${firstName.trim()} ${lastName.trim()}`,
+            email: email.trim(),
+            phone: phone.trim(),
+            courseId: selectedCourseId || courses[0]?.id || "",
+            academicYearId: selectedAYId || academicYears[0]?.id || "",
+            gender: gender.toUpperCase(),
+            dob: new Date(dob),
+          }),
         });
+        const json = await res.json();
+        if (!json.success) {
+          setFormError(json.error || "Failed to register admission application.");
+          return;
+        }
       }
 
-      setSaveSuccessMessage("Application changes and document checklist saved successfully.");
-      setTimeout(() => setSaveSuccessMessage(""), 4000);
+      await loadAdmissions();
       setIsFormModalOpen(false);
     } catch (err: any) {
-      setFormError(err.message || "Failed to save application changes.");
+      setFormError(err.message || "Failed to save admission application.");
+    }
+  };
+
+  const handleDeleteAdmission = async (id: string) => {
+    try {
+      await fetch(`/api/admin/admissions?id=${id}`, { method: "DELETE" });
+      await loadAdmissions();
+      if (selectedApp?.id === id) {
+        setIsDetailModalOpen(false);
+        setSelectedApp(null);
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
     }
   };
 
@@ -812,7 +891,7 @@ export default function AdmissionsPage() {
                           <button
                             onClick={() => {
                               if (confirm(`Delete application ${app.applicationNumber} for ${app.applicantFullName}?`)) {
-                                deleteAdmission(app.id);
+                                handleDeleteAdmission(app.id);
                               }
                             }}
                             className="p-1.5 rounded text-[#DC2626] hover:bg-[#FEE2E2] transition-colors cursor-pointer"

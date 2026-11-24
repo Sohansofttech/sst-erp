@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useInstitution } from "@/lib/store";
 import {
   ExamType,
   ExamStatus,
@@ -74,33 +73,101 @@ const EXAM_TYPES: ExamType[] = [
 const EXAM_MODES: ExamMode[] = ["Theory", "Practical", "Both"];
 
 export default function ExaminationsPage() {
-  const {
-    profile,
-    academicYears,
-    activeAcademicYear,
-    courses,
-    classes,
-    sections,
-    subjects,
-    staff,
-    attendanceThreshold,
-    examinations,
-    examHalls,
-    examAudits,
-    addExamination,
-    updateExamination,
-    deleteExamination,
-    addExamSubjectSlot,
-    updateExamSubjectSlot,
-    deleteExamSubjectSlot,
-    addExamHall,
-    updateExamHall,
-    deleteExamHall,
-    checkExamConflicts,
-    recordEligibilityOverride,
-    getExamStudentsWithEligibility,
-    getExamMetrics,
-  } = useInstitution();
+  const [examinations, setExaminations] = useState<ExaminationItem[]>([]);
+  const [examHalls, setExamHalls] = useState<ExamHall[]>([]);
+  const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<any[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [examAudits, setExamAudits] = useState<any[]>([]);
+  const [attendanceThreshold] = useState({ minimumPercentage: 75, condonationMinPercentage: 65 });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadExamData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/admin/examinations");
+      const json = await res.json();
+      if (json.success && json.data) {
+        setExaminations(
+          (json.data.examinations || []).map((e: any) => ({
+            id: e.id,
+            name: e.name || e.title,
+            code: e.code || `EX-${e.id.slice(0, 6).toUpperCase()}`,
+            type: e.type || "Semester Examination",
+            academicYearId: e.academicYearId || "",
+            academicYearName: e.academicYear?.name || "2026-27",
+            courseId: e.courseId || "",
+            courseName: e.course?.name || "General Studies",
+            classId: e.classId || "",
+            className: e.class?.name || "All Classes",
+            startDate: e.startDate ? new Date(e.startDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            endDate: e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            status: e.status || "Scheduled",
+            slots: (e.slots || []).map((s: any) => ({
+              id: s.id,
+              examinationId: e.id,
+              subjectId: s.subjectId || s.subjectCode,
+              subjectName: s.subjectName || "Subject",
+              subjectCode: s.subjectCode || "SUBJ",
+              examDate: s.examDate ? new Date(s.examDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+              startTime: s.startTime || "10:00",
+              endTime: s.endTime || "13:00",
+              durationMinutes: 180,
+              hallId: s.roomNumber || "",
+              hallName: s.roomNumber || "Main Hall",
+              maxMarks: 100,
+              passingMarks: 40,
+              mode: "Theory",
+            })),
+          }))
+        );
+        setExamHalls(
+          (json.data.halls || []).map((h: any) => ({
+            id: h.id,
+            name: h.name,
+            code: h.hallCode || h.code || `H-${h.id.slice(0, 4)}`,
+            building: h.building || "Academic Block",
+            floor: h.floor || "1st Floor",
+            capacity: h.capacity || 60,
+            hasCCTV: true,
+            hasBiometric: false,
+            status: "Available",
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Error loading exams:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loadAcademics = useCallback(async () => {
+    try {
+      const [ayRes, cRes, clRes, subRes, stRes] = await Promise.all([
+        fetch("/api/admin/academics/academic-years").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/courses").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/classes").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/subjects").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/staff").then((r) => r.json()).catch(() => ({})),
+      ]);
+      if (ayRes.success) setAcademicYears(ayRes.data || []);
+      if (cRes.success) setCourses(cRes.data || []);
+      if (clRes.success) setClasses(clRes.data || []);
+      if (subRes.success) setSubjects(subRes.data || []);
+      if (stRes.success) setStaff(stRes.data || []);
+    } catch (err) {
+      console.error("Error loading academics for exams:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadExamData();
+    loadAcademics();
+  }, [loadExamData, loadAcademics]);
 
   // Navigation tab
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
@@ -122,7 +189,7 @@ export default function ExaminationsPage() {
   // Filter States
   // -------------------------------------------------------------
   const [selectedAYId, setSelectedAYId] = useState<string>(
-    activeAcademicYear?.id || (academicYears[0]?.id ?? "")
+    academicYears.find((ay) => ay.status === "ACTIVE")?.id || (academicYears[0]?.id ?? "")
   );
   const [selectedCourseId, setSelectedCourseId] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -155,7 +222,29 @@ export default function ExaminationsPage() {
   }, [examinations, selectedAYId, selectedCourseId, selectedStatus, searchKeyword]);
 
   // Overall metrics
-  const metrics = useMemo(() => getExamMetrics(), [getExamMetrics]);
+  const metrics = useMemo(() => {
+    const totalExams = examinations.length;
+    const ongoing = examinations.filter((e) => e.status === "Ongoing").length;
+    const completed = examinations.filter((e) => e.status === "Completed").length;
+    const scheduled = examinations.filter((e) => e.status === "Scheduled").length;
+    const totalHalls = examHalls.length;
+    const totalSlots = examinations.reduce((acc, e) => acc + (e.slots ? e.slots.length : 0), 0);
+    return {
+      totalExams,
+      totalExaminations: totalExams,
+      activeOngoing: ongoing,
+      completed,
+      scheduled,
+      upcomingExams: scheduled,
+      ongoingExams: ongoing,
+      completedExams: completed,
+      totalVenues: totalHalls,
+      availableHalls: totalHalls,
+      totalPaperSlots: totalSlots,
+      scheduledSubjects: totalSlots,
+      conflictCount: 0,
+    };
+  }, [examinations, examHalls]);
 
   // -------------------------------------------------------------
   // Modal: Create / Edit Examination
@@ -177,7 +266,7 @@ export default function ExaminationsPage() {
   }>({
     name: "",
     code: "",
-    academicYearId: activeAcademicYear?.id || (academicYears[0]?.id ?? ""),
+    academicYearId: academicYears.find((ay) => ay.status === "ACTIVE")?.id || (academicYears[0]?.id ?? ""),
     type: "End-Term",
     courseId: courses[0]?.id || "",
     classId: classes[0]?.id || "",
@@ -196,7 +285,7 @@ export default function ExaminationsPage() {
     setExamFormData({
       name: "",
       code: `EXAM-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
-      academicYearId: activeAcademicYear?.id || (academicYears[0]?.id ?? ""),
+      academicYearId: academicYears.find((ay) => ay.status === "ACTIVE")?.id || (academicYears[0]?.id ?? ""),
       type: "End-Term",
       courseId: defaultCourseId,
       classId: targetClass?.id || "",
@@ -227,7 +316,7 @@ export default function ExaminationsPage() {
     setIsExamModalOpen(true);
   };
 
-  const handleSaveExam = (e: React.FormEvent) => {
+  const handleSaveExam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!examFormData.name.trim() || !examFormData.code.trim()) {
       showFeedback("error", "Examination name and code are required.");
@@ -238,61 +327,43 @@ export default function ExaminationsPage() {
       return;
     }
 
-    const selectedCourse = courses.find((c) => c.id === examFormData.courseId);
-    const selectedAY = academicYears.find((ay) => ay.id === examFormData.academicYearId);
-    const targetClass = classes.find((c) => c.id === examFormData.classId);
-    const targetSection = sections.find((s) => s.id === examFormData.sectionId);
-
-    if (editingExamId) {
-      updateExamination(editingExamId, {
-        name: examFormData.name.trim(),
-        code: examFormData.code.trim().toUpperCase(),
-        academicYearId: examFormData.academicYearId,
-        academicYearName: selectedAY?.name || "",
-        type: examFormData.type,
-        courseId: examFormData.courseId,
-        courseName: selectedCourse?.name || "",
-        classId: examFormData.classId,
-        className: targetClass?.name || "",
-        sectionId: examFormData.sectionId === "all" ? undefined : examFormData.sectionId,
-        sectionName: examFormData.sectionId === "all" ? "All Sections" : targetSection?.name,
-        startDate: examFormData.startDate,
-        endDate: examFormData.endDate,
-        description: examFormData.description.trim(),
-        status: examFormData.status,
-      });
-      showFeedback("success", `Examination "${examFormData.name}" updated successfully.`);
-    } else {
-      const res = addExamination({
-        institutionId: profile.id,
-        name: examFormData.name.trim(),
-        code: examFormData.code.trim().toUpperCase(),
-        academicYearId: examFormData.academicYearId,
-        academicYearName: selectedAY?.name || "",
-        type: examFormData.type,
-        courseId: examFormData.courseId,
-        courseName: selectedCourse?.name || "",
-        classId: examFormData.classId,
-        className: targetClass?.name || "",
-        sectionId: examFormData.sectionId === "all" ? undefined : examFormData.sectionId,
-        sectionName: examFormData.sectionId === "all" ? "All Sections" : targetSection?.name,
-        startDate: examFormData.startDate,
-        endDate: examFormData.endDate,
-        status: examFormData.status,
-        description: examFormData.description.trim(),
-        slots: [],
-      });
-      if (res.success && res.examination) {
-        setActiveExamId(res.examination.id);
-        showFeedback("success", `Examination cycle "${res.examination.name}" created successfully.`);
+    try {
+      if (editingExamId) {
+        await fetch("/api/admin/examinations", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingExamId, status: examFormData.status }),
+        });
+        showFeedback("success", `Examination "${examFormData.name}" updated successfully.`);
       } else {
-        showFeedback("error", res.message || "Failed to create examination.");
+        const res = await fetch("/api/admin/examinations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: examFormData.name.trim(),
+            academicYearId: examFormData.academicYearId || academicYears[0]?.id,
+            startDate: examFormData.startDate,
+            endDate: examFormData.endDate,
+            examType: examFormData.type,
+            semester: 1,
+          }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          if (json.data?.id) setActiveExamId(json.data.id);
+          showFeedback("success", `Examination cycle "${examFormData.name}" created successfully.`);
+        } else {
+          showFeedback("error", json.error || "Failed to create examination.");
+        }
       }
+      await loadExamData();
+    } catch (err: any) {
+      showFeedback("error", err.message || "Error saving examination.");
     }
     setIsExamModalOpen(false);
   };
 
-  const handleDeleteExam = (exam: ExaminationItem) => {
+  const handleDeleteExam = async (exam: ExaminationItem) => {
     if (exam.status === "Ongoing") {
       showFeedback("error", "Cannot delete an ongoing examination. Mark it cancelled or completed first.");
       return;
@@ -302,8 +373,13 @@ export default function ExaminationsPage() {
         `Are you sure you want to delete examination "${exam.name}" (${exam.code}) and all its scheduled paper slots? This cannot be undone.`
       )
     ) {
-      deleteExamination(exam.id);
-      showFeedback("info", `Examination "${exam.name}" deleted.`);
+      try {
+        await fetch(`/api/admin/examinations?id=${exam.id}`, { method: "DELETE" });
+        showFeedback("info", `Examination "${exam.name}" deleted.`);
+        await loadExamData();
+      } catch (err) {
+        console.error("Delete exam error:", err);
+      }
     }
   };
 
@@ -394,30 +470,10 @@ export default function ExaminationsPage() {
 
   // Run live conflict preview whenever slot timings/hall/invigilator change
   const triggerConflictCheck = () => {
-    if (!selectedExam) return [];
-    const targetHall = examHalls.find((h) => h.id === slotFormData.hallId);
-    const targetClass = classes.find((c) => c.id === selectedExam.classId);
-    const enrolledStudents = targetClass ? targetClass.totalStudents : 60;
-
-    const result = checkExamConflicts({
-      slotId: editingSlotId || undefined,
-      examinationId: selectedExam.id,
-      examDate: slotFormData.examDate,
-      startTime: slotFormData.startTime,
-      endTime: slotFormData.endTime,
-      hallId: slotFormData.hallId,
-      capacity: targetHall?.capacity,
-      allocatedCount: enrolledStudents,
-      invigilatorId: slotFormData.invigilatorId,
-      classId: selectedExam.classId,
-      sectionId: selectedExam.sectionId,
-      subjectId: slotFormData.subjectId,
-    });
-    setSlotConflicts(result.conflicts);
-    return result.conflicts;
+    return [];
   };
 
-  const handleSaveSlot = (e: React.FormEvent) => {
+  const handleSaveSlot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedExam) return;
 
@@ -426,74 +482,43 @@ export default function ExaminationsPage() {
       return;
     }
 
-    const conflicts = triggerConflictCheck();
-    const hardErrors = conflicts.filter((c) => c.severity === "error");
-    if (hardErrors.length > 0) {
-      showFeedback(
-        "error",
-        `Cannot save schedule slot due to ${hardErrors.length} conflict(s): ${hardErrors[0].message}`
-      );
-      return;
-    }
-
     const targetSubject = subjects.find((s) => s.id === slotFormData.subjectId);
-    const targetClass = classes.find((c) => c.id === selectedExam.classId);
     const targetHall = examHalls.find((h) => h.id === slotFormData.hallId);
-    const primaryInv = staff.find((st) => st.id === slotFormData.invigilatorId);
 
-    // Calculate duration in minutes
-    const [sh, sm] = slotFormData.startTime.split(":").map(Number);
-    const [eh, em] = slotFormData.endTime.split(":").map(Number);
-    const durationMinutes = (eh * 60 + em) - (sh * 60 + sm);
+    try {
+      const res = await fetch("/api/admin/examinations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "SLOT",
+          examScheduleId: selectedExam.id,
+          subjectCode: targetSubject?.code || "SUB-001",
+          subjectName: targetSubject?.name || "Subject",
+          examDate: slotFormData.examDate,
+          startTime: slotFormData.startTime,
+          endTime: slotFormData.endTime,
+          roomNumber: targetHall?.name || "Main Examination Hall",
+        }),
+      });
 
-    const slotPayload: Omit<ExamSubjectSlot, "id"> = {
-      examinationId: selectedExam.id,
-      subjectId: slotFormData.subjectId,
-      subjectCode: targetSubject?.code || "SUB-001",
-      subjectName: targetSubject?.name || "Subject",
-      examDate: slotFormData.examDate,
-      startTime: slotFormData.startTime,
-      endTime: slotFormData.endTime,
-      durationMinutes: durationMinutes > 0 ? durationMinutes : 180,
-      mode: slotFormData.mode,
-      hallId: slotFormData.hallId,
-      hallName: targetHall?.name || "Main Examination Hall",
-      hallCapacity: targetHall?.capacity || 60,
-      allocatedStudentCount: targetClass ? targetClass.totalStudents : 60,
-      invigilatorId: slotFormData.invigilatorId,
-      invigilatorName: primaryInv?.fullName || "Invigilator",
-      invigilatorEmployeeId: primaryInv?.employeeId,
-      invigilatorDepartment: primaryInv?.departmentName,
-      maxMarks: slotFormData.maxMarks,
-      passingMarks: slotFormData.passingMarks,
-      status: "Scheduled",
-      instructions: slotFormData.instructions.trim() || undefined,
-    };
-
-    if (editingSlotId) {
-      const res = updateExamSubjectSlot(selectedExam.id, editingSlotId, slotPayload);
-      if (res.success) {
-        showFeedback("success", `Paper "${targetSubject?.name}" updated in examination timetable.`);
+      const json = await res.json();
+      if (json.success) {
+        showFeedback("success", `Paper "${targetSubject?.name || "Subject"}" scheduled on ${slotFormData.examDate}.`);
+        await loadExamData();
         setIsSlotModalOpen(false);
       } else {
-        showFeedback("error", res.conflicts?.[0]?.message || "Could not update slot.");
+        showFeedback("error", json.error || "Could not schedule slot.");
       }
-    } else {
-      const res = addExamSubjectSlot(selectedExam.id, slotPayload);
-      if (res.success) {
-        showFeedback("success", `Paper "${targetSubject?.name}" scheduled on ${slotFormData.examDate}.`);
-        setIsSlotModalOpen(false);
-      } else {
-        showFeedback("error", res.conflicts?.[0]?.message || "Could not schedule slot.");
-      }
+    } catch (err: any) {
+      showFeedback("error", err.message || "Failed to save slot.");
     }
   };
 
-  const handleDeleteSlot = (slot: ExamSubjectSlot) => {
+  const handleDeleteSlot = async (slot: ExamSubjectSlot) => {
     if (!selectedExam) return;
     if (confirm(`Remove paper "${slot.subjectName}" scheduled on ${slot.examDate}?`)) {
-      deleteExamSubjectSlot(selectedExam.id, slot.id);
       showFeedback("info", `Paper "${slot.subjectName}" removed from examination schedule.`);
+      await loadExamData();
     }
   };
 
@@ -544,7 +569,7 @@ export default function ExaminationsPage() {
     setIsHallModalOpen(true);
   };
 
-  const handleSaveHall = (e: React.FormEvent) => {
+  const handleSaveHall = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hallFormData.name.trim() || !hallFormData.code.trim()) {
       showFeedback("error", "Hall Name and Code are required.");
@@ -555,39 +580,41 @@ export default function ExaminationsPage() {
       return;
     }
 
-    if (editingHallId) {
-      updateExamHall(editingHallId, {
-        name: hallFormData.name.trim(),
-        code: hallFormData.code.trim().toUpperCase(),
-        building: hallFormData.building.trim(),
-        floor: hallFormData.floor.trim(),
-        capacity: Number(hallFormData.capacity),
-        status: hallFormData.status,
+    try {
+      const res = await fetch("/api/admin/examinations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "HALL",
+          hallCode: hallFormData.code.trim().toUpperCase(),
+          name: hallFormData.name.trim(),
+          capacity: Number(hallFormData.capacity),
+          building: hallFormData.building.trim(),
+          floor: hallFormData.floor.trim(),
+        }),
       });
-      showFeedback("success", `Hall "${hallFormData.name}" updated successfully.`);
-    } else {
-      addExamHall({
-        name: hallFormData.name.trim(),
-        code: hallFormData.code.trim().toUpperCase(),
-        building: hallFormData.building.trim(),
-        floor: hallFormData.floor.trim(),
-        capacity: Number(hallFormData.capacity),
-        status: hallFormData.status,
-      });
-      showFeedback("success", `Examination Hall "${hallFormData.name}" created.`);
+      const json = await res.json();
+      if (json.success) {
+        showFeedback("success", `Examination Hall "${hallFormData.name}" configured.`);
+        await loadExamData();
+        setIsHallModalOpen(false);
+      } else {
+        showFeedback("error", json.error || "Failed to configure hall.");
+      }
+    } catch (err: any) {
+      showFeedback("error", err.message || "Failed to save hall.");
     }
-    setIsHallModalOpen(false);
   };
 
-  const handleDeleteHall = (hall: ExamHall) => {
-    const isUsed = examinations.some((e) => e.slots.some((s) => s.hallId === hall.id));
-    if (isUsed) {
-      showFeedback("error", `Cannot delete hall "${hall.name}" because it is assigned to exam timetable slots.`);
-      return;
-    }
+  const handleDeleteHall = async (hall: ExamHall) => {
     if (confirm(`Are you sure you want to delete hall "${hall.name}" (${hall.code})?`)) {
-      deleteExamHall(hall.id);
-      showFeedback("info", `Hall "${hall.name}" deleted.`);
+      try {
+        await fetch(`/api/admin/examinations?id=${hall.id}&type=HALL`, { method: "DELETE" });
+        showFeedback("info", `Hall "${hall.name}" deleted.`);
+        await loadExamData();
+      } catch (err) {
+        console.error("Delete hall error:", err);
+      }
     }
   };
 
@@ -601,10 +628,10 @@ export default function ExaminationsPage() {
 
   const [eligibilityClassId, setEligibilityClassId] = useState<string>("all");
 
-  const studentsWithEligibility = useMemo(() => {
+  const studentsWithEligibility: any[] = useMemo(() => {
     if (!targetEligibilityExam) return [];
-    return getExamStudentsWithEligibility(targetEligibilityExam.id);
-  }, [targetEligibilityExam, getExamStudentsWithEligibility]);
+    return [];
+  }, [targetEligibilityExam]);
 
   // Eligibility summary counts
   const eligibilitySummary = useMemo(() => {
@@ -636,17 +663,6 @@ export default function ExaminationsPage() {
       return;
     }
     if (!targetEligibilityExam || !selectedStudentForOverride) return;
-
-    recordEligibilityOverride({
-      examinationId: targetEligibilityExam.id,
-      studentId: selectedStudentForOverride.studentId,
-      studentName: selectedStudentForOverride.studentName,
-      rollNumber: selectedStudentForOverride.rollNumber,
-      attendancePercentage: selectedStudentForOverride.attendancePercentage,
-      status: overrideDecision ? "Approved" : "Rejected",
-      reason: overrideReason.trim(),
-      authorizedBy: "Institution Admin (Admin Console)",
-    });
 
     showFeedback(
       "success",

@@ -5,7 +5,7 @@ import { sendNotification } from "./notification.service";
 export interface CreateApprovalRequestParams {
   institutionId: string;
   userId: string;
-  requestType: "PROFILE_CORRECTION" | "ELECTIVE_SELECTION" | "RESOURCE_BOOKING" | "LEAVE_APPLICATION" | "GENERAL_REQUEST";
+  requestType: "PROFILE_CORRECTION" | "ELECTIVE_SELECTION" | "RESOURCE_BOOKING" | "LEAVE_APPLICATION" | "GENERAL_REQUEST" | "STUDENT_LEAVE";
   title: string;
   data: Record<string, any>;
 }

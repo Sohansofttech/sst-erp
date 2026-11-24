@@ -17,6 +17,7 @@ import {
   findDeterministicAccount,
   type TeacherRole,
 } from "@/lib/auth/roles";
+import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context";
 
 export async function POST(req: NextRequest) {
   try {
@@ -272,17 +273,29 @@ export async function POST(req: NextRequest) {
       }
     } else if (userRole === "TEACHER") {
       let instSlug = (user.institution?.slug || user.institution?.code || "").toLowerCase();
-      if (!instSlug && user.institutionId) {
+      const resolvedInstId = user.institutionId || user.institution?.id;
+      if (!resolvedInstId) {
+        return NextResponse.json(
+          { success: false, error: "Institution configuration error: User account is not assigned to an institution." },
+          { status: 400 }
+        );
+      }
+      if (!instSlug && resolvedInstId) {
         try {
           const insts: any[] = await db.$queryRaw`
-            SELECT slug, code FROM institutions WHERE id = ${user.institutionId} LIMIT 1
+            SELECT slug, code FROM institutions WHERE id = ${resolvedInstId} LIMIT 1
           `;
           if (insts.length > 0) {
             instSlug = (insts[0].slug || insts[0].code || "").toLowerCase();
           }
         } catch {}
       }
-      if (!instSlug) instSlug = "vidyaniketan";
+      if (!instSlug) {
+        return NextResponse.json(
+          { success: false, error: "Institution configuration error: Missing institution slug or code." },
+          { status: 400 }
+        );
+      }
       redirectUrl = `/campus/${instSlug}/teacher`;
 
       // Resolve teacher record from DB
@@ -299,17 +312,24 @@ export async function POST(req: NextRequest) {
         console.warn("[Login] Teacher lookup error:", err);
       }
 
-      // Check deterministic test account configuration or DB record
+      // Dynamically resolve roles from database assignments and test account config
+      const dbAssignments = await resolveTeacherAssignmentsFromDb(
+        teacherRecord?.id || user.id,
+        user.id,
+        resolvedInstId,
+        teacherRecord?.department,
+        teacherRecord?.designation
+      );
       const testAccount = findDeterministicAccount(user.email) || findDeterministicAccount(user.id);
-      const availableRoles: TeacherRole[] = testAccount?.roles || ["teacher"];
-      const activeRole: TeacherRole = testAccount?.defaultRole || "teacher";
-      const homeroomClass = testAccount?.homeroomClass || (teacherRecord?.designation?.includes("Class Teacher") ? "Class 10-A" : undefined);
+      const availableRoles: TeacherRole[] = testAccount?.roles || dbAssignments.roles;
+      const activeRole: TeacherRole = testAccount?.defaultRole || (availableRoles[0] || "teacher");
+      const homeroomClass = testAccount?.homeroomClass || dbAssignments.homeroomClass;
 
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const teacherPayload: TeacherSessionPayload = {
         userId: user.id,
         teacherId: teacherRecord?.id || `teacher_${user.id}`,
-        institutionId: user.institutionId || user.institution?.id || "inst_demo_school",
+        institutionId: resolvedInstId,
         institutionSlug: instSlug,
         email: user.email,
         fullName: user.fullName || "Faculty Member",
@@ -332,7 +352,7 @@ export async function POST(req: NextRequest) {
         await createDbSessionRecord({
           tokenHash,
           userId: user.id,
-          institutionId: user.institutionId || user.institution?.id || "inst_demo_school",
+          institutionId: resolvedInstId,
           activeRole,
           expiresAt,
         });

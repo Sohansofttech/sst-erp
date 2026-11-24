@@ -53,43 +53,21 @@ import type {
   TeacherProfile,
   TimetableSlot,
 } from "@/types/teacher"
-import {
-  ACADEMIC_YEARS_MOCK,
-  ANNOUNCEMENTS_MOCK,
-  ASSIGNMENTS_MOCK,
-  ASSIGNMENT_SUBMISSIONS_MOCK,
-  ATTENDANCE_SESSIONS_MOCK,
-  CAMPUS_DUTIES_MOCK,
-  CLASS_ALLOCATIONS_MOCK,
-  DEPARTMENT_FACULTY_LOAD_MOCK,
-  EXAM_DUTIES_MOCK,
-  EXAM_SCHEDULE_MOCK,
-  INSTITUTION_MOCK,
-  INTERNAL_ASSESSMENTS_MOCK,
-  LEARNING_MATERIALS_MOCK,
-  LOGBOOK_ENTRIES_MOCK,
-  MENTEES_MOCK,
-  MENTORING_SESSIONS_MOCK,
-  NOTIFICATIONS_MOCK,
-  QUIZZES_MOCK,
-  QUIZ_SUBMISSIONS_MOCK,
-  RESULT_ENTRIES_MOCK,
-  STUDENT_LEAVE_REQUESTS_MOCK,
-  STUDENT_LOG_REVIEWS_MOCK,
-  STUDENT_ROSTER_MOCK,
-  SUBJECT_ALLOCATIONS_MOCK,
-  TEACHER_LEAVE_REQUESTS_MOCK,
-  TEACHER_PROFILE_MOCK,
-  TIMETABLE_MOCK,
-} from "@/mocks/teacher.mock"
 import { prisma } from "@/lib/prisma"
-import { getTeacherSession } from "@/lib/auth/teacher-session"
+import {
+  getTeacherSession,
+  getTeacherSessionToken,
+  verifyTeacherSession,
+  TeacherAuthError,
+  resolveInstitution as resolveDbInstitution,
+} from "@/lib/auth/teacher-session"
+import { getSession } from "@/lib/auth/session"
 import { calculateAttendance, RawAttendanceRecord } from "@/lib/services/attendance-calculator"
 
 // ---------------------------------------------------------------------------
-// Multi-tenant Active Teacher Resolution (with in-memory cache & deduplication)
+// Multi-tenant Active Teacher Resolution (with strict authentication & tenant isolation)
 // ---------------------------------------------------------------------------
-interface ResolvedTeacher {
+export interface ResolvedTeacher {
   teacher: any
   user: any
   institutionId: string
@@ -98,7 +76,7 @@ interface ResolvedTeacher {
 const teacherCache = new Map<string, { data: ResolvedTeacher; timestamp: number }>()
 const inFlightResolutions = new Map<string, Promise<ResolvedTeacher>>()
 
-async function resolveActiveTeacher(
+export async function resolveActiveTeacher(
   teacherId?: string | any,
   institutionId?: string | any,
   slug?: string | any
@@ -123,136 +101,140 @@ async function resolveActiveTeacher(
     resolvedSlug = slug.trim()
   }
 
-  const normSlug = resolvedSlug || "demo-school"
-  const cacheKey = `${resolvedTeacherId ?? ""}|${resolvedInstId ?? ""}|${normSlug}`
-  const now = Date.now()
+  // 1. Resolve active session from teacher cookie or general ERP session
+  let session = null
+  let erpSession = null
 
-  // 1. Direct cache check
-  const cached = teacherCache.get(cacheKey)
-  if (cached && now - cached.timestamp < 60_000) {
-    return cached.data
-  }
-
-  // 2. Secondary cache checks
-  if (resolvedTeacherId) {
-    const idCached = teacherCache.get(`${resolvedTeacherId}||`)
-    if (idCached && now - idCached.timestamp < 60_000) {
-      return idCached.data
-    }
-  } else {
-    const slugCached = teacherCache.get(`||${normSlug}`) ?? teacherCache.get(`||demo-school`)
-    if (slugCached && now - slugCached.timestamp < 60_000) {
-      return slugCached.data
-    }
-  }
-
-  // 3. In-flight promise deduplication
-  const dedupKey = resolvedTeacherId ? `id:${resolvedTeacherId}` : `slug:${normSlug}`
-  if (inFlightResolutions.has(dedupKey)) {
-    return inFlightResolutions.get(dedupKey)!
-  }
-
-  const promise = (async (): Promise<ResolvedTeacher> => {
+  // If a slug was passed, attempt to get teacher session for this campus slug
+  if (resolvedSlug) {
     try {
-      let result: ResolvedTeacher | null = null
-
-      if (resolvedTeacherId) {
-        try {
-          const teacher = await prisma.teachers.findFirst({
-            where: {
-              id: resolvedTeacherId,
-              ...(resolvedInstId ? { institutionId: resolvedInstId } : {}),
-            },
-            include: {
-              user: true,
-              institution: true,
-            },
-          })
-          if (teacher) {
-            const u = teacher.user ?? (teacher as any).users
-            result = { teacher, user: u, institutionId: teacher.institutionId }
-          }
-        } catch (err) {
-          console.warn("[resolveActiveTeacher] Direct ID lookup error:", err)
-        }
-      }
-
-      if (!result) {
-        // Attempt to resolve from active session or demo-school baseline
-        try {
-          const session = await getTeacherSession(normSlug)
-          if (session) {
-            result = { teacher: session.teacher, user: session.user, institutionId: session.institution.id }
-          }
-        } catch (err) {
-          console.warn("[resolveActiveTeacher] Session resolution error:", err)
-        }
-      }
-
-      if (!result) {
-        try {
-          const fallback = await prisma.teachers.findFirst({
-            where: {
-              ...(resolvedInstId ? { institutionId: resolvedInstId } : {}),
-              user: { isActive: true },
-            },
-            include: {
-              user: true,
-              institution: true,
-            },
-            orderBy: { createdAt: "asc" },
-          })
-          if (fallback) {
-            const u = fallback.user ?? (fallback as any).users
-            result = { teacher: fallback, user: u, institutionId: fallback.institutionId }
-          }
-        } catch (err) {
-          console.warn("[resolveActiveTeacher] DB fallback lookup error:", err)
-        }
-      }
-
-      if (!result) {
-        // Safe memory fallback to guarantee zero crash during DB network spikes
-        result = {
-          teacher: {
-            id: "teacher_demo_042",
-            institutionId: "inst_demo_school",
-            userId: "user_teacher_demo_042",
-            employeeId: "VNPS-TCH-042",
-            department: "Mathematics",
-            designation: "Senior PGT — Mathematics",
-            createdAt: new Date("2026-06-01"),
-          },
-          user: {
-            id: "user_teacher_demo_042",
-            institutionId: "inst_demo_school",
-            email: "ananya.sharma@vidyaniketan.edu.in",
-            fullName: "Dr. Ananya Sharma",
-            phone: "+91 98450 21478",
-            avatarUrl: null,
-            isActive: true,
-            role: "TEACHER",
-            createdAt: new Date("2026-06-01"),
-          },
-          institutionId: resolvedInstId || "inst_demo_school",
-        }
-      }
-
-      const entry = { data: result, timestamp: Date.now() }
-      teacherCache.set(cacheKey, entry)
-      teacherCache.set(`${result.teacher.id}||`, entry)
-      teacherCache.set(`||${normSlug}`, entry)
-      teacherCache.set(`||demo-school`, entry)
-      teacherCache.set(`||`, entry)
-
-      return result
-    } finally {
-      inFlightResolutions.delete(dedupKey)
+      session = await getTeacherSession(resolvedSlug)
+    } catch (err) {
+      console.warn("[resolveActiveTeacher] getTeacherSession slug error:", err)
     }
-  })()
+  }
 
-  inFlightResolutions.set(dedupKey, promise)
-  return promise
+  // If no session resolved yet, check teacher session token
+  if (!session) {
+    try {
+      const teacherToken = await getTeacherSessionToken()
+      if (teacherToken) {
+        const payload = await verifyTeacherSession(teacherToken)
+        if (payload?.institutionSlug) {
+          session = await getTeacherSession(payload.institutionSlug)
+        } else if (payload?.institutionId) {
+          const inst = await resolveDbInstitution(payload.institutionId)
+          if (inst) {
+            session = await getTeacherSession(inst.slug || inst.code || inst.id)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[resolveActiveTeacher] teacherToken verification error:", err)
+    }
+  }
+
+  // If still no teacher session, check general ERP session
+  if (!session) {
+    try {
+      erpSession = await getSession()
+      if (erpSession && (erpSession.role === "TEACHER" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
+        if (erpSession.institutionId) {
+          const inst = await resolveDbInstitution(erpSession.institutionId)
+          if (inst) {
+            session = await getTeacherSession(inst.slug || inst.code || inst.id)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[resolveActiveTeacher] erpSession check error:", err)
+    }
+  }
+
+  // 2. Reject unauthenticated requests immediately - NO DB or mock fallbacks!
+  if (!session && !erpSession) {
+    throw new TeacherAuthError(
+      "Authentication required: No active faculty session.",
+      "UNAUTHENTICATED",
+      401
+    )
+  }
+
+  let effectiveInstId = session ? session.institution.id : erpSession!.institutionId!
+  let effectiveUser = session ? session.user : null
+  let effectiveTeacher = session ? session.teacher : null
+
+  // Admin acting in teacher context
+  if (!effectiveTeacher && erpSession && (erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
+    const isSuperAdmin = erpSession.role === "SUPER_ADMIN"
+    const targetInstId = (isSuperAdmin && resolvedInstId) ? resolvedInstId : effectiveInstId
+    if (resolvedTeacherId) {
+      const dbTeacher = await prisma.teachers.findFirst({
+        where: {
+          id: resolvedTeacherId,
+          ...(targetInstId ? { institutionId: targetInstId } : {}),
+        },
+        include: { user: true, institution: true },
+      })
+      if (!dbTeacher) {
+        throw new TeacherAuthError("Teacher not found in this institution.", "TEACHER_RECORD_NOT_FOUND", 404)
+      }
+      effectiveTeacher = dbTeacher
+      effectiveUser = dbTeacher.user ?? (dbTeacher as any).users
+      effectiveInstId = dbTeacher.institutionId
+    }
+  }
+
+  if (!effectiveTeacher) {
+    throw new TeacherAuthError(
+      "Authentication required: No active faculty session.",
+      "UNAUTHENTICATED",
+      401
+    )
+  }
+
+  // 3. Multi-institution boundary verification (Tenant Isolation)
+  const isSuperAdmin = erpSession?.role === "SUPER_ADMIN"
+  if (!isSuperAdmin) {
+    if (resolvedInstId && resolvedInstId !== effectiveInstId) {
+      throw new TeacherAuthError(
+        "Tenant violation: You do not have permission to access another institution's data.",
+        "TENANT_MISMATCH",
+        403
+      )
+    }
+
+    if (resolvedSlug) {
+      const inst = session?.institution
+      const expectedSlug = (inst?.slug || inst?.code || "").toLowerCase()
+      if (expectedSlug && resolvedSlug.toLowerCase() !== expectedSlug && resolvedSlug.toLowerCase() !== inst?.id.toLowerCase()) {
+        throw new TeacherAuthError(
+          "Tenant violation: Campus slug does not match your institution.",
+          "TENANT_MISMATCH",
+          403
+        )
+      }
+    }
+  }
+
+  // 4. Verify teacherId against authenticated user
+  if (resolvedTeacherId) {
+    if (!isSuperAdmin && erpSession?.role !== "ADMIN") {
+      if (effectiveTeacher.id !== resolvedTeacherId) {
+        throw new TeacherAuthError(
+          "Forbidden: Cannot access another teacher's data.",
+          "FORBIDDEN",
+          403
+        )
+      }
+    }
+  }
+
+  return {
+    teacher: effectiveTeacher,
+    user: effectiveUser,
+    institutionId: effectiveInstId,
+  }
 }
 
 function parseSectionId(sectionId: string): { semester: number; section: string; grade: string } {
@@ -293,76 +275,27 @@ function clone<T>(value: T): T {
   return structuredClone(value)
 }
 
-interface TeacherSessionStore {
-  institution: Institution
-  academicYears: AcademicYear[]
-  profile: TeacherProfile
-  classAllocations: ClassAllocation[]
-  subjectAllocations: SubjectAllocation[]
-  students: StudentRosterItem[]
-  timetable: TimetableSlot[]
-  attendanceSessions: AttendanceSession[]
-  internalAssessments: InternalAssessment[]
-  assignments: Assignment[]
-  assignmentSubmissions: AssignmentSubmission[]
-  learningMaterials: LearningMaterial[]
-  quizzes: Quiz[]
-  quizSubmissions: QuizSubmission[]
-  examDuties: ExamDuty[]
-  campusDuties: CampusDuty[]
-  examSchedule: ExamScheduleItem[]
-  resultEntries: ResultEntry[]
-  mentees: Mentee[]
-  mentoringSessions: MentoringSession[]
-  logBookEntries: LogBookEntry[]
-  studentLogReviews: StudentLogReview[]
-  departmentFacultyLoad: DepartmentFacultyLoad[]
-  teacherLeaveRequests: TeacherLeaveRequest[]
-  studentLeaveRequests: StudentLeaveRequest[]
-  notifications: NotificationItem[]
-  announcements: Announcement[]
-}
+async function resolveCurrentAcademicYearId(institutionId: string): Promise<string> {
+  try {
+    const cur = await prisma.academic_years.findFirst({
+      where: { institutionId, isCurrent: true },
+      select: { id: true },
+    })
+    if (cur) return cur.id
 
-function createInitialStore(): TeacherSessionStore {
-  return {
-    institution: clone(INSTITUTION_MOCK),
-    academicYears: clone(ACADEMIC_YEARS_MOCK),
-    profile: clone(TEACHER_PROFILE_MOCK),
-    classAllocations: clone(CLASS_ALLOCATIONS_MOCK),
-    subjectAllocations: clone(SUBJECT_ALLOCATIONS_MOCK),
-    students: clone(STUDENT_ROSTER_MOCK),
-    timetable: clone(TIMETABLE_MOCK),
-    attendanceSessions: clone(ATTENDANCE_SESSIONS_MOCK),
-    internalAssessments: clone(INTERNAL_ASSESSMENTS_MOCK),
-    assignments: clone(ASSIGNMENTS_MOCK),
-    assignmentSubmissions: clone(ASSIGNMENT_SUBMISSIONS_MOCK),
-    learningMaterials: clone(LEARNING_MATERIALS_MOCK),
-    quizzes: clone(QUIZZES_MOCK),
-    quizSubmissions: clone(QUIZ_SUBMISSIONS_MOCK),
-    examDuties: clone(EXAM_DUTIES_MOCK),
-    campusDuties: clone(CAMPUS_DUTIES_MOCK),
-    examSchedule: clone(EXAM_SCHEDULE_MOCK),
-    resultEntries: clone(RESULT_ENTRIES_MOCK),
-    mentees: clone(MENTEES_MOCK),
-    mentoringSessions: clone(MENTORING_SESSIONS_MOCK),
-    logBookEntries: clone(LOGBOOK_ENTRIES_MOCK),
-    studentLogReviews: clone(STUDENT_LOG_REVIEWS_MOCK),
-    departmentFacultyLoad: clone(DEPARTMENT_FACULTY_LOAD_MOCK),
-    teacherLeaveRequests: clone(TEACHER_LEAVE_REQUESTS_MOCK),
-    studentLeaveRequests: clone(STUDENT_LEAVE_REQUESTS_MOCK),
-    notifications: clone(NOTIFICATIONS_MOCK),
-    announcements: clone(ANNOUNCEMENTS_MOCK),
-  }
-}
-
-let store: TeacherSessionStore = createInitialStore()
-
-export async function resetTeacherMockSession(): Promise<void> {
-  store = createInitialStore()
+    const latest = await prisma.academic_years.findFirst({
+      where: { institutionId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    })
+    if (latest) return latest.id
+  } catch {}
+  return "active-academic-year"
 }
 
 function formatSlugName(slug?: string | any): string {
-  const str = typeof slug === "string" ? slug : slug?.slug || "demo-school"
+  const str = typeof slug === "string" ? slug : slug?.slug || ""
+  if (!str) return "Academic Institution"
   return str
     .split("-")
     .filter(Boolean)
@@ -371,14 +304,14 @@ function formatSlugName(slug?: string | any): string {
 }
 
 function resolveInstitution(slug?: string | any): Institution {
-  const normSlug = typeof slug === "string" ? slug : slug?.slug || store.institution.slug
-  if (!normSlug || normSlug === store.institution.slug) {
-    return clone(store.institution)
-  }
+  const normSlug = typeof slug === "string" ? slug.trim() : slug?.slug || ""
   return {
-    ...clone(store.institution),
-    slug: normSlug,
+    id: normSlug || "institution-unresolved",
     name: formatSlugName(normSlug),
+    code: normSlug || "INST",
+    slug: normSlug || "campus",
+    type: "COLLEGE" as any,
+    logoUrl: "/logo.png",
   }
 }
 
@@ -413,13 +346,62 @@ export async function getInstitutionContext(
   slug?: string | any,
   academicYearName?: string
 ): Promise<TenantContext> {
-  const normSlug = typeof slug === "string" ? slug : slug?.slug || "demo-school"
-  const institution = resolveInstitution(normSlug)
-  const academicYears = clone(store.academicYears)
+  const normSlug = typeof slug === "string" ? slug.trim() : slug?.slug || ""
+  await delay(60)
+
+  let dbInst = null
+  if (normSlug) {
+    dbInst = await prisma.institutions.findFirst({
+      where: {
+        OR: [
+          { slug: normSlug },
+          { code: normSlug },
+          { id: normSlug },
+        ],
+      },
+    })
+  }
+  if (!dbInst) {
+    dbInst = await prisma.institutions.findFirst()
+  }
+
+  const institution: Institution = dbInst
+    ? {
+        id: dbInst.id,
+        name: dbInst.name,
+        code: dbInst.code || normSlug || "INST",
+        slug: dbInst.slug || normSlug || "campus",
+        type: (dbInst.type as any) || "COLLEGE",
+        logoUrl: "/logo.png",
+      }
+    : resolveInstitution(normSlug)
+
+  const dbYears = dbInst
+    ? await prisma.academic_years.findMany({
+        where: { institutionId: dbInst.id },
+        orderBy: { startDate: "desc" },
+      })
+    : []
+
+  const academicYears: AcademicYear[] = dbYears.map((y: any) => ({
+    id: y.id,
+    institutionId: y.institutionId ?? dbInst?.id ?? "active-institution",
+    name: y.name,
+    startDate: y.startDate ? new Date(y.startDate).toISOString() : new Date().toISOString(),
+    endDate: y.endDate ? new Date(y.endDate).toISOString() : new Date().toISOString(),
+    isCurrent: y.isCurrent,
+  }))
   const currentAcademicYear =
     academicYears.find((y) => y.name === academicYearName) ??
     academicYears.find((y) => y.isCurrent) ??
-    academicYears[0]
+    academicYears[0] ?? {
+      id: "ay-current",
+      institutionId: institution.id,
+      name: "Academic Year 2026-27",
+      startDate: new Date("2026-06-01").toISOString(),
+      endDate: new Date("2027-04-30").toISOString(),
+      isCurrent: true,
+    }
 
   return {
     institution,
@@ -435,7 +417,7 @@ export async function getTeacherDashboard(
   slug?: string | any,
   academicYearId?: string
 ): Promise<TeacherDashboardData> {
-  const normSlug = typeof slug === "string" ? (slug.trim() || "demo-school") : (slug?.slug || "demo-school")
+  const normSlug = typeof slug === "string" ? slug.trim() : (slug?.slug || "")
   const cacheKey = `${normSlug}|${academicYearId ?? ""}`
   const now = Date.now()
 
@@ -468,7 +450,7 @@ export async function getTeacherDashboard(
       } catch (err) {
         console.warn("[getTeacherDashboard] AY query error:", err)
       }
-      const targetYearId = academicYearId ?? currentAY?.id ?? store.academicYears[0]?.id
+      const targetYearId = academicYearId ?? currentAY?.id
 
       const [
         liveProfile,
@@ -480,6 +462,7 @@ export async function getTeacherDashboard(
         liveAnnouncements,
         liveExamDuties,
         liveStudentLeaves,
+        liveAttendanceSessions,
       ] = await Promise.all([
         getTeacherProfile(activeTeacherId),
         getClassAllocations(activeTeacherId, targetYearId),
@@ -490,6 +473,7 @@ export async function getTeacherDashboard(
         getAnnouncements(),
         getExamDuties(),
         getStudentLeaveRequests("pending"),
+        getAttendanceSessions(activeTeacherId),
       ])
 
       const today = getTodayDayOfWeek()
@@ -509,7 +493,7 @@ export async function getTeacherDashboard(
         0
       )
 
-      const latestAttendance = store.attendanceSessions[0]
+      const latestAttendance = liveAttendanceSessions[0]
       const todayAttendancePercent = latestAttendance
         ? Number(
             (
@@ -542,7 +526,7 @@ export async function getTeacherDashboard(
         todayTimetable: clone(todayTimetable),
         classAllocations: clone(classAllocations),
         subjectAllocations: clone(subjectAllocations),
-        recentAttendance: clone(store.attendanceSessions.slice(0, 5)),
+        recentAttendance: clone(liveAttendanceSessions.slice(0, 5)),
         pendingStudentLeaves: clone(pendingStudentLeaves),
         upcomingExamDuties: clone(
           liveExamDuties.filter((duty) => duty.status === "assigned")
@@ -584,7 +568,7 @@ export async function getTeacherDashboardOverview(
   slug?: string | any,
   academicYearId?: string
 ): Promise<TeacherDashboardOverview> {
-  const normSlug = typeof slug === "string" ? (slug.trim() || "demo-school") : (slug?.slug || "demo-school")
+  const normSlug = typeof slug === "string" ? slug.trim() : (slug?.slug || "")
   const overviewKey = `${normSlug}|${academicYearId ?? ""}`
   const now = Date.now()
 
@@ -614,10 +598,7 @@ export async function getTeacherDashboardOverview(
           getLogBookEntries({ institutionId: activeInstId } as any),
         ])
 
-      const slots =
-        data.todayTimetable.length > 0
-          ? data.todayTimetable
-          : store.timetable.filter((s) => s.day === "Monday")
+      const slots = data.todayTimetable
 
       const completed = new Set<string>()
       for (const s of sessions) {
@@ -765,8 +746,8 @@ export async function getTeacherProfile(
     specialization: "Algebra, Calculus & Olympiad Mentoring",
     experienceYears: 11,
     joiningDate: teacher.createdAt ? new Date(teacher.createdAt).toISOString().split("T")[0] : "2026-06-01",
-    isClassTeacher: true,
-    classTeacherOf: "Class 10 - A",
+    isClassTeacher: Boolean(teacher.designation?.toLowerCase().includes("class teacher") || teacher.designation?.toLowerCase().includes("grade 10")),
+    classTeacherOf: (teacher.designation?.toLowerCase().includes("class teacher") || teacher.designation?.toLowerCase().includes("grade 10")) ? "Class 10 - A" : undefined,
     subjectsHandled,
     officeRoom: "Staff Room 2, Academic Block B",
     bio: "Senior Mathematics faculty & Class Teacher for Grade 10-A, coordinating STEM Olympiad mentoring and CBSE board readiness.",
@@ -798,7 +779,6 @@ export async function updateTeacherProfile(
     })
   }
 
-  store.profile = { ...store.profile, ...patch }
   return getTeacherProfile(teacher.id)
 }
 
@@ -838,7 +818,7 @@ export async function getClassAllocations(
   } catch (err) {
     console.warn("[getClassAllocations] DB query error:", err)
   }
-  const resolvedAcademicYearId = academicYearId ?? currentAY?.id ?? "ay_demo_2026_27"
+  const resolvedAcademicYearId = academicYearId ?? currentAY?.id ?? "active-academic-year"
 
   // Group by distinct (semester, section)
   const classMap = new Map<
@@ -863,11 +843,9 @@ export async function getClassAllocations(
     }
   }
 
-  // If no slots exist, populate baseline classes
+  // If no slots exist, return empty allocations for this teacher
   if (classMap.size === 0) {
-    classMap.set("1-A", { courseId: "course_demo_cls_10", semester: 1, section: "A", roomNo: "B-204" })
-    classMap.set("1-B", { courseId: "course_demo_cls_10", semester: 1, section: "B", roomNo: "B-205" })
-    classMap.set("2-A", { courseId: "course_demo_cls_11", semester: 2, section: "A", roomNo: "C-102" })
+    return []
   }
 
   const classItems = Array.from(classMap.values())
@@ -920,7 +898,10 @@ export async function getClassAllocations(
     const className = `Class ${grade}`
     const sectionId = `sec-${grade}${item.section.toLowerCase()}`
     const metric = classMetrics[index] ?? { count: 0, averageAttendancePercent: null }
-    const isClassTeacher = item.semester === 1 && item.section === "A"
+    const isClassTeacher = Boolean(
+      (item.semester === 1 && item.section === "A" && teacher.designation?.toLowerCase().includes("class teacher")) ||
+      (teacher.designation?.toLowerCase().includes("class teacher") && teacher.designation?.includes(`${grade}-${item.section}`))
+    )
 
     return {
       id: `ca-${grade}${item.section.toLowerCase()}`,
@@ -976,7 +957,7 @@ export async function getSubjectAllocations(
   } catch (err) {
     console.warn("[getSubjectAllocations] DB query error:", err)
   }
-  const resolvedAcademicYearId = academicYearId ?? currentAY?.id ?? "ay_demo_2026_27"
+  const resolvedAcademicYearId = academicYearId ?? currentAY?.id ?? "active-academic-year"
 
   // Map distinct (subjectId, semester, section)
   const allocMap = new Map<
@@ -1090,7 +1071,6 @@ export async function getSubjectAllocations(
       }
     )
   }
-
   return results
 }
 
@@ -1135,7 +1115,7 @@ export async function getWeeklyTimetable(
   } catch (err) {
     console.warn("[getWeeklyTimetable] DB query error:", err)
   }
-  const academicYearId = currentAY?.id ?? "ay_demo_2026_27"
+  const academicYearId = currentAY?.id ?? "active-academic-year"
 
   // Group periods per day to assign sequential period numbers
   const periodCounters: Record<string, number> = {}
@@ -1184,14 +1164,6 @@ export async function getWeeklyTimetable(
     }
   })
 
-  // If no slots found in database, fallback to mock timetable
-  if (slots.length === 0) {
-    const items = day
-      ? store.timetable.filter((slot) => slot.day === day)
-      : store.timetable
-    return clone(items.sort((a, b) => a.period - b.period))
-  }
-
   return slots
 }
 
@@ -1206,17 +1178,35 @@ const sectionRosterCache = new Map<string, { data: StudentRosterItem[]; timestam
 const inFlightSectionRoster = new Map<string, Promise<StudentRosterItem[]>>()
 
 export async function getSectionStudents(
-  sectionId: string,
+  sectionId?: string,
   searchQuery?: string,
   institutionId?: string,
   options?: { includeGuardians?: boolean }
 ): Promise<StudentRosterItem[]> {
-  const activeTenantId =
-    (typeof institutionId === "string" && institutionId.trim().length > 0 ? institutionId.trim() : undefined) ??
-    (await resolveActiveTeacher()).institutionId
+  const resolved = await resolveActiveTeacher(undefined, institutionId)
+  const activeTenantId = resolved.institutionId
+
+  let targetSectionId = sectionId || ""
+  if (!targetSectionId) {
+    try {
+      const secRecord: any = await prisma.$queryRaw`
+        SELECT s.id, s.name
+        FROM "Section" s
+        WHERE s."institutionId"::text = ${activeTenantId}
+          AND s."classTeacherStaffId"::text = ${resolved.teacher.id}
+        LIMIT 1
+      `
+      if (secRecord && secRecord.length > 0) {
+        targetSectionId = `sec-10${(secRecord[0].name || "A").toLowerCase()}`
+      }
+    } catch {}
+    if (!targetSectionId) {
+      return []
+    }
+  }
 
   const isCacheable = !searchQuery?.trim()
-  const cacheKey = `${activeTenantId}|${sectionId}`
+  const cacheKey = `${activeTenantId}|${targetSectionId}`
   const now = Date.now()
 
   if (isCacheable) {
@@ -1232,7 +1222,7 @@ export async function getSectionStudents(
 
   const fetchPromise = (async (): Promise<StudentRosterItem[]> => {
     try {
-      const { semester, section, grade } = parseSectionId(sectionId)
+      const { semester, section, grade } = parseSectionId(targetSectionId)
       const q = searchQuery?.trim().toLowerCase()
       const shouldIncludeGuardians = options?.includeGuardians !== false
 
@@ -1350,20 +1340,6 @@ export async function getSectionStudents(
         }
       })
 
-      // If no DB students found matching query, check store fallback to avoid blank screens
-      if (roster.length === 0 && !searchQuery) {
-        const fallbackFiltered = store.students.filter(
-          (s) => s.sectionId === sectionId || s.sectionId === normalizedSectionId
-        )
-        if (fallbackFiltered.length > 0) {
-          const res = clone(fallbackFiltered)
-          if (isCacheable) {
-            sectionRosterCache.set(cacheKey, { data: res, timestamp: Date.now() })
-          }
-          return res
-        }
-      }
-
       if (isCacheable) {
         sectionRosterCache.set(cacheKey, { data: roster, timestamp: Date.now() })
       }
@@ -1390,8 +1366,10 @@ export async function getAttendanceSessions(filters?: {
   institutionId?: string
   take?: number
 }): Promise<AttendanceSession[]> {
-  const activeTenantId =
-    filters?.institutionId ?? (await resolveActiveTeacher()).institutionId
+  const resolved = await resolveActiveTeacher(undefined, filters?.institutionId)
+  const activeTenantId = resolved.institutionId
+  const activeTeacher = resolved.teacher
+  const activeUser = resolved.user
 
   // 1. Fetch live attendance records from database with multi-tenant filtering
   const filterDate = filters?.date
@@ -1469,7 +1447,7 @@ export async function getAttendanceSessions(filters?: {
       id: sessionId,
       institutionId: activeTenantId,
       academicYearId: "ay-2026-27",
-      teacherId: "teacher_demo_042",
+      teacherId: activeTeacher?.id || "faculty",
       classId,
       className,
       sectionId,
@@ -1491,8 +1469,8 @@ export async function getAttendanceSessions(filters?: {
         {
           id: `aud-${sessionId}-1`,
           timestamp: first.recordedAt.toISOString(),
-          actorId: "teacher_demo_042",
-          actorName: "Dr. Ananya Sharma",
+          actorId: activeTeacher?.id || "faculty",
+          actorName: activeUser?.fullName || "Faculty Member",
           action: "submitted",
           summary: `Submitted attendance: ${presentCount} present, ${absentCount} absent, ${lateCount} late, ${onDutyCount} on-duty.`,
         },
@@ -1500,16 +1478,7 @@ export async function getAttendanceSessions(filters?: {
     })
   }
 
-  // Merge live database sessions with store.attendanceSessions
-  const mergedMap = new Map<string, AttendanceSession>()
-  for (const s of store.attendanceSessions) {
-    mergedMap.set(`${s.date}-${s.sectionId}-${s.period ?? 1}`, s)
-  }
-  for (const s of liveSessions) {
-    mergedMap.set(`${s.date}-${s.sectionId}-${s.period ?? 1}`, s)
-  }
-
-  const all = Array.from(mergedMap.values()).sort(
+  const all = liveSessions.sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   )
 
@@ -1541,18 +1510,14 @@ export async function submitAttendance(
   const sessionDate = new Date(`${input.date}T00:00:00.000Z`)
 
   // 1. Validation: check if existing slot is locked or already submitted without correction reason
-  const existingBySlotIndex = store.attendanceSessions.findIndex(
+  const liveSessions = await getAttendanceSessions({ institutionId: activeTenantId })
+  const existing = liveSessions.find(
     (s) =>
       (input.sessionId && s.id === input.sessionId) ||
       (s.sectionId === input.sectionId &&
         s.date === input.date &&
         (s.period ?? 1) === (input.period ?? 1))
   )
-
-  const existing =
-    existingBySlotIndex >= 0
-      ? store.attendanceSessions[existingBySlotIndex]
-      : undefined
 
   if (existing) {
     if (existing.status === "locked" || !existing.editWindowOpen) {
@@ -1582,20 +1547,25 @@ export async function submitAttendance(
   const lateCount = input.records.filter((r) => r.status === "late").length
   const onDutyCount = input.records.filter((r) => r.status === "on_duty").length
 
-  const records: AttendanceRecord[] = input.records.map((rec, idx) => ({
-    id: `${sessionId}-rec-${idx + 1}`,
-    sessionId,
-    studentId: rec.studentId,
-    rollNo: rec.rollNo,
-    studentName: rec.studentName,
-    status: rec.status,
-    remarks: rec.remarks,
-    markedAt: nowIso,
-  }))
+  const recordIdMap = new Map<string, string>()
+  const records: AttendanceRecord[] = input.records.map((rec) => {
+    const recId = crypto.randomUUID()
+    recordIdMap.set(rec.studentId, recId)
+    return {
+      id: recId,
+      sessionId,
+      studentId: rec.studentId,
+      rollNo: rec.rollNo,
+      studentName: rec.studentName,
+      status: rec.status,
+      remarks: rec.remarks,
+      markedAt: nowIso,
+    }
+  })
 
   const isCorrection = existing?.status === "submitted"
   const auditEntry: AttendanceAuditEntry = {
-    id: `${sessionId}-aud-${Date.now()}`,
+    id: crypto.randomUUID(),
     timestamp: nowIso,
     actorId: teacher.id,
     actorName: user.fullName,
@@ -1614,18 +1584,67 @@ export async function submitAttendance(
       where: {
         institutionId: activeTenantId,
         studentId: { in: input.records.map((r) => r.studentId) },
-        status: "ACTIVE",
       },
     })
     const enrollmentMap = new Map(enrollments.map((e: any) => [e.studentId, e.id]))
 
+    // Ensure all students have a valid enrollment ID to avoid foreign key violations
+    for (const r of input.records) {
+      if (!enrollmentMap.has(r.studentId)) {
+        const existingEnr = await tx.enrollments.findFirst({
+          where: { studentId: r.studentId, institutionId: activeTenantId },
+          orderBy: { enrolledDate: "desc" },
+        })
+        if (existingEnr) {
+          enrollmentMap.set(r.studentId, existingEnr.id)
+        } else {
+          const defaultAy = await tx.academic_years.findFirst({
+            where: { institutionId: activeTenantId },
+            orderBy: { createdAt: "desc" },
+          })
+          const defaultCourse = await tx.courses.findFirst({
+            where: { institutionId: activeTenantId },
+            orderBy: { createdAt: "desc" },
+          })
+          if (defaultAy && defaultCourse) {
+            const newEnrId = crypto.randomUUID()
+            await tx.enrollments.create({
+              data: {
+                id: newEnrId,
+                institutionId: activeTenantId,
+                studentId: r.studentId,
+                academicYearId: defaultAy.id,
+                courseId: defaultCourse.id,
+                semester: 1,
+                section: "A",
+                status: "ACTIVE",
+              },
+            })
+            enrollmentMap.set(r.studentId, newEnrId)
+          }
+        }
+      }
+    }
+
     let subjectId = input.subjectId
+    if (subjectId) {
+      const validSubj = await tx.subjects.findFirst({
+        where: { id: subjectId, institutionId: activeTenantId },
+      })
+      if (!validSubj) {
+        subjectId = undefined
+      }
+    }
     if (!subjectId) {
-      const subj = await tx.subjects.findFirst({
+      const subj = (await tx.subjects.findFirst({
         where: { institutionId: activeTenantId },
         orderBy: { createdAt: "asc" },
-      })
-      subjectId = subj?.id ?? "sub_demo_math_10"
+      })) ?? (await tx.subjects.findFirst({
+        orderBy: { createdAt: "asc" },
+      }))
+      if (subj) {
+        subjectId = subj.id
+      }
     }
 
     // Delete prior entries for these students on this date to ensure idempotency
@@ -1637,12 +1656,12 @@ export async function submitAttendance(
       },
     })
 
-    // Batch create live attendance records
+    // Batch create live attendance records with standard UUIDs
     const dbRecordsToCreate = input.records.map((r) => ({
-      id: `att-rec-${r.studentId}-${input.date.replace(/-/g, "")}-p${input.period ?? 1}`,
+      id: recordIdMap.get(r.studentId) ?? crypto.randomUUID(),
       institutionId: activeTenantId,
       studentId: r.studentId,
-      enrollmentId: enrollmentMap.get(r.studentId) ?? `enr-${r.studentId}`,
+      enrollmentId: enrollmentMap.get(r.studentId) ?? crypto.randomUUID(),
       subjectId,
       date: sessionDate,
       status: r.status.toUpperCase(),
@@ -1654,10 +1673,10 @@ export async function submitAttendance(
       data: dbRecordsToCreate,
     })
 
-    // Create audit log
+    // Create audit log with proper standard UUID
     await tx.audit_logs.create({
       data: {
-        id: `aud-${sessionId}-${Date.now()}`,
+        id: crypto.randomUUID(),
         institutionId: activeTenantId,
         actorUserId: user.id,
         action: isCorrection ? "UPDATE_ATTENDANCE" : "SUBMIT_ATTENDANCE",
@@ -1705,12 +1724,6 @@ export async function submitAttendance(
     auditHistory: [...(existing?.auditHistory ?? []), auditEntry],
   }
 
-  if (existingBySlotIndex >= 0) {
-    store.attendanceSessions[existingBySlotIndex] = updatedSession
-  } else {
-    store.attendanceSessions.unshift(updatedSession)
-  }
-
   await invalidateTeacherDashboardCache()
   return clone(updatedSession)
 }
@@ -1725,6 +1738,7 @@ export async function getInternalAssessments(filters?: {
 }): Promise<InternalAssessment[]> {
   const activeTenantId =
     filters?.institutionId ?? (await resolveActiveTeacher()).institutionId
+  const { teacher } = await resolveActiveTeacher().catch(() => ({ teacher: { id: "teacher_01" } }))
 
   // Fetch live assessment records and approval requests with multi-tenant filtering
   let dbAssessmentRecords: any[] = []
@@ -1738,7 +1752,11 @@ export async function getInternalAssessments(filters?: {
         },
         include: {
           student: true,
+          subject: {
+            include: { course: true },
+          },
         },
+        orderBy: { conductedDate: "desc" },
       }),
       prisma.approval_requests.findMany({
         where: {
@@ -1753,54 +1771,109 @@ export async function getInternalAssessments(filters?: {
     console.warn("[getInternalAssessments] DB query error:", err)
   }
 
-  const approvalMap = new Map<string, any>(
-    dbApprovalRequests.map((apr: any) => [apr.id.replace("apr-ia-", ""), apr])
-  )
-
-  // Sync database state into in-memory assessments
-  if (dbAssessmentRecords.length > 0) {
-    for (const ia of store.internalAssessments) {
-      const matchingApr: any = approvalMap.get(ia.id)
-      if (matchingApr) {
-        if (matchingApr.status === "APPROVED") {
-          ia.status = "approved"
-        } else if (matchingApr.status === "RETURNED") {
-          ia.status = "returned"
-          ia.correctionNote = matchingApr.adminRemarks ?? undefined
-        } else if (matchingApr.status === "PENDING") {
-          ia.status = "submitted"
-        }
-      }
-
-      // Sync marks from assessment_records
-      const recsForIa = dbAssessmentRecords.filter(
-        (r: any) =>
-          r.assessmentName === ia.title ||
-          r.id.startsWith(`rec-${ia.id}-`)
-      )
-      if (recsForIa.length > 0) {
-        const markMap = new Map<string, any>(recsForIa.map((r: any) => [r.studentId, r]))
-        ia.marks = ia.marks.map((m) => {
-          const dbRec: any = markMap.get(m.studentId)
-          if (!dbRec) return m
-          return {
-            ...m,
-            obtainedMarks: dbRec.remarks === "ABSENT" ? null : dbRec.marksObtained,
-            isAbsent: dbRec.remarks === "ABSENT",
-            status: ia.status,
-          }
-        })
-      }
+  const approvalMap = new Map<string, any>()
+  for (const apr of dbApprovalRequests) {
+    approvalMap.set(apr.id.replace("apr-ia-", ""), apr)
+    if (apr.title) {
+      approvalMap.set(apr.title.toLowerCase().trim(), apr)
     }
   }
 
-  return clone(
-    store.internalAssessments.filter((ia) => {
-      if (filters?.sectionId && ia.sectionId !== filters.sectionId) return false
-      if (filters?.subjectId && ia.subjectId !== filters.subjectId) return false
-      return true
-    })
-  )
+  // Build live assessments from database records
+  if (dbAssessmentRecords.length > 0) {
+    const groups = new Map<string, typeof dbAssessmentRecords>()
+    for (const r of dbAssessmentRecords) {
+      const key = `${r.assessmentName}:::${r.subjectId}`
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(r)
+    }
+
+    const liveAssessments: InternalAssessment[] = Array.from(groups.entries()).map(
+      ([, records]) => {
+        const first = records[0]
+        const id = `ia-${first.subjectId}-${encodeURIComponent(first.assessmentName).replace(/%/g, "_")}`
+        const sub = first.subject ?? first.subjects
+        const course = sub?.course ?? sub?.courses
+
+        const matchingApr =
+          approvalMap.get(id) ||
+          approvalMap.get(first.assessmentName.toLowerCase().trim()) ||
+          approvalMap.get(`ia: ${first.assessmentName.toLowerCase().trim()}`)
+
+        let status: ApprovalStatus = "draft"
+        let correctionNote: string | undefined = undefined
+        if (matchingApr) {
+          if (matchingApr.status === "APPROVED") {
+            status = "approved"
+          } else if (matchingApr.status === "RETURNED" || matchingApr.status === "REJECTED") {
+            status = "returned"
+            correctionNote = matchingApr.adminRemarks ?? undefined
+          } else if (matchingApr.status === "PENDING") {
+            status = "submitted"
+          }
+        }
+
+        const marks = records.map((r: any, idx: number) => {
+          const st = r.student ?? r.students
+          const isAbsent = r.remarks === "ABSENT"
+          return {
+            id: `${id}-m-${idx + 1}`,
+            assessmentId: id,
+            studentId: r.studentId,
+            rollNo: st?.rollNumber ?? "01",
+            studentName: st ? `${st.firstName} ${st.lastName}`.trim() : "Student",
+            componentName: "Theory / Written Test",
+            maxMarks: r.maxMarks,
+            obtainedMarks: isAbsent ? null : r.marksObtained,
+            isAbsent,
+            remarks: r.remarks ?? undefined,
+            status,
+          }
+        })
+
+        const marksEntered = records.filter(
+          (r: any) => r.marksObtained > 0 || r.remarks !== null
+        ).length
+
+        const isPublishedStatus = status === "approved" || (status as string) === "locked"
+
+        return {
+          id,
+          institutionId: activeTenantId,
+          academicYearId: "ay_active",
+          teacherId: teacher?.id || "teacher_01",
+          classId: sub?.courseId || "cls-10",
+          className: course?.name || "Class 10",
+          sectionId: filters?.sectionId || "",
+          section: "A",
+          subjectId: first.subjectId,
+          subjectName: sub?.name || "Subject",
+          title: first.assessmentName,
+          componentName: "Theory / Written Test",
+          maxMarks: first.maxMarks,
+          passingMarks: Math.round(first.maxMarks * 0.4),
+          weightagePercent: first.weightage || 20,
+          conductedDate: first.conductedDate ? new Date(first.conductedDate).toISOString().slice(0, 10) : "2026-11-10",
+          status,
+          correctionNote,
+          publishedToStudents: isPublishedStatus,
+          totalStudents: records.length,
+          marksEnteredCount: marksEntered,
+          marks,
+        }
+      }
+    )
+
+    return clone(
+      liveAssessments.filter((ia) => {
+        if (filters?.sectionId && ia.sectionId !== filters.sectionId) return false
+        if (filters?.subjectId && ia.subjectId !== filters.subjectId) return false
+        return true
+      })
+    )
+  }
+
+  return []
 }
 
 export async function saveIAMarks(
@@ -1809,14 +1882,23 @@ export async function saveIAMarks(
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
 
-  const index = store.internalAssessments.findIndex(
-    (ia) => ia.id === input.assessmentId
-  )
-  if (index === -1) {
+  const liveAssessments = await getInternalAssessments({ institutionId: activeTenantId })
+  const assessment = liveAssessments.find((ia) => ia.id === input.assessmentId)
+  if (!assessment) {
     throw new Error(`Internal assessment "${input.assessmentId}" not found.`)
   }
 
-  const assessment = store.internalAssessments[index]
+  // Validate obtained marks against maximum marks
+  for (const mark of input.marks) {
+    if (mark.obtainedMarks !== null && mark.obtainedMarks !== undefined && !mark.isAbsent) {
+      if (mark.obtainedMarks < 0 || mark.obtainedMarks > assessment.maxMarks) {
+        throw new Error(
+          `Validation error: Obtained marks (${mark.obtainedMarks}) cannot exceed maximum marks (${assessment.maxMarks}) or be negative.`
+        )
+      }
+    }
+  }
+
   const nextStatus: ApprovalStatus = input.nextStatus ?? assessment.status
   const markUpdates = new Map(input.marks.map((m) => [m.studentId, m]))
 
@@ -1841,32 +1923,56 @@ export async function saveIAMarks(
     }
 
     for (const mark of input.marks) {
-      const recordId = `rec-${input.assessmentId}-${mark.studentId}`
       const isAbsent = Boolean(mark.isAbsent)
       const obtained = isAbsent ? 0 : (mark.obtainedMarks ?? 0)
       const remarks = isAbsent ? "ABSENT" : (mark.remarks ?? null)
 
-      await tx.assessment_records.upsert({
-        where: { id: recordId },
-        update: {
-          marksObtained: obtained,
-          remarks,
-          weightage: assessment.weightagePercent,
-        },
-        create: {
-          id: recordId,
+      let enrId = enrollmentMap.get(mark.studentId)
+      if (!enrId) {
+        const existingEnr = await tx.enrollments.findFirst({
+          where: { studentId: mark.studentId, institutionId: activeTenantId },
+          orderBy: { enrolledDate: "desc" },
+        })
+        if (existingEnr) {
+          enrId = existingEnr.id
+          enrollmentMap.set(mark.studentId, enrId)
+        }
+      }
+
+      const existingRecord = await tx.assessment_records.findFirst({
+        where: {
           institutionId: activeTenantId,
           studentId: mark.studentId,
-          enrollmentId: enrollmentMap.get(mark.studentId) ?? `enr-${mark.studentId}`,
-          subjectId,
           assessmentName: assessment.title,
-          maxMarks: assessment.maxMarks,
-          marksObtained: obtained,
-          weightage: assessment.weightagePercent,
-          remarks,
-          conductedDate: new Date(assessment.conductedDate),
         },
       })
+
+      if (existingRecord) {
+        await tx.assessment_records.update({
+          where: { id: existingRecord.id },
+          data: {
+            marksObtained: obtained,
+            remarks,
+            weightage: assessment.weightagePercent,
+          },
+        })
+      } else {
+        await tx.assessment_records.create({
+          data: {
+            id: crypto.randomUUID(),
+            institutionId: activeTenantId,
+            studentId: mark.studentId,
+            enrollmentId: enrId ?? crypto.randomUUID(),
+            subjectId,
+            assessmentName: assessment.title,
+            maxMarks: assessment.maxMarks,
+            marksObtained: obtained,
+            weightage: assessment.weightagePercent,
+            remarks,
+            conductedDate: new Date(assessment.conductedDate),
+          },
+        })
+      }
     }
 
     // Update approval requests workflow state
@@ -1921,21 +2027,99 @@ export async function saveIAMarks(
     marks: updatedMarks,
   }
 
-  store.internalAssessments[index] = updatedAssessment
   return clone(updatedAssessment)
 }
 
 export async function createInternalAssessment(
   input: CreateInternalAssessmentInput
 ): Promise<InternalAssessment> {
-  await delay(140)
+  const { teacher, user, institutionId } = await resolveActiveTeacher()
+  const activeTenantId = institutionId
   const id = `ia-${input.sectionId}-${Date.now()}`
   const roster = await getSectionStudents(input.sectionId)
+
+  // Persist into database inside a multi-tenant transaction
+  await prisma.$transaction(async (tx: any) => {
+    let validSubjectId = input.subjectId
+    const dbSub = await tx.subjects.findFirst({
+      where: { id: validSubjectId, institutionId: activeTenantId },
+    })
+    if (!dbSub) {
+      const fallbackSub = await tx.subjects.findFirst({
+        where: { institutionId: activeTenantId },
+        orderBy: { createdAt: "asc" },
+      })
+      if (fallbackSub) validSubjectId = fallbackSub.id
+    }
+
+    const enrollments = await tx.enrollments.findMany({
+      where: {
+        institutionId: activeTenantId,
+        studentId: { in: roster.map((s) => s.studentId) },
+        status: "ACTIVE",
+      },
+    })
+    const enrollmentMap = new Map(enrollments.map((e: any) => [e.studentId, e.id]))
+
+    for (const st of roster) {
+      let enrId = enrollmentMap.get(st.studentId)
+      if (!enrId) {
+        const existingEnr = await tx.enrollments.findFirst({
+          where: { studentId: st.studentId, institutionId: activeTenantId },
+          orderBy: { enrolledDate: "desc" },
+        })
+        if (existingEnr) {
+          enrId = existingEnr.id
+          enrollmentMap.set(st.studentId, enrId)
+        }
+      }
+      await tx.assessment_records.create({
+        data: {
+          id: crypto.randomUUID(),
+          institutionId: activeTenantId,
+          studentId: st.studentId,
+          enrollmentId: enrId ?? crypto.randomUUID(),
+          subjectId: validSubjectId,
+          assessmentName: input.title,
+          maxMarks: input.maxMarks,
+          marksObtained: 0,
+          weightage: input.weightagePercent,
+          remarks: null,
+          conductedDate: new Date(input.conductedDate),
+        },
+      })
+    }
+
+    await tx.approval_requests.create({
+      data: {
+        id: `apr-ia-${id}`,
+        institutionId: activeTenantId,
+        userId: user.id,
+        requestType: "INTERNAL_ASSESSMENT",
+        title: `IA: ${input.title}`,
+        status: "DRAFT",
+        requestedDataJson: JSON.stringify({
+          assessmentId: id,
+          title: input.title,
+          subjectId: validSubjectId,
+          sectionId: input.sectionId,
+          maxMarks: input.maxMarks,
+          weightagePercent: input.weightagePercent,
+          studentCount: roster.length,
+        }),
+      },
+    })
+  })
+
+  const currentAY = await prisma.academic_years.findFirst({
+    where: { institutionId: activeTenantId, isCurrent: true },
+  })
+
   const created: InternalAssessment = {
     id,
-    institutionId: store.institution.id,
-    academicYearId: store.academicYears[0]?.id ?? "ay-2026-27",
-    teacherId: store.profile.id,
+    institutionId: activeTenantId,
+    academicYearId: currentAY?.id ?? "ay-2026-27",
+    teacherId: teacher.id,
     classId: input.classId,
     className: input.className,
     sectionId: input.sectionId,
@@ -1962,7 +2146,6 @@ export async function createInternalAssessment(
       status: "draft",
     })),
   }
-  store.internalAssessments.unshift(created)
   return clone(created)
 }
 
@@ -1972,11 +2155,11 @@ export async function publishInternalAssessment(
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
 
-  const idx = store.internalAssessments.findIndex((ia) => ia.id === assessmentId)
-  if (idx === -1) {
+  const liveAssessments = await getInternalAssessments({ institutionId: activeTenantId })
+  const current = liveAssessments.find((ia) => ia.id === assessmentId)
+  if (!current) {
     throw new Error(`Internal assessment "${assessmentId}" not found.`)
   }
-  const current = store.internalAssessments[idx]
 
   // Persist publication and audit log inside transaction
   await prisma.$transaction(async (tx: any) => {
@@ -2006,7 +2189,7 @@ export async function publishInternalAssessment(
 
     await tx.audit_logs.create({
       data: {
-        id: `aud-pub-${assessmentId}-${Date.now()}`,
+        id: crypto.randomUUID(),
         institutionId: activeTenantId,
         actorUserId: user.id,
         action: "PUBLISH_INTERNAL_ASSESSMENT",
@@ -2027,7 +2210,6 @@ export async function publishInternalAssessment(
     publishedToStudents: true,
     marks: current.marks.map((m) => ({ ...m, status: "locked" })),
   }
-  store.internalAssessments[idx] = updated
   return clone(updated)
 }
 
@@ -2038,11 +2220,11 @@ export async function requestIACorrection(
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
 
-  const idx = store.internalAssessments.findIndex((ia) => ia.id === assessmentId)
-  if (idx === -1) {
+  const liveAssessments = await getInternalAssessments({ institutionId: activeTenantId })
+  const current = liveAssessments.find((ia) => ia.id === assessmentId)
+  if (!current) {
     throw new Error(`Internal assessment "${assessmentId}" not found.`)
   }
-  const current = store.internalAssessments[idx]
 
   // Persist correction request and audit log inside transaction
   await prisma.$transaction(async (tx: any) => {
@@ -2072,7 +2254,7 @@ export async function requestIACorrection(
 
     await tx.audit_logs.create({
       data: {
-        id: `aud-ret-${assessmentId}-${Date.now()}`,
+        id: crypto.randomUUID(),
         institutionId: activeTenantId,
         actorUserId: user.id,
         action: "REQUEST_CORRECTION_INTERNAL_ASSESSMENT",
@@ -2093,7 +2275,6 @@ export async function requestIACorrection(
     correctionNote,
     marks: current.marks.map((m) => ({ ...m, status: "returned" })),
   }
-  store.internalAssessments[idx] = updated
   return clone(updated)
 }
 
@@ -2178,7 +2359,7 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
   }
 
   const liveAssignments: Assignment[] = dbAssignments.map((dbAsg: any) => {
-    const rawSubmissions = dbAsg.assignment_submissions || []
+    const rawSubmissions = dbAsg.submissions || dbAsg.assignment_submissions || []
     const submittedCount = rawSubmissions.filter(
       (s: any) => s.status.toUpperCase() !== "PENDING"
     ).length
@@ -2203,7 +2384,7 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
     return {
       id: dbAsg.id,
       institutionId: dbAsg.institutionId,
-      academicYearId: "ay_demo_2026_27",
+      academicYearId: dbAsg.academicYearId || "active-academic-year",
       teacherId: teacher.id,
       classId: sub?.courseId ?? "cls-10",
       className: course?.name || "Class 10",
@@ -2229,23 +2410,9 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
     }
   })
 
-  // Deduplicate and merge with store.assignments
-  const liveMap = new Map<string, Assignment>()
-  for (const asg of liveAssignments) {
-    liveMap.set(asg.id, asg)
-  }
-  for (const storeAsg of store.assignments) {
-    if (!liveMap.has(storeAsg.id)) {
-      liveMap.set(storeAsg.id, storeAsg)
-    }
-  }
-
-  const merged = Array.from(liveMap.values())
-  store.assignments = merged
-
   const filtered = sectionId
-    ? merged.filter((a) => a.sectionId === sectionId)
-    : merged
+    ? liveAssignments.filter((a) => a.sectionId === sectionId)
+    : liveAssignments
 
   return clone(filtered)
 }
@@ -2275,100 +2442,43 @@ export async function getAssignmentSubmissions(
     })
   } catch (err) {
     console.warn("[getAssignmentSubmissions] DB query error:", err)
+    throw new Error("Failed to load assignment submissions from database.")
   }
 
-  if (dbSubmissions.length > 0) {
-    const liveSubs: AssignmentSubmission[] = dbSubmissions.map((s: any) => {
-      const isGraded = s.status.toUpperCase() === "GRADED" || s.score !== null
-      const statusLower = s.status.toLowerCase()
-      const status: AssignmentSubmission["status"] = (
-        ["pending", "submitted", "late", "graded", "returned"].includes(statusLower)
-          ? statusLower
-          : isGraded
-            ? "graded"
-            : "submitted"
-      ) as AssignmentSubmission["status"]
-
-      const st = s.student ?? s.students
-      return {
-        id: s.id,
-        assignmentId: s.assignmentId,
-        studentId: s.studentId,
-        rollNo: st?.rollNumber ?? "01",
-        studentName: st ? `${st.firstName} ${st.lastName}` : "Student",
-        submittedAt: s.submittedAt ? s.submittedAt.toISOString() : undefined,
-        fileUrl: s.fileUrl ?? undefined,
-        fileName: s.fileUrl ? s.fileUrl.split("/").pop() : undefined,
-        submissionText: s.textContent ?? undefined,
-        status,
-        obtainedMarks: s.score,
-        feedback: s.feedback ?? undefined,
-        gradedAt: isGraded && s.submittedAt ? s.submittedAt.toISOString() : undefined,
-      }
-    })
-
-    // Sync into store
-    for (const sub of liveSubs) {
-      const idx = store.assignmentSubmissions.findIndex((x) => x.id === sub.id)
-      if (idx >= 0) {
-        store.assignmentSubmissions[idx] = sub
-      } else {
-        store.assignmentSubmissions.push(sub)
-      }
-    }
-
-    return clone(liveSubs)
+  if (dbSubmissions.length === 0) {
+    return []
   }
 
-  // Fallback if not found in DB: check store or seed dynamically
-  const existingInStore = store.assignmentSubmissions.filter(
-    (s) => s.assignmentId === assignmentId
-  )
-  if (existingInStore.length > 0) {
-    return clone(existingInStore)
-  }
-
-  const assignment = store.assignments.find((a) => a.id === assignmentId)
-  if (!assignment) return []
-  const roster = store.students.filter(
-    (s) => s.sectionId === assignment.sectionId
-  )
-  const seeded: AssignmentSubmission[] = roster.map((student, idx) => {
-    const isSubmitted = idx < assignment.submittedCount
-    const isGraded = idx < assignment.gradedCount
-    const isLate = isSubmitted && idx === assignment.submittedCount - 1
-    return {
-      id: `sub-${assignmentId}-${idx + 1}`,
-      assignmentId,
-      studentId: student.studentId,
-      rollNo: student.rollNo,
-      studentName: student.fullName,
-      submittedAt: isSubmitted ? "2026-11-11T16:15:00+05:30" : undefined,
-      fileName: isSubmitted
-        ? `${student.rollNo}_${assignment.title.slice(0, 14).replace(/\s+/g, "_")}.pdf`
-        : undefined,
-      fileUrl: isSubmitted
-        ? `/uploads/assignments/${student.rollNo}_submission.pdf`
-        : undefined,
-      status: !isSubmitted
-        ? "pending"
+  const liveSubs: AssignmentSubmission[] = dbSubmissions.map((s: any) => {
+    const isGraded = s.status.toUpperCase() === "GRADED" || s.score !== null
+    const statusLower = s.status.toLowerCase()
+    const status: AssignmentSubmission["status"] = (
+      ["pending", "submitted", "late", "graded", "returned"].includes(statusLower)
+        ? statusLower
         : isGraded
           ? "graded"
-          : isLate
-            ? "late"
-            : "submitted",
-      obtainedMarks: isGraded
-        ? Math.min(
-            assignment.maxMarks,
-            Math.max(10, Math.round((student.iaAverage / 100) * assignment.maxMarks))
-          )
-        : null,
-      feedback: isGraded ? "Well structured solution steps." : undefined,
-      gradedAt: isGraded ? "2026-11-12T10:00:00+05:30" : undefined,
+          : "submitted"
+    ) as AssignmentSubmission["status"]
+
+    const st = s.student ?? s.students
+    return {
+      id: s.id,
+      assignmentId: s.assignmentId,
+      studentId: s.studentId,
+      rollNo: st?.rollNumber ?? "01",
+      studentName: st ? `${st.firstName} ${st.lastName}` : "Student",
+      submittedAt: s.submittedAt ? s.submittedAt.toISOString() : undefined,
+      fileUrl: s.fileUrl ?? undefined,
+      fileName: s.fileUrl ? s.fileUrl.split("/").pop() : undefined,
+      submissionText: s.textContent ?? undefined,
+      status,
+      obtainedMarks: s.score,
+      feedback: s.feedback ?? undefined,
+      gradedAt: isGraded && s.submittedAt ? s.submittedAt.toISOString() : undefined,
     }
   })
-  store.assignmentSubmissions.push(...seeded)
-  return clone(seeded)
+
+  return clone(liveSubs)
 }
 
 export async function createAssignment(
@@ -2456,7 +2566,7 @@ export async function createAssignment(
   const created: Assignment = {
     id,
     institutionId: activeTenantId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: await resolveCurrentAcademicYearId(activeTenantId),
     teacherId: teacher.id,
     classId: input.classId,
     className: input.className,
@@ -2479,7 +2589,6 @@ export async function createAssignment(
     createdAt: new Date().toISOString().slice(0, 10),
   }
 
-  store.assignments.unshift(created)
   return clone(created)
 }
 
@@ -2504,6 +2613,13 @@ export async function gradeAssignmentSubmission(
   })
 
   if (existingSub) {
+    const maxPoints = (existingSub as any).assignments?.totalPoints ?? 100
+    if (obtainedMarks < 0 || obtainedMarks > maxPoints) {
+      throw new Error(
+        `Validation error: Obtained score (${obtainedMarks}) cannot exceed maximum assignment points (${maxPoints}) or be negative.`
+      )
+    }
+
     const updatedDb = await prisma.assignment_submissions.update({
       where: { id: submissionId },
       data: {
@@ -2535,55 +2651,10 @@ export async function gradeAssignmentSubmission(
       gradedAt: new Date().toISOString(),
     }
 
-    // Sync in store
-    const storeIdx = store.assignmentSubmissions.findIndex((s) => s.id === submissionId)
-    if (storeIdx >= 0) {
-      store.assignmentSubmissions[storeIdx] = updated
-    } else {
-      store.assignmentSubmissions.push(updated)
-    }
-
-    const asgIdx = store.assignments.findIndex((a) => a.id === updated.assignmentId)
-    if (asgIdx >= 0) {
-      const prevGraded = store.assignments[asgIdx].gradedCount
-      store.assignments[asgIdx] = {
-        ...store.assignments[asgIdx],
-        gradedCount: prevGraded + 1,
-      }
-    }
-
     return clone(updated)
   }
 
-  // Fallback to store if not in DB
-  const idx = store.assignmentSubmissions.findIndex((s) => s.id === submissionId)
-  if (idx === -1) {
-    throw new Error(`Submission "${submissionId}" not found.`)
-  }
-
-  const prev = store.assignmentSubmissions[idx]
-  const wasGraded = prev.status === "graded"
-
-  const updated: AssignmentSubmission = {
-    ...prev,
-    obtainedMarks,
-    feedback: feedback ?? prev.feedback,
-    status: "graded",
-    gradedAt: new Date().toISOString(),
-  }
-  store.assignmentSubmissions[idx] = updated
-
-  if (!wasGraded) {
-    const asgIdx = store.assignments.findIndex((a) => a.id === updated.assignmentId)
-    if (asgIdx >= 0) {
-      store.assignments[asgIdx] = {
-        ...store.assignments[asgIdx],
-        gradedCount: store.assignments[asgIdx].gradedCount + 1,
-      }
-    }
-  }
-
-  return clone(updated)
+  throw new Error(`Assignment submission "${submissionId}" not found in this institution.`)
 }
 
 // ---------------------------------------------------------------------------
@@ -2623,7 +2694,7 @@ export async function getLearningMaterials(filters?: {
     return {
       id: m.id,
       institutionId: m.institutionId,
-      academicYearId: "ay_demo_2026_27",
+      academicYearId: "active-academic-year",
       teacherId: teacher.id,
       classId: sub?.courseId ?? "cls-10",
       className: course?.name || "Class 10",
@@ -2641,21 +2712,7 @@ export async function getLearningMaterials(filters?: {
     }
   })
 
-  // Merge with store.learningMaterials
-  const liveMap = new Map<string, LearningMaterial>()
-  for (const item of liveMaterials) {
-    liveMap.set(item.id, item)
-  }
-  for (const item of store.learningMaterials) {
-    if (!liveMap.has(item.id)) {
-      liveMap.set(item.id, item)
-    }
-  }
-
-  const merged = Array.from(liveMap.values())
-  store.learningMaterials = merged
-
-  const filtered = merged.filter((item) => {
+  const filtered = liveMaterials.filter((item) => {
     if (filters?.subjectId && item.subjectId !== filters.subjectId) {
       return false
     }
@@ -2713,7 +2770,7 @@ export async function createLearningMaterial(
   const created: LearningMaterial = {
     id,
     institutionId: activeTenantId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: await resolveCurrentAcademicYearId(activeTenantId),
     teacherId: teacher.id,
     classId: input.classId,
     className: input.className,
@@ -2730,7 +2787,6 @@ export async function createLearningMaterial(
     uploadedAt: new Date().toISOString().slice(0, 10),
   }
 
-  store.learningMaterials.unshift(created)
   return clone(created)
 }
 
@@ -2744,10 +2800,6 @@ export async function deleteLearningMaterial(materialId: string): Promise<void> 
       institutionId: activeTenantId,
     },
   })
-
-  store.learningMaterials = store.learningMaterials.filter(
-    (m) => m.id !== materialId
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -2803,11 +2855,11 @@ export async function getQuizzes(sectionId?: string): Promise<Quiz[]> {
     return {
       id: q.id,
       institutionId: q.institutionId,
-      academicYearId: "ay_demo_2026_27",
+      academicYearId: "active-academic-year",
       teacherId: teacher.id,
       classId: sub?.courseId ?? "cls-10",
       className: course?.name || "Class 10",
-      sectionId: sectionId || "sec-10a",
+      sectionId: sectionId || "",
       section: "A",
       subjectId: q.subjectId,
       subjectName: sub?.name ?? "Mathematics",
@@ -2824,23 +2876,9 @@ export async function getQuizzes(sectionId?: string): Promise<Quiz[]> {
     }
   })
 
-  // Merge with store.quizzes
-  const liveMap = new Map<string, Quiz>()
-  for (const q of liveQuizzes) {
-    liveMap.set(q.id, q)
-  }
-  for (const q of store.quizzes) {
-    if (!liveMap.has(q.id)) {
-      liveMap.set(q.id, q)
-    }
-  }
-
-  const merged = Array.from(liveMap.values())
-  store.quizzes = merged
-
   const filtered = sectionId
-    ? merged.filter((q) => q.sectionId === sectionId)
-    : merged
+    ? liveQuizzes.filter((q) => q.sectionId === sectionId)
+    : liveQuizzes
 
   return clone(filtered)
 }
@@ -2904,20 +2942,10 @@ export async function getQuizSubmissions(
       }
     })
 
-    // Sync into store
-    for (const sub of liveSubs) {
-      const idx = store.quizSubmissions.findIndex((s) => s.id === sub.id)
-      if (idx >= 0) {
-        store.quizSubmissions[idx] = sub
-      } else {
-        store.quizSubmissions.push(sub)
-      }
-    }
-
     return clone(liveSubs)
   }
 
-  return clone(store.quizSubmissions.filter((s) => s.quizId === quizId))
+  return []
 }
 
 export async function createQuiz(input: CreateQuizInput): Promise<Quiz> {
@@ -2983,7 +3011,7 @@ export async function createQuiz(input: CreateQuizInput): Promise<Quiz> {
   const created: Quiz = {
     id: quizId,
     institutionId: activeTenantId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: await resolveCurrentAcademicYearId(activeTenantId),
     teacherId: teacher.id,
     classId: input.classId,
     className: input.className,
@@ -3003,7 +3031,6 @@ export async function createQuiz(input: CreateQuizInput): Promise<Quiz> {
     totalStudents: 18,
   }
 
-  store.quizzes.unshift(created)
   return clone(created)
 }
 
@@ -3011,12 +3038,76 @@ export async function updateQuizStatus(
   quizId: string,
   status: Quiz["status"]
 ): Promise<Quiz> {
-  const idx = store.quizzes.findIndex((q) => q.id === quizId)
-  if (idx === -1) {
-    throw new Error(`Quiz "${quizId}" not found.`)
+  const { user, institutionId } = await resolveActiveTeacher()
+  const activeTenantId = institutionId
+
+  const dbQuiz = await prisma.quizzes.findFirst({
+    where: { id: quizId, institutionId: activeTenantId },
+    include: {
+      subject: { include: { course: true } },
+      questions: { orderBy: { id: "asc" } },
+      attempts: true,
+    },
+  })
+
+  if (!dbQuiz) {
+    throw new Error(`Quiz "${quizId}" not found in this institution.`)
   }
-  store.quizzes[idx] = { ...store.quizzes[idx], status }
-  return clone(store.quizzes[idx])
+
+  await prisma.audit_logs.create({
+    data: {
+      id: crypto.randomUUID(),
+      institutionId: activeTenantId,
+      actorUserId: user.id,
+      action: `UPDATE_QUIZ_STATUS_${status.toUpperCase()}`,
+      entityType: "QUIZ",
+      entityId: quizId,
+      newValuesJson: JSON.stringify({ status }),
+      createdAt: new Date(),
+    },
+  })
+
+  const rawQuestions = dbQuiz.questions ?? dbQuiz.quiz_questions ?? []
+  const questions: QuizQuestion[] = rawQuestions.map((ques: any, idx: number) => ({
+    id: ques.id,
+    quizId: ques.quizId,
+    questionNumber: idx + 1,
+    prompt: ques.questionText,
+    questionType: "mcq",
+    options: [ques.optionA, ques.optionB, ques.optionC, ques.optionD].filter(Boolean),
+    correctAnswer: ques.correctOption,
+    marks: ques.points,
+  }))
+
+  const totalMarks = Math.round(
+    dbQuiz.totalPoints || questions.reduce((sum: number, item: any) => sum + item.marks, 0)
+  )
+  const sub = dbQuiz.subject ?? dbQuiz.subjects
+  const course = sub?.course ?? sub?.courses
+  const rawAttempts = dbQuiz.attempts ?? dbQuiz.quiz_attempts ?? []
+
+  return {
+    id: dbQuiz.id,
+    institutionId: dbQuiz.institutionId,
+    academicYearId: "active-academic-year",
+    teacherId: user.id,
+    classId: sub?.courseId ?? "cls-10",
+    className: course?.name || "Class 10",
+    sectionId: (dbQuiz as any)?.sectionId || "",
+    section: "A",
+    subjectId: dbQuiz.subjectId,
+    subjectName: sub?.name ?? "Mathematics",
+    title: dbQuiz.title,
+    description: undefined,
+    durationMinutes: dbQuiz.durationMinutes,
+    totalMarks,
+    scheduledAt: dbQuiz.createdAt.toISOString().slice(0, 16),
+    closesAt: new Date(dbQuiz.createdAt.getTime() + 7 * 86400000).toISOString().slice(0, 16),
+    status,
+    questions,
+    attemptCount: rawAttempts.length,
+    totalStudents: 18,
+  }
 }
 
 export async function evaluateQuizSubmission(
@@ -3033,8 +3124,8 @@ export async function evaluateQuizSubmission(
       institutionId: activeTenantId,
     },
     include: {
-      students: true,
-      quizzes: true,
+      student: true,
+      quiz: true,
     },
   })
 
@@ -3081,29 +3172,13 @@ export async function evaluateQuizSubmission(
       feedback,
     }
 
-    const idx = store.quizSubmissions.findIndex((s) => s.id === submissionId)
-    if (idx >= 0) {
-      store.quizSubmissions[idx] = updated
-    } else {
-      store.quizSubmissions.push(updated)
-    }
-
     return clone(updated)
   }
 
-  const idx = store.quizSubmissions.findIndex((s) => s.id === submissionId)
-  if (idx === -1) {
-    throw new Error(`Quiz submission "${submissionId}" not found.`)
-  }
-  const updated: QuizSubmission = {
-    ...store.quizSubmissions[idx],
-    score,
-    feedback: feedback ?? store.quizSubmissions[idx].feedback,
-    status: "graded",
-  }
-  store.quizSubmissions[idx] = updated
-  return clone(updated)
+  throw new Error(`Quiz submission "${submissionId}" not found in this institution.`)
 }
+
+export const updateQuizSubmissionScore = evaluateQuizSubmission
 
 /**
  * Auto-evaluates student answers against quiz questions.
@@ -3183,7 +3258,11 @@ export async function uploadCourseMaterialFile(
     const file = input.get("file") as File
     const filename = (input.get("filename") as string) || file?.name || "upload"
     const folder = (input.get("folder") as string) || "materials"
-    const institutionId = (input.get("institutionId") as string) || "inst_demo_school"
+    let institutionId = input.get("institutionId") as string
+    if (!institutionId) {
+      const resolved = await resolveActiveTeacher()
+      institutionId = resolved.institutionId
+    }
     return upload({ file, filename, folder, institutionId })
   }
   return upload(input as any)
@@ -3228,6 +3307,8 @@ export async function getExamDuties(): Promise<ExamDuty[]> {
     console.warn("[getExamDuties] DB query error:", err)
   }
 
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
+
   const liveDuties: ExamDuty[] = dbSlots.map((slot: any) => {
     const isMorning =
       slot.startTime.includes("09:") ||
@@ -3238,7 +3319,7 @@ export async function getExamDuties(): Promise<ExamDuty[]> {
     return {
       id: `duty-${slot.id}`,
       institutionId: activeTenantId,
-      academicYearId: "ay_demo_2026_27",
+      academicYearId: sched?.academicYearId ?? activeAYId,
       teacherId: teacher.id,
       examName: sched?.title ?? "Semester Examination",
       examDate: slot.examDate ? new Date(slot.examDate).toISOString().slice(0, 10) : "2026-11-20",
@@ -3253,19 +3334,7 @@ export async function getExamDuties(): Promise<ExamDuty[]> {
     }
   })
 
-  const dutyMap = new Map<string, ExamDuty>()
-  for (const d of liveDuties) {
-    dutyMap.set(d.id, d)
-  }
-  for (const d of store.examDuties) {
-    if (!dutyMap.has(d.id)) {
-      dutyMap.set(d.id, d)
-    }
-  }
-
-  const merged = Array.from(dutyMap.values())
-  store.examDuties = merged
-  return clone(merged)
+  return clone(liveDuties)
 }
 
 export async function getExamSchedule(): Promise<ExamScheduleItem[]> {
@@ -3309,19 +3378,7 @@ export async function getExamSchedule(): Promise<ExamScheduleItem[]> {
     }
   })
 
-  const schedMap = new Map<string, ExamScheduleItem>()
-  for (const s of liveSchedule) {
-    schedMap.set(s.id, s)
-  }
-  for (const s of store.examSchedule) {
-    if (!schedMap.has(s.id)) {
-      schedMap.set(s.id, s)
-    }
-  }
-
-  const merged = Array.from(schedMap.values())
-  store.examSchedule = merged
-  return clone(merged)
+  return clone(liveSchedule)
 }
 
 export async function saveExamHallLog(
@@ -3350,21 +3407,21 @@ export async function saveExamHallLog(
     },
   })
 
-  const idx = store.examDuties.findIndex((d) => d.id === dutyId)
-  if (idx >= 0) {
+  const liveDuties = await getExamDuties()
+  const existing = liveDuties.find((d) => d.id === dutyId)
+  if (existing) {
     const updated: ExamDuty = {
-      ...store.examDuties[idx],
+      ...existing,
       status: "completed",
       hallAttendance: log,
     }
-    store.examDuties[idx] = updated
     return clone(updated)
   }
 
   const duty: ExamDuty = {
     id: dutyId,
     institutionId: activeTenantId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: await resolveCurrentAcademicYearId(activeTenantId),
     teacherId: user.id,
     examName: "Mid-Term Examination 2026-27",
     examDate: new Date().toISOString().slice(0, 10),
@@ -3376,13 +3433,49 @@ export async function saveExamHallLog(
     status: "completed",
     hallAttendance: log,
   }
-  store.examDuties.push(duty)
   return clone(duty)
 }
 
 export async function getCampusDuties(): Promise<CampusDuty[]> {
-  await delay(60)
-  return clone(store.campusDuties)
+  const { institutionId } = await resolveActiveTeacher()
+  const activeTenantId = institutionId
+
+  const reqs = await prisma.approval_requests.findMany({
+    where: {
+      institutionId: activeTenantId,
+      requestType: "CAMPUS_DUTY",
+    },
+    orderBy: { createdAt: "desc" },
+  })
+
+  return reqs.map((r: any) => {
+    try {
+      const data = JSON.parse(r.requestedDataJson)
+      return {
+        id: r.id,
+        institutionId: activeTenantId,
+        dutyName: r.title,
+        dutyType: data.dutyType || "Discipline & Gate",
+        location: data.location || "Main Campus",
+        date: data.date || r.createdAt.toISOString().slice(0, 10),
+        startTime: data.startTime || "08:00 AM",
+        endTime: data.endTime || "09:00 AM",
+        status: (r.status.toLowerCase() as any) || "scheduled",
+      }
+    } catch {
+      return {
+        id: r.id,
+        institutionId: activeTenantId,
+        dutyName: r.title,
+        dutyType: "Campus Duty",
+        location: "Main Gate",
+        date: r.createdAt.toISOString().slice(0, 10),
+        startTime: "08:00 AM",
+        endTime: "09:00 AM",
+        status: (r.status.toLowerCase() as any) || "scheduled",
+      }
+    }
+  })
 }
 
 export async function getResultEntries(): Promise<ResultEntry[]> {
@@ -3446,12 +3539,12 @@ export async function getResultEntries(): Promise<ResultEntry[]> {
         return {
           id: `re-${first.examScheduleId}-${first.subjectId}`,
           institutionId: activeTenantId,
-          academicYearId: "ay_demo_2026_27",
+          academicYearId: "active-academic-year",
           teacherId: teacher.id,
           examName: fSched?.title ?? "Final Exam",
           classId: fSub?.courseId ?? "cls-10",
           className: fCourse?.name || "Class 10",
-          sectionId: "sec-10a",
+          sectionId: (fSched as any)?.sectionId || "",
           section: "A",
           subjectId: first.subjectId,
           subjectName: fSub?.name ?? "Mathematics",
@@ -3467,22 +3560,10 @@ export async function getResultEntries(): Promise<ResultEntry[]> {
       }
     )
 
-    const entryMap = new Map<string, ResultEntry>()
-    for (const e of liveEntries) {
-      entryMap.set(e.id, e)
-    }
-    for (const e of store.resultEntries) {
-      if (!entryMap.has(e.id)) {
-        entryMap.set(e.id, e)
-      }
-    }
-
-    const merged = Array.from(entryMap.values())
-    store.resultEntries = merged
-    return clone(merged)
+    return clone(liveEntries)
   }
 
-  return clone(store.resultEntries)
+  return []
 }
 
 export async function saveResultMarks(
@@ -3491,12 +3572,66 @@ export async function saveResultMarks(
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
 
-  const idx = store.resultEntries.findIndex((r) => r.id === input.resultEntryId)
-  if (idx === -1) {
+  const liveEntries = await getResultEntries()
+  const entry = liveEntries.find((r) => r.id === input.resultEntryId)
+  if (!entry) {
     throw new Error(`Result entry "${input.resultEntryId}" not found.`)
   }
 
-  const entry = store.resultEntries[idx]
+  // Resolve valid exam schedule in this institution
+  let examScheduleId: string | undefined = undefined
+  if (input.resultEntryId.startsWith("re-")) {
+    const raw = input.resultEntryId.slice(3)
+    const parts = raw.split("-")
+    if (parts.length >= 1) {
+      const candidateId = parts[0]
+      const found = await prisma.exam_schedules.findFirst({
+        where: { id: candidateId, institutionId: activeTenantId },
+      })
+      if (found) examScheduleId = found.id
+    }
+  }
+
+  if (!examScheduleId) {
+    const activeSched = await prisma.exam_schedules.findFirst({
+      where: { institutionId: activeTenantId },
+      orderBy: { createdAt: "desc" },
+    })
+    if (activeSched) {
+      examScheduleId = activeSched.id
+    } else {
+      const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
+      const ay = await prisma.academic_years.findFirst({
+        where: { institutionId: activeTenantId },
+        orderBy: { createdAt: "asc" },
+      })
+      const newSched = await prisma.exam_schedules.create({
+        data: {
+          id: `es-${crypto.randomUUID()}`,
+          institutionId: activeTenantId,
+          academicYearId: ay?.id || activeAYId,
+          semester: 1,
+          title: "Semester Final Examination",
+          examType: "FINAL",
+          startDate: new Date(),
+          endDate: new Date(),
+          isPublished: false,
+        },
+      })
+      examScheduleId = newSched.id
+    }
+  }
+
+  // PREVENT post-publication modifications without permission
+  const scheduleCheck = await prisma.exam_schedules.findFirst({
+    where: { id: examScheduleId, institutionId: activeTenantId },
+  })
+  if (scheduleCheck?.isPublished) {
+    throw new Error(
+      "Cannot modify marks: This examination result batch has already been published. Post-publication modifications require administrative authorization."
+    )
+  }
+
   const updates = new Map(input.rows.map((r) => [r.studentId, r]))
 
   const updatedRows = entry.rows.map((row) => {
@@ -3515,12 +3650,35 @@ export async function saveResultMarks(
     }
     const theory = update.theoryMarks
     const practical = update.practicalMarks
+
+    if (theory !== null && theory !== undefined) {
+      if (theory < 0 || theory > entry.maxTheoryMarks) {
+        throw new Error(
+          `Validation error: Theory marks (${theory}) cannot exceed maximum (${entry.maxTheoryMarks}) or be negative.`
+        )
+      }
+    }
+    if (practical !== null && practical !== undefined) {
+      if (practical < 0 || practical > entry.maxPracticalMarks) {
+        throw new Error(
+          `Validation error: Practical marks (${practical}) cannot exceed maximum (${entry.maxPracticalMarks}) or be negative.`
+        )
+      }
+    }
+
     const total =
       theory !== null && practical !== null
         ? theory + practical
         : theory !== null
           ? theory
           : null
+
+    if (total !== null && total > entry.maxTotalMarks) {
+      throw new Error(
+        `Validation error: Total marks (${total}) cannot exceed maximum total marks (${entry.maxTotalMarks}).`
+      )
+    }
+
     const percent =
       total !== null ? Math.round((total / entry.maxTotalMarks) * 100) : null
 
@@ -3536,29 +3694,57 @@ export async function saveResultMarks(
   })
 
   await prisma.$transaction(async (tx: any) => {
+    // Resolve valid subjectId
+    let subjectId = entry.subjectId
+    const s = await tx.subjects.findFirst({
+      where: { id: subjectId, institutionId: activeTenantId },
+    })
+    if (!s) {
+      const fallback = await tx.subjects.findFirst({
+        where: { institutionId: activeTenantId },
+        orderBy: { createdAt: "asc" },
+      })
+      if (fallback) subjectId = fallback.id
+    }
+
     for (const r of updatedRows) {
       const isAbsent = r.isAbsent || r.totalMarks === null
-      const total = isAbsent ? 0 : r.totalMarks ?? 0
+      const total = isAbsent ? 0 : (r.totalMarks ?? 0)
       const grade = r.grade || (isAbsent ? "AB" : "E")
       const gradePoint =
-        grade === "A1" ? 10 : grade === "A2" ? 9 : grade === "B1" ? 8 : grade === "B2" ? 7 : 6
+        grade === "A1" || grade === "A+"
+          ? 10
+          : grade === "A2" || grade === "A"
+            ? 9
+            : grade === "B1" || grade === "B+"
+              ? 8
+              : grade === "B2" || grade === "B"
+                ? 7
+                : grade === "C"
+                  ? 6
+                  : grade === "P"
+                    ? 5
+                    : 0
+
+      const recordId = `res-${examScheduleId}-${r.studentId}-${subjectId}`
 
       await tx.exam_results.upsert({
-        where: { id: `res-midterm-${r.studentId}` },
+        where: { id: recordId },
         update: {
           internalMarks: r.practicalMarks ?? 0,
           externalMarks: r.theoryMarks ?? 0,
           totalMarks: total,
+          maxMarks: entry.maxTotalMarks,
           grade,
           gradePoint,
           isPassed: !isAbsent && total >= 33,
         },
         create: {
-          id: `res-midterm-${r.studentId}`,
+          id: recordId,
           institutionId: activeTenantId,
-          examScheduleId: "es-midterm-2026",
+          examScheduleId,
           studentId: r.studentId,
-          subjectId: entry.subjectId,
+          subjectId,
           internalMarks: r.practicalMarks ?? 0,
           externalMarks: r.theoryMarks ?? 0,
           totalMarks: total,
@@ -3567,6 +3753,9 @@ export async function saveResultMarks(
           gradePoint,
           credits: 4,
           isPassed: !isAbsent && total >= 33,
+          isSupplementary: isAbsent || total < 33,
+          attemptNumber: 1,
+          publishedAt: new Date(),
         },
       })
     }
@@ -3577,6 +3766,7 @@ export async function saveResultMarks(
         status: input.entryStatus ? input.entryStatus.toUpperCase() : "PENDING",
         requestedDataJson: JSON.stringify({
           resultEntryId: input.resultEntryId,
+          examScheduleId,
           rowCount: input.rows.length,
           updatedAt: new Date().toISOString(),
         }),
@@ -3590,6 +3780,7 @@ export async function saveResultMarks(
         status: input.entryStatus ? input.entryStatus.toUpperCase() : "PENDING",
         requestedDataJson: JSON.stringify({
           resultEntryId: input.resultEntryId,
+          examScheduleId,
           rowCount: input.rows.length,
           updatedAt: new Date().toISOString(),
         }),
@@ -3604,7 +3795,6 @@ export async function saveResultMarks(
     rows: updatedRows,
   }
 
-  store.resultEntries[idx] = updatedEntry
   return clone(updatedEntry)
 }
 
@@ -3616,11 +3806,11 @@ export async function publishResultEntry(
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
 
-  const idx = store.resultEntries.findIndex((r) => r.id === resultEntryId)
-  if (idx === -1) {
+  const liveEntries = await getResultEntries()
+  const current = liveEntries.find((r) => r.id === resultEntryId)
+  if (!current) {
     throw new Error(`Result entry "${resultEntryId}" not found.`)
   }
-  const current = store.resultEntries[idx]
 
   if (publicationStatus === "published") {
     await prisma.exam_schedules.updateMany({
@@ -3653,7 +3843,6 @@ export async function publishResultEntry(
     entryStatus: entryStatus ?? current.entryStatus,
     lastUpdatedAt: new Date().toISOString(),
   }
-  store.resultEntries[idx] = updated
   return clone(updated)
 }
 
@@ -3663,6 +3852,7 @@ export async function publishResultEntry(
 export async function getMentees(): Promise<Mentee[]> {
   const { teacher, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
 
   let dbRecords: any[] = []
   try {
@@ -3752,7 +3942,7 @@ export async function getMentees(): Promise<Mentee[]> {
         return {
           id: `mentee-${student.id}`,
           institutionId: activeTenantId,
-          academicYearId: "ay_demo_2026_27",
+          academicYearId: activeAYId,
           mentorTeacherId: teacher.id,
           studentId: student.id,
           rollNo: student.rollNumber,
@@ -3765,7 +3955,7 @@ export async function getMentees(): Promise<Mentee[]> {
           riskLevel,
           guardianContact: {
             guardianName: guardian?.fullName || "Parent / Guardian",
-            phone: guardian?.phone || student.emergencyContact || "+91 98765 43210",
+            phone: guardian?.phone || student.emergencyContact || "",
             relation: "Guardian",
           },
           lastSessionDate: latestPublic?.sessionDate.toISOString().slice(0, 10),
@@ -3775,22 +3965,10 @@ export async function getMentees(): Promise<Mentee[]> {
       }
     )
 
-    const menteeMap = new Map<string, Mentee>()
-    for (const m of liveMentees) {
-      menteeMap.set(m.id, m)
-    }
-    for (const m of store.mentees) {
-      if (!menteeMap.has(m.id)) {
-        menteeMap.set(m.id, m)
-      }
-    }
-
-    const merged = Array.from(menteeMap.values())
-    store.mentees = merged
-    return clone(merged)
+    return clone(liveMentees)
   }
 
-  return clone(store.mentees)
+  return []
 }
 
 export async function getMentoringSessions(
@@ -3854,28 +4032,13 @@ export async function getMentoringSessions(
       }
     })
 
-    const sessMap = new Map<string, MentoringSession>()
-    for (const s of liveSessions) {
-      sessMap.set(s.id, s)
-    }
-    for (const s of store.mentoringSessions) {
-      if (!sessMap.has(s.id)) {
-        sessMap.set(s.id, s)
-      }
-    }
-
-    const merged = Array.from(sessMap.values())
-    store.mentoringSessions = merged
     const filtered = menteeId
-      ? merged.filter((s) => s.menteeId === menteeId || s.studentId === targetStudentId)
-      : merged
+      ? liveSessions.filter((s) => s.menteeId === menteeId || s.studentId === targetStudentId)
+      : liveSessions
     return clone(filtered)
   }
 
-  const items = menteeId
-    ? store.mentoringSessions.filter((s) => s.menteeId === menteeId)
-    : store.mentoringSessions
-  return clone(items)
+  return []
 }
 
 export async function createMentoringSession(
@@ -3930,17 +4093,6 @@ export async function createMentoringSession(
     status: input.status ?? "completed",
   }
 
-  store.mentoringSessions.unshift(created)
-
-  const menteeIdx = store.mentees.findIndex((m) => m.id === input.menteeId)
-  if (menteeIdx >= 0) {
-    store.mentees[menteeIdx] = {
-      ...store.mentees[menteeIdx],
-      lastSessionDate: input.sessionDate,
-      notesSummary: input.topic,
-    }
-  }
-
   return clone(created)
 }
 
@@ -3970,16 +4122,16 @@ export async function saveConfidentialMentorNote(
     },
   })
 
-  const idx = store.mentees.findIndex((m) => m.id === menteeId)
-  if (idx >= 0) {
-    store.mentees[idx] = {
-      ...store.mentees[idx],
+  const mentees = await getMentees()
+  const mentee = mentees.find((m) => m.id === menteeId || m.studentId === targetStudentId)
+  if (mentee) {
+    return clone({
+      ...mentee,
       confidentialNotes: note,
-    }
-    return clone(store.mentees[idx])
+    })
   }
 
-  throw new Error(`Mentee "${menteeId}" not found.`)
+  throw new Error(`Mentee "${menteeId}" not found in this institution.`)
 }
 
 export async function escalateMenteeConcern(
@@ -4005,19 +4157,19 @@ export async function escalateMenteeConcern(
     },
   })
 
-  const idx = store.mentees.findIndex((m) => m.id === menteeId)
-  if (idx >= 0) {
+  const mentees = await getMentees()
+  const mentee = mentees.find((m) => m.id === menteeId)
+  if (mentee) {
     const updated: Mentee = {
-      ...store.mentees[idx],
+      ...mentee,
       escalated: true,
       escalationReason: reason,
       riskLevel: "at_risk",
     }
-    store.mentees[idx] = updated
     return clone(updated)
   }
 
-  throw new Error(`Mentee "${menteeId}" not found.`)
+  throw new Error(`Mentee "${menteeId}" not found in this institution.`)
 }
 
 // ---------------------------------------------------------------------------
@@ -4028,6 +4180,7 @@ export async function getLogBookEntries(
 ): Promise<LogBookEntry[]> {
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
 
   let dbRequests: any[] = []
   try {
@@ -4050,7 +4203,7 @@ export async function getLogBookEntries(
       liveEntries.push({
         id: data.id || req.id,
         institutionId: activeTenantId,
-        academicYearId: "ay_demo_2026_27",
+        academicYearId: activeAYId,
         teacherId: user.id,
         date: data.date,
         period: data.period,
@@ -4071,26 +4224,13 @@ export async function getLogBookEntries(
     } catch {}
   }
 
-  const logMap = new Map<string, LogBookEntry>()
-  for (const e of liveEntries) {
-    logMap.set(e.id, e)
-  }
-  for (const e of store.logBookEntries) {
-    if (!logMap.has(e.id)) {
-      logMap.set(e.id, e)
-    }
-  }
-
-  const merged = Array.from(logMap.values())
-  store.logBookEntries = merged
-
   if (typeof filters === "string") {
-    return clone(merged.filter((entry) => entry.section === filters))
+    return clone(liveEntries.filter((entry) => entry.section === filters))
   }
   if (filters?.subjectId) {
-    return clone(merged.filter((entry) => entry.subjectId === filters.subjectId))
+    return clone(liveEntries.filter((entry) => entry.subjectId === filters.subjectId))
   }
-  return clone(merged)
+  return clone(liveEntries)
 }
 
 export async function createLogBookEntry(
@@ -4098,6 +4238,7 @@ export async function createLogBookEntry(
 ): Promise<LogBookEntry> {
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
 
   const id = `lb-${Date.now()}`
   await prisma.approval_requests.create({
@@ -4118,7 +4259,7 @@ export async function createLogBookEntry(
   const created: LogBookEntry = {
     id,
     institutionId: activeTenantId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: activeAYId,
     teacherId: user.id,
     date: input.date,
     period: input.period,
@@ -4136,7 +4277,6 @@ export async function createLogBookEntry(
     status: (input.status as ApprovalStatus) ?? "submitted",
   }
 
-  store.logBookEntries.unshift(created)
   return clone(created)
 }
 
@@ -4181,22 +4321,10 @@ export async function getStudentLogReviews(): Promise<StudentLogReview[]> {
       }
     })
 
-    const revMap = new Map<string, StudentLogReview>()
-    for (const r of liveReviews) {
-      revMap.set(r.id, r)
-    }
-    for (const r of store.studentLogReviews) {
-      if (!revMap.has(r.id)) {
-        revMap.set(r.id, r)
-      }
-    }
-
-    const merged = Array.from(revMap.values())
-    store.studentLogReviews = merged
-    return clone(merged)
+    return clone(liveReviews)
   }
 
-  return clone(store.studentLogReviews)
+  return []
 }
 
 export async function reviewStudentLog(
@@ -4215,18 +4343,18 @@ export async function reviewStudentLog(
     },
   })
 
-  const idx = store.studentLogReviews.findIndex((r) => r.id === reviewId)
-  if (idx >= 0) {
+  const reviews = await getStudentLogReviews()
+  const found = reviews.find((r) => r.id === reviewId)
+  if (found) {
     const updated: StudentLogReview = {
-      ...store.studentLogReviews[idx],
-      teacherRemarks: remarks ?? store.studentLogReviews[idx].teacherRemarks,
+      ...found,
+      teacherRemarks: remarks ?? found.teacherRemarks,
       status: decision === "approved" ? "locked" : "returned",
     }
-    store.studentLogReviews[idx] = updated
     return clone(updated)
   }
 
-  throw new Error(`Student log review "${reviewId}" not found.`)
+  throw new Error(`Student log review "${reviewId}" not found in this institution.`)
 }
 
 // ---------------------------------------------------------------------------
@@ -4235,6 +4363,7 @@ export async function reviewStudentLog(
 export async function getTeacherLeaveRequests(): Promise<TeacherLeaveRequest[]> {
   const { user, teacher, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
 
   let dbRequests: any[] = []
   try {
@@ -4257,9 +4386,9 @@ export async function getTeacherLeaveRequests(): Promise<TeacherLeaveRequest[]> 
       liveLeaves.push({
         id: r.id,
         institutionId: activeTenantId,
-        academicYearId: "ay_demo_2026_27",
+        academicYearId: activeAYId,
         teacherId: teacher.id,
-        teacherName: user.fullName || "Dr. Ananya Sharma",
+        teacherName: user.fullName || "Teacher",
         leaveType: data.leaveType || "Casual Leave",
         fromDate: data.fromDate,
         toDate: data.toDate,
@@ -4275,19 +4404,7 @@ export async function getTeacherLeaveRequests(): Promise<TeacherLeaveRequest[]> 
     } catch {}
   }
 
-  const leaveMap = new Map<string, TeacherLeaveRequest>()
-  for (const l of liveLeaves) {
-    leaveMap.set(l.id, l)
-  }
-  for (const l of store.teacherLeaveRequests) {
-    if (!leaveMap.has(l.id)) {
-      leaveMap.set(l.id, l)
-    }
-  }
-
-  const merged = Array.from(leaveMap.values())
-  store.teacherLeaveRequests = merged
-  return clone(merged)
+  return clone(liveLeaves)
 }
 
 export async function createTeacherLeaveRequest(
@@ -4295,6 +4412,7 @@ export async function createTeacherLeaveRequest(
 ): Promise<TeacherLeaveRequest> {
   const { user, teacher, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
 
   const id = `tlr-${Date.now()}`
   await prisma.approval_requests.create({
@@ -4309,7 +4427,7 @@ export async function createTeacherLeaveRequest(
         ...input,
         id,
         teacherId: teacher.id,
-        teacherName: user.fullName || "Dr. Ananya Sharma",
+        teacherName: user.fullName || "Teacher",
       }),
     },
   })
@@ -4317,9 +4435,9 @@ export async function createTeacherLeaveRequest(
   const created: TeacherLeaveRequest = {
     id,
     institutionId: activeTenantId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: activeAYId,
     teacherId: teacher.id,
-    teacherName: user.fullName || "Dr. Ananya Sharma",
+    teacherName: user.fullName || "Teacher",
     leaveType: input.leaveType,
     fromDate: input.fromDate,
     toDate: input.toDate,
@@ -4331,7 +4449,6 @@ export async function createTeacherLeaveRequest(
     status: "submitted",
   }
 
-  store.teacherLeaveRequests.unshift(created)
   return clone(created)
 }
 
@@ -4354,20 +4471,20 @@ export async function reviewTeacherLeaveRequest(
     },
   })
 
-  const idx = store.teacherLeaveRequests.findIndex((r) => r.id === requestId)
-  if (idx >= 0) {
+  const allReqs = await getTeacherLeaveRequests()
+  const found = allReqs.find((r) => r.id === requestId)
+  if (found) {
     const updated: TeacherLeaveRequest = {
-      ...store.teacherLeaveRequests[idx],
+      ...found,
       status: decision,
-      reviewedBy: user.fullName || "Dr. Ananya Sharma (HoD)",
-      reviewerRemarks: reviewerRemarks ?? store.teacherLeaveRequests[idx].reviewerRemarks,
-      substituteTeacherName: substituteTeacherName || store.teacherLeaveRequests[idx].substituteTeacherName || "Prof. Rajesh Verma",
+      reviewedBy: user.fullName || "Administrator",
+      reviewerRemarks: reviewerRemarks ?? found.reviewerRemarks,
+      substituteTeacherName: substituteTeacherName || found.substituteTeacherName,
     }
-    store.teacherLeaveRequests[idx] = updated
     return clone(updated)
   }
 
-  throw new Error(`Teacher leave request "${requestId}" not found.`)
+  throw new Error(`Teacher leave request "${requestId}" not found in this institution.`)
 }
 
 export async function getStudentLeaveRequests(
@@ -4396,7 +4513,7 @@ export async function getStudentLeaveRequests(
       liveLeaves.push({
         id: r.id,
         institutionId: activeTenantId,
-        academicYearId: "ay_demo_2026_27",
+        academicYearId: "ay_active",
         studentId: data.studentId,
         rollNo: data.rollNo,
         studentName: data.studentName,
@@ -4405,32 +4522,19 @@ export async function getStudentLeaveRequests(
         leaveType: data.leaveType || "Medical",
         fromDate: data.fromDate,
         toDate: data.toDate,
-        daysCount: data.daysCount,
+        daysCount: data.daysCount || 1,
         reason: data.reason,
         guardianName: data.guardianName,
         guardianPhone: data.guardianPhone,
         appliedAt: r.createdAt.toISOString().slice(0, 10),
         status: (r.status.toLowerCase() as StudentLeaveRequest["status"]) || "pending",
-        reviewedBy: r.reviewedAt ? "Dr. Ananya Sharma (Class Teacher)" : undefined,
+        reviewedBy: r.reviewedAt ? "Class Teacher" : undefined,
         reviewerRemarks: r.adminRemarks ?? undefined,
       })
     } catch {}
   }
 
-  const map = new Map<string, StudentLeaveRequest>()
-  for (const l of liveLeaves) {
-    map.set(l.id, l)
-  }
-  for (const l of store.studentLeaveRequests) {
-    if (!map.has(l.id)) {
-      map.set(l.id, l)
-    }
-  }
-
-  const merged = Array.from(map.values())
-  store.studentLeaveRequests = merged
-
-  const filtered = status ? merged.filter((req) => req.status === status) : merged
+  const filtered = status ? liveLeaves.filter((req) => req.status === status) : liveLeaves
   return clone(filtered)
 }
 
@@ -4442,61 +4546,132 @@ export async function reviewStudentLeaveRequest(
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
 
-  const idx = store.studentLeaveRequests.findIndex((r) => r.id === requestId)
-  const leaveReq = idx >= 0 ? store.studentLeaveRequests[idx] : null
+  // 1. Fetch approval request from PostgreSQL
+  const dbReq = await prisma.approval_requests.findFirst({
+    where: {
+      id: requestId,
+      institutionId: activeTenantId,
+      requestType: "STUDENT_LEAVE",
+    },
+  })
 
-  // Approving student leave and updating attendance records must run in one atomic DB transaction
-  try {
-    await prisma.$transaction(async (tx: any) => {
-      await tx.approval_requests.updateMany({
-        where: { id: requestId, institutionId: activeTenantId },
+  let studentId = ""
+  let fromDate = ""
+  let toDate = ""
+  let reason = "Medical"
+  let studentName = ""
+  let rollNo = ""
+  let leaveType = "Medical"
+  let guardianName: string | undefined = undefined
+  let guardianPhone: string | undefined = undefined
+
+  if (dbReq) {
+    try {
+      const parsed = JSON.parse(dbReq.requestedDataJson)
+      studentId = parsed.studentId
+      fromDate = parsed.fromDate
+      toDate = parsed.toDate
+      reason = parsed.reason || "Medical"
+      studentName = parsed.studentName || ""
+      rollNo = parsed.rollNo || ""
+      leaveType = parsed.leaveType || "Medical"
+      guardianName = parsed.guardianName
+      guardianPhone = parsed.guardianPhone
+    } catch (err) {
+      console.warn("[reviewStudentLeaveRequest] JSON parse error:", err)
+    }
+  } else {
+    throw new Error(`Student leave request "${requestId}" not found in this institution.`)
+  }
+
+  if (!studentId || !fromDate || !toDate) {
+    throw new Error(`Student leave request "${requestId}" not found or lacks required dates.`)
+  }
+
+  // IDOR & Multi-tenant boundary check: verify student belongs to active institution
+  const studentRecord = await prisma.students.findFirst({
+    where: { id: studentId, institutionId: activeTenantId },
+    select: { id: true },
+  })
+  if (!studentRecord) {
+    throw new Error(`Student "${studentId}" not found in this institution.`)
+  }
+
+  // 2. Validate leave date range safely
+  const startDate = new Date(fromDate)
+  const endDate = new Date(toDate)
+
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    throw new Error(`Invalid date format for leave request "${requestId}".`)
+  }
+
+  if (startDate > endDate) {
+    throw new Error(`Invalid date range: fromDate (${fromDate}) cannot be after toDate (${toDate}).`)
+  }
+
+  // Bound to full day UTC: start of fromDate to end of toDate
+  startDate.setUTCHours(0, 0, 0, 0)
+  endDate.setUTCHours(23, 59, 59, 999)
+
+  // 3. Atomically update approval request and attendance records in one database transaction
+  await prisma.$transaction(async (tx: any) => {
+    // Update approval request status
+    await tx.approval_requests.updateMany({
+      where: { id: requestId, institutionId: activeTenantId, requestType: "STUDENT_LEAVE" },
+      data: {
+        status: decision === "approved" ? "APPROVED" : "REJECTED",
+        adminRemarks: reviewerRemarks ?? null,
+        reviewedByUserId: user.id,
+        reviewedAt: new Date(),
+      },
+    })
+
+    // Update attendance ONLY if approved, ONLY for the correct student,
+    // ONLY within the active institution, and ONLY strictly within the leave date range
+    if (decision === "approved") {
+      await tx.attendance_records.updateMany({
+        where: {
+          institutionId: activeTenantId,
+          studentId: studentId,
+          status: "ABSENT",
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
         data: {
-          status: decision === "approved" ? "APPROVED" : "REJECTED",
-          adminRemarks: reviewerRemarks,
-          reviewedByUserId: user.id,
-          reviewedAt: new Date(),
+          status: "PRESENT",
+          remarks: `On-Duty / Leave Approved: ${reason}`,
         },
       })
+    }
+  })
 
-      if (decision === "approved" && leaveReq) {
-        await tx.attendance_records.updateMany({
-          where: {
-            studentId: leaveReq.studentId,
-            status: "ABSENT",
-          },
-          data: {
-            status: "PRESENT",
-            remarks: `On-Duty / Leave Approved: ${leaveReq.reason}`,
-          },
-        })
-      }
-    })
-  } catch (err) {
-    console.warn("[reviewStudentLeaveRequest] DB transaction notice:", err)
+  const daysCount = Math.max(1, Math.ceil((new Date(toDate).getTime() - new Date(fromDate).getTime()) / (1000 * 3600 * 24)) + 1)
+
+  const updated: StudentLeaveRequest = {
+    id: requestId,
+    institutionId: activeTenantId,
+    academicYearId: "ay_active",
+    studentId,
+    rollNo,
+    studentName,
+    className: "Class 10",
+    section: "A",
+    leaveType: (leaveType as any) || "Medical",
+    fromDate,
+    toDate,
+    daysCount,
+    reason,
+    guardianName: guardianName || "Parent / Guardian",
+    guardianPhone: guardianPhone || "+91 98765 43210",
+    status: decision,
+    reviewedBy: user.fullName || "Class Teacher",
+    reviewerRemarks,
+    appliedAt: dbReq ? dbReq.createdAt.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
   }
 
-  if (idx >= 0 && leaveReq) {
-    const updated: StudentLeaveRequest = {
-      ...leaveReq,
-      status: decision,
-      reviewedBy: user.fullName || "Dr. Ananya Sharma",
-      reviewerRemarks: reviewerRemarks ?? leaveReq.reviewerRemarks,
-    }
-    store.studentLeaveRequests[idx] = updated
-
-    if (decision === "approved") {
-      const student = store.students.find(
-        (s: StudentRosterItem) => s.studentId === leaveReq.studentId || s.rollNo === leaveReq.rollNo
-      )
-      if (student && student.attendancePercent !== null && student.attendancePercent < 98) {
-        student.attendancePercent = Math.min(100, student.attendancePercent + 2)
-      }
-    }
-
-    return clone(updated)
-  }
-
-  throw new Error(`Student leave request "${requestId}" not found.`)
+  return clone(updated)
 }
 
 // ---------------------------------------------------------------------------
@@ -4536,19 +4711,7 @@ export async function getNotifications(): Promise<NotificationItem[]> {
     }
   })
 
-  const map = new Map<string, NotificationItem>()
-  for (const n of liveNotifs) {
-    map.set(n.id, n)
-  }
-  for (const n of store.notifications) {
-    if (!map.has(n.id)) {
-      map.set(n.id, n)
-    }
-  }
-
-  const merged = Array.from(map.values())
-  store.notifications = merged
-  return clone(merged)
+  return clone(liveNotifs)
 }
 
 export async function markNotificationRead(
@@ -4561,10 +4724,7 @@ export async function markNotificationRead(
     data: { isRead: true, readAt: new Date() },
   })
 
-  store.notifications = store.notifications.map((n) =>
-    n.id === notificationId ? { ...n, isRead: true } : n
-  )
-  return clone(store.notifications)
+  return getNotifications()
 }
 
 export async function markAllNotificationsRead(): Promise<NotificationItem[]> {
@@ -4575,11 +4735,7 @@ export async function markAllNotificationsRead(): Promise<NotificationItem[]> {
     data: { isRead: true, readAt: new Date() },
   })
 
-  store.notifications = store.notifications.map((n) => ({
-    ...n,
-    isRead: true,
-  }))
-  return clone(store.notifications)
+  return getNotifications()
 }
 
 export async function getAnnouncements(): Promise<Announcement[]> {
@@ -4597,12 +4753,13 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     })
   } catch (err) {
     console.warn("[getAnnouncements] DB query error:", err)
+    throw new Error("Failed to load announcements from database.")
   }
 
   const liveAnn: Announcement[] = dbAnnouncements.map((n: any) => ({
     id: n.id,
     institutionId: n.institutionId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: "ay_active",
     title: n.title,
     content: n.message,
     audience: "All Staff",
@@ -4613,19 +4770,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     priority: "normal",
   }))
 
-  const map = new Map<string, Announcement>()
-  for (const a of liveAnn) {
-    map.set(a.id, a)
-  }
-  for (const a of store.announcements) {
-    if (!map.has(a.id)) {
-      map.set(a.id, a)
-    }
-  }
-
-  const merged = Array.from(map.values())
-  store.announcements = merged
-  return clone(merged)
+  return clone(liveAnn)
 }
 
 export async function createAnnouncement(
@@ -4634,7 +4779,14 @@ export async function createAnnouncement(
   const { user, institutionId } = await resolveActiveTeacher()
   const activeTenantId = institutionId
 
-  const id = `ann-${Date.now()}`
+  const id = crypto.randomUUID()
+  const audienceRole =
+    input.audience === "All Staff"
+      ? "STAFF"
+      : input.audience === "Class & Parents"
+      ? "ALL"
+      : "TEACHER"
+
   await prisma.notification.create({
     data: {
       id,
@@ -4642,36 +4794,110 @@ export async function createAnnouncement(
       title: input.title,
       message: input.content,
       category: "ANNOUNCEMENT",
-      audienceRole: input.audience === "All Staff" ? "STAFF" : "TEACHER",
+      audienceRole,
       createdAt: new Date(),
     },
   })
 
-  await prisma.notificationRecipient.create({
-    data: {
-      id: `rec-${id}-${user.id}`,
-      notificationId: id,
-      userId: user.id,
-      isRead: false,
-    },
-  })
+  // Resolve recipients strictly within active institution
+  const recipientUserIds = new Set<string>()
+  recipientUserIds.add(user.id) // Teacher author recipient
+
+  if (input.audience === "All Staff" || input.audience === "Class Teachers" || input.audience === "Department") {
+    // Resolve staff/teachers in this institution
+    const staff = await prisma.user.findMany({
+      where: {
+        institutionId: activeTenantId,
+        role: { in: ["TEACHER", "ADMIN", "STAFF"] },
+      },
+      select: { id: true },
+    })
+    for (const s of staff) {
+      recipientUserIds.add(s.id)
+    }
+  } else {
+    // Audience is "Class & Parents": resolve students and linked parents in this institution
+    const dbStudents = await prisma.students.findMany({
+      where: {
+        institutionId: activeTenantId,
+      },
+      select: {
+        id: true,
+        userId: true,
+        currentSection: true,
+        guardianLinks: {
+          where: {
+            institutionId: activeTenantId,
+            isVerified: true,
+            canAccessPortal: true,
+          },
+          select: {
+            guardianAccount: {
+              select: {
+                userId: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    let eligibleStudents = dbStudents
+    if (input.targetClasses && input.targetClasses.length > 0) {
+      const classFilters = input.targetClasses.map((c: string) => c.toLowerCase())
+      eligibleStudents = dbStudents.filter((s: any) => {
+        const sec = (s.currentSection || "").toLowerCase()
+        return classFilters.some((cf: string) => cf.includes(sec) || sec.includes(cf) || cf.includes("10") || cf.includes("class"))
+      })
+      if (eligibleStudents.length === 0) {
+        eligibleStudents = dbStudents
+      }
+    }
+
+    for (const st of eligibleStudents) {
+      if (st.userId) {
+        recipientUserIds.add(st.userId)
+      }
+      if (st.guardianLinks) {
+        for (const gl of st.guardianLinks) {
+          if (gl.guardianAccount?.userId) {
+            recipientUserIds.add(gl.guardianAccount.userId)
+          }
+        }
+      }
+    }
+  }
+
+  // Create notificationRecipient records with valid UUIDs
+  const recipientData = Array.from(recipientUserIds).map((uid) => ({
+    id: crypto.randomUUID(),
+    notificationId: id,
+    userId: uid,
+    isRead: false,
+  }))
+
+  if (recipientData.length > 0) {
+    await prisma.notificationRecipient.createMany({
+      data: recipientData,
+      skipDuplicates: true,
+    })
+  }
 
   const created: Announcement = {
     id,
     institutionId: activeTenantId,
-    academicYearId: "ay_demo_2026_27",
+    academicYearId: await resolveCurrentAcademicYearId(activeTenantId),
     title: input.title,
     content: input.content,
     audience: input.audience,
     targetClasses: input.targetClasses,
-    authorName: user.fullName || "Dr. Ananya Sharma",
+    authorName: user.fullName || "Teacher",
     authorRole: "Class Teacher (10-A)",
     publishedAt: new Date().toISOString().slice(0, 10),
     isPinned: input.isPinned ?? false,
     priority: input.priority ?? "normal",
   }
 
-  store.announcements.unshift(created)
   return clone(created)
 }
 
@@ -4693,30 +4919,34 @@ export async function getDepartmentFacultyLoad(): Promise<
       },
       include: {
         user: true,
+        timetableSlots: {
+          include: {
+            subject: true,
+          },
+        },
       },
     })
   } catch (err) {
     console.warn("[getDepartmentFacultyLoad] DB query error:", err)
   }
 
-  // Baseline from verified 5 faculty seeds (93 weekly hours, 79.4% avg syllabus)
-  const baseline = clone(DEPARTMENT_FACULTY_LOAD_MOCK)
-  const map = new Map<string, DepartmentFacultyLoad>()
-  for (const l of baseline) {
-    map.set(l.teacherId, l)
-  }
+  const result: DepartmentFacultyLoad[] = deptTeachers.map((t: any) => {
+    const slots = t.timetableSlots ?? t.timetable_slots ?? []
+    const subjectNames = Array.from(new Set(slots.map((s: any) => s.subject?.name).filter(Boolean))) as string[]
+    const weeklyHours = slots.length > 0 ? slots.length : 18
 
-  // Update names from DB if available
-  for (const t of deptTeachers) {
-    const existing = map.get(t.id)
-    if (existing && t.user?.fullName) {
-      existing.fullName = t.user.fullName
-      if (t.designation) existing.designation = t.designation
+    return {
+      teacherId: t.id,
+      fullName: t.user?.fullName || "Faculty Member",
+      designation: t.designation || "Assistant Professor",
+      subjects: subjectNames.length > 0 ? subjectNames : [t.department || "General"],
+      sectionsCount: Math.max(1, new Set(slots.map((s: any) => s.sectionId)).size),
+      weeklyHours,
+      syllabusAveragePercent: 80,
+      attendanceAveragePercent: 90,
     }
-  }
+  })
 
-  const result = Array.from(map.values())
-  store.departmentFacultyLoad = result
   return clone(result)
 }
 
@@ -4743,11 +4973,11 @@ export async function updateInternalAssessmentStatus(
     },
   })
 
-  const idx = store.internalAssessments.findIndex((ia) => ia.id === assessmentId)
-  if (idx === -1) {
+  const allAssessments = await getInternalAssessments({ institutionId: activeTenantId })
+  const current = allAssessments.find((ia) => ia.id === assessmentId)
+  if (!current) {
     throw new Error(`Internal assessment "${assessmentId}" not found.`)
   }
-  const current = store.internalAssessments[idx]
   const updated: InternalAssessment = {
     ...current,
     status,
@@ -4757,7 +4987,6 @@ export async function updateInternalAssessmentStatus(
       status === "locked" ? true : current.publishedToStudents,
     marks: current.marks.map((m) => ({ ...m, status })),
   }
-  store.internalAssessments[idx] = updated
   return clone(updated)
 }
 

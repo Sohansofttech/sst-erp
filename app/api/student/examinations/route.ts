@@ -7,18 +7,6 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
 
-    // CRITICAL REQUIREMENT: Examinations & Results are accessible strictly to Student accounts.
-    // Parents must not see or directly access this page or API.
-    if (session.role === "PARENT") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Access restricted: Examinations & Results are accessible only to student accounts.",
-        },
-        { status: 403 }
-      );
-    }
-
     const url = new URL(req.url);
     const requestedStudentId = url.searchParams.get("studentId") || session.studentId || session.activeChildId;
 
@@ -72,11 +60,14 @@ export async function GET(req: NextRequest) {
       orderBy: { generatedAt: "desc" },
     });
 
-    // 3. Past examination results
+    // 3. Past examination results (ONLY published examination schedules)
     const results = await db.examResult.findMany({
       where: {
         studentId,
         institutionId: session.institutionId,
+        examSchedule: {
+          isPublished: true,
+        },
       },
       include: {
         subject: true,

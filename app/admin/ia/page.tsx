@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useInstitution } from "@/lib/store";
 import {
   IAAssessment,
   IAAssessmentStatus,
@@ -88,27 +87,117 @@ const STATUS_VARIANTS: Record<
 };
 
 export default function InternalAssessmentsPage() {
-  const {
-    academicYears,
-    activeAcademicYear,
-    courses,
-    classes,
-    sections,
-    subjects,
-    staff,
-    iaAssessments,
-    addIAAssessment,
-    updateIAAssessment,
-    deleteIAAssessment,
-    transitionIAAssessmentStatus,
-    getIAMetrics,
-  } = useInstitution();
+  const [iaAssessments, setIaAssessments] = useState<IAAssessment[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<any[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadIAData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/admin/ia");
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setIaAssessments(
+          json.data.map((a: any) => ({
+            id: a.id,
+            assessmentCode: a.code || `IA-${a.id.slice(0, 6).toUpperCase()}`,
+            name: a.name,
+            description: a.description || "",
+            academicYearId: a.academicYearId || "",
+            academicYearName: a.academicYear?.name || "2026-27",
+            courseId: a.courseId || "",
+            courseName: a.course?.name || "General Studies",
+            classId: a.classId || "",
+            className: a.class?.name || "Class",
+            sectionId: a.sectionId || "ALL",
+            sectionName: a.sectionId || "All Sections",
+            subjectId: a.subjectId || "",
+            subjectCode: a.subject?.code || "SUBJ",
+            subjectName: a.subject?.name || "Subject",
+            subjectType: a.subject?.type || "Core Theory",
+            teacherId: a.teacherId,
+            teacherName: a.teacherName || "Faculty Assigned",
+            type: a.type || "Continuous Internal Assessment (CIA)",
+            startDate: a.assessmentDate ? new Date(a.assessmentDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            endDate: a.assessmentDate ? new Date(a.assessmentDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            totalMaxMarks: a.maxMarks || 50,
+            totalPassingMarks: Math.round((a.maxMarks || 50) * 0.4),
+            status: a.status === "APPROVED" || a.status === "PUBLISHED" ? "Published" : a.status || "Draft",
+            hasMultipleComponents: Boolean(a.components && a.components.length > 0),
+            components: a.components || [],
+            statusHistory: [],
+            totalEnrolledStudents: 60,
+            marksEnteredCount: a._count?.marks || 0,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Error loading IA data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loadAcademics = useCallback(async () => {
+    try {
+      const [ayRes, cRes, clRes, subRes, stRes] = await Promise.all([
+        fetch("/api/admin/academics/academic-years").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/courses").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/classes").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/subjects").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/staff").then((r) => r.json()).catch(() => ({})),
+      ]);
+      if (ayRes.success) setAcademicYears(ayRes.data || []);
+      if (cRes.success) setCourses(cRes.data || []);
+      if (clRes.success) setClasses(clRes.data || []);
+      if (subRes.success) setSubjects(subRes.data || []);
+      if (stRes.success) setStaff(stRes.data || []);
+    } catch (err) {
+      console.error("Error loading academics for IA:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadIAData();
+    loadAcademics();
+  }, [loadIAData, loadAcademics]);
+
+  const activeAcademicYear = academicYears[0];
 
   // Active top-level tab
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
 
   // Metrics
-  const metrics = getIAMetrics();
+  const metrics = useMemo(() => {
+    const totalAssessments = iaAssessments.length;
+    const published = iaAssessments.filter((a) => a.status === "Published").length;
+    const completed = iaAssessments.filter((a) => a.status === "Completed").length;
+    const ongoing = iaAssessments.filter((a) => a.status === "Ongoing").length;
+    const scheduled = iaAssessments.filter((a) => a.status === "Scheduled").length;
+    const draft = iaAssessments.filter((a) => a.status === "Draft").length;
+    return {
+      totalAssessments,
+      published,
+      publishedAssessments: published,
+      completed,
+      completedAssessments: completed,
+      ongoing,
+      ongoingAssessments: ongoing,
+      scheduled,
+      scheduledAssessments: scheduled,
+      draft,
+      draftAssessments: draft,
+      pendingMarksEntry: ongoing + scheduled + draft,
+      totalStudentsEvaluated: published * 60,
+      marksEntryComplianceRate:
+        totalAssessments > 0 ? Math.round(((published + completed) / totalAssessments) * 100) : 100,
+    };
+  }, [iaAssessments]);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -373,7 +462,7 @@ export default function InternalAssessmentsPage() {
   };
 
   // Save / Submit Form
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -486,23 +575,47 @@ export default function InternalAssessmentsPage() {
       marksEnteredCount: 0,
     };
 
-    if (editingAssessmentId) {
-      const res = updateIAAssessment(editingAssessmentId, payload);
-      if (!res.success) {
-        setFormError(res.message);
-        return;
+    try {
+      if (editingAssessmentId) {
+        await fetch("/api/admin/ia", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingAssessmentId,
+            name: formName.trim(),
+            status: formStatus,
+          }),
+        });
+        showFeedback("success", `Assessment "${formName}" updated.`);
+      } else {
+        const res = await fetch("/api/admin/ia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formName.trim(),
+            courseId: formCourseId,
+            classId: formClassId,
+            sectionId: formSectionId,
+            subjectId: formSubjectId,
+            academicYearId: formAyId,
+            maxMarks: formTotalMaxMarks,
+            weightagePercentage: 20,
+            assessmentDate: formStartDate,
+            components: finalComponents,
+          }),
+        });
+        const json = await res.json();
+        if (!json.success) {
+          setFormError(json.error || "Failed to create internal assessment.");
+          return;
+        }
+        showFeedback("success", `Assessment "${formName}" created.`);
       }
-      showFeedback("success", res.message);
-    } else {
-      const res = addIAAssessment(payload);
-      if (!res.success) {
-        setFormError(res.message);
-        return;
-      }
-      showFeedback("success", res.message);
+      await loadIAData();
+      setIsFormModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save assessment.");
     }
-
-    setIsFormModalOpen(false);
   };
 
   // Open Status Transition Modal
@@ -522,58 +635,69 @@ export default function InternalAssessmentsPage() {
   };
 
   // Execute Status Transition
-  const handleExecuteStatusTransition = () => {
+  const handleExecuteStatusTransition = async () => {
     if (!statusTargetAssessment) return;
-    const res = transitionIAAssessmentStatus(
-      statusTargetAssessment.id,
-      newTargetStatus,
-      statusRemarks.trim() || undefined
-    );
-    if (!res.success) {
-      showFeedback("error", res.message);
-      return;
-    }
-    showFeedback("success", res.message);
-    setIsStatusModalOpen(false);
-    if (selectedAssessment?.id === statusTargetAssessment.id) {
-      setSelectedAssessment({
-        ...selectedAssessment,
-        status: newTargetStatus,
+    try {
+      const res = await fetch("/api/admin/ia", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: statusTargetAssessment.id,
+          name: statusTargetAssessment.name,
+          status: newTargetStatus,
+          remarks: statusRemarks.trim() || undefined,
+        }),
       });
+      const json = await res.json();
+      if (json.success) {
+        showFeedback("success", `Assessment status updated to ${newTargetStatus}.`);
+        await loadIAData();
+        setIsStatusModalOpen(false);
+      } else {
+        showFeedback("error", json.error || "Failed to update status.");
+      }
+    } catch (err: any) {
+      showFeedback("error", err.message || "Failed to transition status.");
     }
   };
 
   // Delete Assessment
-  const handleDeleteAssessment = () => {
+  const handleDeleteAssessment = async () => {
     if (!assessmentToDelete) return;
-    const res = deleteIAAssessment(assessmentToDelete.id);
-    if (!res.success) {
-      showFeedback("error", res.message);
-    } else {
-      showFeedback("success", res.message);
+    try {
+      const res = await fetch(`/api/admin/ia?id=${assessmentToDelete.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        showFeedback("success", "Assessment deleted.");
+        await loadIAData();
+      } else {
+        showFeedback("error", json.error || "Failed to delete assessment.");
+      }
+    } catch (err: any) {
+      showFeedback("error", err.message || "Failed to delete.");
     }
     setIsDeleteModalOpen(false);
-    if (selectedAssessment?.id === assessmentToDelete.id) {
-      setIsDetailModalOpen(false);
-      setSelectedAssessment(null);
-    }
   };
 
   // Duplicate Assessment
-  const handleDuplicateAssessment = (assessment: IAAssessment) => {
-    const duplicatedName = `${assessment.name} (Copy)`;
-    const duplicatedCode = `${assessment.assessmentCode}-C`;
-    const res = addIAAssessment({
-      ...assessment,
-      name: duplicatedName,
-      assessmentCode: duplicatedCode,
-      status: "Draft",
-      marksEnteredCount: 0,
-    });
-    if (!res.success) {
-      showFeedback("error", res.message);
-    } else {
-      showFeedback("success", `Duplicated assessment created as Draft: ${duplicatedName}`);
+  const handleDuplicateAssessment = async (assessment: IAAssessment) => {
+    try {
+      await fetch("/api/admin/ia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${assessment.name} (Copy)`,
+          courseId: assessment.courseId,
+          classId: assessment.classId,
+          sectionId: assessment.sectionId,
+          subjectId: assessment.subjectId,
+          maxMarks: assessment.totalMaxMarks,
+        }),
+      });
+      await loadIAData();
+      showFeedback("success", `Duplicated assessment created.`);
+    } catch (err: any) {
+      showFeedback("error", err.message || "Failed to duplicate assessment.");
     }
   };
 

@@ -39,7 +39,10 @@ export async function GET(req: NextRequest) {
       requestedStudentId = session.studentId || "student_john_doe";
     }
 
-    const effectiveInst = resolvedInstitutionId || session.institutionId || "inst_apex";
+    const effectiveInst = resolvedInstitutionId || session.institutionId;
+    if (!effectiveInst) {
+      return NextResponse.json({ success: false, error: "Institution context is required." }, { status: 400 });
+    }
 
     let feedbackList: any[] = [];
     try {
@@ -162,8 +165,9 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
-    if (!studentId) studentId = "student_john_doe";
-    if (!institutionId) institutionId = "inst_apex";
+    if (!studentId || !institutionId) {
+      return NextResponse.json({ success: false, error: "Student and institution context are required." }, { status: 400 });
+    }
 
     const { category, subject, message } = await req.json();
 

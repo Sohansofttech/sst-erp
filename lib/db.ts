@@ -4,7 +4,7 @@ import { Pool } from "pg";
 
 declare global {
   // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
+  var prisma: (PrismaClient & BiometricPrismaModels) | undefined;
 }
 
 const connectionString =
@@ -25,12 +25,18 @@ const pool = new Pool({
 
 const adapter = new PrismaPg(pool);
 
-export const db =
-  global.prisma ||
+export interface BiometricPrismaModels {
+  biometricDevice: any;
+  studentBiometricCredential: any;
+  biometricEventReceipt: any;
+  biometricUnknownScan: any;
+}
+
+export const db = (global.prisma ||
   new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  })) as PrismaClient & BiometricPrismaModels;
 
 global.prisma = db;
 

@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
-import { useInstitution } from "@/lib/store";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,26 +20,41 @@ import {
 import { ClassItem, SectionItem } from "@/types/institution";
 
 export default function ClassesSectionsPage() {
-  const {
-    classes,
-    isClassesLoading,
-    classesError,
-    refreshClasses,
-    sections,
-    courses,
-    academicYears,
-    activeAcademicYear,
-    addClass,
-    updateClass,
-    deleteClass,
-    addSection,
-    updateSection,
-    deleteSection,
-  } = useInstitution();
+  const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [sections, setSections] = useState<SectionItem[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  React.useEffect(() => {
-    refreshClasses();
-  }, [refreshClasses]);
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [clsRes, crsRes, ayRes] = await Promise.all([
+        fetch("/api/admin/academics/classes").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/courses").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/academic-years").then((r) => r.json()).catch(() => ({})),
+      ]);
+      if (clsRes.success) {
+        setClasses(clsRes.data || []);
+      }
+      if (crsRes.success) {
+        setCourses(crsRes.data || []);
+      }
+      if (ayRes.success) {
+        setAcademicYears(ayRes.data || []);
+      }
+    } catch (err) {
+      console.error("Error loading academics data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const activeAcademicYear = academicYears.find((ay) => ay.isActive || ay.isCurrent) || academicYears[0];
 
   const [activeTab, setActiveTab] = useState<"classes" | "sections">("classes");
 
@@ -50,7 +64,7 @@ export default function ClassesSectionsPage() {
   const [className, setClassName] = useState("");
   const [classCode, setClassCode] = useState("");
   const [courseId, setCourseId] = useState("");
-  const [academicYearId, setAcademicYearId] = useState(activeAcademicYear?.id || "");
+  const [academicYearId, setAcademicYearId] = useState("");
   const [stream, setStream] = useState("Core Engineering");
   const [semester, setSemester] = useState(5);
   const [classError, setClassError] = useState("");
@@ -91,7 +105,7 @@ export default function ClassesSectionsPage() {
     setIsClassModalOpen(true);
   };
 
-  const handleClassSubmit = (e: React.FormEvent) => {
+  const handleClassSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setClassError("");
 
@@ -104,29 +118,41 @@ export default function ClassesSectionsPage() {
       return;
     }
 
-    if (editingClass) {
-      updateClass(editingClass.id, {
-        name: className,
-        code: classCode.toUpperCase(),
-        courseId,
-        academicYearId,
-        stream,
-        semester: Number(semester),
-      });
-    } else {
-      addClass({
-        name: className,
-        code: classCode.toUpperCase(),
-        courseId,
-        academicYearId,
-        stream,
-        semester: Number(semester),
-        sectionsCount: 1,
-        totalStudents: 60,
-      });
+    try {
+      const targetAyId = academicYearId || activeAcademicYear?.id || "";
+      if (editingClass) {
+        const res = await fetch("/api/admin/academics/classes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingClass.id,
+            name: className,
+            courseId,
+            academicYearId: targetAyId,
+            semester: Number(semester),
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to update class.");
+      } else {
+        const res = await fetch("/api/admin/academics/classes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: className,
+            courseId,
+            academicYearId: targetAyId,
+            semester: Number(semester),
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to create class.");
+      }
+      await loadData();
+      setIsClassModalOpen(false);
+    } catch (err: any) {
+      setClassError(err.message || "Failed to save class.");
     }
-
-    setIsClassModalOpen(false);
   };
 
   // Open Section Modal
@@ -168,16 +194,24 @@ export default function ClassesSectionsPage() {
     }
 
     if (editingSection) {
-      updateSection(editingSection.id, {
-        classId: selectedClassId,
-        name: sectionName,
-        batchName,
-        maxCapacity: Number(maxCapacity),
-        roomNumber,
-        classTeacherName,
-      });
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === editingSection.id
+            ? {
+                ...s,
+                classId: selectedClassId,
+                name: sectionName,
+                batchName,
+                maxCapacity: Number(maxCapacity),
+                roomNumber,
+                classTeacherName,
+              }
+            : s
+        )
+      );
     } else {
-      addSection({
+      const newSec: SectionItem = {
+        id: `sec-${Date.now()}`,
         classId: selectedClassId,
         name: sectionName,
         batchName,
@@ -185,10 +219,30 @@ export default function ClassesSectionsPage() {
         currentEnrollment: 0,
         roomNumber,
         classTeacherName,
-      });
+      };
+      setSections((prev) => [...prev, newSec]);
     }
 
     setIsSectionModalOpen(false);
+  };
+
+  const handleDeleteClass = async (id: string, name: string) => {
+    if (!confirm(`Delete class "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/admin/academics/classes?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!data.success) alert(data.error || "Failed to delete class.");
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || "Network error deleting class.");
+    }
+  };
+
+  const handleDeleteSection = (id: string, name: string) => {
+    if (!confirm(`Delete section "${name}"?`)) return;
+    setSections((prev) => prev.filter((s) => s.id !== id));
   };
 
   const courseOptions = courses.map((c) => ({
@@ -343,11 +397,7 @@ export default function ClassesSectionsPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              if (confirm(`Delete class "${cls.name}"?`)) {
-                                deleteClass(cls.id);
-                              }
-                            }}
+                            onClick={() => handleDeleteClass(cls.id, cls.name)}
                             title="Delete Class"
                           >
                             <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />
@@ -435,11 +485,7 @@ export default function ClassesSectionsPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              if (confirm(`Delete section "${sec.name}"?`)) {
-                                deleteSection(sec.id);
-                              }
-                            }}
+                            onClick={() => handleDeleteSection(sec.id, sec.name)}
                             title="Delete Section"
                           >
                             <Trash2 className="w-3.5 h-3.5 text-[#DC2626]" />

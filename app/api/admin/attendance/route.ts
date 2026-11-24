@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import db from "@/lib/db";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import {
   getAttendanceRecords,
@@ -71,9 +72,61 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await resolveAdminContext(req);
     const body = await req.json();
 
+    // 1. Direct Attendance Correction for a single record
+    if (body.recordId && body.status) {
+      const existing = await db.attendanceRecord.findFirst({
+        where: { id: body.recordId, institutionId },
+        include: { student: true },
+      });
+
+      if (!existing) {
+        return NextResponse.json(
+          { success: false, error: "Attendance record not found in this institution." },
+          { status: 404 }
+        );
+      }
+
+      const updated = await db.attendanceRecord.update({
+        where: { id: body.recordId },
+        data: {
+          status: body.status,
+          remarks: body.remarks || body.reason || existing.remarks,
+        },
+      });
+
+      // Institutional Audit Log entry for attendance correction
+      try {
+        await db.auditLog.create({
+          data: {
+            institutionId,
+            userId,
+            action: "ATTENDANCE_CORRECTED",
+            entityType: "ATTENDANCE_RECORD",
+            entityId: body.recordId,
+            newValuesJson: JSON.stringify({
+              oldStatus: existing.status,
+              newStatus: body.status,
+              reason: body.reason,
+              studentId: existing.studentId,
+              studentName: existing.student?.fullName || existing.student?.firstName,
+            }),
+          },
+        });
+      } catch (auditErr: any) {
+        console.warn("[POST /api/admin/attendance] Audit log warning:", auditErr.message);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Attendance record successfully corrected and logged in audit history.",
+        data: updated,
+      });
+    }
+
+    // 2. Batch Attendance Marking
     if (!Array.isArray(body.records) || body.records.length === 0) {
       return NextResponse.json(
-        { success: false, error: "An array of attendance records is required." },
+        { success: false, error: "A recordId & status or an array of attendance records is required." },
         { status: 400 }
       );
     }

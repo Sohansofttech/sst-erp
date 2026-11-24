@@ -1101,96 +1101,9 @@ export function InstitutionProvider({
           }
         }
 
-        const savedDept = localStorage.getItem(`${STORAGE_KEY_PREFIX}dept`);
-        if (savedDept) setDepartments(JSON.parse(savedDept));
-
-        const savedCourses = localStorage.getItem(`${STORAGE_KEY_PREFIX}courses`);
-        if (savedCourses) setCourses(JSON.parse(savedCourses));
-
-        const savedClasses = localStorage.getItem(`${STORAGE_KEY_PREFIX}classes`);
-        if (savedClasses) setClasses(JSON.parse(savedClasses));
-
-        const savedSections = localStorage.getItem(`${STORAGE_KEY_PREFIX}sections`);
-        if (savedSections) setSections(JSON.parse(savedSections));
-
-        const savedSubjects = localStorage.getItem(`${STORAGE_KEY_PREFIX}subjects`);
-        if (savedSubjects) setSubjects(JSON.parse(savedSubjects));
-
-        const savedRoles = localStorage.getItem(`${STORAGE_KEY_PREFIX}roles`);
-        if (savedRoles) setRoles(JSON.parse(savedRoles));
-
-        const savedPeriods = localStorage.getItem(`${STORAGE_KEY_PREFIX}periods`);
-        if (savedPeriods) setPeriodConfigs(JSON.parse(savedPeriods));
-
-        const savedTimetable = localStorage.getItem(`${STORAGE_KEY_PREFIX}timetable`);
-        if (savedTimetable) setTimetableSlots(JSON.parse(savedTimetable));
-
-        const savedThreshold = localStorage.getItem(`${STORAGE_KEY_PREFIX}att_threshold`);
-        if (savedThreshold) setAttendanceThreshold(JSON.parse(savedThreshold));
-
-        const savedAttRecords = localStorage.getItem(`${STORAGE_KEY_PREFIX}att_records`);
-        if (savedAttRecords) setAttendanceRecords(JSON.parse(savedAttRecords));
-
-        const savedAttAudits = localStorage.getItem(`${STORAGE_KEY_PREFIX}att_audits`);
-        if (savedAttAudits) setAttendanceAudits(JSON.parse(savedAttAudits));
-
-        const savedExams = localStorage.getItem(`${STORAGE_KEY_PREFIX}exams`);
-        if (savedExams) setExaminations(JSON.parse(savedExams));
-
-        const savedExamHalls = localStorage.getItem(`${STORAGE_KEY_PREFIX}exam_halls`);
-        if (savedExamHalls) setExamHalls(JSON.parse(savedExamHalls));
-
-        const savedExamOverrides = localStorage.getItem(`${STORAGE_KEY_PREFIX}exam_overrides`);
-        if (savedExamOverrides) setExamEligibilityOverrides(JSON.parse(savedExamOverrides));
-
-        const savedExamAudits = localStorage.getItem(`${STORAGE_KEY_PREFIX}exam_audits`);
-        if (savedExamAudits) setExamAudits(JSON.parse(savedExamAudits));
-
-        const savedIA = localStorage.getItem(`${STORAGE_KEY_PREFIX}ia_assessments`);
-        if (savedIA) setIaAssessments(JSON.parse(savedIA));
-
-        const savedMarksSheets = localStorage.getItem(`${STORAGE_KEY_PREFIX}ia_marks_sheets`);
-        if (savedMarksSheets) setMarksSheets(JSON.parse(savedMarksSheets));
-
-        const savedMarksAudits = localStorage.getItem(`${STORAGE_KEY_PREFIX}ia_marks_audits`);
-        if (savedMarksAudits) setMarksAudits(JSON.parse(savedMarksAudits));
-
-        const savedGrading = localStorage.getItem(`${STORAGE_KEY_PREFIX}result_config`);
-        if (savedGrading) setGradingConfig(JSON.parse(savedGrading));
-
-        const savedBatches = localStorage.getItem(`${STORAGE_KEY_PREFIX}result_batches`);
-        if (savedBatches) setResultBatches(JSON.parse(savedBatches));
-
-        const savedResultAudits = localStorage.getItem(`${STORAGE_KEY_PREFIX}result_audits`);
-        if (savedResultAudits) setResultAudits(JSON.parse(savedResultAudits));
-
-        const savedPolicies = localStorage.getItem(`${STORAGE_KEY_PREFIX}promotion_policies`);
-        if (savedPolicies) setPromotionPolicies(JSON.parse(savedPolicies));
-
-        const savedPromBatches = localStorage.getItem(`${STORAGE_KEY_PREFIX}promotion_batches`);
-        if (savedPromBatches) setPromotionBatches(JSON.parse(savedPromBatches));
-
-        const savedPromHistory = localStorage.getItem(`${STORAGE_KEY_PREFIX}promotion_history`);
-        if (savedPromHistory) setPromotionHistory(JSON.parse(savedPromHistory));
-
-        const savedPromAudits = localStorage.getItem(`${STORAGE_KEY_PREFIX}promotion_audits`);
-        if (savedPromAudits) setPromotionAudits(JSON.parse(savedPromAudits));
-
-        // Phase 4E: Certificates LocalStorage Hydration
-        const savedTemplates = localStorage.getItem(`${STORAGE_KEY_PREFIX}certificate_templates`);
-        if (savedTemplates) setCertificateTemplates(JSON.parse(savedTemplates));
-
-        const savedNumberConfig = localStorage.getItem(`${STORAGE_KEY_PREFIX}certificate_numbering`);
-        if (savedNumberConfig) setCertificateNumberConfig(JSON.parse(savedNumberConfig));
-
-        const savedApps = localStorage.getItem(`${STORAGE_KEY_PREFIX}certificate_applications`);
-        if (savedApps) setCertificateApplications(JSON.parse(savedApps));
-
-        const savedIssued = localStorage.getItem(`${STORAGE_KEY_PREFIX}issued_certificates`);
-        if (savedIssued) setIssuedCertificates(JSON.parse(savedIssued));
-
-        const savedCertAudits = localStorage.getItem(`${STORAGE_KEY_PREFIX}certificate_audits`);
-        if (savedCertAudits) setCertificateAudits(JSON.parse(savedCertAudits));
+        // Phase C: Decoupled ERP domain entities (admissions, certificates, examinations,
+        // internal assessments, results, promotions, roles-permissions, academics)
+        // are strictly database-backed and are NOT hydrated from localStorage.
       } catch {
         // LocalStorage access fallback
       }
@@ -1200,6 +1113,28 @@ export function InstitutionProvider({
 
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+
+  // Save state helper
+  const saveState = useCallback((key: string, data: unknown) => {
+    // Phase C: ERP domain entities are database-backed and must not be written to localStorage
+    const decoupledKeys = [
+      "admissions", "certificates", "certificate_templates", "certificate_numbering",
+      "certificate_applications", "issued_certificates", "certificate_audits",
+      "exams", "exam_halls", "exam_overrides", "exam_audits",
+      "ia_assessments", "ia_marks_sheets", "ia_marks_audits",
+      "result_config", "result_batches", "result_audits",
+      "promotion_policies", "promotion_batches", "promotion_history", "promotion_audits",
+      "roles", "ay", "dept", "courses", "classes", "sections", "subjects"
+    ];
+    if (decoupledKeys.includes(key)) {
+      return;
+    }
+    try {
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${key}`, JSON.stringify(data));
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
 
   const refreshProfile = useCallback(async () => {
     try {
@@ -1255,21 +1190,12 @@ export function InstitutionProvider({
     } finally {
       setIsProfileLoading(false);
     }
-  }, []);
+  }, [saveState]);
 
   // Hydrate authenticated institution profile and settings from backend on mount
   useEffect(() => {
     refreshProfile();
   }, [refreshProfile]);
-
-  // Save state helper
-  const saveState = (key: string, data: unknown) => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY_PREFIX}${key}`, JSON.stringify(data));
-    } catch {
-      // Ignore storage errors
-    }
-  };
 
   const updateProfile = useCallback((data: Partial<InstitutionProfile>) => {
     setProfile((prev) => {

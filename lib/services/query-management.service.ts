@@ -243,8 +243,9 @@ export async function getQueries(params: {
   userId?: string;
   studentId?: string;
   search?: string;
+  assignedToUserId?: string;
 }): Promise<QueryItem[]> {
-  const { institutionId, role, status, category, userId, studentId, search } = params;
+  const { institutionId, role, status, category, userId, studentId, search, assignedToUserId } = params;
 
   const validTypes =
     role && role !== "ALL"
@@ -289,6 +290,11 @@ export async function getQueries(params: {
 
     // Filter by studentId if specified (for parents viewing specific child)
     if (studentId && payload.studentId && payload.studentId !== studentId) {
+      continue;
+    }
+
+    // Filter by assignedToUserId if specified (for teachers viewing grievances assigned to them)
+    if (assignedToUserId && payload.assignedToId !== assignedToUserId && payload.assignedToUserId !== assignedToUserId) {
       continue;
     }
 

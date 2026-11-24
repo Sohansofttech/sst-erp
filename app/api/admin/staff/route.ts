@@ -70,8 +70,8 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
-    const { id, fullName, phone, role, designation, departmentId, department, employeeId } = await req.json();
+    const { institutionId, userId: adminUserId } = await resolveAdminContext(req);
+    const { id, fullName, phone, role, isActive, designation, departmentId, department, employeeId } = await req.json();
 
     if (!id) {
       return NextResponse.json({ success: false, error: "User ID is required." }, { status: 400 });
@@ -121,6 +121,12 @@ export async function PUT(req: NextRequest) {
         ...(fullName ? { fullName: String(fullName).trim() } : {}),
         ...(phone ? { phone: String(phone).trim() } : {}),
         ...(role ? { role } : {}),
+        ...(isActive !== undefined
+          ? {
+              isActive: Boolean(isActive),
+              status: isActive ? "ACTIVE" : "INACTIVE",
+            }
+          : {}),
       },
     });
 
@@ -168,6 +174,21 @@ export async function PUT(req: NextRequest) {
       include: { teacherProfile: true },
     });
 
+    // Record audit log
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO audit_logs ("id", "institutionId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        crypto.randomUUID(),
+        institutionId,
+        adminUserId,
+        "STAFF_UPDATED",
+        "USER",
+        id,
+        JSON.stringify({ fullName, role, isActive })
+      );
+    } catch {}
+
     return NextResponse.json({
       success: true,
       message: "Staff member details updated.",
@@ -189,6 +210,18 @@ export async function DELETE(req: NextRequest) {
         { success: false, error: "Staff member ID is required." },
         { status: 400 }
       );
+    }
+
+    const targetUser = await db.user.findFirst({
+      where: { id, institutionId },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ success: false, error: "Staff user not found or access denied." }, { status: 404 });
+    }
+
+    if (targetUser.role === "SUPER_ADMIN") {
+      return NextResponse.json({ success: false, error: "Cannot modify or deactivate Super Admin accounts." }, { status: 403 });
     }
 
     const result = await archiveTeacher(institutionId, id, actorUserId, force);

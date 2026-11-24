@@ -77,7 +77,7 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
   const [recipientsList, setRecipientsList] = useState<RecipientOption[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loadingDirectory, setLoadingDirectory] = useState(false);
-  const recipientCache = useRef<Map<string, RecipientOption>>(new Map());
+  const [recipientMap, setRecipientMap] = useState<Map<string, RecipientOption>>(() => new Map());
 
   // Preview & Dispatch States
   const [previewMode, setPreviewMode] = useState(false);
@@ -127,13 +127,17 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
   // Sync preselected recipients on mount or prop update
   useEffect(() => {
     if (preselectedRecipients.length > 0) {
-      preselectedRecipients.forEach((p) => {
-        recipientCache.current.set(p.id, {
-          id: p.id,
-          name: p.name,
-          email: p.email,
-          role: p.role,
+      setRecipientMap((prev) => {
+        const next = new Map(prev);
+        preselectedRecipients.forEach((p) => {
+          next.set(p.id, {
+            id: p.id,
+            name: p.name,
+            email: p.email,
+            role: p.role,
+          });
         });
+        return next;
       });
       setSelectedIds(preselectedRecipients.map((r) => r.id));
     }
@@ -149,7 +153,7 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
       // Prune non-students from selected recipients in Credential Setup mode
       setSelectedIds((prev) =>
         prev.filter((id) => {
-          const r = recipientCache.current.get(id);
+          const r = recipientMap.get(id);
           return r ? r.role === "STUDENT" : false;
         })
       );
@@ -167,8 +171,12 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.data)) {
-          data.data.forEach((r: RecipientOption) => {
-            recipientCache.current.set(r.id, r);
+          setRecipientMap((prev) => {
+            const next = new Map(prev);
+            data.data.forEach((r: RecipientOption) => {
+              next.set(r.id, r);
+            });
+            return next;
           });
           setRecipientsList(data.data);
         }
@@ -185,6 +193,21 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
     { value: "PARENT", label: "Guardians" },
     { value: "STAFF", label: "Staff" },
   ];
+
+  // Handle Role Filter Change with Incompatible Selection Clearing
+  const handleRoleChange = (newRole: string) => {
+    setRoleFilter(newRole);
+    if (newRole !== "ALL") {
+      setSelectedIds((prev) => {
+        return prev.filter((id) => {
+          const recipient = recipientMap.get(id);
+          if (!recipient) return false;
+          const normalizedRole = recipient.role === "GUARDIAN" ? "PARENT" : recipient.role;
+          return normalizedRole === newRole;
+        });
+      });
+    }
+  };
 
   const getRoleLabel = (val: string) => {
     switch (val) {
@@ -205,9 +228,9 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
 
   const selectedRecipients = useMemo(() => {
     return selectedIds
-      .map((id) => recipientCache.current.get(id))
+      .map((id) => recipientMap.get(id))
       .filter((r): r is RecipientOption => Boolean(r));
-  }, [selectedIds]);
+  }, [selectedIds, recipientMap]);
 
   // CC Parsing & Validation (allows external recipients, prevents duplicate with To)
   const ccAnalysis = useMemo(() => {
@@ -262,6 +285,7 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
+
 
   const missingEmailRecipients = selectedRecipients.filter(
     (r) => !r.email || !r.email.trim()

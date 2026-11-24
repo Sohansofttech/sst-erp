@@ -40,6 +40,35 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PUT(req: NextRequest) {
+  try {
+    const { institutionId } = await resolveAdminContext(req);
+    const body = await req.json();
+    const { id, name, code, description } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Department ID required." }, { status: 400 });
+    }
+
+    const updated = await db.department.updateMany({
+      where: { id, institutionId },
+      data: {
+        ...(name ? { name } : {}),
+        ...(code ? { code: code.toUpperCase() } : {}),
+        ...(description !== undefined ? { description } : {}),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Department updated successfully.",
+      data: updated,
+    });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);

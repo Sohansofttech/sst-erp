@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,10 +63,6 @@ function mapApiToAY(item: any): AcademicYear {
 }
 
 export default function AcademicYearsPage() {
-  const {
-    refreshAcademicYears,
-  } = useInstitution();
-
   // Data fetching state
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -290,7 +285,6 @@ export default function AcademicYearsPage() {
       }
 
       await loadAcademicYears();
-      await refreshAcademicYears();
       setIsModalOpen(false);
     } catch (err: any) {
       setFormError(err.message || "An error occurred while saving.");
@@ -312,7 +306,6 @@ export default function AcademicYearsPage() {
         throw new Error(json.error || "Failed to set active academic year.");
       }
       await loadAcademicYears();
-      await refreshAcademicYears();
     } catch (err: any) {
       alert(err.message || "Failed to set active academic year.");
     } finally {
@@ -333,7 +326,6 @@ export default function AcademicYearsPage() {
         throw new Error(json.error || "Failed to delete academic year.");
       }
       await loadAcademicYears();
-      await refreshAcademicYears();
     } catch (err: any) {
       alert(err.message || "Failed to delete academic year.");
     } finally {
