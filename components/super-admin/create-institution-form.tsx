@@ -6,12 +6,41 @@ import { createInstitution, type InstitutionFormState } from "@/app/super-admin/
 
 const initial: InstitutionFormState = { error: null, success: null };
 
-export function CreateInstitutionForm() {
+type AvailablePlan = {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  studentLimit: number | null;
+};
+
+export function CreateInstitutionForm({
+  plans,
+  plansUnavailable,
+}: {
+  plans: AvailablePlan[];
+  plansUnavailable: boolean;
+}) {
   const [state, action, pending] = useActionState(createInstitution, initial);
   return (
     <details className="sa-card sa-form-disclosure">
       <summary>Create institution</summary>
       <form className="sa-form-grid" action={action}>
+        <label>Subscription plan
+          <select name="planId" required defaultValue="" disabled={plansUnavailable || plans.length === 0}>
+            <option value="" disabled>Select an active plan</option>
+            {plans.map((plan) => (
+              <option value={plan.id} key={plan.id}>
+                {plan.name} · {plan.currency} {plan.price} · {plan.studentLimit === null ? "Unlimited students" : `Up to ${plan.studentLimit} students`}
+              </option>
+            ))}
+          </select>
+        </label>
+        {plansUnavailable
+          ? <p className="sa-form-message sa-form-error" role="alert">Subscription plans are unavailable. Confirm the database connection and that the approved student-limit migration is installed.</p>
+          : plans.length === 0
+            ? <p className="sa-form-help">Create an active subscription plan before registering an institution.</p>
+            : <p className="sa-form-help">Free plans activate immediately. Paid plans remain PAST_DUE until Razorpay confirms payment; student registration requires an active plan.</p>}
         <label>Name<input name="name" required minLength={2} maxLength={160} /></label>
         <label>College Code / Institution Code<input name="code" placeholder="e.g. CC101 (Auto-generated if empty)" maxLength={40} /></label>
         <label>Slug<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxLength={80} /></label>
@@ -36,7 +65,7 @@ export function CreateInstitutionForm() {
         <label>Administrator phone<input name="adminPhone" maxLength={40} /></label>
         {state.error && <p className="sa-form-message sa-form-error" role="alert">{state.error}</p>}
         {state.success && <p className="sa-form-message sa-form-success" role="status">{state.success}</p>}
-        <button className="sa-button sa-button-primary" disabled={pending}>
+        <button className="sa-button sa-button-primary" disabled={pending || plansUnavailable || plans.length === 0}>
           {pending ? <><InlineBrandSpinner size={14} /> Saving…</> : "Create institution"}
         </button>
       </form>

@@ -2,6 +2,7 @@
 
 import React, { useState, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   School,
@@ -18,8 +19,19 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import OtpLogin from "@/components/OtpLogin";
 
 type PortalRole = "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN";
+
+const portalRoleByQuery: Record<string, PortalRole> = {
+  student: "STUDENT",
+  teacher: "TEACHER",
+  admin: "ADMIN",
+  "institution-admin": "ADMIN",
+  "super-admin": "SUPER_ADMIN",
+  super_admin: "SUPER_ADMIN",
+  platform: "SUPER_ADMIN",
+};
 
 const portalConfigs: Record<
   PortalRole,
@@ -74,7 +86,7 @@ const portalConfigs: Record<
     welcome: "Welcome, Super Admin",
     subtitle: "Govern institutions, platform users, subscriptions, security, and global operations.",
     emailLabel: "Super Admin Email",
-    emailPlaceholder: "e.g. superadmin@sohansofttech.com",
+    emailPlaceholder: "e.g. kiran@junkitout.in",
     helperText: "Use an active Super Admin platform account.",
     buttonText: "Sign In to Super Admin Portal",
     icon: ShieldCheck,
@@ -90,11 +102,15 @@ const demoAccounts: Array<{
   { role: "STUDENT", label: "Student", email: "john.doe@student.apex.edu", icon: GraduationCap },
   { role: "TEACHER", label: "Teacher", email: "prof.sharma@apex.edu", icon: BookOpen },
   { role: "ADMIN", label: "Institution Admin", email: "admin@apex.edu", icon: Building2 },
-  { role: "SUPER_ADMIN", label: "Super Admin", email: "superadmin@sohansofttech.com", icon: ShieldCheck },
+  { role: "SUPER_ADMIN", label: "Super Admin", email: "kiran@junkitout.in", icon: ShieldCheck },
 ];
 
 function LoginForm() {
-  const [selectedRole, setSelectedRole] = useState<PortalRole>("ADMIN");
+  const searchParams = useSearchParams();
+  const [selectedRole, setSelectedRole] = useState<PortalRole>(() => {
+    const roleParam = (searchParams.get("role") || searchParams.get("portal") || "").toLowerCase();
+    return portalRoleByQuery[roleParam] || "ADMIN";
+  });
   const [email, setEmail] = useState("");
   const [institutionCode, setInstitutionCode] = useState("");
   const [showCollegeCode, setShowCollegeCode] = useState(false);
@@ -105,9 +121,19 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [institutionName, setInstitutionName] = useState<string>("Campus Portal");
+  const [authMode, setAuthMode] = useState<"PASSWORD" | "OTP">("PASSWORD");
 
   // Dynamically load the live institution name configured by Super Admin / Admin
   React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleError = params.get("google_error");
+    if (googleError) {
+      setError(decodeURIComponent(googleError));
+      params.delete("google_error");
+      const cleanUrl = `${window.location.pathname}${params.size ? `?${params.toString()}` : ""}`;
+      window.history.replaceState({}, "", cleanUrl);
+    }
+
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("erp_institution_name");
       if (stored && !stored.includes("E2E")) {
@@ -140,6 +166,7 @@ function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (authMode === "OTP") return;
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
@@ -161,7 +188,16 @@ function LoginForm() {
         }),
       });
 
-      const json = await res.json();
+      let json: any;
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(
+          res.status === 0
+            ? "Unable to reach the server."
+            : `The server returned an invalid response (${res.status}). Please try again.`
+        );
+      }
 
       if (!res.ok || !json.success) {
         if (json.error && json.error.toLowerCase().includes("college code")) {
@@ -361,6 +397,31 @@ function LoginForm() {
               autoComplete="on"
               onSubmit={handleSubmit}
             >
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#EEF2F6]">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("PASSWORD"); setError(null); setSuccessMessage(null); }}
+                  className={`py-2 rounded-lg text-xs font-bold transition-colors ${authMode === "PASSWORD" ? "bg-white text-[#123B5A] shadow-sm" : "text-[#64748B]"}`}
+                >
+                  Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("OTP"); setError(null); setSuccessMessage(null); }}
+                  className={`py-2 rounded-lg text-xs font-bold transition-colors ${authMode === "OTP" ? "bg-white text-[#123B5A] shadow-sm" : "text-[#64748B]"}`}
+                >
+                  Mobile OTP
+                </button>
+              </div>
+
+              {authMode === "OTP" && (
+                <OtpLogin
+                  key={`${selectedRole}:${institutionCode}`}
+                  role={selectedRole}
+                  institutionCode={institutionCode.trim() || undefined}
+                />
+              )}
+
               {/* College Code / Institution Code Input */}
               {(selectedRole === "ADMIN" || showCollegeCode) && (
                 <div className="animate-in fade-in duration-200">
@@ -417,6 +478,7 @@ function LoginForm() {
               )}
 
               {/* Email Address */}
+              {authMode === "PASSWORD" && (
               <div>
                 <label
                   htmlFor="email"
@@ -441,8 +503,10 @@ function LoginForm() {
                   />
                 </div>
               </div>
+              )}
 
               {/* Password */}
+              {authMode === "PASSWORD" && (
               <div>
                 <label
                   htmlFor="password"
@@ -481,8 +545,10 @@ function LoginForm() {
                   </Link>
                 </div>
               </div>
+              )}
 
               {/* Submit Button */}
+              {authMode === "PASSWORD" && (
               <div className="pt-2">
                 <button
                   type="submit"
@@ -502,7 +568,28 @@ function LoginForm() {
                   )}
                 </button>
               </div>
+              )}
             </form>
+
+            <div className="mt-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-px flex-1 bg-[#E2E8F0]" />
+                <span className="text-[10px] font-bold text-[#94A3B8] uppercase">or</span>
+                <div className="h-px flex-1 bg-[#E2E8F0]" />
+              </div>
+              <a
+                href={`/api/auth/google/authorize?module=${selectedRole === "SUPER_ADMIN" ? "super_admin" : selectedRole.toLowerCase()}`}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-[#D8DEE8] bg-white text-xs sm:text-sm font-bold text-[#334155] hover:bg-[#F8FAFC] transition-all"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4" aria-hidden="true">
+                  <path fill="#4285F4" d="M21.35 12.24c0-.71-.06-1.24-.2-1.78H12v3.24h5.37a4.6 4.6 0 0 1-2 3.02l-.02.12 2.9 2.23.2.02c1.83-1.69 2.9-4.18 2.9-6.85z"/>
+                  <path fill="#34A853" d="M12 21.75c2.69 0 4.95-.88 6.6-2.9l-3.08-2.37c-.82.56-1.93.95-3.52.95-2.69 0-4.97-1.68-5.79-4.01l-.12.01-3.01 2.32-.04.11A9.72 9.72 0 0 0 12 21.75z"/>
+                  <path fill="#FBBC05" d="M6.21 13.42a5.96 5.96 0 0 1-.31-1.92c0-.67.11-1.31.3-1.92l-.01-.13-3.05-2.37-.1.05A9.75 9.75 0 0 0 2 11.5c0 1.58.38 3.07 1.04 4.37l3.17-2.45z"/>
+                  <path fill="#EA4335" d="M12 5.58c1.87 0 3.15.81 3.87 1.49l2.82-2.75A9.32 9.32 0 0 0 12 2.25 9.72 9.72 0 0 0 3.04 7.13l3.16 2.45C7.03 7.26 9.31 5.58 12 5.58z"/>
+                </svg>
+                Continue with Google
+              </a>
+            </div>
 
             {/* Quick Demo Credentials Helper */}
             <div className="mt-6 pt-5 border-t border-[#E2E8F0]">

@@ -169,6 +169,14 @@ model Institution {
   @@map("institutions")
 }
 
+
+model PendingRegistration {
+  id        String   @id @default(uuid())
+  mobile    String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
 model User {
   // Must match the UUID from Supabase Auth.
   id              String       @id @default(uuid()) @db.Uuid
@@ -255,10 +263,8 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ============================================================================
-// BATCH 1: ACADEMIC FOUNDATION MODELS
-// ============================================================================
-
+// ======================================================================// BATCH 1: ACADEMIC FOUNDATION MODELS
+// ======================================================================
 enum DepartmentStatus {
   ACTIVE
   INACTIVE
@@ -579,10 +585,8 @@ model Subject {
   @@index([courseId, institutionId])
 }
 
-// ============================================================================
-// BATCH 2: PEOPLE & WORKLOAD MODELS
-// ============================================================================
-
+// ======================================================================// BATCH 2: PEOPLE & WORKLOAD MODELS
+// ======================================================================
 enum Gender {
   MALE
   FEMALE
@@ -920,10 +924,8 @@ model FacultySubjectAssignment {
   @@index([sectionId, institutionId])
 }
 
-// ============================================================================
-// BATCH 3: OPERATIONS & ATTENDANCE MODELS
-// ============================================================================
-
+// ======================================================================// BATCH 3: OPERATIONS & ATTENDANCE MODELS
+// ======================================================================
 enum PeriodType {
   TEACHING
   BREAK
@@ -1181,10 +1183,8 @@ model ExamHall {
   @@index([institutionId, status])
 }
 
-// ============================================================================
-// BATCH 4: EXAMINATIONS & INTERNAL ASSESSMENT MODELS
-// ============================================================================
-
+// ======================================================================// BATCH 4: EXAMINATIONS & INTERNAL ASSESSMENT MODELS
+// ======================================================================
 enum ExamType {
   INTERNAL
   MID_TERM
@@ -1481,10 +1481,8 @@ model MarksSheet {
 }
 
 
-// ============================================================================
-// BATCH 5: MARKS & RESULTS MODELS
-// ============================================================================
-
+// ======================================================================// BATCH 5: MARKS & RESULTS MODELS
+// ======================================================================
 enum MarkAttendanceStatus {
   PRESENT
   ABSENT
@@ -1771,10 +1769,8 @@ model ResultAuditLog {
 }
 
 
-// ==========================================
-// BATCH 6: PROMOTIONS & CERTIFICATES ENUMS
-// ==========================================
-
+// ====================================// BATCH 6: PROMOTIONS & CERTIFICATES ENUMS
+// ====================================
 enum PromotionBatchStatus {
   DRAFT
   ELIGIBILITY_CHECKED
@@ -1834,10 +1830,8 @@ enum IssuedCertificateStatus {
   EXPIRED
 }
 
-// ==========================================
-// BATCH 6: PROMOTION MODELS
-// ==========================================
-
+// ====================================// BATCH 6: PROMOTION MODELS
+// ====================================
 model PromotionPolicy {
   id                      String    @id @default(uuid()) @db.Uuid
   institutionId           String    @db.Uuid
@@ -2030,10 +2024,8 @@ model PromotionAuditLog {
   @@index([institutionId, createdAt])
 }
 
-// ==========================================
-// BATCH 6: CERTIFICATE MODELS
-// ==========================================
-
+// ====================================// BATCH 6: CERTIFICATE MODELS
+// ====================================
 model CertificateTemplate {
   id                 String                    @id @default(uuid()) @db.Uuid
   institutionId      String                    @db.Uuid
@@ -2206,10 +2198,8 @@ model CertificateAuditLog {
 }
 
 
-// ============================================================================
-// STUDENT & PARENT PORTAL DOMAIN EXTENSIONS
-// ============================================================================
-
+// ======================================================================// STUDENT & PARENT PORTAL DOMAIN EXTENSIONS
+// ======================================================================
 model StudentDocument {
   id            String   @id @default(uuid()) @db.Uuid
   studentId     String @db.Uuid
@@ -2915,11 +2905,9 @@ model ApprovalRequest {
   @@map("approval_requests")
 }
 
-// ============================================================================
-// SUPER ADMIN PLATFORM MODELS & ENUMS
+// ======================================================================// SUPER ADMIN PLATFORM MODELS & ENUMS
 // Separate Super Admin models map to their existing PascalCase platform tables.
-// ============================================================================
-
+// ======================================================================
 enum OnboardingStage {
   DETAILS
   PLAN
@@ -3235,6 +3223,7 @@ model SubscriptionPlan {
   price           Decimal      @db.Decimal(12, 2)
   currency        String       @default("INR")
   maxUsers        Int?
+  studentLimit    Int?
   storageLimitMb  BigInt?
   isActive        Boolean      @default(true)
   archivedAt      DateTime?
@@ -3340,6 +3329,7 @@ model Invoice {
   invoiceNumber  String        @unique
   institutionId  String        @db.Uuid
   subscriptionId String?       @db.Uuid
+  description    String?
   currency       String        @default("INR")
   subtotal       Decimal       @db.Decimal(12, 2)
   tax            Decimal       @default(0) @db.Decimal(12, 2)
@@ -3367,6 +3357,7 @@ model Payment {
   currency          String        @default("INR")
   status            PaymentStatus @default(PENDING)
   provider          String?
+  providerOrderId   String?       @unique
   providerReference String?       @unique
   failureReason     String?
   metadata          Json?
@@ -3554,10 +3545,8 @@ model PlatformSetting {
 
 }
 
-// =============================================================
-// BIOMETRIC ATTENDANCE & HARDWARE READER DOMAIN
-// =============================================================
-
+// =======================================================// BIOMETRIC ATTENDANCE & HARDWARE READER DOMAIN
+// =======================================================
 model StudentBiometricCredential {
   id             String      @id @default(uuid())
   institutionId  String
@@ -3657,3 +3646,19 @@ model TeacherPortalSession {
   @@map("teacher_portal_sessions")
 }
 
+model OtpToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  mobile    String   @unique
+  tokenHash String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OtpRateLimit {
+  mobile      String   @id
+  lastSentAt  DateTime
+  sendCount   Int      @default(0)
+  windowStart DateTime
+}

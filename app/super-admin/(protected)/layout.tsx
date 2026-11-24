@@ -28,7 +28,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   if (erpSession) {
     if (erpSession.role === "SUPER_ADMIN") {
       return (
-        <SuperAdminShell userEmail={erpSession.email || "superadmin@sohansofttech.com"}>
+        <SuperAdminShell userEmail={erpSession.email || "kiran@junkitout.in"}>
           {children}
         </SuperAdminShell>
       );

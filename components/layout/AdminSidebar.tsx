@@ -65,6 +65,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
 
   const campusServiceLinks = [
     { href: "/admin/fees", label: "Fees & Finance", icon: CreditCard },
+    { href: "/subscriptions", label: "Central Subscriptions & Billing", icon: CreditCard },
+    { href: "/admin/subscriptions", label: "Subscriptions & Billing", icon: CreditCard },
     { href: "/admin/hostel", label: "Hostel", icon: Home },
     { href: "/admin/transport", label: "Transport", icon: Bus },
     { href: "/admin/events", label: "Events & Resources", icon: CalendarDays },

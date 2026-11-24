@@ -2,6 +2,7 @@ export const superAdminNavigation = [
   { label: "Dashboard", href: "/super-admin", section: null, description: "Your platform at a glance, including key operational metrics and recent activity." },
   { label: "Institution Management", href: "/super-admin/institutions", section: "institutions", description: "Review and manage institutions registered on the SST-ERP platform." },
   { label: "Institution Onboarding", href: "/super-admin/onboarding", section: "onboarding", description: "Track institution registration steps and onboarding readiness." },
+  { label: "Subscriptions", href: "/subscriptions", section: null, description: "Manage subscription plans, usage, and assigned institutions." },
   { label: "Subscription Plans", href: "/super-admin/subscription-plans", section: "subscription-plans", description: "Create and manage the subscription plans available to institutions." },
   { label: "Subscriptions & Billing", href: "/super-admin/billing", section: "billing", description: "Review institution subscriptions, invoices, and platform billing." },
   { label: "Branding & Domains", href: "/super-admin/branding", section: "branding", description: "Configure institution branding and custom domain settings." },

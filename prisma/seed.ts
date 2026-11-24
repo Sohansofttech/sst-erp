@@ -1,6 +1,39 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+// STRICT LOCAL‑TEST DATABASE SAFETY GUARD
+function abortIfNotLocalTestDb(): void {
+  const raw = process.env.DATABASE_URL;
+
+  if (!raw) {
+    throw new Error("DATABASE_URL not set - aborting seed.");
+  }
+
+  let url: URL;
+
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("DATABASE_URL malformed - aborting seed.");
+  }
+
+  if (!["localhost", "127.0.0.1"].includes(url.hostname)) {
+    throw new Error("Unsafe database hostname - aborting seed.");
+  }
+
+  if (url.port !== "5434") {
+    throw new Error("Unexpected database port - expected 5434.");
+  }
+
+  const dbName = url.pathname.replace(/^\/+/, "");
+
+  if (dbName !== "erp_sst_test") {
+    throw new Error("Unexpected database name - expected erp_sst_test.");
+  }
+}
+
+abortIfNotLocalTestDb();
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -58,7 +91,7 @@ async function main() {
   const instApex = await prisma.institution.create({
     data: {
       id: "inst_apex",
-      code: "APEX-TECH",
+
       name: "Apex Institute of Technology",
       address: "100 Innovation Boulevard, Tech City, Bangalore 560100",
       phone: "+91 80 2345 6789",
@@ -70,7 +103,7 @@ async function main() {
   const instHorizon = await prisma.institution.create({
     data: {
       id: "inst_horizon",
-      code: "HORIZON-UNIV",
+
       name: "Horizon Global University",
       address: "45 Knowledge Park, New Delhi 110001",
       phone: "+91 11 9876 5432",

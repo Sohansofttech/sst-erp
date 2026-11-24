@@ -14,12 +14,24 @@ import { LogoutButton } from "@/components/super-admin/logout-button";
 
 const navigationIcons: Record<string, LucideIcon> = {
   "/super-admin": LayoutDashboard, "/super-admin/institutions": Building2, "/super-admin/onboarding": ClipboardList,
+  "/subscriptions": CreditCard,
   "/super-admin/subscription-plans": CreditCard, "/super-admin/billing": CreditCard, "/super-admin/branding": Palette,
   "/super-admin/domains": Globe2, "/super-admin/modules": Puzzle, "/super-admin/usage": Activity,
   "/super-admin/users": Users, "/super-admin/support": CircleHelp, "/super-admin/support-access": KeyRound,
   "/super-admin/notifications": Megaphone, "/super-admin/audit-logs": ShieldCheck,
   "/super-admin/deletion": Archive, "/super-admin/settings": Settings2,
 };
+
+const subscriptionNavigation: { label: string; href: string; icon: LucideIcon }[] = [
+  { label: "Overview", href: "/subscriptions#billing-overview", icon: LayoutDashboard },
+  { label: "Subscription Plans", href: "/subscriptions#plan-management", icon: CreditCard },
+  { label: "Institutions", href: "/subscriptions#institution-subscriptions", icon: Building2 },
+  { label: "Payments & Transactions", href: "/subscriptions#payments-transactions", icon: CreditCard },
+  { label: "Invoices & Receipts", href: "/subscriptions#invoices-receipts", icon: ClipboardList },
+  { label: "Renewals & Upgrades", href: "/subscriptions#renewals-upgrades", icon: Activity },
+  { label: "Revenue & Reports", href: "/subscriptions#revenue-reports", icon: Activity },
+  { label: "Settings", href: "/super-admin/settings", icon: Settings2 },
+];
 
 export function SuperAdminShell({ children, userEmail, developmentMode = false }: { children: React.ReactNode; userEmail: string; developmentMode?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -47,6 +59,16 @@ export function SuperAdminShell({ children, userEmail, developmentMode = false }
               </Link>
             );
           })}
+          {pathname === "/subscriptions" && (
+            <>
+              <div className="sa-nav-label">Subscription management</div>
+              {subscriptionNavigation.map(({ label, href, icon: Icon }) => (
+                <Link key={label} href={href} className="sa-nav-item" onClick={() => setMenuOpen(false)} title={sidebarCollapsed ? label : undefined}>
+                  <Icon size={17} strokeWidth={1.8} /><span className="sa-nav-text">{label}</span>
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
         <div className="sa-sidebar-footer"><span>SST-ERP Platform · {developmentMode ? "Development" : "Production"}</span><button type="button" className="sa-collapse-button" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"} title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? "»" : "«"}</button></div>
       </aside>
