@@ -1213,7 +1213,11 @@ export function InstitutionProvider({
 
       const serverProfile = json.data as InstitutionProfile;
       // Verification check: tenant must match
-      if (json.institutionId && serverProfile.id && serverProfile.id !== json.institutionId) {
+      if (
+        json.institutionId &&
+        serverProfile.id &&
+        serverProfile.id.trim().toLowerCase() !== json.institutionId.trim().toLowerCase()
+      ) {
         throw new Error("Security mismatch: Retrieved institution profile does not match authenticated tenant.");
       }
 

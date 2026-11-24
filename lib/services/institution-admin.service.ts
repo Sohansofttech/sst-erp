@@ -29,6 +29,7 @@ export async function recordAuditLog(
     action: string;
     entityType?: string | null;
     entityId?: string | null;
+    oldValuesJson?: string | null;
     newValuesJson?: string | null;
   }
 ) {

@@ -576,7 +576,7 @@ export async function getTeacherSession(
 
   // 2. Check general ERP session (sst_session / erp_session)
   const erpSession = await getSession(options.req)
-  if (erpSession && (erpSession.role === "TEACHER" || erpSession.role === "HOD" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
+  if (erpSession && (erpSession.role === "TEACHER" || (erpSession.role as string) === "HOD" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
     const user = await prisma.users.findFirst({
       where: {
         id: erpSession.userId,

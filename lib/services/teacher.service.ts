@@ -1046,7 +1046,7 @@ export async function getSubjectAllocations(
       {
         id: "sa-10a-math",
         institutionId,
-        academicYearId,
+        academicYearId: resolvedAcademicYearId,
         teacherId: teacher.id,
         classId: "cls-10",
         className: "Class 10",
@@ -1061,7 +1061,7 @@ export async function getSubjectAllocations(
       {
         id: "sa-10b-math",
         institutionId,
-        academicYearId,
+        academicYearId: resolvedAcademicYearId,
         teacherId: teacher.id,
         classId: "cls-10",
         className: "Class 10",
@@ -1076,7 +1076,7 @@ export async function getSubjectAllocations(
       {
         id: "sa-11a-math",
         institutionId,
-        academicYearId,
+        academicYearId: resolvedAcademicYearId,
         teacherId: teacher.id,
         classId: "cls-11",
         className: "Class 11",

@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
     const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
     let redirectUrl = "";
 
-    if (userRole === "ADMIN") {
+    if (userRole === "ADMIN" || userRole === "INSTITUTION_ADMIN") {
       const isLegacyInstitution =
         user.institutionId === "inst_apex" ||
         user.institutionId?.startsWith("inst_") ||
@@ -201,8 +201,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Validate active administrator membership for ADMIN role
-    if (userRole === "ADMIN" && user.institutionId) {
+    // Validate active administrator membership for ADMIN / INSTITUTION_ADMIN role
+    if ((userRole === "ADMIN" || userRole === "INSTITUTION_ADMIN") && user.institutionId) {
       try {
         const memberships: any = await db.$queryRaw`
           SELECT m.id, m.status
@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.error("[Login] Failed to record teacher portal session in DB:", err);
       }
-    } else if (userRole === "ADMIN") {
+    } else if (userRole === "ADMIN" || userRole === "INSTITUTION_ADMIN") {
       redirectUrl = "/admin";
     } else if (userRole === "SUPER_ADMIN") {
       redirectUrl = "/super-admin";

@@ -106,6 +106,7 @@ export const CredentialManagementModal: React.FC<CredentialManagementModalProps>
     email: string | null;
     lastLoginAt: string | null;
     role: string | null;
+    designation?: string;
     isTeachingFaculty?: boolean;
     totalLinkedChildren?: number;
     verifiedCount?: number;

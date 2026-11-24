@@ -240,6 +240,7 @@ export async function GET(req: NextRequest) {
               select: {
                 id: true,
                 email: true,
+                role: true,
                 isActive: true,
                 status: true,
                 passwordHash: true,
@@ -287,6 +288,7 @@ export async function GET(req: NextRequest) {
               select: {
                 id: true,
                 email: true,
+                role: true,
                 isActive: true,
                 status: true,
                 passwordHash: true,
@@ -383,6 +385,7 @@ export async function GET(req: NextRequest) {
               select: {
                 id: true,
                 email: true,
+                role: true,
                 isActive: true,
                 status: true,
                 passwordHash: true,
