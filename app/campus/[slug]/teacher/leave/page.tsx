@@ -289,7 +289,7 @@ export default function TeacherLeavePage() {
         title="Leave & Substitution Management"
         subtitle="Apply for faculty leave with class substitution handover, track approvals, and process Class 10-A student leave or on-duty requests."
         action={
-          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/timetable`}>
               <CalendarCheck className="size-4" />
               View Timetable & Schedule
@@ -331,14 +331,16 @@ export default function TeacherLeavePage() {
       </div>
 
       <Tabs defaultValue="my-leave" className="space-y-4">
-        <TabsList className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
-          <TabsTrigger value="my-leave" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
-            Apply & Track My Leave ({teacherLeaves.length})
-          </TabsTrigger>
-          <TabsTrigger value="student-leave" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
-            Student Leave / On-Duty Approvals ({pendingStudent} pending)
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-2 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
+            <TabsTrigger value="my-leave" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
+              Apply & Track My Leave ({teacherLeaves.length})
+            </TabsTrigger>
+            <TabsTrigger value="student-leave" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
+              Student Leave / On-Duty Approvals ({pendingStudent} pending)
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="my-leave">
           <div className="grid gap-6 lg:grid-cols-12">
@@ -388,7 +390,7 @@ export default function TeacherLeavePage() {
                     </Select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="fromDate" className="text-xs font-semibold text-[#202936]">From Date</Label>
                       <Input
@@ -561,7 +563,7 @@ export default function TeacherLeavePage() {
                         )}
 
                         {/* Approval Timeline */}
-                        <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="mt-4 flex flex-wrap sm:grid sm:grid-cols-3 gap-2">
                           {[
                             "Submitted",
                             "In Review",
@@ -573,7 +575,7 @@ export default function TeacherLeavePage() {
                               <div
                                 key={`${leave.id}-${label}`}
                                 className={cn(
-                                  "flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold",
+                                  "flex-1 min-w-[90px] flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold",
                                   finalError
                                     ? "border-rose-200 bg-rose-50 text-rose-700"
                                     : reached

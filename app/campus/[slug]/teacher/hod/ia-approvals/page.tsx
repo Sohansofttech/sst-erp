@@ -148,7 +148,7 @@ export default function HodIaApprovalsPage() {
         title="IA Approval & Lock Queue — Department of Mathematics"
         subtitle="Departmental leadership review: approve verified internal assessment scores, return sheets for moderation corrections, or permanently lock marks for report card compilation."
         action={
-          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/hod`}>
               <ArrowLeft className="mr-1.5 size-4 text-[#123B5A]" />
               Dept Dashboard
@@ -157,7 +157,7 @@ export default function HodIaApprovalsPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <StatCard
           label="Pending Review Queue"
           value={pendingCount}
@@ -200,29 +200,30 @@ export default function HodIaApprovalsPage() {
               />
             </div>
           ) : (
-            <Table>
-              <TableHeader className="bg-[#EEF1F5]/80">
-                <TableRow>
-                  <TableHead className="font-bold text-[#788391]">Assessment Title</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Class & Section</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Type & Marks</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Due Date</TableHead>
-                  <TableHead className="font-bold text-[#788391]">Status</TableHead>
-                  <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-[#E5E9EF]">
-                {assessments.map((ia) => {
-                  const isLocked = ia.status === "locked"
-                  const isApproved = ia.status === "approved"
-                  const isPending = !isLocked && !isApproved
+            <div className="overflow-x-auto">
+              <Table className="min-w-[700px]">
+                <TableHeader className="bg-[#EEF1F5]/80">
+                  <TableRow>
+                    <TableHead className="font-bold text-[#788391] sticky left-0 z-10 bg-[#EEF1F5]">Assessment Title</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Class & Section</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Type & Marks</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Due Date</TableHead>
+                    <TableHead className="font-bold text-[#788391]">Status</TableHead>
+                    <TableHead className="text-right font-bold text-[#788391]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#E5E9EF]">
+                  {assessments.map((ia) => {
+                    const isLocked = ia.status === "locked"
+                    const isApproved = ia.status === "approved"
+                    const isPending = !isLocked && !isApproved
 
-                  return (
-                    <TableRow key={ia.id} className="hover:bg-[#EEF1F5]/50">
-                      <TableCell>
-                        <p className="font-bold text-[#202936]">{ia.title}</p>
-                        <p className="text-xs text-[#788391]">{ia.subjectName || "Mathematics"}</p>
-                      </TableCell>
+                    return (
+                      <TableRow key={ia.id} className="hover:bg-[#EEF1F5]/50">
+                        <TableCell className="sticky left-0 z-10 bg-white">
+                          <p className="font-bold text-[#202936]">{ia.title}</p>
+                          <p className="text-xs text-[#788391]">{ia.subjectName || "Mathematics"}</p>
+                        </TableCell>
                       <TableCell className="font-semibold text-xs text-[#123B5A]">
                         {ia.className} - {ia.section}
                       </TableCell>
@@ -287,13 +288,14 @@ export default function HodIaApprovalsPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Action Dialog */}
       <Dialog open={!!targetIA} onOpenChange={(open) => !open && setTargetIA(null)}>
-        <DialogContent className="rounded-2xl sm:max-w-md bg-white border-[#E5E9EF]">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] sm:max-w-md rounded-2xl bg-white border-[#E5E9EF]">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-[#123B5A]">
               {actionType === "approved"
@@ -313,15 +315,15 @@ export default function HodIaApprovalsPage() {
                 rows={3}
                 value={actionNotes}
                 onChange={(e) => setActionNotes(e.target.value)}
-                className="mt-1 rounded-xl border-[#E5E9EF] text-xs"
+                className="mt-1 rounded-xl border-[#E5E9EF] text-base sm:text-xs"
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => setTargetIA(null)}
-              className="rounded-xl border-[#E5E9EF] text-[#202936]"
+              className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936]"
             >
               Cancel
             </Button>
@@ -329,7 +331,7 @@ export default function HodIaApprovalsPage() {
               disabled={submitting}
               onClick={handleConfirmAction}
               className={cn(
-                "rounded-xl font-bold text-white",
+                "w-full sm:w-auto rounded-xl font-bold text-white",
                 actionType === "approved"
                   ? "bg-emerald-600 hover:bg-emerald-700"
                   : actionType === "locked"

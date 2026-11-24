@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { cn } from "@/lib/utils"
 import {
   EmptyState,
   ErrorState,
@@ -332,7 +333,7 @@ export default function TeacherLogBookPage() {
         title="Teaching & Project Log Book"
         subtitle="Maintain daily lecture/lab syllabus logs and review periodic student project & internship logs."
         action={
-          <Button onClick={() => setAddOpen(true)} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+          <Button onClick={() => setAddOpen(true)} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
             <Plus className="size-4" />
             Log Lecture / Lab Topic
           </Button>
@@ -372,14 +373,16 @@ export default function TeacherLogBookPage() {
       </div>
 
       <Tabs defaultValue="teaching" className="space-y-4">
-        <TabsList className="rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
-          <TabsTrigger value="teaching" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
-            My Teaching / Lab Log Book ({entries.length})
-          </TabsTrigger>
-          <TabsTrigger value="student-reviews" className="rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
-            Student Project / Internship Log Reviews ({reviews.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-2 rounded-xl border border-[#E5E9EF] bg-[#EEF1F5] p-1">
+            <TabsTrigger value="teaching" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
+              My Teaching / Lab Log Book ({entries.length})
+            </TabsTrigger>
+            <TabsTrigger value="student-reviews" className="shrink-0 rounded-lg data-[state=active]:bg-[#123B5A] data-[state=active]:text-white data-[state=active]:font-semibold">
+              Student Project / Internship Log Reviews ({reviews.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="teaching" className="space-y-4">
           <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
@@ -563,12 +566,17 @@ export default function TeacherLogBookPage() {
                         )}
                       </div>
 
-                      <div className="shrink-0">
+                      <div className="shrink-0 w-full sm:w-auto">
                         <Button
                           size="sm"
                           variant={isLocked ? "outline" : "default"}
                           onClick={() => openReviewModal(item)}
-                          className={isLocked ? "rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]" : "rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]"}
+                          className={cn(
+                            "w-full sm:w-auto rounded-xl",
+                            isLocked
+                              ? "border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                              : "bg-[#F5A000] text-white hover:bg-[#E09200]"
+                          )}
                         >
                           {isLocked ? (
                             <>
@@ -594,7 +602,7 @@ export default function TeacherLogBookPage() {
 
       {/* Create Teaching Log Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-[#202936]">New Teaching / Lab Log Entry</DialogTitle>
             <DialogDescription className="text-xs text-[#788391]">
@@ -621,7 +629,7 @@ export default function TeacherLogBookPage() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="log-date" className="text-xs font-semibold text-[#202936]">Date</Label>
                 <Input id="log-date" type="date" className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]" {...form.register("date")} />
@@ -652,7 +660,7 @@ export default function TeacherLogBookPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="log-unit" className="text-xs font-semibold text-[#202936]">Unit / Chapter</Label>
                 <Input
@@ -720,16 +728,16 @@ export default function TeacherLogBookPage() {
               />
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                 onClick={() => setAddOpen(false)}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingEntry} className="rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+              <Button type="submit" disabled={savingEntry} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
                 {savingEntry ? "Submitting..." : "Submit Log Entry"}
               </Button>
             </DialogFooter>
@@ -744,7 +752,7 @@ export default function TeacherLogBookPage() {
           if (!open) setActiveReview(null)
         }}
       >
-        <DialogContent className="rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto w-[calc(100vw-2rem)] rounded-2xl border-[#E5E9EF] bg-white shadow-xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-[#202936]">Student Project Log Review</DialogTitle>
             <DialogDescription className="text-xs text-[#788391]">
@@ -797,11 +805,11 @@ export default function TeacherLogBookPage() {
                 </div>
               )}
 
-              <DialogFooter className="gap-2">
+              <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
+                  className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
                   onClick={() => setActiveReview(null)}
                 >
                   Close
@@ -812,7 +820,7 @@ export default function TeacherLogBookPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
+                        className="w-full sm:w-auto rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50"
                         disabled={savingReview}
                         onClick={() => handleStudentReview("returned")}
                       >
@@ -823,7 +831,7 @@ export default function TeacherLogBookPage() {
                         type="button"
                         disabled={savingReview}
                         onClick={() => handleStudentReview("approved")}
-                        className="rounded-xl bg-[#123B5A] text-white hover:bg-[#1B4D70]"
+                        className="w-full sm:w-auto rounded-xl bg-[#123B5A] text-white hover:bg-[#1B4D70]"
                       >
                         <Lock className="size-4" />
                         Approve & Lock

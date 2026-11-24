@@ -88,7 +88,7 @@ function CampusDutiesInner() {
         title="Campus Duties"
         subtitle="Consolidated roster of institutional responsibilities, morning assembly supervision, disciplinary rounds, and student club coordination."
         action={
-          <Button asChild variant="outline" className="rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
+          <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/timetable`}>
               <Calendar className="mr-1.5 size-4 text-[#123B5A]" />
               View Timetable Schedule
