@@ -116,8 +116,12 @@ export default function DashboardPage() {
             return;
           }
           if (u.role === "TEACHER") {
-            const slug = (u.institutionSlug || u.institutionCode || "vidyaniketan").toLowerCase();
-            window.location.replace(`/campus/${slug}/teacher`);
+            const slug = (u.institutionSlug || u.institutionCode || "").toLowerCase();
+            if (slug) {
+              window.location.replace(`/campus/${slug}/teacher`);
+            } else {
+              window.location.replace("/login?error=no_institution");
+            }
             return;
           }
         }
@@ -150,8 +154,12 @@ export default function DashboardPage() {
             return;
           }
           if (sess.role === "TEACHER") {
-            const slug = (sess.institutionSlug || sess.institutionCode || "vidyaniketan").toLowerCase();
-            window.location.replace(`/campus/${slug}/teacher`);
+            const slug = (sess.institutionSlug || sess.institutionCode || "").toLowerCase();
+            if (slug) {
+              window.location.replace(`/campus/${slug}/teacher`);
+            } else {
+              window.location.replace("/login?error=no_institution");
+            }
             return;
           }
 

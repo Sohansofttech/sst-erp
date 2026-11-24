@@ -3,6 +3,8 @@ import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-a
 import {
   getExaminations,
   createExamination,
+  createExamSlot,
+  updateExaminationStatus,
   getExamHalls,
   createExamHall,
 } from "@/lib/services/institution-admin.service";
@@ -53,17 +55,50 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (!body.name || !body.academicYearId || !body.academicTermId || !body.startDate || !body.endDate) {
+    if (body.type === "SLOT") {
+      if (!body.examScheduleId || !body.subjectCode || !body.subjectName || !body.examDate || !body.startTime || !body.endTime || !body.roomNumber) {
+        return NextResponse.json(
+          { success: false, error: "Schedule ID, subject code/name, date, start/end time, and room number are required." },
+          { status: 400 }
+        );
+      }
+      const slot = await createExamSlot(institutionId, {
+        examScheduleId: body.examScheduleId,
+        subjectCode: body.subjectCode,
+        subjectName: body.subjectName,
+        examDate: body.examDate,
+        startTime: body.startTime,
+        endTime: body.endTime,
+        roomNumber: body.roomNumber,
+      });
+      return NextResponse.json({
+        success: true,
+        message: "Examination slot scheduled successfully.",
+        data: slot,
+      });
+    }
+
+    if (!body.name || !body.startDate || !body.endDate) {
       return NextResponse.json(
-        { success: false, error: "Exam name, academic year, term, and date ranges are required." },
+        { success: false, error: "Exam name and start/end dates are required." },
         { status: 400 }
       );
     }
 
+    let academicYearId = body.academicYearId;
+    if (!academicYearId) {
+      const ay = await db.academicYear.findFirst({
+        where: { institutionId },
+        orderBy: { startDate: "desc" },
+      });
+      academicYearId = ay?.id;
+    }
+
     const exam = await createExamination(institutionId, {
       name: body.name,
-      academicYearId: body.academicYearId,
-      academicTermId: body.academicTermId,
+      academicYearId: academicYearId || "",
+      academicTermId: body.academicTermId || academicYearId,
+      semester: body.semester ? parseInt(body.semester, 10) : 1,
       type: body.examType || "FINAL",
       startDate: new Date(body.startDate),
       endDate: new Date(body.endDate),
@@ -88,27 +123,41 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Exam ID and status are required." }, { status: 400 });
     }
 
-    const result = await db.examination.updateMany({
-      where: { id, institutionId },
-      data: { status },
-    });
-
-    if (result.count === 0) {
-      return NextResponse.json(
-        { success: false, error: "Examination not found or access denied." },
-        { status: 404 }
-      );
-    }
-
-    const updated = await db.examination.findFirst({
-      where: { id, institutionId },
-    });
+    const updated = await updateExaminationStatus(institutionId, id, status);
 
     return NextResponse.json({
       success: true,
       message: `Examination status updated to ${status}.`,
       data: updated,
     });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { institutionId } = await resolveAdminContext(req);
+    const id = req.nextUrl.searchParams.get("id");
+    const type = req.nextUrl.searchParams.get("type");
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "ID required." }, { status: 400 });
+    }
+
+    if (type === "HALL") {
+      await db.examHall.deleteMany({ where: { id, institutionId } });
+      return NextResponse.json({ success: true, message: "Exam hall deleted." });
+    }
+
+    const res = await db.examSchedule.deleteMany({ where: { id, institutionId } });
+    if (res.count === 0) {
+      return NextResponse.json(
+        { success: false, error: "Examination not found or access denied." },
+        { status: 404 }
+      );
+    }
+    return NextResponse.json({ success: true, message: "Examination deleted." });
   } catch (error) {
     return handleAdminApiError(error);
   }

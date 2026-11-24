@@ -14,104 +14,117 @@ export interface ResolvedAdminContext {
 export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdminContext> {
   const session = await getSession(req);
 
-  if (session) {
-    if (session.role === "ADMIN" || session.role === "SUPER_ADMIN") {
-      // Live account verification and password revocation verification
-      if (session.userId) {
-        const user = await db.user.findUnique({
-          where: { id: session.userId },
-          select: { id: true, isActive: true, status: true, passwordHash: true },
-        });
-
-        if (!user || !user.isActive || user.status !== "ACTIVE") {
-          throw new UnauthorizedError("Account has been deactivated, suspended, or locked.");
-        }
-
-        // Reject legacy tokens without password signature
-        if (!session.passwordSig) {
-          throw new UnauthorizedError("Session has expired or lacks required security signature. Please log in again.");
-        }
-
-        // Invalidate session if database password hash changed
-        const currentSig = computePasswordSignature(user.passwordHash || "");
-        if (session.passwordSig !== currentSig) {
-          throw new UnauthorizedError("Session has been invalidated due to a password reset or change. Please log in with your current credentials.");
-        }
-      }
-
-      // Server-side mandatory password change enforcement
-      if (session.mustChangePassword) {
-        const pathname = req.nextUrl?.pathname || "";
-        const isAllowed =
-          pathname.startsWith("/api/auth/change-password") ||
-          pathname.startsWith("/api/auth/me") ||
-          pathname.startsWith("/api/auth/logout");
-
-        if (!isAllowed) {
-          throw new ForbiddenError(
-            "Password change required: You must change your temporary password before accessing admin features."
-          );
-        }
-      }
-
-      // For standard ADMIN, tenant is strictly bound to session.institutionId (spoof prevention)
-      let institutionId = session.institutionId;
-      // Super Admin may optionally inspect or operate on behalf of a specific institution
-      if (session.role === "SUPER_ADMIN") {
-        const requested = req.headers.get("x-institution-id") || req.nextUrl.searchParams.get("institutionId");
-        if (requested) {
-          institutionId = requested;
-        }
-      }
-
-      return {
-        institutionId,
-        institutionName: session.institutionName,
-        userId: session.userId,
-        userRole: session.role,
-        isDevFallback: false,
-      };
-    }
-    throw new ForbiddenError("Forbidden: Account does not have Institution Admin privileges.");
-  }
-
-  // Enforce mandatory authentication in production or when STRICT_ADMIN_AUTH is enabled
-  if (process.env.NODE_ENV === "production" || process.env.STRICT_ADMIN_AUTH === "true") {
+  if (!session) {
     throw new UnauthorizedError("Authentication required. Please log in to access Institution Admin.");
   }
 
-  // Developer / Direct access fallback (Development mode only)
-  const requestedInstId = req.headers.get("x-institution-id");
-  if (requestedInstId) {
-    return {
-      institutionId: requestedInstId,
-      userRole: "ADMIN",
-      isDevFallback: true,
-    };
+  if (session.role !== "ADMIN" && session.role !== "SUPER_ADMIN") {
+    throw new ForbiddenError("Forbidden: Account does not have Institution Admin privileges.");
   }
 
-  // Find first institution in database or default to apex
-  let defaultInstId = "inst_apex";
-  try {
-    const firstInst = await db.institution.findFirst({ select: { id: true } });
-    if (firstInst) {
-      defaultInstId = firstInst.id;
-    } else {
-      const platformRows: any = await db.$queryRaw`
-        SELECT id FROM "Institution" WHERE "archivedAt" IS NULL ORDER BY "createdAt" DESC LIMIT 1
-      `;
-      if (platformRows && platformRows.length > 0) {
-        defaultInstId = platformRows[0].id;
-      }
+  // Reject legacy or malformed tokens without password signature before querying DB
+  if (!session.passwordSig) {
+    throw new UnauthorizedError("Session has expired or lacks required security signature. Please log in again.");
+  }
+
+  // Anti-spoofing check: standard Admin can NEVER supply an x-institution-id header different from their session
+  if (session.role !== "SUPER_ADMIN") {
+    const headerInstId = req.headers.get("x-institution-id");
+    if (headerInstId && headerInstId !== session.institutionId) {
+      throw new ForbiddenError("Tenant violation: Cross-institution administrative access is forbidden.");
     }
-  } catch {
-    // DB might be offline or initializing
+  }
+
+  // Live account verification and password revocation verification
+  let dbUser: any = null;
+  if (session.userId) {
+    dbUser = await db.user.findUnique({
+      where: { id: session.userId },
+      select: { id: true, isActive: true, status: true, passwordHash: true, institutionId: true, role: true },
+    });
+
+    if (!dbUser || !dbUser.isActive || dbUser.status !== "ACTIVE") {
+      throw new UnauthorizedError("Account has been deactivated, suspended, or locked.");
+    }
+
+    // Invalidate session if database password hash changed
+    const currentSig = computePasswordSignature(dbUser.passwordHash || "");
+    if (session.passwordSig !== currentSig) {
+      throw new UnauthorizedError("Session has been invalidated due to a password reset or change. Please log in with your current credentials.");
+    }
+  }
+
+  // Server-side mandatory password change enforcement
+  if (session.mustChangePassword) {
+    const pathname = req.nextUrl?.pathname || "";
+    const isAllowed =
+      pathname.startsWith("/api/auth/change-password") ||
+      pathname.startsWith("/api/auth/me") ||
+      pathname.startsWith("/api/auth/logout");
+
+    if (!isAllowed) {
+      throw new ForbiddenError(
+        "Password change required: You must change your temporary password before accessing admin features."
+      );
+    }
+  }
+
+  // Determine institution boundary
+  let institutionId = session.institutionId || dbUser?.institutionId;
+
+  // Super Admin may optionally inspect or operate on behalf of a specific institution
+  if (session.role === "SUPER_ADMIN") {
+    const requested = req.headers.get("x-institution-id") || req.nextUrl.searchParams.get("institutionId");
+    if (requested) {
+      institutionId = requested;
+    }
+    if (!institutionId) {
+      throw new ForbiddenError("Institution ID is required for Super Admin operational context.");
+    }
+  } else {
+    // For standard ADMIN, tenant is strictly bound to session.institutionId (anti-spoofing)
+    const headerInstId = req.headers.get("x-institution-id");
+    if (headerInstId && headerInstId !== institutionId) {
+      throw new ForbiddenError("Tenant violation: Cross-institution administrative access is forbidden.");
+    }
+
+    if (!institutionId) {
+      throw new ForbiddenError("Forbidden: Administrator has no associated institution.");
+    }
+
+    // Verify active institution membership if memberships are enforced for this institution
+    try {
+      const activeMemberships: any = await db.$queryRaw`
+        SELECT m.id, m.status
+        FROM "InstitutionMembership" m
+        WHERE (m."userId"::text = ${session.userId} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(BTRIM(email)) = LOWER(BTRIM(${session.email}))))
+          AND m."institutionId"::text = ${institutionId}
+          AND m.status = 'ACTIVE'
+        LIMIT 1
+      `;
+
+      if (activeMemberships.length === 0) {
+        const totalMemberships = await db.$queryRaw<Array<{ count: bigint }>>`
+          SELECT COUNT(*)::bigint as count FROM "InstitutionMembership" WHERE "institutionId"::text = ${institutionId}
+        `;
+        const hasMemberships = Number(totalMemberships[0]?.count ?? 0) > 0;
+
+        if (hasMemberships) {
+          throw new ForbiddenError("Access denied: Account does not have an active administrator membership for this institution.");
+        }
+      }
+    } catch (err: any) {
+      if (err instanceof ForbiddenError) throw err;
+      // Membership check warning fallback
+    }
   }
 
   return {
-    institutionId: defaultInstId,
-    userRole: "ADMIN",
-    isDevFallback: true,
+    institutionId,
+    institutionName: session.institutionName,
+    userId: session.userId,
+    userRole: session.role,
+    isDevFallback: false,
   };
 }
 

@@ -29,9 +29,12 @@ export async function uploadCourseMaterialFile({
   file,
   filename,
   contentType,
-  institutionId = "inst_demo_school",
+  institutionId,
   folder = "materials",
 }: UploadMaterialParams): Promise<UploadMaterialResult> {
+  if (!institutionId) {
+    throw new Error("institutionId is required for storage tenant isolation.");
+  }
   const sanitizedFilename = filename
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .replace(/_+/g, "_")

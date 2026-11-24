@@ -15,6 +15,7 @@ import {
   DETERMINISTIC_TEST_ACCOUNTS,
   findDeterministicAccount,
 } from "./roles"
+import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context"
 
 type institutions = Institution
 type academic_years = AcademicYear
@@ -121,40 +122,61 @@ export async function createDbSessionRecord(params: {
   expiresAt: Date
 }): Promise<string> {
   const sessionId = params.id || crypto.randomUUID()
-  await db.$executeRaw`
-    INSERT INTO teacher_portal_sessions (
-      id,
-      token_hash,
-      user_id,
-      institution_id,
-      active_role,
-      expires_at,
-      created_at,
-      updated_at
-    ) VALUES (
-      ${sessionId},
-      ${params.tokenHash},
-      ${params.userId},
-      ${params.institutionId},
-      ${params.activeRole},
-      ${params.expiresAt},
-      NOW(),
-      NOW()
-    )
-  `
+  try {
+    await (db as any).teacherPortalSession.create({
+      data: {
+        id: sessionId,
+        tokenHash: params.tokenHash,
+        userId: params.userId,
+        institutionId: params.institutionId,
+        activeRole: params.activeRole,
+        expiresAt: params.expiresAt,
+      },
+    })
+  } catch {
+    await db.$executeRaw`
+      INSERT INTO teacher_portal_sessions (
+        id,
+        token_hash,
+        user_id,
+        institution_id,
+        active_role,
+        expires_at,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sessionId},
+        ${params.tokenHash},
+        ${params.userId},
+        ${params.institutionId},
+        ${params.activeRole},
+        ${params.expiresAt},
+        NOW(),
+        NOW()
+      )
+    `
+  }
   return sessionId
 }
 
 /**
  * Marks a teacher portal session as revoked in PostgreSQL
  */
-export async function revokeDbSession(token: string): Promise<void> {
-  const tokenHash = hashSessionToken(token)
-  await db.$executeRaw`
-    UPDATE teacher_portal_sessions
-    SET revoked_at = NOW(), updated_at = NOW()
-    WHERE token_hash = ${tokenHash}
-  `
+export async function revokeDbSession(tokenOrHash: string): Promise<void> {
+  const isHash = tokenOrHash.length === 64 && /^[0-9a-f]{64}$/i.test(tokenOrHash)
+  const tokenHash = isHash ? tokenOrHash : hashSessionToken(tokenOrHash)
+  try {
+    await (db as any).teacherPortalSession.updateMany({
+      where: { tokenHash },
+      data: { revokedAt: new Date() },
+    })
+  } catch {
+    await db.$executeRaw`
+      UPDATE teacher_portal_sessions
+      SET revoked_at = NOW(), updated_at = NOW()
+      WHERE token_hash = ${tokenHash}
+    `
+  }
 }
 
 /**
@@ -170,6 +192,10 @@ export async function getTeacherSessionToken(req?: NextRequest): Promise<string 
       const match = rawCookie.match(new RegExp(`(?:^|; )${TEACHER_AUTH_COOKIE}=([^;]*)`))
       if (match) return decodeURIComponent(match[1])
     }
+  }
+
+  if (process.env.TEST_TEACHER_SESSION_TOKEN && process.env.NODE_ENV !== "production") {
+    return process.env.TEST_TEACHER_SESSION_TOKEN
   }
 
   try {
@@ -242,8 +268,8 @@ export function mapDbTeacherToProfile(
     specialization: `${teacher.department} & Curriculum Lead`,
     experienceYears: 10,
     joiningDate: teacher.createdAt.toISOString().split("T")[0],
-    isClassTeacher: options?.isClassTeacher ?? true,
-    classTeacherOf: options?.classTeacherOf ?? "Class 10 - A",
+    isClassTeacher: options?.isClassTeacher ?? false,
+    classTeacherOf: options?.classTeacherOf,
     subjectsHandled: options?.subjectsHandled ?? [
       `${teacher.department} (10-A)`,
       `${teacher.department} (10-B)`,
@@ -430,14 +456,8 @@ export async function getTeacherSession(
   if (teacherToken) {
     const payload = await verifyTeacherSession(teacherToken)
     if (payload) {
-      // Validate that session institution matches requested slug
-      const slugNorm = slug.toLowerCase()
-      const instSlugNorm = (institution.code || institution.slug || institution.id).toLowerCase()
-      if (
-        payload.institutionSlug.toLowerCase() !== slugNorm &&
-        payload.institutionId !== institution.id &&
-        instSlugNorm !== slugNorm
-      ) {
+      // Validate that session institution strictly matches the requested campus institution
+      if (payload.institutionId && payload.institutionId !== institution.id) {
         return null
       }
 
@@ -445,21 +465,46 @@ export async function getTeacherSession(
       const tokenHash = hashSessionToken(teacherToken)
       let dbSessionRecord: any = null
       try {
-        const sessions: any[] = await db.$queryRaw`
-          SELECT id, user_id, institution_id, active_role, expires_at, revoked_at
-          FROM teacher_portal_sessions
-          WHERE token_hash = ${tokenHash}
-            AND revoked_at IS NULL
-            AND expires_at > NOW()
-          LIMIT 1
-        `
-        dbSessionRecord = sessions[0] || null
+        const sessionRecord = await (db as any).teacherPortalSession.findFirst({
+          where: {
+            tokenHash,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+        })
+        if (sessionRecord) {
+          dbSessionRecord = {
+            id: sessionRecord.id,
+            user_id: sessionRecord.userId,
+            institution_id: sessionRecord.institutionId,
+            active_role: sessionRecord.activeRole,
+            expires_at: sessionRecord.expiresAt,
+            revoked_at: sessionRecord.revokedAt,
+          }
+        }
       } catch (err) {
-        console.warn("[getTeacherSession] DB session lookup error:", err)
+        // Fallback to raw query if needed
+        try {
+          const sessions: any[] = await db.$queryRaw`
+            SELECT id, user_id, institution_id, active_role, expires_at, revoked_at
+            FROM teacher_portal_sessions
+            WHERE token_hash = ${tokenHash}
+              AND revoked_at IS NULL
+              AND expires_at > NOW()
+            LIMIT 1
+          `
+          dbSessionRecord = sessions[0] || null
+        } catch (rawErr) {
+          console.warn("[getTeacherSession] DB session lookup error:", rawErr)
+        }
       }
 
       // If token is revoked or not found in teacher_portal_sessions, reject immediately
       if (!dbSessionRecord) {
+        return null
+      }
+
+      if (dbSessionRecord.institution_id && dbSessionRecord.institution_id !== institution.id) {
         return null
       }
 
@@ -479,19 +524,12 @@ export async function getTeacherSession(
         console.warn("[getTeacherSession] User DB lookup error:", err)
       }
 
-      if (!user || !user.isActive) {
+      if (!user || !user.isActive || (user.institutionId && user.institutionId !== institution.id)) {
         return null
       }
 
-      // Re-load user's roles from DB & test accounts dynamically
+      // Re-load user's roles from DB assignments & test accounts dynamically
       const testAccount = findDeterministicAccount(user.email) || findDeterministicAccount(user.id)
-      const availableRoles: TeacherRole[] = testAccount?.roles || ["teacher"]
-      const homeroomClass = testAccount?.homeroomClass || (user.teacherProfile?.designation?.includes("Class Teacher") ? "Class 10 - A" : undefined)
-      let activeRole = (dbSessionRecord.active_role as TeacherRole) || payload.activeRole || "teacher"
-      if (!availableRoles.includes(activeRole)) {
-        activeRole = "teacher"
-      }
-
       let teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
       if (!teacherObj && testAccount) {
         teacherObj = {
@@ -505,10 +543,24 @@ export async function getTeacherSession(
         }
       }
 
+      const dbAssignments = await resolveTeacherAssignmentsFromDb(
+        teacherObj?.id || user.id,
+        user.id,
+        institution.id,
+        teacherObj?.department,
+        teacherObj?.designation
+      )
+      const availableRoles: TeacherRole[] = testAccount?.roles || dbAssignments.roles
+      const homeroomClass = testAccount?.homeroomClass || dbAssignments.homeroomClass
+      let activeRole = (dbSessionRecord.active_role as TeacherRole) || payload.activeRole || "teacher"
+      if (!availableRoles.includes(activeRole)) {
+        activeRole = "teacher"
+      }
+
       if (teacherObj) {
         const profile = mapDbTeacherToProfile(teacherObj, user, {
           isClassTeacher: availableRoles.includes("class_teacher"),
-          classTeacherOf: homeroomClass ?? "Class 10 - A",
+          classTeacherOf: homeroomClass,
         })
 
         return {
@@ -532,6 +584,9 @@ export async function getTeacherSession(
   // 2. Check general ERP session (sst_session / erp_session)
   const erpSession = await getSession(options.req)
   if (erpSession && (erpSession.role === "TEACHER" || erpSession.role === "ADMIN" || erpSession.role === "SUPER_ADMIN")) {
+    if (erpSession.role !== "SUPER_ADMIN" && erpSession.institutionId && erpSession.institutionId !== institution.id) {
+      return null
+    }
     const user = await prisma.users.findFirst({
       where: {
         id: erpSession.userId,

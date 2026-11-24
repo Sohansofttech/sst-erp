@@ -7,10 +7,46 @@ export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
     const sectionId = req.nextUrl.searchParams.get("sectionId") || undefined;
-    const slots = await getTimetableSlots(institutionId, sectionId);
+    const dayOfWeek = req.nextUrl.searchParams.get("dayOfWeek") || undefined;
+    const courseId = req.nextUrl.searchParams.get("courseId") || req.nextUrl.searchParams.get("classId") || undefined;
+
+    const isUuid = (val?: string | null) =>
+      typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+    const where: any = {
+      institutionId,
+      ...(courseId ? { courseId } : {}),
+    };
+
+    if (sectionId) {
+      if (isUuid(sectionId)) {
+        where.sectionId = sectionId;
+      } else {
+        where.section = sectionId;
+      }
+    }
+
+    if (dayOfWeek) {
+      where.dayOfWeek = dayOfWeek.toUpperCase() as any;
+    }
+
+    const slots = await db.timetableSlot.findMany({
+      where,
+      include: {
+        subject: true,
+        teacher: {
+          include: {
+            user: true,
+          },
+        },
+        course: true,
+      },
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+    });
 
     return NextResponse.json({
       success: true,
+      institutionId,
       data: slots,
     });
   } catch (error) {
@@ -23,21 +59,100 @@ export async function POST(req: NextRequest) {
     const { institutionId } = await resolveAdminContext(req);
     const body = await req.json();
 
-    if (!body.sectionId || !body.subjectId || !body.dayOfWeek || !body.startTime || !body.endTime) {
+    if (!body.subjectId || !body.dayOfWeek || !body.startTime || !body.endTime) {
       return NextResponse.json(
-        { success: false, error: "Section, subject, day, start and end time are required." },
+        { success: false, error: "Subject, day, start and end time are required." },
         { status: 400 }
       );
     }
 
+    const normDay = body.dayOfWeek.toUpperCase().trim();
+
+    // 1. Validate subject ownership
+    const subject = await db.subject.findFirst({
+      where: { id: body.subjectId, institutionId },
+    });
+    if (!subject) {
+      return NextResponse.json(
+        { success: false, error: "Subject not found in this institution." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Resolve and validate teacher ownership
+    let resolvedTeacherId: string | null = null;
+    if (body.teacherId) {
+      let teacher = await db.teacher.findFirst({
+        where: { id: body.teacherId, institutionId },
+      });
+      if (!teacher) {
+        teacher = await db.teacher.findFirst({
+          where: { userId: body.teacherId, institutionId },
+        });
+      }
+      if (!teacher) {
+        return NextResponse.json(
+          { success: false, error: "Teacher not found in this institution." },
+          { status: 400 }
+        );
+      }
+      resolvedTeacherId = teacher.id;
+
+      // 3. Check for conflict: teacher already booked at this time slot
+      const teacherConflict = await db.timetableSlot.findFirst({
+        where: {
+          institutionId,
+          teacherId: resolvedTeacherId,
+          dayOfWeek: normDay as any,
+          startTime: body.startTime,
+        },
+        include: { subject: true },
+      });
+
+      if (teacherConflict) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Scheduling conflict: Faculty is already assigned to ${teacherConflict.subject?.name || "another class"} on ${body.dayOfWeek} at ${body.startTime}.`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // 4. Check for room conflict if room specified
+    if (body.roomNumber && body.roomNumber !== "Main Hall") {
+      const roomConflict = await db.timetableSlot.findFirst({
+        where: {
+          institutionId,
+          roomNumber: body.roomNumber.trim(),
+          dayOfWeek: normDay as any,
+          startTime: body.startTime,
+        },
+      });
+
+      if (roomConflict) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Room conflict: Room ${body.roomNumber} is already occupied on ${body.dayOfWeek} at ${body.startTime}.`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const slot = await createTimetableSlot(institutionId, {
-      sectionId: body.sectionId,
+      sectionId: body.sectionId || undefined,
+      section: body.section || body.sectionId || "A",
       subjectId: body.subjectId,
-      teacherId: body.teacherId,
-      dayOfWeek: body.dayOfWeek,
+      teacherId: resolvedTeacherId || undefined,
+      dayOfWeek: normDay as any,
       startTime: body.startTime,
       endTime: body.endTime,
       roomNumber: body.roomNumber || "Main Hall",
+      courseId: body.courseId || subject.courseId || undefined,
+      semester: body.semester || subject.semester || 1,
     });
 
     return NextResponse.json({

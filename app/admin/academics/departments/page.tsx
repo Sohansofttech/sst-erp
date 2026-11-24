@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
-import { useInstitution } from "@/lib/store";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +17,33 @@ import {
 import { Department } from "@/types/institution";
 
 export default function DepartmentsPage() {
-  const { departments, addDepartment, updateDepartment, deleteDepartment, courses } =
-    useInstitution();
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [dRes, cRes] = await Promise.all([
+        fetch("/api/admin/academics/departments").then((r) => r.json()).catch(() => ({})),
+        fetch("/api/admin/academics/courses").then((r) => r.json()).catch(() => ({})),
+      ]);
+      if (dRes.success) {
+        setDepartments(dRes.data || []);
+      }
+      if (cRes.success) {
+        setCourses(cRes.data || []);
+      }
+    } catch (err) {
+      console.error("Error loading departments data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -53,17 +77,17 @@ export default function DepartmentsPage() {
     setEditingDept(dept);
     setCode(dept.code);
     setName(dept.name);
-    setHeadOfDepartment(dept.headOfDepartment);
-    setEmail(dept.email);
-    setPhone(dept.phone);
-    setFacultyCount(dept.facultyCount);
-    setStudentCapacity(dept.studentCapacity);
+    setHeadOfDepartment(dept.headOfDepartment || "");
+    setEmail(dept.email || "");
+    setPhone(dept.phone || "");
+    setFacultyCount(dept.facultyCount || 20);
+    setStudentCapacity(dept.studentCapacity || 300);
     setDescription(dept.description || "");
     setFormError("");
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
 
@@ -76,34 +100,42 @@ export default function DepartmentsPage() {
       return;
     }
 
-    if (editingDept) {
-      updateDepartment(editingDept.id, {
-        code: code.toUpperCase(),
-        name,
-        headOfDepartment,
-        email,
-        phone,
-        facultyCount: Number(facultyCount),
-        studentCapacity: Number(studentCapacity),
-        description,
-      });
-    } else {
-      addDepartment({
-        code: code.toUpperCase(),
-        name,
-        headOfDepartment,
-        email,
-        phone,
-        facultyCount: Number(facultyCount),
-        studentCapacity: Number(studentCapacity),
-        description,
-      });
-    }
+    try {
+      if (editingDept) {
+        const res = await fetch("/api/admin/academics/departments", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingDept.id,
+            code: code.toUpperCase(),
+            name,
+            description,
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to update department.");
+      } else {
+        const res = await fetch("/api/admin/academics/departments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: code.toUpperCase(),
+            name,
+            description,
+          }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to create department.");
+      }
 
-    setIsModalOpen(false);
+      await loadData();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save department.");
+    }
   };
 
-  const handleDelete = (id: string, deptName: string) => {
+  const handleDelete = async (id: string, deptName: string) => {
     const linkedCourses = courses.filter((c) => c.departmentId === id);
     if (linkedCourses.length > 0) {
       alert(
@@ -112,7 +144,16 @@ export default function DepartmentsPage() {
       return;
     }
     if (confirm(`Are you sure you want to delete department "${deptName}"?`)) {
-      deleteDepartment(id);
+      try {
+        const res = await fetch(`/api/admin/academics/departments?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        const data = await res.json();
+        if (!data.success) alert(data.error || "Failed to delete department.");
+        await loadData();
+      } catch (err: any) {
+        alert(err.message || "Network error deleting department.");
+      }
     }
   };
 

@@ -39,13 +39,24 @@ export async function authorizeStudentOrParentAccess(
 
   // Parent role check
   if (session.role === "PARENT") {
-    if (!session.guardianId) {
+    let guardianAccountId = session.guardianId;
+    if (!guardianAccountId && session.userId) {
+      const gAccount = await db.guardianAccount.findUnique({
+        where: { userId: session.userId },
+        select: { id: true },
+      });
+      if (gAccount) {
+        guardianAccountId = gAccount.id;
+      }
+    }
+
+    if (!guardianAccountId) {
       throw new ForbiddenError("Parent session has no associated guardian account.");
     }
 
     const link = await db.guardianLink.findFirst({
       where: {
-        guardianAccountId: session.guardianId,
+        guardianAccountId: guardianAccountId,
         studentId: targetStudentId,
         institutionId: session.institutionId,
         isVerified: true,

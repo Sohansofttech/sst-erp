@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,13 +50,6 @@ function mapApiToAY(item: any): AcademicYear {
 }
 
 export default function AcademicYearsPage() {
-  const {
-    addAcademicYear,
-    updateAcademicYear,
-    setActiveAcademicYear,
-    deleteAcademicYear,
-  } = useInstitution();
-
   // Data fetching state
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -201,13 +193,6 @@ export default function AcademicYearsPage() {
         if (!res.ok || !json.success) {
           throw new Error(json.error || "Failed to update academic year.");
         }
-        updateAcademicYear(editingAY.id, {
-          name,
-          startDate,
-          endDate,
-          isActive,
-          terms,
-        });
       } else {
         const res = await fetch("/api/admin/academics/academic-years", {
           method: "POST",
@@ -223,9 +208,6 @@ export default function AcademicYearsPage() {
         const json = await res.json();
         if (!res.ok || !json.success) {
           throw new Error(json.error || "Failed to create academic year.");
-        }
-        if (json.data) {
-          addAcademicYear(mapApiToAY(json.data));
         }
       }
 
@@ -250,7 +232,6 @@ export default function AcademicYearsPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to set active academic year.");
       }
-      setActiveAcademicYear(id);
       await loadAcademicYears();
     } catch (err: any) {
       alert(err.message || "Failed to set active academic year.");
@@ -271,7 +252,6 @@ export default function AcademicYearsPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to delete academic year.");
       }
-      deleteAcademicYear(id);
       await loadAcademicYears();
     } catch (err: any) {
       alert(err.message || "Failed to delete academic year.");

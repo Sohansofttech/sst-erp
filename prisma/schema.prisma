@@ -136,6 +136,10 @@ model Institution {
   enrollments           Enrollment[]
   attendanceRecords     AttendanceRecord[]
   campusInOutLogs       CampusInOutLog[]
+  biometricDevices      BiometricDevice[]
+  studentBiometricCredentials StudentBiometricCredential[]
+  biometricEventReceipts BiometricEventReceipt[]
+  biometricUnknownScans BiometricUnknownScan[]
   assessmentRecords     AssessmentRecord[]
   examSchedules         ExamSchedule[]
   examAdmitCards        ExamAdmitCard[]
@@ -804,6 +808,8 @@ model Student {
   enrollments           Enrollment[]
   attendanceRecords     AttendanceRecord[]
   campusInOutLogs       CampusInOutLog[]
+  biometricCredentials StudentBiometricCredential[]
+  resolvedUnknownScans BiometricUnknownScan[] @relation("ResolvedUnknownScan")
   assessmentRecords     AssessmentRecord[]
   examAdmitCards        ExamAdmitCard[]
   examResults           ExamResult[]
@@ -1796,6 +1802,7 @@ enum PromotionBatchStatus {
   APPROVED
   EXECUTING
   COMPLETED
+  EXECUTED
   REJECTED
   CANCELLED
 }
@@ -2364,6 +2371,7 @@ model CampusInOutLog {
 
   institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   student       Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  biometricReceipts BiometricEventReceipt[]
 
   @@index([institutionId, studentId, timestamp])
   @@map("campus_in_out_logs")
@@ -3565,3 +3573,107 @@ model PlatformSetting {
   updatedBy PlatformUser? @relation("PlatformSettingUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
 
 }
+
+// =============================================================
+// BIOMETRIC ATTENDANCE & HARDWARE READER DOMAIN
+// =============================================================
+
+model StudentBiometricCredential {
+  id             String      @id @default(uuid())
+  institutionId  String
+  studentId      String
+  credentialType String      // RFID | FINGERPRINT
+  credentialValue String     // Normalized Hex UID or Fingerprint Sensor Slot ID
+  status         String      @default("ACTIVE") // ACTIVE | REVOKED | SUSPENDED
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  student        Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([institutionId, credentialType, credentialValue])
+  @@index([institutionId, studentId])
+  @@index([institutionId, credentialValue])
+  @@map("student_biometric_credentials")
+}
+
+model BiometricDevice {
+  id              String      @id @default(uuid())
+  institutionId   String
+  deviceId        String      @unique // e.g. "sst-c69c65691062b1aa"
+  apiKeyHash      String      // SHA-256 hex digest
+  deviceName      String?
+  gateName        String      @default("Main Gate")
+  directionMode   String      @default("AUTO") // ENTRY | EXIT | AUTO
+  isActive        Boolean     @default(true)
+  lastHeartbeat   DateTime?
+  firmwareVersion String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId, isActive])
+  @@map("biometric_devices")
+}
+
+model BiometricEventReceipt {
+  id            String          @id @default(uuid())
+  institutionId String
+  eventId       String          // Device UUIDv4
+  deviceId      String
+  authMethod    String          // RFID | FINGERPRINT
+  identifier    String
+  status        String          // ACCEPTED | DUPLICATE_IGNORED | UNKNOWN_CREDENTIAL | REJECTED
+  campusLogId   String?
+  receivedAt    DateTime        @default(now())
+
+  institution   Institution     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  campusLog     CampusInOutLog? @relation(fields: [campusLogId], references: [id], onDelete: SetNull)
+
+  @@unique([institutionId, eventId])
+  @@index([institutionId, eventId])
+  @@index([institutionId, receivedAt])
+  @@map("biometric_event_receipts")
+}
+
+model BiometricUnknownScan {
+  id                 String      @id @default(uuid())
+  institutionId      String
+  deviceId           String
+  eventId            String
+  authMethod         String      // RFID | FINGERPRINT
+  identifier         String      // Unrecognized card UID or fingerprint ID
+  gateName           String      @default("Main Gate")
+  scannedAt          DateTime    @default(now())
+  reviewed           Boolean     @default(false)
+  reviewedBy         String?
+  resolvedStudentId  String?
+  createdAt          DateTime    @default(now())
+
+  institution        Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  resolvedStudent    Student?    @relation("ResolvedUnknownScan", fields: [resolvedStudentId], references: [id], onDelete: SetNull)
+
+  @@unique([institutionId, eventId])
+  @@index([institutionId, reviewed])
+  @@index([institutionId, scannedAt])
+  @@map("biometric_unknown_scans")
+}
+
+// -------------------------------------------------------------
+// TEACHER PORTAL SESSIONS (PostgreSQL backing table)
+// -------------------------------------------------------------
+model TeacherPortalSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()"))
+  tokenHash     String    @unique @map("token_hash")
+  userId        String    @map("user_id")
+  institutionId String    @map("institution_id")
+  activeRole    String    @map("active_role")
+  expiresAt     DateTime  @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  createdAt     DateTime? @default(now()) @map("created_at")
+  updatedAt     DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  @@map("teacher_portal_sessions")
+}
+

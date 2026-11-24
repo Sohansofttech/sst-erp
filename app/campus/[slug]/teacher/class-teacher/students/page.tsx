@@ -72,7 +72,7 @@ export default function SectionStudentsPage() {
     setLoading(true)
     setError(null)
     try {
-      const roster = await getSectionStudents("sec-10a")
+      const roster = await getSectionStudents()
       setStudents(roster)
     } catch (err: any) {
       setError(err?.message || "Failed to load student roster.")

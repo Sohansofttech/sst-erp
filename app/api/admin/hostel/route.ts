@@ -3,9 +3,8 @@ import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-a
 import {
   getHostelAllocations,
   createHostelAllocation,
-  deleteHostelAllocation,
+  vacateHostelBed,
 } from "@/lib/services/institution-admin.service";
-import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
@@ -54,15 +53,15 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, userId } = await resolveAdminContext(req);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {
       return NextResponse.json({ success: false, error: "Allocation ID required." }, { status: 400 });
     }
 
-    await deleteHostelAllocation(institutionId, id);
-    return NextResponse.json({ success: true, message: "Hostel allocation released." });
+    await vacateHostelBed(institutionId, id, userId);
+    return NextResponse.json({ success: true, message: "Hostel allocation vacated successfully." });
   } catch (error) {
     return handleAdminApiError(error);
   }

@@ -58,7 +58,7 @@ export default function ClassTeacherDashboardPage() {
     setError(null)
     try {
       const [roster, leaves] = await Promise.all([
-        getSectionStudents("sec-10a"),
+        getSectionStudents(),
         getStudentLeaveRequests(),
       ])
       setStudents(roster)

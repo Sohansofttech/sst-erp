@@ -16,6 +16,8 @@ export default function ParentRequestsPage() {
 
   // Form state
   const [requestType, setRequestType] = useState("LEAVE_APPLICATION");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -65,14 +67,18 @@ export default function ParentRequestsPage() {
           requestType,
           title: title.trim(),
           message: message.trim(),
+          fromDate: fromDate || undefined,
+          toDate: toDate || undefined,
         }),
       });
 
       const json = await res.json();
       if (json.success) {
-        setSuccessToast("Parent request submitted to institution admin workflow with in-app tracking.");
+        setSuccessToast("Parent request submitted to institution workflow with in-app tracking.");
         setTitle("");
         setMessage("");
+        setFromDate("");
+        setToDate("");
         fetchRequests();
       } else {
         setErrorToast(json.error || "Failed to submit request.");
@@ -127,6 +133,35 @@ export default function ParentRequestsPage() {
                   <option value="GENERAL_REQUEST">General Communication with Administration</option>
                 </select>
               </div>
+
+              {requestType === "LEAVE_APPLICATION" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+                      From Date
+                    </label>
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+                      To Date
+                    </label>
+                    <input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               <FormInput
                 label="Request Subject"

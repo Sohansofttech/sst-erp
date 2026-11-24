@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
-import { getResultBatches, publishResultBatch } from "@/lib/services/institution-admin.service";
+import {
+  getResultBatches,
+  publishResultBatch,
+  saveExamResults,
+} from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -22,30 +26,61 @@ export async function POST(req: NextRequest) {
     const { institutionId } = await resolveAdminContext(req);
     const body = await req.json();
 
-    if (!body.name || !body.academicYearId || !body.courseId || !body.semester) {
-      return NextResponse.json(
-        { success: false, error: "Result batch name, academic year, course, and semester are required." },
-        { status: 400 }
-      );
+    // 1. Direct exam results entry
+    if (body.results && Array.isArray(body.results)) {
+      if (!body.examScheduleId || !body.subjectId) {
+        return NextResponse.json(
+          { success: false, error: "Exam schedule ID and subject ID are required to save results." },
+          { status: 400 }
+        );
+      }
+      const saved = await saveExamResults(institutionId, {
+        examScheduleId: body.examScheduleId,
+        subjectId: body.subjectId,
+        results: body.results,
+      });
+      return NextResponse.json({
+        success: true,
+        message: `Saved results for ${saved.count} students.`,
+        data: saved,
+      });
     }
 
-    const batchNumber = body.batchNumber || `RB-${Date.now().toString().slice(-4)}`;
-    const batch = await db.resultBatch.create({
+    // 2. Create examination result schedule batch
+    let academicYearId = body.academicYearId;
+    if (!academicYearId) {
+      const ay = await db.academicYear.findFirst({
+        where: { institutionId },
+        orderBy: { startDate: "desc" },
+      });
+      academicYearId = ay?.id;
+    }
+
+    const schedule = await db.examSchedule.create({
       data: {
         institutionId,
-        batchName: body.name || body.batchName || `Semester ${body.semester} Results`,
-        batchNumber,
-        academicYearId: body.academicYearId,
-        courseId: body.courseId,
-        classId: body.classId,
-        status: "DRAFT",
+        academicYearId: academicYearId || "",
+        semester: body.semester ? parseInt(body.semester, 10) : 1,
+        title: body.name || body.batchName || `Semester ${body.semester || 1} Examination Results`,
+        examType: body.examType || "FINAL",
+        startDate: body.startDate ? new Date(body.startDate) : new Date(),
+        endDate: body.endDate ? new Date(body.endDate) : new Date(),
+        isPublished: false,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Result batch created.",
-      data: batch,
+      message: "Result batch schedule created.",
+      data: {
+        id: schedule.id,
+        institutionId: schedule.institutionId,
+        name: schedule.title,
+        status: "Draft",
+        isPublished: false,
+        totalStudents: 0,
+        passedStudents: 0,
+      },
     });
   } catch (error) {
     return handleAdminApiError(error);
@@ -61,7 +96,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Batch ID required." }, { status: 400 });
     }
 
-    if (action === "PUBLISH") {
+    if (action === "PUBLISH" || action === "Published") {
       const updated = await publishResultBatch(institutionId, id);
       return NextResponse.json({
         success: true,
@@ -70,27 +105,37 @@ export async function PUT(req: NextRequest) {
       });
     }
 
-    const result = await db.resultBatch.updateMany({
-      where: { id, institutionId },
-      data: { status: action || "APPROVED" },
-    });
-
-    if (result.count === 0) {
-      return NextResponse.json(
-        { success: false, error: "Result batch not found or access denied." },
-        { status: 404 }
-      );
+    if (action === "UNPUBLISH" || action === "Draft") {
+      await db.examSchedule.updateMany({
+        where: { id, institutionId },
+        data: { isPublished: false },
+      });
+      return NextResponse.json({
+        success: true,
+        message: "Result batch unpublished and set to draft.",
+      });
     }
-
-    const updated = await db.resultBatch.findFirst({
-      where: { id, institutionId },
-    });
 
     return NextResponse.json({
       success: true,
-      message: `Result batch status updated to ${action}.`,
-      data: updated,
+      message: `Result batch action ${action} completed.`,
     });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { institutionId } = await resolveAdminContext(req);
+    const id = req.nextUrl.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Result batch ID required." }, { status: 400 });
+    }
+    await db.examSchedule.deleteMany({
+      where: { id, institutionId, isPublished: false },
+    });
+    return NextResponse.json({ success: true, message: "Draft result batch deleted." });
   } catch (error) {
     return handleAdminApiError(error);
   }

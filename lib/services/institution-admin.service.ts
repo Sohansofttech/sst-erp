@@ -42,8 +42,8 @@ export async function recordAuditLog(
       data.userId || null,
       data.actorUserId || null,
       data.action,
-      data.entityType || null,
-      data.entityId || null,
+      data.entityType || "SYSTEM",
+      data.entityId || crypto.randomUUID(),
       data.newValuesJson || null
     );
   } catch (err: any) {
@@ -363,6 +363,77 @@ export async function updateAdmissionStatus(
   });
 }
 
+export async function convertAdmissionApplicationToStudent(
+  institutionId: string,
+  applicationId: string,
+  options?: { classId?: string; sectionId?: string; rollNumber?: string }
+) {
+  const application = await db.admissionApplication.findFirst({
+    where: { id: applicationId, institutionId },
+  });
+
+  if (!application) {
+    throw new Error("Admission application not found or access denied.");
+  }
+
+  if (application.convertedStudentId) {
+    return {
+      success: false,
+      studentId: application.convertedStudentId,
+      message: `Applicant is already enrolled as Student (ID: ${application.convertedStudentId}).`,
+    };
+  }
+
+  const studentCount = await db.student.count({ where: { institutionId } });
+  const nextIndex = studentCount + 1;
+  const rollNumber =
+    options?.rollNumber?.trim() ||
+    `ROLL-${new Date().getFullYear()}-${String(nextIndex).padStart(4, "0")}`;
+
+  const createdStudent: any = await createStudent(institutionId, {
+    firstName: application.firstName,
+    lastName: application.lastName,
+    fullName: application.fullName,
+    email: application.email,
+    phone: application.phone,
+    gender: application.gender,
+    dateOfBirth: application.dob,
+    courseId: application.courseId,
+    academicYearId: application.academicYearId,
+    classId: options?.classId,
+    sectionId: options?.sectionId,
+    rollNumber,
+  });
+
+  const studentId = createdStudent.id || createdStudent.student?.id;
+
+  await db.admissionApplication.update({
+    where: { id: applicationId },
+    data: {
+      status: "ENROLLED",
+      convertedStudentId: studentId,
+    },
+  });
+
+  await recordAuditLog(db, {
+    institutionId,
+    action: "ADMISSION_CONVERTED_TO_STUDENT",
+    entityType: "AdmissionApplication",
+    entityId: applicationId,
+    newValuesJson: JSON.stringify({
+      studentId,
+      rollNumber,
+      applicantEmail: application.email,
+    }),
+  });
+
+  return {
+    success: true,
+    studentId,
+    message: `Applicant successfully enrolled as Student (Roll: ${rollNumber}).`,
+  };
+}
+
 // ----------------------------------------------------------------------------
 // 2. STUDENTS & ENROLLMENT
 // ----------------------------------------------------------------------------
@@ -437,7 +508,9 @@ export async function getStudents(institutionId: string, options?: { search?: st
 export async function createStudent(
   institutionId: string,
   data: {
-    fullName: string;
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
     email: string;
     rollNumber: string;
     usn?: string;
@@ -448,14 +521,17 @@ export async function createStudent(
     academicYearId?: string;
     classId?: string;
     sectionId?: string;
+    department?: string;
+    semester?: number;
+    section?: string;
   }
 ) {
   const email = data.email.trim().toLowerCase();
-  const fullName = data.fullName.trim();
+  const fullName = (data.fullName || `${data.firstName || "Student"} ${data.lastName || ""}`).trim();
   const rollNumber = data.rollNumber.trim();
 
-  // 1. Database Transaction: Atomic Student & User Account Provisioning
-  const { student, user } = await db.$transaction(async (tx) => {
+  // 1. Database Transaction: Atomic Student, User & Active Enrollment Provisioning
+  const { student, user, enrollment } = await db.$transaction(async (tx) => {
     // Validate roll number uniqueness within this institution
     const existingByRoll = await tx.student.findFirst({
       where: { rollNumber, institutionId },
@@ -552,19 +628,78 @@ export async function createStudent(
 
     const newStudent = insertResult[0];
 
-    if (data.academicYearId && data.classId) {
-      await tx.studentEnrollmentHistory.create({
-        data: {
-          institutionId,
-          studentId: newStudent.id,
-          academicYearId: data.academicYearId,
-          classId: data.classId,
-          sectionId: data.sectionId,
-          semester: 1,
-          status: "ACTIVE",
-          enrolledAt: new Date(),
-        },
-      });
+    // 1b. Resolve academic year and course for active enrollment
+    let effectiveAyId = data.academicYearId;
+    if (!effectiveAyId) {
+      const existingAys: any[] = await tx.$queryRawUnsafe(`
+        SELECT id FROM academic_years WHERE "institutionId" = $1 ORDER BY "startDate" DESC LIMIT 1
+      `, institutionId);
+      effectiveAyId = existingAys[0]?.id;
+    }
+    if (!effectiveAyId) {
+      const newAyId = crypto.randomUUID();
+      await tx.$queryRawUnsafe(`
+        INSERT INTO academic_years (id, "institutionId", name, "startDate", "endDate", "isCurrent", "createdAt", status)
+        VALUES ($1, $2, $3, $4, $5, true, NOW(), 'ACTIVE')
+      `, newAyId, institutionId, "2026-27", new Date("2026-06-01"), new Date("2027-05-31"));
+      effectiveAyId = newAyId;
+    }
+
+    let effectiveCourseId = data.courseId;
+    if (!effectiveCourseId) {
+      const existingCourses: any[] = await tx.$queryRawUnsafe(`
+        SELECT id FROM courses WHERE "institutionId" = $1 ORDER BY "createdAt" ASC LIMIT 1
+      `, institutionId);
+      effectiveCourseId = existingCourses[0]?.id;
+    }
+    if (!effectiveCourseId) {
+      const newCourseId = crypto.randomUUID();
+      await tx.$queryRawUnsafe(`
+        INSERT INTO courses (id, "institutionId", code, name, department, "totalSemesters", "createdAt", status)
+        VALUES ($1, $2, $3, $4, $5, 8, NOW(), 'ACTIVE')
+      `, newCourseId, institutionId, "GEN-01", "General Studies", "Academics");
+      effectiveCourseId = newCourseId;
+    }
+
+    // 1c. Provision active Enrollment in enrollments table (mandatory for AttendanceRecord foreign key)
+    const enrollmentId = crypto.randomUUID();
+    const sectionName = data.sectionId || "A";
+    const enrollmentResult: any = await tx.$queryRawUnsafe(`
+      INSERT INTO enrollments (
+        id, "institutionId", "studentId", "academicYearId", "courseId", semester, section, status, "enrolledDate"
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, NOW()
+      )
+      RETURNING *
+    `,
+      enrollmentId,
+      institutionId,
+      newStudent.id,
+      effectiveAyId,
+      effectiveCourseId,
+      1,
+      sectionName,
+      "ACTIVE"
+    );
+    const enrollmentRecord = enrollmentResult[0];
+
+    if (effectiveAyId && data.classId) {
+      try {
+        await tx.studentEnrollmentHistory.create({
+          data: {
+            institutionId,
+            studentId: newStudent.id,
+            academicYearId: effectiveAyId,
+            classId: data.classId,
+            sectionId: data.sectionId,
+            semester: 1,
+            status: "ACTIVE",
+            enrolledAt: new Date(),
+          },
+        });
+      } catch (histErr) {
+        console.warn("[createStudent] studentEnrollmentHistory non-blocking error:", histErr);
+      }
     }
 
     // Write audit log inside transaction
@@ -577,11 +712,12 @@ export async function createStudent(
       newValuesJson: JSON.stringify({
         rollNumber: newStudent.rollNumber,
         email: newStudent.email,
+        enrollmentId: enrollmentRecord.id,
         provisionedLogin: true,
       }),
     });
 
-    return { student: newStudent, user: userRecord };
+    return { student: newStudent, user: userRecord, enrollment: enrollmentRecord };
   }, { maxWait: 15000, timeout: 30000 });
 
   // 2. Post-Transaction Automation: Non-blocking Invitation Email & In-App Notification
@@ -661,6 +797,7 @@ export async function createStudent(
   return {
     ...student,
     user,
+    enrollment,
     invitationSent,
     previewUrl: invitationPreviewUrl,
     invitationError,
@@ -974,16 +1111,60 @@ export async function createGuardian(
 // 4. FACULTY & STAFF
 // ----------------------------------------------------------------------------
 export async function getStaff(institutionId: string) {
-  return await db.user.findMany({
+  const users = await db.user.findMany({
     where: {
       institutionId,
-      role: { in: ["TEACHER", "ADMIN"] },
+      role: { in: ["TEACHER", "ADMIN", "STAFF"] },
     },
     include: {
       teacherProfile: true,
-      staff: true,
     },
     orderBy: { createdAt: "desc" },
+  });
+
+  return users.map((u) => {
+    const tp = u.teacherProfile;
+    const parts = (u.fullName || "Staff Member").trim().split(/\s+/);
+    const firstName = parts[0] || "Staff";
+    const lastName = parts.slice(1).join(" ") || "Member";
+
+    const staffObj = tp
+      ? {
+          id: tp.id,
+          institutionId: tp.institutionId,
+          userId: u.id,
+          staffEmployeeId: tp.employeeId,
+          firstName,
+          lastName,
+          fullName: u.fullName || `${firstName} ${lastName}`,
+          email: u.email,
+          phone: u.phone || "",
+          designation: tp.designation,
+          department: tp.department,
+          departmentId: tp.department,
+          status: u.isActive ? "ACTIVE" : "INACTIVE",
+        }
+      : {
+          id: u.id,
+          institutionId: u.institutionId,
+          userId: u.id,
+          staffEmployeeId: `ADM-${u.id.slice(0, 6)}`,
+          firstName,
+          lastName,
+          fullName: u.fullName || `${firstName} ${lastName}`,
+          email: u.email,
+          phone: u.phone || "",
+          designation: u.role === "ADMIN" ? "Administrator" : "Staff Member",
+          department: "Administration",
+          departmentId: "Administration",
+          status: u.isActive ? "ACTIVE" : "INACTIVE",
+        };
+
+    return {
+      ...u,
+      teacherProfile: tp,
+      staff: staffObj,
+    };
   });
 }
 
@@ -992,18 +1173,20 @@ export async function createStaff(
   data: {
     fullName: string;
     email: string;
-    role: "TEACHER" | "ADMIN";
+    role?: "TEACHER" | "ADMIN";
     phone?: string;
     designation?: string;
     departmentId?: string;
+    department?: string;
     employeeId?: string;
   }
 ) {
   const email = data.email.trim().toLowerCase();
   const fullName = data.fullName.trim();
+  const role = data.role || "TEACHER";
 
-  // 1. Database Transaction: Atomic Staff & User Account Provisioning
-  const { user, teacher } = await db.$transaction(async (tx) => {
+  // 1. Database Transaction: Atomic Teacher, Staff & User Account Provisioning
+  const { user, teacher, staff } = await db.$transaction(async (tx) => {
     let userRecord = await tx.user.findFirst({
       where: { email },
       include: { teacherProfile: true },
@@ -1013,7 +1196,7 @@ export async function createStaff(
       if (userRecord.institutionId && userRecord.institutionId !== institutionId) {
         throw new Error("Email is already registered under another institution.");
       }
-      if (data.role === "TEACHER" && userRecord.teacherProfile) {
+      if (role === "TEACHER" && userRecord.teacherProfile) {
         throw new Error("A faculty profile is already linked to this email address.");
       }
       userRecord = await tx.user.update({
@@ -1021,7 +1204,7 @@ export async function createStaff(
         data: {
           institutionId,
           fullName,
-          role: data.role,
+          role,
           phone: data.phone?.trim() || userRecord.phone || undefined,
         },
         include: { teacherProfile: true },
@@ -1032,7 +1215,7 @@ export async function createStaff(
           institutionId,
           email,
           fullName,
-          role: data.role,
+          role,
           phone: data.phone?.trim(),
           isActive: false, // Dormant until password setup
           status: "INACTIVE",
@@ -1042,33 +1225,60 @@ export async function createStaff(
       });
     }
 
-    let teacherRecord: any = null;
-    if (data.role === "TEACHER") {
+    const employeeId = data.employeeId?.trim() || `FAC-${Date.now().toString().slice(-4)}`;
+    const parts = fullName.trim().split(/\s+/);
+    const firstName = parts[0] || "Faculty";
+    const lastName = parts.slice(1).join(" ") || "Member";
+    const designation = data.designation?.trim() || (role === "ADMIN" ? "Administrator" : "Assistant Professor");
+    const departmentName = data.department?.trim() || data.departmentId?.trim() || "General Academics";
+
+    // Atomic sync: Provision Teacher model in live database (teachers table)
+    let teacherRecord = userRecord.teacherProfile;
+    if (!teacherRecord && role === "TEACHER") {
       teacherRecord = await tx.teacher.create({
         data: {
           institutionId,
           userId: userRecord.id,
-          department: data.departmentId || "General Academics",
-          designation: data.designation || "Assistant Professor",
-          employeeId: data.employeeId || `FAC-${Date.now().toString().slice(-4)}`,
+          department: departmentName,
+          designation,
+          employeeId,
         },
       });
     }
+
+    // Synchronize Staff representation sharing the same userId, institutionId, employeeId, department and designation
+    const staffRecord = {
+      id: teacherRecord?.id || userRecord.id,
+      institutionId,
+      userId: userRecord.id,
+      staffEmployeeId: employeeId,
+      firstName,
+      lastName,
+      fullName,
+      email,
+      phone: data.phone?.trim() || userRecord.phone || "",
+      department: departmentName,
+      departmentId: departmentName,
+      designation,
+      status: "ACTIVE",
+    };
 
     await recordAuditLog(tx, {
       institutionId,
       userId: userRecord.id,
       action: "STAFF_CREATED",
-      entityType: data.role === "TEACHER" ? "TEACHER" : "STAFF",
+      entityType: role === "TEACHER" ? "TEACHER" : "STAFF",
       entityId: teacherRecord?.id || userRecord.id,
       newValuesJson: JSON.stringify({
         email,
-        role: data.role,
-        employeeId: teacherRecord?.employeeId || data.employeeId,
+        role,
+        employeeId,
+        teacherId: teacherRecord?.id,
+        staffEmployeeId: staffRecord.staffEmployeeId,
       }),
     });
 
-    return { user: userRecord, teacher: teacherRecord };
+    return { user: userRecord, teacher: teacherRecord, staff: staffRecord };
   }, { maxWait: 15000, timeout: 30000 });
 
   // 2. Post-Transaction Automation: Non-blocking Invitation for Teaching Faculty
@@ -1076,7 +1286,7 @@ export async function createStaff(
   let invitationPreviewUrl: string | false = false;
   let invitationError: string | null = null;
 
-  if (data.role === "TEACHER") {
+  if (role === "TEACHER") {
     try {
       const setupToken = await signPasswordSetupToken({
         userId: user.id,
@@ -1151,6 +1361,8 @@ export async function createStaff(
     ...user,
     user,
     teacher,
+    teacherProfile: teacher,
+    staff,
     invitationSent,
     previewUrl: invitationPreviewUrl,
     invitationError,
@@ -1347,9 +1559,23 @@ export async function createCourse(
   }
 
   const deptId = isUuid(data.departmentId) ? data.departmentId : null;
-  const deptName = data.department || (data.departmentId && !isUuid(data.departmentId) ? data.departmentId : null);
+  let deptName = data.department || (data.departmentId && !isUuid(data.departmentId) ? data.departmentId : null);
+  if (!deptName && deptId) {
+    try {
+      const dept = await db.department.findUnique({ where: { id: deptId } });
+      deptName = dept?.name || "General";
+    } catch {
+      deptName = "General";
+    }
+  }
+  if (!deptName) {
+    deptName = "General";
+  }
   const id = crypto.randomUUID();
-  const degreeTypeStr = data.degreeType || "UNDERGRADUATE";
+  const rawDegree = String(data.degreeType || "UNDERGRADUATE").toUpperCase().replace(/\s+/g, "_");
+  const degreeTypeStr = ["UNDERGRADUATE", "POSTGRADUATE", "DIPLOMA", "DOCTORAL", "CERTIFICATE"].includes(rawDegree)
+    ? rawDegree
+    : "UNDERGRADUATE";
   const statusStr = data.status || "ACTIVE";
   const credits = data.totalCredits ?? 160;
 
@@ -1785,19 +2011,37 @@ export async function createTimetableSlot(
     courseId = defaultCourse?.id || "default_course";
   }
 
-  return await db.timetableSlot.create({
-    data: {
-      institutionId,
-      courseId,
-      semester: semester || 1,
-      section,
-      sectionId: data.sectionId || null,
-      subjectId: data.subjectId,
-      teacherId: data.teacherId || null,
-      dayOfWeek: data.dayOfWeek,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      roomNumber: data.roomNumber,
+  const slotId = crypto.randomUUID();
+  const isValidUuid = (val?: string | null) =>
+    typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+  const validSectionId = isValidUuid(data.sectionId) ? data.sectionId : null;
+
+  await db.$executeRawUnsafe(
+    `INSERT INTO timetable_slots (
+      id, "institutionId", "courseId", semester, section, "sectionId", "subjectId", "teacherId", "dayOfWeek", "startTime", "endTime", "roomNumber", status, "createdAt"
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9::"DayOfWeek", $10, $11, $12, 'ACTIVE', NOW()
+    )`,
+    slotId,
+    institutionId,
+    courseId,
+    semester || 1,
+    section,
+    validSectionId,
+    data.subjectId,
+    data.teacherId || null,
+    data.dayOfWeek,
+    data.startTime,
+    data.endTime,
+    data.roomNumber
+  );
+
+  return await db.timetableSlot.findUnique({
+    where: { id: slotId },
+    include: {
+      subject: true,
+      teacher: true,
+      course: true,
     },
   });
 }
@@ -2011,40 +2255,175 @@ export async function createExamination(
     code?: string;
     academicYearId: string;
     academicTermId?: string;
+    semester?: number;
     type: any;
     startDate: Date;
     endDate: Date;
   }
 ) {
-  const code = data.code || `EX-${Date.now().toString().slice(-4)}`;
-  try {
-    return await db.examination.create({
-      data: {
-        institutionId,
-        name: data.name,
-        code,
-        academicYearId: data.academicYearId,
-        academicTermId: data.academicTermId,
-        type: data.type || "FINAL",
-        startDate: data.startDate,
-        endDate: data.endDate,
-        status: "DRAFT",
-      },
+  let academicYearId = data.academicYearId;
+  if (!academicYearId) {
+    const ay = await db.academicYear.findFirst({
+      where: { institutionId },
+      orderBy: { startDate: "desc" },
     });
-  } catch {
-    return await db.examSchedule.create({
-      data: {
-        institutionId,
-        academicYearId: data.academicYearId,
-        semester: 1,
-        title: data.name,
-        examType: String(data.type || "FINAL"),
-        startDate: data.startDate,
-        endDate: data.endDate,
-        isPublished: false,
-      },
-    });
+    academicYearId = ay?.id || "";
   }
+
+  const created = await db.examSchedule.create({
+    data: {
+      institutionId,
+      academicYearId,
+      semester: data.semester || 1,
+      title: data.name,
+      examType: String(data.type || "FINAL"),
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      isPublished: false,
+    },
+    include: { slots: true },
+  });
+
+  await recordAuditLog(db, {
+    institutionId,
+    action: "CREATE_EXAMINATION_SCHEDULE",
+    entityType: "EXAM_SCHEDULE",
+    entityId: created.id,
+    newValuesJson: JSON.stringify({
+      title: data.name,
+      semester: data.semester || 1,
+      startDate: data.startDate,
+      endDate: data.endDate,
+    }),
+  });
+
+  return {
+    id: created.id,
+    institutionId: created.institutionId,
+    name: created.title,
+    title: created.title,
+    code: `EX-${created.semester}-${created.examType}`,
+    type: created.examType,
+    status: created.isPublished ? "PUBLISHED" : "SCHEDULED",
+    startDate: created.startDate,
+    endDate: created.endDate,
+    semester: created.semester,
+    academicYearId: created.academicYearId,
+    examSubjectSlots: [],
+  };
+}
+
+export async function createExamSlot(
+  institutionId: string,
+  data: {
+    examScheduleId: string;
+    subjectCode: string;
+    subjectName: string;
+    examDate: Date | string;
+    startTime: string;
+    endTime: string;
+    roomNumber: string;
+  }
+) {
+  const schedule = await db.examSchedule.findFirst({
+    where: { id: data.examScheduleId, institutionId },
+  });
+  if (!schedule) {
+    throw new Error("Examination schedule not found or does not belong to this institution.");
+  }
+
+  const examDate = new Date(data.examDate);
+  const dateStr = examDate.toISOString().slice(0, 10);
+
+  const toMinutes = (timeStr: string) => {
+    const parts = (timeStr || "00:00").split(":");
+    return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+  };
+
+  const newStart = toMinutes(data.startTime);
+  const newEnd = toMinutes(data.endTime);
+
+  if (newStart >= newEnd) {
+    throw new Error("Slot start time must be strictly before end time.");
+  }
+
+  // Conflict Check across all examination slots in this institution on the same date
+  const existingSlots = await db.examSlot.findMany({
+    where: {
+      examSchedule: { institutionId },
+    },
+    include: { examSchedule: true },
+  });
+
+  for (const existing of existingSlots) {
+    const existingDateStr = new Date(existing.examDate).toISOString().slice(0, 10);
+    if (existingDateStr === dateStr) {
+      const existStart = toMinutes(existing.startTime);
+      const existEnd = toMinutes(existing.endTime);
+      const hasOverlap = Math.max(newStart, existStart) < Math.min(newEnd, existEnd);
+
+      if (hasOverlap) {
+        // Room conflict
+        if (existing.roomNumber.trim().toLowerCase() === data.roomNumber.trim().toLowerCase()) {
+          throw new Error(
+            `Timetable conflict: Room "${data.roomNumber}" is already booked on ${dateStr} for ${existing.subjectName} (${existing.startTime} - ${existing.endTime}).`
+          );
+        }
+        // Subject conflict in same schedule
+        if (
+          existing.examScheduleId === data.examScheduleId &&
+          existing.subjectCode.trim().toLowerCase() === data.subjectCode.trim().toLowerCase()
+        ) {
+          throw new Error(
+            `Timetable conflict: Subject "${data.subjectName}" is already scheduled on ${dateStr} at ${existing.startTime} - ${existing.endTime}.`
+          );
+        }
+      }
+    }
+  }
+
+  const slot = await db.examSlot.create({
+    data: {
+      examScheduleId: data.examScheduleId,
+      subjectCode: data.subjectCode,
+      subjectName: data.subjectName,
+      examDate,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      roomNumber: data.roomNumber,
+    },
+  });
+
+  return slot;
+}
+
+export async function updateExaminationStatus(
+  institutionId: string,
+  scheduleId: string,
+  status: string
+) {
+  const isPublished = status === "PUBLISHED" || status === "Published";
+  const updated = await db.examSchedule.updateMany({
+    where: { id: scheduleId, institutionId },
+    data: { isPublished },
+  });
+
+  if (updated.count === 0) {
+    throw new Error("Examination schedule not found or access denied.");
+  }
+
+  await recordAuditLog(db, {
+    institutionId,
+    action: isPublished ? "PUBLISH_EXAMINATION" : "UNPUBLISH_EXAMINATION",
+    entityType: "EXAM_SCHEDULE",
+    entityId: scheduleId,
+    newValuesJson: JSON.stringify({ isPublished, status }),
+  });
+
+  return await db.examSchedule.findFirst({
+    where: { id: scheduleId, institutionId },
+    include: { slots: true },
+  });
 }
 
 export async function getExamHalls(institutionId: string) {
@@ -2109,54 +2488,107 @@ export async function createExamHall(
 // ----------------------------------------------------------------------------
 export async function getIAAssessments(institutionId: string) {
   try {
-    const list = await db.iAAssessment.findMany({
-      where: { institutionId },
-      include: {
-        course: true,
-        academicYear: true,
-        academicTerm: true,
-        components: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (list && list.length > 0) return list;
-  } catch (err: any) {
-    console.warn("getIAAssessments query fallback:", err.message);
-  }
+    const [records, approvals] = await Promise.all([
+      db.assessmentRecord.findMany({
+        where: { institutionId },
+        include: {
+          subject: { include: { course: true } },
+          student: true,
+        },
+        orderBy: { conductedDate: "desc" },
+      }),
+      db.approvalRequest.findMany({
+        where: { institutionId, requestType: "INTERNAL_ASSESSMENT" },
+      }),
+    ]);
 
-  try {
-    const records = await db.assessmentRecord.findMany({
-      where: { institutionId },
-      include: { subject: { include: { course: true } } },
-      orderBy: { conductedDate: "desc" },
-      take: 100,
-    });
+    const approvalMap = new Map<string, any>();
+    for (const apr of approvals) {
+      approvalMap.set(apr.id.replace("apr-ia-", ""), apr);
+      if (apr.title) {
+        approvalMap.set(apr.title.toLowerCase().trim(), apr);
+      }
+    }
 
-    const map = new Map<string, any>();
+    const groupMap = new Map<string, any>();
     for (const r of records) {
-      const key = `${r.assessmentName}_${r.subjectId}`;
-      if (!map.has(key)) {
-        map.set(key, {
+      const groupKey = `${r.assessmentName}:::${r.subjectId}`;
+      if (!groupMap.has(groupKey)) {
+        const matchingApr =
+          approvalMap.get(r.assessmentName.toLowerCase().trim()) ||
+          approvalMap.get(r.id);
+
+        let status = "DRAFT";
+        if (matchingApr) {
+          if (matchingApr.status === "APPROVED") status = "PUBLISHED";
+          else if (matchingApr.status === "PENDING") status = "SUBMITTED";
+          else if (matchingApr.status === "REJECTED" || matchingApr.status === "RETURNED") status = "RETURNED";
+        } else {
+          status = "PUBLISHED"; // existing assessment records with marks default to published
+        }
+
+        groupMap.set(groupKey, {
           id: r.id,
+          groupKey,
           institutionId: r.institutionId,
           name: r.assessmentName,
+          title: r.assessmentName,
           code: `IA-${r.subject?.code || "SUB"}`,
           courseId: r.subject?.courseId || "",
           course: r.subject?.course,
+          className: r.subject?.course?.name || "Class",
+          classId: r.subject?.courseId || "",
+          sectionId: "ALL",
+          section: "A",
           subjectId: r.subjectId,
+          subjectCode: r.subject?.code || "",
+          subjectName: r.subject?.name || "Subject",
           subject: r.subject,
           type: "INTERNAL_TEST",
           maxMarks: r.maxMarks,
           weightagePercentage: r.weightage || 20,
-          status: "PUBLISHED",
+          status,
           assessmentDate: r.conductedDate,
-          components: [],
+          totalStudents: 0,
+          studentsAssessed: 0,
+          totalMarksSum: 0,
+          students: [] as any[],
         });
       }
+
+      const item = groupMap.get(groupKey)!;
+      item.totalStudents += 1;
+      const isAbsent = r.remarks === "ABSENT";
+      const hasMarks = r.marksObtained > 0 || isAbsent || r.remarks !== null;
+      if (hasMarks) {
+        item.studentsAssessed += 1;
+        if (!isAbsent) {
+          item.totalMarksSum += r.marksObtained;
+        }
+      }
+
+      item.students.push({
+        recordId: r.id,
+        studentId: r.studentId,
+        rollNo: r.student?.rollNumber || "01",
+        studentName: r.student ? `${r.student.firstName} ${r.student.lastName}`.trim() : "Student",
+        maxMarks: r.maxMarks,
+        marksObtained: isAbsent ? null : r.marksObtained,
+        isAbsent,
+        remarks: r.remarks || "",
+        status: item.status,
+      });
     }
-    return Array.from(map.values());
+
+    const result = Array.from(groupMap.values()).map((g) => ({
+      ...g,
+      averageScore: g.studentsAssessed > 0 ? Number((g.totalMarksSum / g.studentsAssessed).toFixed(1)) : 0,
+      completionRate: g.totalStudents > 0 ? Math.round((g.studentsAssessed / g.totalStudents) * 100) : 0,
+    }));
+
+    return result;
   } catch (err: any) {
-    console.warn("getIAAssessments fallback error:", err.message);
+    console.warn("getIAAssessments query error:", err.message);
     return [];
   }
 }
@@ -2179,68 +2611,211 @@ export async function createIAAssessment(
     components?: { name: string; maxMarks: number; weightagePercentage: number }[];
   }
 ) {
-  let classId = data.classId;
-  let sectionId = data.sectionId;
   let subjectId = data.subjectId;
-
-  if (!classId || !sectionId || !subjectId) {
-    try {
-      const sub = await db.subject.findFirst({
-        where: { institutionId, courseId: data.courseId },
-      });
-      if (sub) {
-        subjectId = subjectId || sub.id;
-      }
-    } catch {}
+  if (!subjectId) {
+    const sub = await db.subject.findFirst({
+      where: { institutionId, ...(data.courseId ? { courseId: data.courseId } : {}) },
+      orderBy: { createdAt: "asc" },
+    });
+    if (sub) {
+      subjectId = sub.id;
+    } else {
+      throw new Error("No subjects found for this course or institution. Please configure subjects first.");
+    }
   }
 
-  const code = data.code || `IA-${Date.now().toString().slice(-4)}`;
-  try {
-    return await db.iAAssessment.create({
-      data: {
-        institutionId,
-        name: data.name,
-        code,
-        courseId: data.courseId,
-        academicYearId: data.academicYearId,
-        academicTermId: data.academicTermId || data.academicYearId,
-        classId: classId || data.courseId,
-        sectionId: sectionId || data.courseId,
-        subjectId: subjectId || data.courseId,
-        type: data.type || "MID_TERM",
-        assessmentDate: data.assessmentDate || new Date(),
+  // Find enrolled active students for this course or institution
+  let activeEnrollments = await db.enrollment.findMany({
+    where: {
+      institutionId,
+      ...(data.courseId ? { courseId: data.courseId } : {}),
+      status: "ACTIVE",
+    },
+    include: { student: true },
+  });
+
+  if (activeEnrollments.length === 0) {
+    // Fallback to active students in the institution
+    const activeStudents = await db.student.findMany({
+      where: { institutionId, status: "ACTIVE" },
+      include: { enrollments: { where: { status: "ACTIVE" } } },
+    });
+    activeEnrollments = activeStudents.map((st) => ({
+      id: st.enrollments[0]?.id || crypto.randomUUID(),
+      institutionId,
+      studentId: st.id,
+      courseId: data.courseId || st.enrollments[0]?.courseId || "",
+      academicYearId: data.academicYearId,
+      enrollmentNumber: st.rollNumber || "ENR-01",
+      enrolledDate: new Date(),
+      status: "ACTIVE",
+      student: st,
+    })) as any;
+  }
+
+  const conductedDate = data.assessmentDate ? new Date(data.assessmentDate) : new Date();
+  const assessmentName = data.name.trim();
+
+  // Insert assessment records for all enrolled students
+  const createdRecords: any[] = [];
+  await db.$transaction(async (tx) => {
+    for (const enr of activeEnrollments) {
+      const recordId = crypto.randomUUID();
+      const rec = await tx.assessmentRecord.create({
+        data: {
+          id: recordId,
+          institutionId,
+          studentId: enr.studentId,
+          enrollmentId: enr.id,
+          subjectId,
+          assessmentName,
+          maxMarks: data.maxMarks,
+          marksObtained: 0,
+          weightage: data.weightagePercentage,
+          conductedDate,
+          remarks: null,
+        },
+      });
+      createdRecords.push(rec);
+    }
+
+    // Create approval request tracking record
+    const adminUser =
+      (await tx.user.findFirst({
+        where: { institutionId, role: { in: ["ADMIN", "TEACHER"] } },
+        orderBy: { createdAt: "asc" },
+      })) ||
+      (await tx.user.findFirst({
+        where: { institutionId },
+        orderBy: { createdAt: "asc" },
+      }));
+
+    if (adminUser) {
+      await tx.approvalRequest.create({
+        data: {
+          id: `apr-ia-${crypto.randomUUID()}`,
+          institutionId,
+          userId: adminUser.id,
+          requestType: "INTERNAL_ASSESSMENT",
+          title: `IA: ${assessmentName}`,
+          status: "DRAFT",
+          requestedDataJson: JSON.stringify({
+            assessmentName,
+            subjectId,
+            courseId: data.courseId,
+            maxMarks: data.maxMarks,
+            weightagePercentage: data.weightagePercentage,
+            studentCount: activeEnrollments.length,
+          }),
+        },
+      });
+    }
+
+    await recordAuditLog(tx, {
+      institutionId,
+      action: "CREATE_INTERNAL_ASSESSMENT",
+      entityType: "INTERNAL_ASSESSMENT",
+      entityId: assessmentName,
+      newValuesJson: JSON.stringify({
+        assessmentName,
+        subjectId,
         maxMarks: data.maxMarks,
         weightagePercentage: data.weightagePercentage,
-        status: "DRAFT",
-        components: data.components?.length
-          ? {
-              create: data.components.map((c) => ({
-                institutionId,
-                name: c.name,
-                maxMarks: c.maxMarks,
-                weightagePercentage: c.weightagePercentage,
-              })),
-            }
-          : undefined,
-      },
-      include: { components: true },
+        studentsCount: activeEnrollments.length,
+      }),
     });
-  } catch {
-    return {
-      id: crypto.randomUUID(),
-      institutionId,
-      name: data.name,
-      code,
-      courseId: data.courseId,
-      academicYearId: data.academicYearId,
-      type: data.type || "MID_TERM",
-      assessmentDate: data.assessmentDate || new Date(),
-      maxMarks: data.maxMarks,
-      weightagePercentage: data.weightagePercentage,
-      status: "DRAFT",
-      components: data.components || [],
-    };
+  });
+
+  return {
+    id: createdRecords[0]?.id || crypto.randomUUID(),
+    institutionId,
+    name: assessmentName,
+    title: assessmentName,
+    code: data.code || `IA-${Date.now().toString().slice(-4)}`,
+    courseId: data.courseId,
+    subjectId,
+    maxMarks: data.maxMarks,
+    weightagePercentage: data.weightagePercentage,
+    status: "DRAFT",
+    assessmentDate: conductedDate,
+    totalStudents: activeEnrollments.length,
+    studentsAssessed: 0,
+  };
+}
+
+export async function saveIAAssessmentMarks(
+  institutionId: string,
+  params: {
+    assessmentName: string;
+    subjectId: string;
+    maxMarks: number;
+    marks: Array<{
+      studentId: string;
+      marksObtained: number | null;
+      isAbsent?: boolean;
+      remarks?: string;
+    }>;
   }
+) {
+  const { assessmentName, subjectId, maxMarks, marks } = params;
+
+  // Validate marks bounds
+  for (const item of marks) {
+    if (item.marksObtained !== null && item.marksObtained !== undefined && !item.isAbsent) {
+      if (item.marksObtained < 0 || item.marksObtained > maxMarks) {
+        throw new Error(
+          `Validation failed: Marks obtained (${item.marksObtained}) cannot exceed max marks (${maxMarks}) or be negative.`
+        );
+      }
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    for (const item of marks) {
+      const isAbsent = Boolean(item.isAbsent);
+      const marksObtained = isAbsent ? 0 : (item.marksObtained ?? 0);
+      const remarks = isAbsent ? "ABSENT" : (item.remarks ?? null);
+
+      await tx.assessmentRecord.updateMany({
+        where: {
+          institutionId,
+          assessmentName,
+          subjectId,
+          studentId: item.studentId,
+        },
+        data: {
+          marksObtained,
+          remarks,
+        },
+      });
+    }
+
+    // Update approval request status to SUBMITTED if pending
+    await tx.approvalRequest.updateMany({
+      where: {
+        institutionId,
+        requestType: "INTERNAL_ASSESSMENT",
+        title: { contains: assessmentName },
+      },
+      data: {
+        status: "PENDING",
+      },
+    });
+
+    await recordAuditLog(tx, {
+      institutionId,
+      action: "UPDATE_IA_MARKS",
+      entityType: "INTERNAL_ASSESSMENT",
+      entityId: `${assessmentName}_${subjectId}`,
+      newValuesJson: JSON.stringify({
+        assessmentName,
+        subjectId,
+        updatedMarksCount: marks.length,
+      }),
+    });
+  });
+
+  return { success: true, count: marks.length };
 }
 
 // ----------------------------------------------------------------------------
@@ -2248,75 +2823,258 @@ export async function createIAAssessment(
 // ----------------------------------------------------------------------------
 export async function getResultBatches(institutionId: string) {
   try {
-    const batches = await db.resultBatch.findMany({
+    const schedules = await db.examSchedule.findMany({
       where: { institutionId },
       include: {
         academicYear: true,
-        course: true,
-        semesterResults: true,
+        results: {
+          include: {
+            student: true,
+            subject: true,
+          },
+        },
       },
-      orderBy: { createdAt: "desc" },
-    });
-    if (batches && batches.length > 0) return batches;
-  } catch (err: any) {
-    console.warn("getResultBatches query fallback:", err.message);
-  }
-
-  try {
-    const schedules = await db.examSchedule.findMany({
-      where: { institutionId },
       orderBy: { startDate: "desc" },
     });
 
-    return schedules.map((s) => ({
-      id: s.id,
-      institutionId: s.institutionId,
-      name: `${s.title} Result Batch`,
-      academicYearId: s.academicYearId,
-      semester: s.semester,
-      status: s.isPublished ? "PUBLISHED" : "DRAFT",
-      publishedAt: s.isPublished ? s.createdAt : null,
-      createdAt: s.createdAt,
-      totalStudents: 0,
-      passedStudents: 0,
-      semesterResults: [],
-    }));
+    return schedules.map((s) => {
+      const results = s.results || [];
+      const totalEvaluated = results.length;
+      const passedCount = results.filter((r) => r.isPassed).length;
+      const passPercentage = totalEvaluated > 0 ? Math.round((passedCount / totalEvaluated) * 100) : 0;
+      const totalMarksSum = results.reduce((acc, r) => acc + (r.totalMarks || 0), 0);
+      const averageMarks = totalEvaluated > 0 ? Math.round(totalMarksSum / totalEvaluated) : 0;
+
+      const studentMap = new Map<string, any>();
+      for (const r of results) {
+        const sid = r.studentId;
+        if (!studentMap.has(sid)) {
+          studentMap.set(sid, {
+            studentId: sid,
+            rollNumber: r.student?.rollNumber || "01",
+            rollNo: r.student?.rollNumber || "01",
+            studentName: r.student ? `${r.student.firstName} ${r.student.lastName}`.trim() : "Student",
+            subjectResults: [],
+            sgpa: 8.0,
+            cgpa: 8.0,
+            totalCreditsEarned: 20,
+            hasBacklogs: false,
+            backlogSubjects: [],
+          });
+        }
+        const sObj = studentMap.get(sid);
+        sObj.subjectResults.push({
+          subjectId: r.subjectId,
+          subjectCode: r.subject?.code || "",
+          subjectName: r.subject?.name || "Subject",
+          internalMarks: r.internalMarks || 0,
+          externalMarks: r.externalMarks || 0,
+          totalMarks: r.totalMarks || 0,
+          totalWeightedScore: r.totalMarks || 0,
+          maxMarks: r.maxMarks || 100,
+          grade: r.grade || (r.isPassed ? "B" : "F"),
+          gradePoint: r.gradePoint || (r.isPassed ? 7 : 0),
+          credits: r.credits || 3,
+          isPassed: r.isPassed,
+        });
+        if (!r.isPassed) {
+          sObj.hasBacklogs = true;
+          sObj.backlogSubjects.push(r.subject?.code || r.subject?.name);
+        }
+      }
+      const studentResults = Array.from(studentMap.values());
+
+      return {
+        id: s.id,
+        institutionId: s.institutionId,
+        name: `${s.title} Result Batch`,
+        batchName: `${s.title} Results`,
+        batchNumber: `RB-${s.semester}-${s.examType}`,
+        academicYearId: s.academicYearId,
+        academicYear: s.academicYear,
+        semester: s.semester,
+        status: s.isPublished ? "Published" : results.length > 0 ? "Under Review" : "Draft",
+        isPublished: s.isPublished,
+        publishedAt: s.isPublished ? (results[0]?.publishedAt || s.createdAt) : null,
+        createdAt: s.createdAt,
+        totalStudents: totalEvaluated,
+        passedStudents: passedCount,
+        passPercentage,
+        averageMarks,
+        studentResults,
+        results: results.map((r) => ({
+          id: r.id,
+          studentId: r.studentId,
+          rollNo: r.student?.rollNumber || "01",
+          studentName: r.student ? `${r.student.firstName} ${r.student.lastName}`.trim() : "Student",
+          subjectId: r.subjectId,
+          subjectCode: r.subject?.code || "",
+          subjectName: r.subject?.name || "Subject",
+          internalMarks: r.internalMarks,
+          externalMarks: r.externalMarks,
+          totalMarks: r.totalMarks,
+          maxMarks: r.maxMarks,
+          grade: r.grade,
+          gradePoint: r.gradePoint,
+          credits: r.credits,
+          isPassed: r.isPassed,
+          isSupplementary: r.isSupplementary,
+        })),
+      };
+    });
   } catch (err: any) {
-    console.warn("getResultBatches fallback error:", err.message);
+    console.warn("getResultBatches query error:", err.message);
     return [];
   }
 }
 
 export async function publishResultBatch(institutionId: string, batchId: string) {
-  try {
-    const result = await db.resultBatch.updateMany({
-      where: { id: batchId, institutionId },
-      data: {
-        status: "PUBLISHED",
-        publishedAt: new Date(),
-      },
-    });
-    if (result.count > 0) {
-      return await db.resultBatch.findFirst({
-        where: { id: batchId, institutionId },
-      });
-    }
-  } catch {}
+  const schedule = await db.examSchedule.findFirst({
+    where: { id: batchId, institutionId },
+  });
+  if (!schedule) {
+    throw new Error("Examination schedule not found or access denied.");
+  }
 
-  // Fallback to updating live exam_schedules
-  try {
-    await db.examSchedule.updateMany({
+  const now = new Date();
+
+  await db.$transaction(async (tx) => {
+    await tx.examSchedule.updateMany({
       where: { id: batchId, institutionId },
       data: { isPublished: true },
     });
-  } catch {}
+
+    await tx.examResult.updateMany({
+      where: { examScheduleId: batchId, institutionId },
+      data: { publishedAt: now },
+    });
+
+    await recordAuditLog(tx, {
+      institutionId,
+      action: "PUBLISH_EXAM_RESULTS",
+      entityType: "EXAM_RESULTS",
+      entityId: batchId,
+      newValuesJson: JSON.stringify({
+        scheduleId: batchId,
+        title: schedule.title,
+        publishedAt: now.toISOString(),
+      }),
+    });
+  });
 
   return {
     id: batchId,
     institutionId,
-    status: "PUBLISHED",
-    publishedAt: new Date(),
+    name: `${schedule.title} Results`,
+    status: "Published",
+    isPublished: true,
+    publishedAt: now,
   };
+}
+
+export async function saveExamResults(
+  institutionId: string,
+  params: {
+    examScheduleId: string;
+    subjectId: string;
+    results: Array<{
+      studentId: string;
+      internalMarks: number;
+      externalMarks: number;
+      maxMarks?: number;
+      credits?: number;
+    }>;
+  }
+) {
+  const { examScheduleId, subjectId, results } = params;
+
+  const schedule = await db.examSchedule.findFirst({
+    where: { id: examScheduleId, institutionId },
+  });
+  if (!schedule) {
+    throw new Error("Examination schedule not found or access denied.");
+  }
+
+  if (schedule.isPublished) {
+    throw new Error(
+      "Cannot modify results: This examination result batch has already been published. Post-publication changes require formal unpublishing or administrative moderation."
+    );
+  }
+
+  const resolveGrade = (percentage: number) => {
+    if (percentage >= 90) return { grade: "A+", gradePoint: 10, isPassed: true };
+    if (percentage >= 80) return { grade: "A", gradePoint: 9, isPassed: true };
+    if (percentage >= 70) return { grade: "B+", gradePoint: 8, isPassed: true };
+    if (percentage >= 60) return { grade: "B", gradePoint: 7, isPassed: true };
+    if (percentage >= 50) return { grade: "C", gradePoint: 6, isPassed: true };
+    if (percentage >= 40) return { grade: "P", gradePoint: 5, isPassed: true };
+    return { grade: "F", gradePoint: 0, isPassed: false };
+  };
+
+  await db.$transaction(async (tx) => {
+    for (const res of results) {
+      const maxMarks = res.maxMarks || 100;
+      const totalMarks = (res.internalMarks || 0) + (res.externalMarks || 0);
+
+      if (res.internalMarks < 0 || res.externalMarks < 0 || totalMarks > maxMarks) {
+        throw new Error(
+          `Validation failed: Total marks (${totalMarks}) cannot exceed max marks (${maxMarks}) or be negative.`
+        );
+      }
+
+      const percent = (totalMarks / maxMarks) * 100;
+      const { grade, gradePoint, isPassed } = resolveGrade(percent);
+      const credits = res.credits || 4;
+
+      const recordId = `res-${examScheduleId}-${res.studentId}-${subjectId}`;
+
+      await tx.examResult.upsert({
+        where: { id: recordId },
+        update: {
+          internalMarks: res.internalMarks,
+          externalMarks: res.externalMarks,
+          totalMarks,
+          maxMarks,
+          grade,
+          gradePoint,
+          credits,
+          isPassed,
+        },
+        create: {
+          id: recordId,
+          institutionId,
+          examScheduleId,
+          studentId: res.studentId,
+          subjectId,
+          internalMarks: res.internalMarks,
+          externalMarks: res.externalMarks,
+          totalMarks,
+          maxMarks,
+          grade,
+          gradePoint,
+          credits,
+          isPassed,
+          isSupplementary: !isPassed,
+          attemptNumber: 1,
+          publishedAt: new Date(),
+        },
+      });
+    }
+
+    await recordAuditLog(tx, {
+      institutionId,
+      action: "SAVE_EXAM_RESULTS",
+      entityType: "EXAM_RESULTS",
+      entityId: `${examScheduleId}_${subjectId}`,
+      newValuesJson: JSON.stringify({
+        examScheduleId,
+        subjectId,
+        recordsCount: results.length,
+      }),
+    });
+  });
+
+  return { success: true, count: results.length };
 }
 
 // ----------------------------------------------------------------------------
@@ -2611,7 +3369,16 @@ export async function recordFeePayment(
       }
 
       if (data.amount > invoice.outstandingAmount) {
-        throw new Error(`Payment amount (â‚¹${data.amount}) exceeds outstanding balance (â‚¹${invoice.outstandingAmount}).`);
+        throw new Error(`Payment amount (₹${data.amount}) exceeds outstanding balance (₹${invoice.outstandingAmount}).`);
+      }
+
+      if (data.transactionRef) {
+        const existingTx = await tx.feePayment.findFirst({
+          where: { transactionRef: data.transactionRef, institutionId },
+        });
+        if (existingTx) {
+          throw new Error(`Duplicate payment transaction reference: ${data.transactionRef} has already been recorded.`);
+        }
       }
 
       const payment = await tx.feePayment.create({
@@ -2661,7 +3428,8 @@ export async function recordFeePayment(
       err.message?.includes("must be greater") ||
       err.message?.includes("already fully settled") ||
       err.message?.includes("exceeds outstanding") ||
-      err.message?.includes("not found or does not belong")
+      err.message?.includes("not found or does not belong") ||
+      err.message?.includes("Duplicate payment transaction reference")
     ) {
       throw err;
     }
@@ -2707,6 +3475,192 @@ export async function recordFeePayment(
     globalFeeInvoicesRegistry.set(institutionId, current);
     return { payment, receipt };
   }
+}
+
+export async function assignFeeStructure(
+  institutionId: string,
+  data: {
+    title: string;
+    totalAmount: number;
+    dueDate: Date;
+    courseId?: string;
+    semester?: number;
+    sectionId?: string;
+    academicYearId?: string;
+    studentIds?: string[];
+    items?: { description: string; amount: number }[];
+    adminUserId?: string;
+  }
+) {
+  if (!data.title || !data.totalAmount || data.totalAmount <= 0) {
+    throw new Error("Fee structure title and a positive total amount are required.");
+  }
+
+  // 1. Resolve eligible students
+  let targetStudents: { id: string }[] = [];
+  if (data.studentIds && data.studentIds.length > 0) {
+    targetStudents = await db.student.findMany({
+      where: {
+        id: { in: data.studentIds },
+        institutionId,
+      },
+      select: { id: true },
+    });
+  } else if (data.courseId || data.semester !== undefined || data.sectionId) {
+    const enrollments = await db.enrollment.findMany({
+      where: {
+        institutionId,
+        ...(data.courseId ? { courseId: data.courseId } : {}),
+        ...(data.semester !== undefined ? { semester: data.semester } : {}),
+        ...(data.sectionId ? { sectionId: data.sectionId } : {}),
+        ...(data.academicYearId ? { academicYearId: data.academicYearId } : {}),
+      },
+      select: { studentId: true },
+    });
+    const uniqueIds = Array.from(new Set(enrollments.map((e) => e.studentId)));
+    targetStudents = uniqueIds.map((id) => ({ id }));
+  } else {
+    targetStudents = await db.student.findMany({
+      where: {
+        institutionId,
+      },
+      select: { id: true },
+      take: 200,
+    });
+  }
+
+  if (targetStudents.length === 0) {
+    throw new Error("No eligible students found matching the assignment criteria.");
+  }
+
+  const dueDate = new Date(data.dueDate);
+  const items = data.items && data.items.length > 0
+    ? data.items
+    : [{ description: data.title, amount: data.totalAmount }];
+
+  const currentCount = await db.feeInvoice.count({ where: { institutionId } });
+  const year = new Date().getFullYear();
+
+  const createdInvoices = await db.$transaction(async (tx) => {
+    const list = [];
+    let idx = 1;
+    for (const student of targetStudents) {
+      const invoiceNumber = `INV-${year}-${String(currentCount + idx).padStart(5, "0")}`;
+      idx++;
+
+      const inv = await tx.feeInvoice.create({
+        data: {
+          institutionId,
+          studentId: student.id,
+          invoiceNumber,
+          title: data.title,
+          totalAmount: data.totalAmount,
+          paidAmount: 0,
+          outstandingAmount: data.totalAmount,
+          dueDate,
+          status: "UNPAID",
+          items: {
+            create: items.map((it) => ({
+              description: it.description,
+              amount: it.amount,
+            })),
+          },
+        },
+        include: { items: true },
+      });
+      list.push(inv);
+    }
+    return list;
+  });
+
+  await recordAuditLog(db, {
+    institutionId,
+    userId: data.adminUserId || "admin",
+    action: "FEE_STRUCTURE_ASSIGNED",
+    entityType: "FEE_INVOICE",
+    entityId: createdInvoices[0]?.id || "bulk",
+    newValuesJson: JSON.stringify({
+      title: data.title,
+      totalAmount: data.totalAmount,
+      assignedCount: createdInvoices.length,
+      dueDate: dueDate.toISOString(),
+    }),
+  });
+
+  return {
+    success: true,
+    assignedCount: createdInvoices.length,
+    invoices: createdInvoices,
+  };
+}
+
+export async function applyFeeConcession(
+  institutionId: string,
+  data: {
+    invoiceId: string;
+    concessionAmount: number;
+    reason: string;
+    adminUserId?: string;
+  }
+) {
+  if (!data.invoiceId) {
+    throw new Error("Invoice ID is required to apply a fee concession.");
+  }
+  if (!data.concessionAmount || data.concessionAmount <= 0) {
+    throw new Error("Concession amount must be greater than zero.");
+  }
+  if (!data.reason?.trim()) {
+    throw new Error("Reason is required for applying a fee concession.");
+  }
+
+  return await db.$transaction(async (tx) => {
+    const invoice = await tx.feeInvoice.findFirst({
+      where: { id: data.invoiceId, institutionId },
+    });
+
+    if (!invoice) {
+      throw new Error("Fee invoice not found or does not belong to this institution.");
+    }
+
+    if (invoice.status === "PAID" || invoice.outstandingAmount <= 0) {
+      throw new Error(`Invoice ${invoice.invoiceNumber} is already fully settled. No concession can be applied.`);
+    }
+
+    if (data.concessionAmount > invoice.outstandingAmount) {
+      throw new Error(`Concession amount (₹${data.concessionAmount}) exceeds outstanding balance (₹${invoice.outstandingAmount}).`);
+    }
+
+    const newOutstanding = Math.max(0, invoice.outstandingAmount - data.concessionAmount);
+    const newTotal = Math.max(invoice.paidAmount, invoice.totalAmount - data.concessionAmount);
+    const newStatus = newOutstanding === 0 ? "PAID" : invoice.status;
+
+    const updated = await tx.feeInvoice.update({
+      where: { id: data.invoiceId },
+      data: {
+        totalAmount: newTotal,
+        outstandingAmount: newOutstanding,
+        status: newStatus,
+      },
+      include: { items: true, payments: true },
+    });
+
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: data.adminUserId || "admin",
+      action: "FEE_CONCESSION_APPLIED",
+      entityType: "FEE_INVOICE",
+      entityId: invoice.id,
+      newValuesJson: JSON.stringify({
+        invoiceNumber: invoice.invoiceNumber,
+        concessionAmount: data.concessionAmount,
+        reason: data.reason,
+        prevOutstanding: invoice.outstandingAmount,
+        newOutstanding,
+      }),
+    });
+
+    return updated;
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -2881,6 +3835,30 @@ export async function deleteHostelAllocation(institutionId: string, id: string) 
   return { success: true };
 }
 
+export async function vacateHostelBed(institutionId: string, id: string, adminUserId?: string) {
+  const target = await db.hostelAllocation.findFirst({
+    where: { id, institutionId },
+  });
+  if (!target) {
+    throw new Error("Hostel allocation not found or access denied.");
+  }
+  await db.hostelAllocation.delete({ where: { id } });
+  try {
+    await db.$executeRawUnsafe(
+      `INSERT INTO audit_logs ("id", "institutionId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      crypto.randomUUID(),
+      institutionId,
+      adminUserId || null,
+      "HOSTEL_BED_VACATED",
+      "HOSTEL",
+      id,
+      JSON.stringify({ hostelName: target.hostelName, roomNumber: target.roomNumber, bedNumber: target.bedNumber })
+    );
+  } catch {}
+  return { success: true, message: `Bed ${target.bedNumber} in ${target.hostelName} Room ${target.roomNumber} vacated.` };
+}
+
 // ----------------------------------------------------------------------------
 // 20. TRANSPORT
 // ----------------------------------------------------------------------------
@@ -2969,9 +3947,27 @@ export async function createTransportAllocation(
     pickupPoint: string;
     pickupTime: string;
     dropTime: string;
+    vehicleCapacity?: number;
   }
 ) {
   try {
+    // 1. Check vehicle capacity
+    const capacity = data.vehicleCapacity || 40;
+    const currentAllocCount = await db.transportAllocation.count({
+      where: { institutionId, routeNumber: data.routeNumber, vehicleNumber: data.vehicleNumber },
+    });
+    if (currentAllocCount >= capacity) {
+      throw new Error(`Vehicle '${data.vehicleNumber}' on Route '${data.routeNumber}' has reached maximum passenger seating capacity (${capacity} seats).`);
+    }
+
+    // 2. Prevent duplicate allocation for the same student
+    const existingStudentAlloc = await db.transportAllocation.findFirst({
+      where: { institutionId, studentId: data.studentId },
+    });
+    if (existingStudentAlloc) {
+      throw new Error(`Student already has an active allocation on Route '${existingStudentAlloc.routeNumber}'. Revoke existing allocation first.`);
+    }
+
     return await db.transportAllocation.create({
       data: {
         institutionId,
@@ -2988,6 +3984,12 @@ export async function createTransportAllocation(
       include: { student: true },
     });
   } catch (err: any) {
+    if (
+      err.message?.includes("maximum passenger seating capacity") ||
+      err.message?.includes("already has an active allocation")
+    ) {
+      throw err;
+    }
     console.warn("Transport allocation create fallback:", err.message);
     const current = await getTransportAllocations(institutionId);
     const newAllocation = {
@@ -3212,7 +4214,7 @@ export async function getResourceBookings(institutionId: string) {
 export async function updateResourceBookingStatus(
   institutionId: string,
   bookingId: string,
-  status: "PENDING" | "APPROVED" | "REJECTED"
+  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED"
 ) {
   try {
     const result = await db.resourceBooking.updateMany({
@@ -3289,10 +4291,33 @@ export async function getNotifications(institutionId: string) {
   try {
     const list = await db.notification.findMany({
       where: { institutionId },
-      include: { recipients: { include: { user: true } } },
+      include: {
+        recipients: {
+          select: {
+            id: true,
+            userId: true,
+            isRead: true,
+            readAt: true,
+            user: { select: { fullName: true, name: true, email: true, role: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
-    if (list && list.length > 0) return list;
+    if (list && list.length > 0) {
+      return list.map((n) => ({
+        id: n.id,
+        institutionId: n.institutionId,
+        title: n.title,
+        message: n.message,
+        category: n.category,
+        audienceRole: n.audienceRole,
+        createdAt: n.createdAt,
+        totalRecipients: n.recipients.length,
+        readCount: n.recipients.filter((r) => r.isRead).length,
+        recipients: n.recipients,
+      }));
+    }
   } catch (err: any) {
     console.warn("Notifications query fallback:", err.message);
   }
@@ -3311,7 +4336,11 @@ export async function broadcastNotification(
     title: string;
     message: string;
     category: string;
-    targetRole?: "STUDENT" | "PARENT" | "TEACHER" | "ALL";
+    targetRole?: "STUDENT" | "PARENT" | "TEACHER" | "STAFF" | "ALL";
+    targetCourseId?: string;
+    targetSemester?: number;
+    targetSectionId?: string;
+    priority?: string;
   }
 ) {
   try {
@@ -3323,19 +4352,42 @@ export async function broadcastNotification(
           institutionId,
           title: data.title,
           message: data.message,
-          category: data.category,
+          category: data.category || "ANNOUNCEMENT",
+          audienceRole: data.targetRole || "ALL",
         },
       });
 
-      const users = await tx.user.findMany({
-        where: {
-          institutionId,
-          ...(data.targetRole && data.targetRole !== "ALL"
-            ? { role: data.targetRole as any }
-            : {}),
-        },
-        select: { id: true, email: true, name: true },
-      });
+      let users: Array<{ id: string; email: string; name: string | null }> = [];
+
+      if (data.targetCourseId || data.targetSemester !== undefined || data.targetSectionId) {
+        const enrollments = await tx.enrollment.findMany({
+          where: {
+            institutionId,
+            ...(data.targetCourseId ? { courseId: data.targetCourseId } : {}),
+            ...(data.targetSemester !== undefined ? { semester: data.targetSemester } : {}),
+            ...(data.targetSectionId ? { sectionId: data.targetSectionId } : {}),
+          },
+          select: { student: { select: { userId: true } } },
+        });
+        const studentUserIds = enrollments.map((e) => e.student?.userId).filter(Boolean) as string[];
+        users = await tx.user.findMany({
+          where: {
+            id: { in: studentUserIds },
+            institutionId,
+          },
+          select: { id: true, email: true, name: true },
+        });
+      } else {
+        users = await tx.user.findMany({
+          where: {
+            institutionId,
+            ...(data.targetRole && data.targetRole !== "ALL"
+              ? { role: data.targetRole as any }
+              : {}),
+          },
+          select: { id: true, email: true, name: true },
+        });
+      }
 
       if (users.length > 0) {
         emailRecipients = users
@@ -3398,6 +4450,53 @@ export async function broadcastNotification(
     globalNotificationRegistry.set(institutionId, [newNotif, ...current]);
     return newNotif;
   }
+}
+
+export async function updateNotification(
+  institutionId: string,
+  notificationId: string,
+  data: {
+    title?: string;
+    message?: string;
+    category?: string;
+  }
+) {
+  const existing = await db.notification.findFirst({
+    where: { id: notificationId, institutionId },
+  });
+  if (!existing) {
+    throw new Error("Notification not found or access denied.");
+  }
+
+  return await db.notification.update({
+    where: { id: notificationId },
+    data: {
+      ...(data.title ? { title: data.title } : {}),
+      ...(data.message ? { message: data.message } : {}),
+      ...(data.category ? { category: data.category } : {}),
+    },
+  });
+}
+
+export async function deleteNotification(
+  institutionId: string,
+  notificationId: string
+) {
+  const existing = await db.notification.findFirst({
+    where: { id: notificationId, institutionId },
+  });
+  if (!existing) {
+    throw new Error("Notification not found or access denied.");
+  }
+
+  return await db.$transaction(async (tx) => {
+    await tx.notificationRecipient.deleteMany({
+      where: { notificationId },
+    });
+    return await tx.notification.delete({
+      where: { id: notificationId },
+    });
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -3497,9 +4596,21 @@ export async function processApprovalRequest(
       },
     });
     if (result.count > 0) {
-      return await db.approvalRequest.findFirst({
+      const updatedReq = await db.approvalRequest.findFirst({
         where: { id: requestId, institutionId },
       });
+      if (updatedReq && updatedReq.requestType === "RESOURCE_BOOKING") {
+        try {
+          const payload = JSON.parse(updatedReq.requestedDataJson || "{}");
+          if (payload.bookingId) {
+            await db.resourceBooking.updateMany({
+              where: { id: payload.bookingId, institutionId },
+              data: { status },
+            });
+          }
+        } catch {}
+      }
+      return updatedReq;
     }
     const check = await db.approvalRequest.findFirst({
       where: { id: requestId, institutionId },
@@ -3539,6 +4650,53 @@ export async function processApprovalRequest(
   );
   globalApprovalRequestsRegistry.set(institutionId, updated);
   return updated.find((r) => r.id === requestId);
+}
+
+export async function getCampusServicesOverview(institutionId: string) {
+  const [hostelAllocations, transportAllocations, resourceBookings, serviceRequests] = await Promise.all([
+    db.hostelAllocation.findMany({
+      where: { institutionId },
+      include: { student: { select: { fullName: true, rollNumber: true } } },
+      orderBy: { allocatedDate: "desc" },
+    }),
+    db.transportAllocation.findMany({
+      where: { institutionId },
+      include: { student: { select: { fullName: true, rollNumber: true } } },
+      orderBy: { routeNumber: "asc" },
+    }),
+    db.resourceBooking.findMany({
+      where: { institutionId },
+      include: { student: { select: { fullName: true, rollNumber: true } } },
+      orderBy: { bookingDate: "desc" },
+    }),
+    db.approvalRequest.findMany({
+      where: {
+        institutionId,
+        requestType: { in: ["RESOURCE_BOOKING", "STUDENT_QUERY", "HOSTEL_REQUEST", "TRANSPORT_REQUEST"] },
+      },
+      include: { user: { select: { fullName: true, name: true, email: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+  ]);
+
+  return {
+    hostel: {
+      totalAllocations: hostelAllocations.length,
+      allocations: hostelAllocations,
+    },
+    transport: {
+      totalAllocations: transportAllocations.length,
+      allocations: transportAllocations,
+    },
+    resourceBookings: {
+      totalBookings: resourceBookings.length,
+      pending: resourceBookings.filter((b) => b.status === "PENDING").length,
+      approved: resourceBookings.filter((b) => b.status === "APPROVED").length,
+      bookings: resourceBookings,
+    },
+    serviceRequests,
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -4119,5 +5277,77 @@ export async function updateStudentFeedback(
   globalFeedbacksRegistry.set(institutionId, updatedList);
 
   return updatedRecord;
+}
+
+// ----------------------------------------------------------------------------
+// 25. ASSIGNMENTS OVERSIGHT (ADMIN)
+// ----------------------------------------------------------------------------
+export async function getAdminAssignments(institutionId: string) {
+  try {
+    const list = await db.assignment.findMany({
+      where: { institutionId },
+      include: {
+        subject: { include: { course: true } },
+        submissions: { include: { student: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    let activeStudentsCount = 0;
+    try {
+      const countRes: any = await db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM students
+        WHERE "institutionId" = ${institutionId}
+          AND (status = 'ACTIVE' OR status IS NULL)
+      `;
+      activeStudentsCount = Number(countRes[0]?.count || 0);
+    } catch {
+      activeStudentsCount = 0;
+    }
+
+    return list.map((a) => {
+      const submissions = a.submissions || [];
+      const submittedCount = submissions.filter((s) => s.status !== "PENDING").length;
+      const gradedCount = submissions.filter((s) => s.status === "GRADED" || s.score !== null).length;
+      const isPastDue = new Date() > new Date(a.dueDate);
+
+      return {
+        id: a.id,
+        institutionId: a.institutionId,
+        title: a.title,
+        description: a.description,
+        subjectId: a.subjectId,
+        subjectCode: a.subject?.code || "",
+        subjectName: a.subject?.name || "Subject",
+        courseName: a.subject?.course?.name || "Class",
+        dueDate: a.dueDate,
+        totalPoints: a.totalPoints,
+        attachmentUrl: a.attachmentUrl,
+        totalStudents: activeStudentsCount > 0 ? activeStudentsCount : submissions.length,
+        submittedCount,
+        gradedCount,
+        pendingReviewCount: submittedCount - gradedCount,
+        submissionRate: activeStudentsCount > 0 ? Math.round((submittedCount / activeStudentsCount) * 100) : 0,
+        status: isPastDue ? "CLOSED" : "ACTIVE",
+        createdAt: a.createdAt,
+        submissions: submissions.map((s) => ({
+          id: s.id,
+          studentId: s.studentId,
+          rollNumber: s.student?.rollNumber || "01",
+          studentName: s.student ? `${s.student.firstName} ${s.student.lastName}`.trim() : "Student",
+          submittedAt: s.submittedAt,
+          score: s.score,
+          feedback: s.feedback,
+          status: s.status,
+          fileUrl: s.fileUrl,
+          textContent: s.textContent,
+        })),
+      };
+    });
+  } catch (err: any) {
+    console.warn("getAdminAssignments query error:", err.message);
+    return [];
+  }
 }
 

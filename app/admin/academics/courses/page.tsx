@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useInstitution } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,13 +60,7 @@ function mapApiToCourse(c: any): Course {
 }
 
 export default function CoursesPage() {
-  const {
-    departments,
-    addCourse,
-    updateCourse: updateStoreCourse,
-    deleteCourse: deleteStoreCourse,
-  } = useInstitution();
-
+  const [departments, setDepartments] = useState<any[]>(DEFAULT_DEPARTMENTS);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -93,13 +86,23 @@ export default function CoursesPage() {
     try {
       setIsLoading(true);
       setFetchError(null);
-      const res = await fetch("/api/admin/academics/courses");
-      const json = await res.json();
-      if (!res.ok || !json.success) {
+      const [cRes, dRes] = await Promise.all([
+        fetch("/api/admin/academics/courses"),
+        fetch("/api/admin/academics/departments").catch(() => null),
+      ]);
+      const json = await cRes.json();
+      if (!cRes.ok || !json.success) {
         throw new Error(json.error || "Failed to load courses.");
       }
       const mapped = (json.data || []).map(mapApiToCourse);
       setCourses(mapped);
+
+      if (dRes && dRes.ok) {
+        const dJson = await dRes.json();
+        if (dJson.success && dJson.data?.length > 0) {
+          setDepartments(dJson.data);
+        }
+      }
     } catch (err: any) {
       setFetchError(err.message || "Failed to load courses from database.");
     } finally {
@@ -178,16 +181,6 @@ export default function CoursesPage() {
         if (!res.ok || !json.success) {
           throw new Error(json.error || "Failed to update course.");
         }
-        updateStoreCourse(editingCourse.id, {
-          name,
-          code: code.toUpperCase(),
-          degreeType,
-          departmentId,
-          durationYears: Number(durationYears),
-          totalSemesters: Number(totalSemesters),
-          totalCredits: Number(totalCredits),
-          description,
-        });
       } else {
         const res = await fetch("/api/admin/academics/courses", {
           method: "POST",
@@ -207,9 +200,6 @@ export default function CoursesPage() {
         const json = await res.json();
         if (!res.ok || !json.success) {
           throw new Error(json.error || "Failed to create course.");
-        }
-        if (json.data) {
-          addCourse(mapApiToCourse(json.data));
         }
       }
 
@@ -236,7 +226,6 @@ export default function CoursesPage() {
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to delete course.");
       }
-      deleteStoreCourse(id);
       await loadCourses();
     } catch (err: any) {
       alert(err.message || "Failed to delete course.");

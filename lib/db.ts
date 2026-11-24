@@ -18,12 +18,18 @@ const adapter = new PrismaPg({
   max: process.env.NODE_ENV === "production" ? 1 : 2,
 });
 
-export const db =
-  global.prisma ||
+export interface BiometricPrismaModels {
+  biometricDevice: any;
+  studentBiometricCredential: any;
+  biometricEventReceipt: any;
+  biometricUnknownScan: any;
+}
+
+export const db = (global.prisma ||
   new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  })) as PrismaClient & BiometricPrismaModels;
 
 global.prisma = db;
 

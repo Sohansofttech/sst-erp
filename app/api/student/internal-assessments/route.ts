@@ -15,20 +15,65 @@ export async function GET(req: NextRequest) {
 
     const { studentId } = await authorizeStudentOrParentAccess(session, requestedStudentId);
 
-    const assessments = await db.assessmentRecord.findMany({
-      where: {
-        studentId,
-        institutionId: session.institutionId,
-      },
-      include: {
-        subject: true,
-      },
-      orderBy: { conductedDate: "desc" },
+    const [assessments, approvals] = await Promise.all([
+      db.assessmentRecord.findMany({
+        where: {
+          studentId,
+          institutionId: session.institutionId,
+        },
+        include: {
+          subject: true,
+        },
+        orderBy: { conductedDate: "desc" },
+      }),
+      db.approvalRequest.findMany({
+        where: {
+          institutionId: session.institutionId,
+          requestType: "INTERNAL_ASSESSMENT",
+        },
+      }),
+    ]);
+
+    const approvalStatusMap = new Map<string, string>();
+    for (const apr of approvals) {
+      if (apr.id) {
+        approvalStatusMap.set(apr.id.replace("apr-ia-", ""), apr.status);
+      }
+      if (apr.title) {
+        approvalStatusMap.set(apr.title.toLowerCase().trim(), apr.status);
+        const stripped = apr.title.replace(/^ia(\s*published)?:\s*/i, "").toLowerCase().trim();
+        if (stripped) {
+          approvalStatusMap.set(stripped, apr.status);
+        }
+      }
+      try {
+        const parsed = JSON.parse(apr.requestedDataJson);
+        if (parsed.assessmentName) {
+          approvalStatusMap.set(parsed.assessmentName.toLowerCase().trim(), apr.status);
+        }
+        if (parsed.assessmentId) {
+          approvalStatusMap.set(parsed.assessmentId, apr.status);
+        }
+      } catch {}
+    }
+
+    // Filter out DRAFT, PENDING, SUBMITTED, RETURNED assessments — return ONLY published assessments to students/parents
+    const publishedAssessments = assessments.filter((item) => {
+      const nameKey = item.assessmentName.toLowerCase().trim();
+      const status = approvalStatusMap.get(item.id) || approvalStatusMap.get(nameKey);
+      if (status) {
+        return status === "APPROVED" || status === "PUBLISHED" || status === "LOCKED";
+      }
+      // If no explicit approval request exists for legacy assessment records, check remarks
+      if (item.remarks && item.remarks.toUpperCase().includes("DRAFT")) {
+        return false;
+      }
+      return true;
     });
 
     // Group by subject
     const subjectWiseMap = new Map<string, any>();
-    assessments.forEach((item) => {
+    publishedAssessments.forEach((item) => {
       const existing = subjectWiseMap.get(item.subjectId) || {
         subjectCode: item.subject.code,
         subjectName: item.subject.name,
@@ -58,7 +103,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        assessments,
+        assessments: publishedAssessments,
         subjectWise: subjectWiseAssessments,
       },
     }, {

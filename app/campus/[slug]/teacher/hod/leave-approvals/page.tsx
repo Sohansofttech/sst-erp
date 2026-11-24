@@ -88,11 +88,10 @@ export default function HodFacultyLeaveApprovalsPage() {
       ])
 
       // CRITICAL REQUIREMENT: HoD's own leave must not appear in their own approval queue (route to Principal).
-      const hodTeacherId = "teacher_demo_042"
       const deptFacultyLeaves = allLeaves.filter(
         (l) =>
-          l.teacherId !== hodTeacherId &&
-          !l.teacherName?.toLowerCase().includes("ananya")
+          l.teacherId !== user.employeeId &&
+          l.teacherName?.toLowerCase() !== user.name.toLowerCase()
       )
 
       setFacultyLeaves(deptFacultyLeaves)

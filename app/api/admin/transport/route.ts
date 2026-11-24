@@ -5,7 +5,6 @@ import {
   createTransportAllocation,
   deleteTransportAllocation,
 } from "@/lib/services/institution-admin.service";
-import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
@@ -43,6 +42,7 @@ export async function POST(req: NextRequest) {
       pickupPoint: body.pickupPoint || "Campus Gate",
       pickupTime: body.pickupTime || "07:30 AM",
       dropTime: body.dropTime || "05:00 PM",
+      vehicleCapacity: body.vehicleCapacity ? Number(body.vehicleCapacity) : undefined,
     });
 
     return NextResponse.json({

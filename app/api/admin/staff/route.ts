@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
-    const { id, fullName, phone, role } = await req.json();
+    const { institutionId, userId: adminUserId } = await resolveAdminContext(req);
+    const { id, fullName, phone, role, isActive } = await req.json();
 
     if (!id) {
       return NextResponse.json({ success: false, error: "User ID is required." }, { status: 400 });
@@ -100,6 +100,12 @@ export async function PUT(req: NextRequest) {
         ...(fullName ? { fullName: String(fullName).trim() } : {}),
         ...(phone ? { phone: String(phone).trim() } : {}),
         ...(role ? { role } : {}),
+        ...(isActive !== undefined
+          ? {
+              isActive: Boolean(isActive),
+              status: isActive ? "ACTIVE" : "INACTIVE",
+            }
+          : {}),
       },
     });
 
@@ -114,10 +120,79 @@ export async function PUT(req: NextRequest) {
       where: { id, institutionId },
     });
 
+    // Record audit log
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO audit_logs ("id", "institutionId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        crypto.randomUUID(),
+        institutionId,
+        adminUserId,
+        "STAFF_UPDATED",
+        "USER",
+        id,
+        JSON.stringify({ fullName, role, isActive })
+      );
+    } catch {}
+
     return NextResponse.json({
       success: true,
       message: "Staff member details updated.",
       data: updated,
+    });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { institutionId, userId: adminUserId } = await resolveAdminContext(req);
+    const id = req.nextUrl.searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Staff user ID is required." }, { status: 400 });
+    }
+
+    const targetUser = await db.user.findFirst({
+      where: { id, institutionId },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ success: false, error: "Staff user not found or access denied." }, { status: 404 });
+    }
+
+    if (targetUser.role === "SUPER_ADMIN") {
+      return NextResponse.json({ success: false, error: "Cannot deactivate Super Admin accounts." }, { status: 403 });
+    }
+
+    // Deactivate account
+    await db.user.update({
+      where: { id },
+      data: {
+        isActive: false,
+        status: "INACTIVE",
+      },
+    });
+
+    // Record audit log
+    try {
+      await db.$executeRawUnsafe(
+        `INSERT INTO audit_logs ("id", "institutionId", "actorUserId", "action", "entityType", "entityId", "newValuesJson", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        crypto.randomUUID(),
+        institutionId,
+        adminUserId,
+        "STAFF_DEACTIVATED",
+        "USER",
+        id,
+        JSON.stringify({ email: targetUser.email, role: targetUser.role })
+      );
+    } catch {}
+
+    return NextResponse.json({
+      success: true,
+      message: `Staff account for ${targetUser.fullName || targetUser.email} has been deactivated.`,
     });
   } catch (error) {
     return handleAdminApiError(error);
