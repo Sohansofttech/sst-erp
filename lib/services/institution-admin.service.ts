@@ -6552,6 +6552,49 @@ export async function updateStudentFeedback(
       } catch (auditErr: any) {
         console.warn("Audit logging for feedback update skipped:", auditErr.message);
       }
+
+      // Synchronize matching approval_requests so student/parent portal query tracking reflects resolution
+      try {
+        const studentId = existing.studentId;
+        const matchingRequests = await db.approvalRequest.findMany({
+          where: {
+            institutionId,
+            requestType: "STUDENT_QUERY",
+            title: existing.subject,
+          },
+        });
+
+        for (const req of matchingRequests) {
+          let payload: any = {};
+          try {
+            payload = JSON.parse(req.requestedDataJson || "{}");
+          } catch {
+            payload = {};
+          }
+          if (!studentId || payload.studentId === studentId) {
+            payload.history = payload.history || [];
+            payload.history.push({
+              action: "RESPONDED",
+              actor: "Administration",
+              status: dbUpdatedStatus,
+              remarks: dbUpdatedResponse || "",
+              timestamp: new Date().toISOString(),
+            });
+            await db.approvalRequest.update({
+              where: { id: req.id },
+              data: {
+                status: dbUpdatedStatus,
+                adminRemarks: dbUpdatedResponse,
+                reviewedByUserId: adminUserId || null,
+                reviewedAt: dbRespondedAt || new Date(),
+                requestedDataJson: JSON.stringify(payload),
+              },
+            });
+          }
+        }
+      } catch (syncErr: any) {
+        console.warn("ApprovalRequest sync note:", syncErr.message);
+      }
     }
   } catch (err: any) {
     if (err.message.includes("Unauthorized")) {
