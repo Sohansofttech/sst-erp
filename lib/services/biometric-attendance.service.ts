@@ -12,8 +12,8 @@
 import crypto from "crypto";
 import db, { BiometricPrismaModels } from "@/lib/db";
 
-// Model interface extension ensuring immediate compatibility with IDE TypeScript language servers
-interface BiometricPrismaExtension extends BiometricPrismaModels {}
+// Model type extension ensuring immediate compatibility with IDE TypeScript language servers
+type BiometricPrismaExtension = BiometricPrismaModels;
 
 const prisma = db as unknown as typeof db & BiometricPrismaExtension;
 
