@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
+import OtpLogin from "@/components/OtpLogin";
 import {
   Building2,
   Lock,
@@ -425,6 +426,24 @@ function LoginContent() {
 
                 </div>
               </form>
+
+              <div className="pt-5 border-t border-[#E2E8F0]">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#64748B]">
+                  Or sign in with mobile OTP
+                </p>
+                <OtpLogin
+                  key={institutionCode}
+                  role="ADMIN"
+                  institutionCode={institutionCode.trim() || undefined}
+                />
+                <a
+                  href="/api/auth/google/authorize?module=admin"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#D8DEE8] bg-white px-4 py-2.5 text-xs font-bold text-[#334155] transition-all hover:bg-[#F8FAFC]"
+                >
+                  <span aria-hidden="true" className="font-black text-[#4285F4]">G</span>
+                  Continue with Google
+                </a>
+              </div>
             </div>
 
             {/* Bottom Footer Details */}

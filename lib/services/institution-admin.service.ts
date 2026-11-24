@@ -3,6 +3,7 @@ import db from "@/lib/db";
 import { sendAnnouncementNotification, sendPasswordSetupInvitation, sendRoleCredentialInvitation, getAppBaseUrl, getRolePortalLoginUrl } from "./email.service";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
 import { isValidUuid } from "@/lib/utils/credential-helpers";
+import { assertStudentRegistrationCapacity } from "@/lib/billing/student-capacity";
 import {
   loadAllPersistedFeedbacks,
   addOrUpdatePersistedFeedback,
@@ -867,6 +868,8 @@ export async function createStudent(
 
   // 1. Database Transaction: Atomic Student, User & Active Enrollment Provisioning
   const { student, user, enrollment } = await db.$transaction(async (tx) => {
+    await assertStudentRegistrationCapacity(tx, institutionId);
+
     // Validate roll number uniqueness within this institution
     const existingByRoll = await tx.student.findFirst({
       where: { rollNumber, institutionId },

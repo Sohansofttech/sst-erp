@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
 import db from "@/lib/db"
 import { getSession } from "@/lib/auth/session"
+import { getAuthJwtKey } from "@/lib/auth/jwt-secret"
 import type { Institution, AcademicYear, Teacher, User } from "@prisma/client"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 import type { Institution as CommonInstitution, AcademicYear as CommonAcademicYear, TenantContext } from "@/types/common"
@@ -23,8 +24,6 @@ type teachers = Teacher
 type users = User
 
 export const TEACHER_AUTH_COOKIE = "sst_teacher_session"
-const JWT_SECRET = process.env.JWT_SECRET || "erp-secret-super-secure-key-32-chars-long!"
-const jwtKey = new TextEncoder().encode(JWT_SECRET)
 
 export interface TeacherSessionPayload {
   userId: string
@@ -88,7 +87,7 @@ export async function signTeacherSession(payload: TeacherSessionPayload): Promis
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("24h")
-    .sign(jwtKey)
+    .sign(getAuthJwtKey())
 }
 
 /**
@@ -96,7 +95,7 @@ export async function signTeacherSession(payload: TeacherSessionPayload): Promis
  */
 export async function verifyTeacherSession(token: string): Promise<TeacherSessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, jwtKey)
+    const { payload } = await jwtVerify(token, getAuthJwtKey())
     return payload as unknown as TeacherSessionPayload
   } catch {
     return null

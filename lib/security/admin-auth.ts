@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
+import { getSession, requireRole, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
+import { assertInstitutionAdminMembership } from "@/lib/security/institution-admin";
 import db from "@/lib/db";
 import { assertActiveSubscription, SubscriptionExpiredError } from "./subscription-guard";
 
@@ -39,31 +40,41 @@ export async function resolveAdminContext(
     throw new UnauthorizedError("Session has expired or lacks required security signature. Please log in again.");
   }
 
-  // Anti-spoofing check: standard Admin can NEVER supply an x-institution-id header different from their session
-  if (roleUpper !== "SUPER_ADMIN") {
-    const headerInstId = req.headers.get("x-institution-id");
-    if (headerInstId && headerInstId !== session.institutionId) {
-      throw new ForbiddenError("Tenant violation: Cross-institution administrative access is forbidden.");
-    }
+  if (!session.userId) {
+    throw new UnauthorizedError("Session is missing a user identity. Please log in again.");
   }
 
   // Live account verification and password revocation verification
-  let dbUser: any = null;
-  if (session.userId) {
-    dbUser = await db.user.findUnique({
-      where: { id: session.userId },
-      select: { id: true, isActive: true, status: true, passwordHash: true, institutionId: true, role: true },
-    });
+  const dbUser = await db.user.findUnique({
+    where: { id: session.userId },
+    select: {
+      id: true,
+      email: true,
+      isActive: true,
+      status: true,
+      passwordHash: true,
+      institutionId: true,
+      role: true,
+      platformRole: true,
+    },
+  });
 
-    if (!dbUser || !dbUser.isActive || dbUser.status !== "ACTIVE") {
-      throw new UnauthorizedError("Account has been deactivated, suspended, or locked.");
-    }
+  if (!dbUser || !dbUser.isActive || dbUser.status !== "ACTIVE") {
+    throw new UnauthorizedError("Account has been deactivated, suspended, or locked.");
+  }
 
-    // Invalidate session if database password hash changed
-    const currentSig = computePasswordSignature(dbUser.passwordHash || "");
-    if (session.passwordSig !== currentSig) {
-      throw new UnauthorizedError("Session has been invalidated due to a password reset or change. Please log in with your current credentials.");
+  const currentSig = computePasswordSignature(dbUser.passwordHash || "");
+  if (session.passwordSig !== currentSig) {
+    throw new UnauthorizedError("Session has been invalidated due to a password reset or change. Please log in with your current credentials.");
+  }
+
+  const dbRole = (dbUser.role || "").toUpperCase();
+  if (roleUpper === "SUPER_ADMIN") {
+    if (dbRole !== "SUPER_ADMIN" && dbUser.platformRole !== "SUPER_ADMIN") {
+      throw new ForbiddenError("Access denied: Account is no longer authorized as Super Admin.");
     }
+  } else if (dbRole !== "ADMIN" && dbRole !== "INSTITUTION_ADMIN") {
+    throw new ForbiddenError("Access denied: Institution Admin account is no longer authorized.");
   }
 
   // Server-side mandatory password change enforcement
@@ -82,10 +93,10 @@ export async function resolveAdminContext(
   }
 
   // Determine institution boundary
-  let institutionId = session.institutionId || dbUser?.institutionId;
+  let institutionId = session.institutionId || dbUser.institutionId || undefined;
 
   // Super Admin may optionally inspect or operate on behalf of a specific institution
-  if (session.role === "SUPER_ADMIN") {
+  if (roleUpper === "SUPER_ADMIN") {
     const requested = req.headers.get("x-institution-id") || req.nextUrl.searchParams.get("institutionId");
     if (requested) {
       institutionId = requested;
@@ -94,7 +105,12 @@ export async function resolveAdminContext(
       throw new ForbiddenError("Institution ID is required for Super Admin operational context.");
     }
   } else {
-    // For standard ADMIN, tenant is strictly bound to session.institutionId (anti-spoofing)
+    if (!dbUser.institutionId || session.institutionId !== dbUser.institutionId) {
+      throw new ForbiddenError("Forbidden: Administrator has no associated institution.");
+    }
+    institutionId = dbUser.institutionId;
+
+    // For standard administrators, tenant access is strictly bound to the live account.
     const headerInstId = req.headers.get("x-institution-id");
     if (headerInstId && headerInstId !== institutionId) {
       throw new ForbiddenError("Tenant violation: Cross-institution administrative access is forbidden.");
@@ -104,31 +120,10 @@ export async function resolveAdminContext(
       throw new ForbiddenError("Forbidden: Administrator has no associated institution.");
     }
 
-    // Verify active institution membership if memberships are enforced for this institution
-    try {
-      const activeMemberships: any = await db.$queryRaw`
-        SELECT m.id, m.status
-        FROM "InstitutionMembership" m
-        WHERE (m."userId"::text = ${session.userId} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(BTRIM(email)) = LOWER(BTRIM(${session.email}))))
-          AND m."institutionId"::text = ${institutionId}
-          AND m.status = 'ACTIVE'
-        LIMIT 1
-      `;
-
-      if (activeMemberships.length === 0) {
-        const totalMemberships = await db.$queryRaw<Array<{ count: bigint }>>`
-          SELECT COUNT(*)::bigint as count FROM "InstitutionMembership" WHERE "institutionId"::text = ${institutionId}
-        `;
-        const hasMemberships = Number(totalMemberships[0]?.count ?? 0) > 0;
-
-        if (hasMemberships) {
-          throw new ForbiddenError("Access denied: Account does not have an active administrator membership for this institution.");
-        }
-      }
-    } catch (err: any) {
-      if (err instanceof ForbiddenError) throw err;
-      // Membership check warning fallback
-    }
+    await assertInstitutionAdminMembership(
+      { email: dbUser.email, userInstitutionId: dbUser.institutionId },
+      institutionId,
+    );
   }
 
   const resolvedContext: ResolvedAdminContext = {
@@ -175,6 +170,27 @@ function shouldEnforceActiveSubscription(
  */
 export async function requireActiveSubscription(req: NextRequest): Promise<ResolvedAdminContext> {
   return await resolveAdminContext(req, { enforceSubscription: true });
+}
+
+export async function requireInstitutionAdminSession(req?: NextRequest) {
+  const session = await requireRole(req, ["ADMIN", "INSTITUTION_ADMIN"]);
+  if (!session.userId || !session.institutionId) {
+    throw new ForbiddenError("Access denied: Institution Admin account is not linked to an institution.");
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: session.userId },
+    select: { email: true, institutionId: true, role: true },
+  });
+  if (!user || (user.role !== "ADMIN" && user.role !== "INSTITUTION_ADMIN")) {
+    throw new ForbiddenError("Access denied: Institution Admin account is no longer authorized.");
+  }
+
+  await assertInstitutionAdminMembership(
+    { email: user.email, userInstitutionId: user.institutionId },
+    session.institutionId,
+  );
+  return session;
 }
 
 export function handleAdminApiError(error: any) {
