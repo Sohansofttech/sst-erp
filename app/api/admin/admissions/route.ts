@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { resolveAdminContext, requireActiveSubscription, handleAdminApiError } from "@/lib/security/admin-auth";
 import db from "@/lib/db";
 import {
   getAdmissions,
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await requireActiveSubscription(req);
     const body = await req.json();
 
     const name = body.applicantName || `${body.applicantFirstName || ""} ${body.applicantLastName || ""}`.trim();
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await requireActiveSubscription(req);
     const body = await req.json();
     const { status, remarks, action, classId, sectionId, rollNumber, ...details } = body;
     const targetId = body.id || body.applicationId;

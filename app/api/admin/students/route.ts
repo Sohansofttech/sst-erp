@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { resolveAdminContext, requireActiveSubscription, handleAdminApiError } from "@/lib/security/admin-auth";
 import {
   getStudents,
   createStudent,
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await requireActiveSubscription(req);
     const body = await req.json();
 
     if (!body.fullName || !body.email || !body.rollNumber) {
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await requireActiveSubscription(req);
     const { id, ...data } = await req.json();
 
     if (!id) {
@@ -100,7 +100,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    const { institutionId, userId: actorUserId } = await requireActiveSubscription(req);
     const id = req.nextUrl.searchParams.get("id");
     const mode = (req.nextUrl.searchParams.get("mode") || "ARCHIVE").toUpperCase() as "ARCHIVE" | "DELETE" | "RESTORE";
 
@@ -131,7 +131,7 @@ export async function DELETE(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    const { institutionId, userId: actorUserId } = await requireActiveSubscription(req);
     const body = await req.json();
     const { id, action } = body;
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import db from "@/lib/db";
+import { assertActiveSubscription, SubscriptionExpiredError } from "./subscription-guard";
 
 export interface ResolvedAdminContext {
   institutionId: string;
@@ -11,7 +12,17 @@ export interface ResolvedAdminContext {
   isDevFallback: boolean;
 }
 
-export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdminContext> {
+export interface AdminContextOptions {
+  /** If true, explicitly bypasses active subscription requirement even on mutations */
+  allowExpired?: boolean;
+  /** Explicit override to enforce active subscription */
+  enforceSubscription?: boolean;
+}
+
+export async function resolveAdminContext(
+  req: NextRequest,
+  options?: AdminContextOptions
+): Promise<ResolvedAdminContext> {
   const session = await getSession(req);
 
   if (!session) {
@@ -120,13 +131,50 @@ export async function resolveAdminContext(req: NextRequest): Promise<ResolvedAdm
     }
   }
 
-  return {
+  const resolvedContext: ResolvedAdminContext = {
     institutionId,
     institutionName: session.institutionName,
     userId: session.userId,
     userRole: session.role,
     isDevFallback: false,
   };
+
+  if (shouldEnforceActiveSubscription(req, options)) {
+    await assertActiveSubscription(resolvedContext.institutionId, resolvedContext.userRole);
+  }
+
+  return resolvedContext;
+}
+
+function shouldEnforceActiveSubscription(
+  req: NextRequest,
+  options?: AdminContextOptions
+): boolean {
+  if (options?.allowExpired) return false;
+  if (options?.enforceSubscription) return true;
+
+  const method = req.method?.toUpperCase() || "GET";
+  const isMutation = method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
+  if (!isMutation) return false;
+
+  const pathname = req.nextUrl?.pathname || "";
+  const isExemptPath =
+    pathname.startsWith("/api/admin/subscription") ||
+    pathname.startsWith("/api/subscription") ||
+    pathname.startsWith("/api/admin/support") ||
+    pathname.startsWith("/api/admin/settings/theme") ||
+    pathname.startsWith("/api/auth/");
+
+  return !isExemptPath;
+}
+
+/**
+ * Resolves admin context and verifies active subscription / trial status.
+ * Throws SubscriptionExpiredError (HTTP 402) if 14-day trial has elapsed.
+ * Super Admin is always exempt.
+ */
+export async function requireActiveSubscription(req: NextRequest): Promise<ResolvedAdminContext> {
+  return await resolveAdminContext(req, { enforceSubscription: true });
 }
 
 export function handleAdminApiError(error: any) {
@@ -137,6 +185,23 @@ export function handleAdminApiError(error: any) {
 
   let status = error?.statusCode || error?.status || 500;
   const msg = error?.message || "";
+
+  if (
+    error instanceof SubscriptionExpiredError ||
+    error?.name === "SubscriptionExpiredError" ||
+    error?.code === "SUBSCRIPTION_EXPIRED" ||
+    msg.includes("free trial has expired")
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: msg,
+        code: "SUBSCRIPTION_EXPIRED",
+        upgradeUrl: "/subscription",
+      },
+      { status: 402 }
+    );
+  }
 
   if (!error?.statusCode && !error?.status) {
     if (

@@ -305,6 +305,15 @@ export async function getDashboardMetrics(institutionId: string) {
       console.warn("Recent activities fallback:", err.message);
     }
 
+    // 11. Authoritative 14-Day Free Trial & Subscription Status
+    let subscriptionStatus = null;
+    try {
+      const { getInstitutionSubscriptionStatus } = await import("@/lib/services/subscription.service");
+      subscriptionStatus = await getInstitutionSubscriptionStatus(institutionId);
+    } catch (subErr: any) {
+      console.warn("Could not load subscription status for dashboard:", subErr.message);
+    }
+
     return {
       connected: true,
       stats: {
@@ -331,6 +340,7 @@ export async function getDashboardMetrics(institutionId: string) {
       },
       activeAcademicYear: activeAcademicYear || null,
       recentActivities,
+      subscription: subscriptionStatus,
     };
   } catch (err: any) {
     console.warn("Database query failed (falling back to cached metrics):", err.message);

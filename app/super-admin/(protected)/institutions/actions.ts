@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { provisionInstitutionAdmin, syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
+import { assignInstitutionTrial } from "@/lib/services/subscription.service";
 
 const institutionInput = z.object({
   name: z.string().trim().min(2).max(160),
@@ -77,6 +78,13 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
           },
         });
         newInstitutionId = institution.id;
+
+        // Automatically assign 14-day complimentary free trial atomically with institution creation
+        await assignInstitutionTrial(tx, {
+          institutionId: institution.id,
+          createdById: auditUserId,
+          startsAt: institution.createdAt,
+        });
 
         // Preserved transactional audit logging - failure here rolls back the transaction
         if (auditUserId) {

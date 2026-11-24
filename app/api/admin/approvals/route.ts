@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { resolveAdminContext, requireActiveSubscription, handleAdminApiError } from "@/lib/security/admin-auth";
 import {
   getApprovalRequests,
   processApprovalRequest,
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { institutionId, userId } = await resolveAdminContext(req);
+    const { institutionId, userId } = await requireActiveSubscription(req);
     const { id, status, adminRemarks } = await req.json();
 
     if (!id || !status) {
