@@ -42,7 +42,7 @@ import {
   type TeacherRoleContextUser,
 } from "./teacher-role-context"
 import { TEACHER_ROLE_CONFIGS } from "@/lib/auth/roles"
-import { getTeacherDashboard } from "@/lib/services/teacher.service"
+import { getTeacherPortalKpis } from "@/lib/services/teacher.service"
 
 const ROLE_OPTIONS: Array<{
   value: TeacherRole
@@ -134,11 +134,11 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let active = true
-    getTeacherDashboard(slug)
-      .then((data) => {
+    getTeacherPortalKpis(slug)
+      .then((kpis) => {
         if (!active) return
-        setUnreadCount(data.kpis.unreadNotificationsCount)
-        setPendingApprovals(data.kpis.pendingApprovalsCount)
+        setUnreadCount(kpis.unreadNotificationsCount)
+        setPendingApprovals(kpis.pendingApprovalsCount)
       })
       .catch(() => {
         // Keep defaults on error

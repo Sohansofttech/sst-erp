@@ -108,7 +108,7 @@ export default function RolesPermissionsPage() {
         </p>
       </Alert>
 
-      {saveSuccess && (
+      {saveSuccess && selectedRole && (
         <Alert variant="success" title="Permission Grant Updated">
           Role permissions for <strong>{selectedRole.name}</strong> were updated and persisted.
         </Alert>
@@ -179,19 +179,26 @@ export default function RolesPermissionsPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <Shield className="w-5 h-5 text-[#F5A000]" />
-                    <CardTitle>Permissions Granted to {selectedRole.name}</CardTitle>
+                    <CardTitle>Permissions Granted to {selectedRole?.name || "Selected Role"}</CardTitle>
                   </div>
                   <p className="text-xs text-[#64748B] mt-0.5">
-                    {selectedRole.permissions.length} total permissions enabled for this role
+                    {selectedRole?.permissions?.length || 0} total permissions enabled for this role
                   </p>
                 </div>
-                <Badge variant={selectedRole.isSystemRole ? "navy" : "teal"} size="md">
-                  {selectedRole.isSystemRole ? "System Built-In Role" : "Custom User Role"}
-                </Badge>
+                {selectedRole && (
+                  <Badge variant={selectedRole.isSystemRole ? "navy" : "teal"} size="md">
+                    {selectedRole.isSystemRole ? "System Built-In Role" : "Custom User Role"}
+                  </Badge>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
-              {permissionCategories.map((cat) => {
+              {!selectedRole ? (
+                <div className="p-8 text-center text-sm text-[#64748B]">
+                  No security role selected. Choose a role from the left to configure permissions.
+                </div>
+              ) : (
+                permissionCategories.map((cat) => {
                 const catIds = cat.permissions.map((p) => p.id);
                 const selectedCount = catIds.filter((id) =>
                   selectedRole.permissions.includes(id)
@@ -253,7 +260,7 @@ export default function RolesPermissionsPage() {
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </CardContent>
           </Card>
         </div>

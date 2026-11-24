@@ -18,8 +18,20 @@ import {
 import { Department } from "@/types/institution";
 
 export default function DepartmentsPage() {
-  const { departments, addDepartment, updateDepartment, deleteDepartment, courses } =
-    useInstitution();
+  const {
+    departments,
+    isDepartmentsLoading,
+    departmentsError,
+    refreshDepartments,
+    addDepartment,
+    updateDepartment,
+    deleteDepartment,
+    courses,
+  } = useInstitution();
+
+  React.useEffect(() => {
+    refreshDepartments();
+  }, [refreshDepartments]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);

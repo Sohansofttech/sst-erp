@@ -58,6 +58,37 @@ export async function GET(req: NextRequest) {
   try {
     const { institutionId, institutionName } = await resolveAdminContext(req);
 
+    // Resolve saved theme for this institution (database PlatformSetting -> Branding -> Registry -> Default)
+    let savedTheme: any = null;
+    try {
+      const settingKey = `theme:${institutionId}`;
+      const rows: any = await db.$queryRaw`
+        SELECT value FROM "PlatformSetting" WHERE key = ${settingKey} LIMIT 1
+      `;
+      if (rows && rows.length > 0 && rows[0]?.value) {
+        savedTheme = rows[0].value;
+      }
+    } catch {}
+
+    if (!savedTheme) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(institutionId);
+        if (isUuid) {
+          const branding = await db.institutionBranding.findUnique({
+            where: { institutionId },
+          });
+          if (branding) {
+            savedTheme = {
+              ...DEFAULT_INSTITUTION_THEME,
+              sidebarBackground: branding.primaryColor || DEFAULT_INSTITUTION_THEME.sidebarBackground,
+              primaryButtonColor: branding.secondaryColor || DEFAULT_INSTITUTION_THEME.primaryButtonColor,
+              activeSidebarNav: branding.secondaryColor || DEFAULT_INSTITUTION_THEME.activeSidebarNav,
+            };
+          }
+        }
+      } catch {}
+    }
+
     // 1. Try finding in table "institutions"
     try {
       const inst = await db.institution.findUnique({
@@ -80,6 +111,12 @@ export async function GET(req: NextRequest) {
         };
         const cached = globalSettingsRegistry.get(institutionId);
         const merged = cached ? { ...profile, ...cached, id: inst.id } : profile;
+        const effectiveTheme = savedTheme || merged.themeConfig || DEFAULT_INSTITUTION_THEME;
+        merged.themeConfig = effectiveTheme;
+        merged.primaryColor = effectiveTheme.sidebarBackground || merged.primaryColor;
+        merged.accentColor = effectiveTheme.accentColor || merged.accentColor;
+        globalSettingsRegistry.set(institutionId, merged);
+
         return NextResponse.json({
           success: true,
           institutionId,
@@ -118,6 +155,10 @@ export async function GET(req: NextRequest) {
 
         const cached = globalSettingsRegistry.get(institutionId);
         const merged = cached ? { ...mappedProfile, ...cached, id: row.id } : mappedProfile;
+        const effectiveTheme = savedTheme || merged.themeConfig || DEFAULT_INSTITUTION_THEME;
+        merged.themeConfig = effectiveTheme;
+        merged.primaryColor = effectiveTheme.sidebarBackground || merged.primaryColor;
+        merged.accentColor = effectiveTheme.accentColor || merged.accentColor;
         globalSettingsRegistry.set(institutionId, merged);
 
         return NextResponse.json({
@@ -134,6 +175,11 @@ export async function GET(req: NextRequest) {
       institutionId,
       institutionName || "Educational Institution"
     );
+    if (savedTheme) {
+      cached.themeConfig = savedTheme;
+      cached.primaryColor = savedTheme.sidebarBackground || cached.primaryColor;
+      cached.accentColor = savedTheme.accentColor || cached.accentColor;
+    }
 
     return NextResponse.json({
       success: true,
@@ -212,6 +258,22 @@ export async function POST(req: NextRequest) {
       `;
     } catch {
       // Non-critical mirror update
+    }
+
+    if (body.themeConfig) {
+      try {
+        const settingKey = `theme:${institutionId}`;
+        const themeJson = JSON.stringify(body.themeConfig);
+        await db.$executeRawUnsafe(
+          `INSERT INTO "PlatformSetting" (id, key, value, "updatedAt")
+           VALUES (gen_random_uuid(), $1, $2::jsonb, NOW())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, "updatedAt" = NOW()`,
+          settingKey,
+          themeJson
+        );
+      } catch (themeDbErr: any) {
+        console.warn("Could not persist themeConfig to PlatformSetting:", themeDbErr.message);
+      }
     }
 
     return NextResponse.json({

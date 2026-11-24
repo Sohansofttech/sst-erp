@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
-import { getStaff, createStaff } from "@/lib/services/institution-admin.service";
+import {
+  getStaff,
+  createStaff,
+  archiveTeacher,
+  restoreTeacher,
+  getTeacherDependencies,
+} from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 
 const ALLOWED_STAFF_ROLES = ["TEACHER", "ADMIN", "STAFF", "HOD"] as const;
@@ -8,6 +14,17 @@ const ALLOWED_STAFF_ROLES = ["TEACHER", "ADMIN", "STAFF", "HOD"] as const;
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    const id = req.nextUrl.searchParams.get("id");
+    const checkDependencies = req.nextUrl.searchParams.get("dependencies") === "true";
+
+    if (id && checkDependencies) {
+      const deps = await getTeacherDependencies(institutionId, id);
+      return NextResponse.json({
+        success: true,
+        data: deps,
+      });
+    }
+
     const staff = await getStaff(institutionId);
 
     return NextResponse.json({
@@ -54,7 +71,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
-    const { id, fullName, phone, role } = await req.json();
+    const { id, fullName, phone, role, designation, departmentId, department, employeeId } = await req.json();
 
     if (!id) {
       return NextResponse.json({ success: false, error: "User ID is required." }, { status: 400 });
@@ -63,6 +80,7 @@ export async function PUT(req: NextRequest) {
     // Verify tenant ownership before updating
     const targetUser = await db.user.findFirst({
       where: { id, institutionId },
+      include: { teacherProfile: true },
     });
 
     if (!targetUser) {
@@ -90,6 +108,9 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    const effectiveRole = role || targetUser.role;
+    const isFaculty = effectiveRole === "TEACHER" || effectiveRole === "HOD";
+
     const result = await db.user.updateMany({
       where: {
         id,
@@ -110,8 +131,41 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    // Synchronize or create Teacher profile if faculty role or designation/department is provided
+    if (isFaculty || designation || departmentId || department) {
+      const existingTeacher = targetUser.teacherProfile || await db.teacher.findFirst({
+        where: { userId: id, institutionId },
+      });
+
+      const effectiveDepartment = department?.trim() || departmentId?.trim() || "Computer Science and Engineering";
+      const effectiveDesignation = designation?.trim() || "Assistant Professor";
+      const effectiveEmployeeId = employeeId?.trim() || `EMP-${id.slice(0, 8)}`;
+
+      if (existingTeacher) {
+        await db.teacher.update({
+          where: { id: existingTeacher.id },
+          data: {
+            ...(designation ? { designation: effectiveDesignation } : {}),
+            ...(department || departmentId ? { department: effectiveDepartment } : {}),
+            ...(employeeId ? { employeeId: effectiveEmployeeId } : {}),
+          },
+        }).catch((err) => console.warn("[PUT /api/admin/staff] Non-fatal teacher update error:", err.message));
+      } else if (isFaculty) {
+        await db.teacher.create({
+          data: {
+            institutionId,
+            userId: id,
+            employeeId: effectiveEmployeeId,
+            designation: effectiveDesignation,
+            department: effectiveDepartment,
+          },
+        }).catch((err) => console.warn("[PUT /api/admin/staff] Non-fatal teacher create error:", err.message));
+      }
+    }
+
     const updated = await db.user.findFirst({
       where: { id, institutionId },
+      include: { teacherProfile: true },
     });
 
     return NextResponse.json({
@@ -119,6 +173,73 @@ export async function PUT(req: NextRequest) {
       message: "Staff member details updated.",
       data: updated,
     });
+  } catch (error) {
+    return handleAdminApiError(error);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    const id = req.nextUrl.searchParams.get("id");
+    const force = req.nextUrl.searchParams.get("force") === "true";
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: "Staff member ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const result = await archiveTeacher(institutionId, id, actorUserId, force);
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+      data: (result as any).data,
+      alreadyArchived: (result as any).alreadyArchived,
+    });
+  } catch (error: any) {
+    if (error.statusCode === 409) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          hasActiveAssignments: error.hasActiveAssignments,
+          activeSlots: error.activeSlots,
+        },
+        { status: 409 }
+      );
+    }
+    return handleAdminApiError(error);
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    const body = await req.json();
+    const { id, action } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: "Staff member ID is required." },
+        { status: 400 }
+      );
+    }
+
+    if (action === "RESTORE") {
+      const result = await restoreTeacher(institutionId, id, actorUserId);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        notArchived: (result as any).notArchived,
+      });
+    }
+
+    return NextResponse.json(
+      { success: false, error: `Invalid action: ${action}. Expected RESTORE.` },
+      { status: 400 }
+    );
   } catch (error) {
     return handleAdminApiError(error);
   }

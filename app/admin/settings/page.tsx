@@ -24,7 +24,10 @@ import {
   AlertTriangle,
   RefreshCw,
   Eye,
+  CreditCard,
 } from "lucide-react";
+import { PaymentGatewaysSettings } from "@/components/admin/PaymentGatewaysSettings";
+import { InstitutionEmailSettings } from "@/components/admin/InstitutionEmailSettings";
 import {
   InstitutionThemeConfig,
   DEFAULT_INSTITUTION_THEME,
@@ -48,8 +51,8 @@ export default function InstitutionSettingsPage() {
     resetToDefaults,
   } = useInstitution();
 
-  // Active settings tab: "profile" | "address" | "appearance"
-  const [activeTab, setActiveTab] = useState<"profile" | "address" | "appearance">("appearance");
+  // Active settings tab: "profile" | "address" | "appearance" | "gateways" | "email"
+  const [activeTab, setActiveTab] = useState<"profile" | "address" | "appearance" | "gateways" | "email">("appearance");
 
   // Authoritative state derived from InstitutionProvider
   const isLoadingSettings = isProfileLoading;
@@ -332,6 +335,32 @@ export default function InstitutionSettingsPage() {
         >
           <MapPin className="w-4 h-4" />
           <span>Campus Address & Contact</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("gateways")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 cursor-pointer ${
+            activeTab === "gateways"
+              ? "border-[#F5A000] text-[#F5A000] bg-white"
+              : "border-transparent text-[#64748B] hover:text-[#1E293B] hover:bg-slate-50"
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Payment Gateways</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("email")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 cursor-pointer ${
+            activeTab === "email"
+              ? "border-[#F5A000] text-[#F5A000] bg-white"
+              : "border-transparent text-[#64748B] hover:text-[#1E293B] hover:bg-slate-50"
+          }`}
+        >
+          <Mail className="w-4 h-4" />
+          <span>Email Infrastructure</span>
         </button>
       </div>
 
@@ -1248,6 +1277,16 @@ export default function InstitutionSettingsPage() {
             </form>
           )}
         </div>
+      )}
+
+      {/* TAB 4: PAYMENT GATEWAYS (RAZORPAY & CASHFREE) */}
+      {activeTab === "gateways" && (
+        <PaymentGatewaysSettings />
+      )}
+
+      {/* TAB 5: EMAIL INFRASTRUCTURE (OPTION C) */}
+      {activeTab === "email" && (
+        <InstitutionEmailSettings />
       )}
     </div>
   );

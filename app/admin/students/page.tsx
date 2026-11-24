@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useInstitution } from "@/lib/store";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,8 @@ import {
   History,
   ArrowUpDown,
   KeyRound,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import { StudentItem, StudentStatus } from "@/types/institution";
 import { CredentialManagementModal } from "@/components/admin/CredentialManagementModal";
@@ -40,9 +42,14 @@ import { PortalAccountStatus } from "@/lib/utils/credential-helpers";
 export default function StudentsPage() {
   const {
     students,
+    isStudentsLoading,
+    studentsError,
+    refreshStudents,
     addStudent,
     updateStudent,
     deactivateStudent,
+    archiveStudent,
+    restoreStudent,
     guardians,
     linkGuardianToStudent,
     unlinkGuardianFromStudent,
@@ -61,6 +68,7 @@ export default function StudentsPage() {
   const [classFilter, setClassFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState<"name" | "roll" | "date">("name");
+  const [directoryView, setDirectoryView] = useState<"active" | "archived">("active");
 
   // Modal States
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -108,6 +116,10 @@ export default function StudentsPage() {
   // Filtered & Sorted Student List
   const filteredStudents = useMemo(() => {
     const result = students.filter((s) => {
+      // Filter by directory view (Active vs Archived)
+      if (directoryView === "active" && s.status === "Archived") return false;
+      if (directoryView === "archived" && s.status !== "Archived") return false;
+
       const query = searchQuery.toLowerCase();
       const matchesSearch =
         searchQuery === "" ||
@@ -138,7 +150,7 @@ export default function StudentsPage() {
     });
 
     return result;
-  }, [students, searchQuery, deptFilter, courseFilter, classFilter, statusFilter, sortBy]);
+  }, [students, directoryView, searchQuery, deptFilter, courseFilter, classFilter, statusFilter, sortBy]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -146,6 +158,7 @@ export default function StudentsPage() {
       total: students.length,
       active: students.filter((s) => s.status === "Active").length,
       inactive: students.filter((s) => s.status === "Inactive" || s.status === "Suspended").length,
+      archived: students.filter((s) => s.status === "Archived").length,
       newlyAdmitted: students.filter((s) => s.admissionDate?.startsWith("2026")).length,
     };
   }, [students]);
@@ -483,40 +496,11 @@ export default function StudentsPage() {
 
   const loadStudentsFromApi = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/students?take=200");
-      if (!res.ok) return;
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-        json.data.forEach((s: any) => {
-          const hasUser = !!s.user;
-          const hasPassword = !!s.user?.passwordHash && s.user.passwordHash !== "UNPROVISIONED";
-          const isActive = !!s.user?.isActive && s.user?.status === "ACTIVE";
-          const portalStatus = !hasUser
-            ? "NOT_CREATED"
-            : !hasPassword
-            ? "PENDING_SETUP"
-            : isActive
-            ? "ACTIVE"
-            : "DISABLED";
-
-          updateStudentRef.current(s.id, {
-            rollNumber: s.rollNumber,
-            admissionNumber: s.admissionNumber || s.rollNumber,
-            fullName: s.fullName,
-            email: s.email,
-            phone: s.phone || "",
-            portalUserId: s.userId || s.user?.id,
-            portalStatus: portalStatus as any,
-            portalAccess: isActive,
-            portalEmail: s.user?.email || s.email,
-            lastLoginAt: s.user?.lastLoginAt,
-          });
-        });
-      }
+      await refreshStudents();
     } catch (err) {
       console.warn("Could not sync students from server:", err);
     }
-  }, []);
+  }, [refreshStudents]);
 
   useEffect(() => {
     loadStudentsFromApi();
@@ -567,14 +551,6 @@ export default function StudentsPage() {
             Maintain student profiles, class cohort allocations, and academic histories.
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleOpenAddModal}
-          leftIcon={<Plus className="w-4 h-4" />}
-        >
-          Add Student
-        </Button>
       </div>
 
       {/* KPI Cards Grid */}
@@ -724,7 +700,42 @@ export default function StudentsPage() {
       </Card>
 
       {/* Main Student Table */}
-      <Card>
+      <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+        <CardHeader className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <span>{directoryView === "active" ? "Student Directory" : "Archived Student Records"}</span>
+            <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              {filteredStudents.length} students
+            </span>
+          </CardTitle>
+
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setDirectoryView("active")}
+                className={`px-3 py-1 font-medium rounded-md transition-all cursor-pointer ${
+                  directoryView === "active"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Active Students ({stats.total - stats.archived})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirectoryView("archived")}
+                className={`px-3 py-1 font-medium rounded-md transition-all cursor-pointer ${
+                  directoryView === "archived"
+                    ? "bg-slate-800 text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Archived Records ({stats.archived})
+              </button>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -880,6 +891,46 @@ export default function StudentsPage() {
                           >
                             {stu.status === "Active" ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                           </button>
+
+                          {stu.status !== "Archived" ? (
+                            <button
+                              onClick={async () => {
+                                if (
+                                  confirm(
+                                    `Archive student ${stu.fullName} (${stu.studentId})?\n\nHistorical attendance, examination results, and fee records will be permanently preserved. Login portal access will be disabled.`
+                                  )
+                                ) {
+                                  const res = await archiveStudent(stu.id, "ARCHIVE");
+                                  if (!res.success) {
+                                    alert(res.message);
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-[#64748B] hover:text-[#DC2626] hover:bg-[#FEE2E2] rounded transition-colors cursor-pointer"
+                              title="Archive Student (Preserve Academic History)"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                if (
+                                  confirm(
+                                    `Restore student ${stu.fullName} (${stu.studentId}) to active directory?\n\nAcademic enrollment will be restored. For security, portal access requires fresh credential setup.`
+                                  )
+                                ) {
+                                  const res = await restoreStudent(stu.id);
+                                  if (!res.success) {
+                                    alert(res.message);
+                                  }
+                                }
+                              }}
+                              className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
+                              title="Restore Student Record"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -933,6 +984,33 @@ export default function StudentsPage() {
                 >
                   {selectedStudent.status === "Active" ? "Deactivate Student" : "Activate Student"}
                 </Button>
+                {selectedStudent.status !== "Archived" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      if (
+                        confirm(
+                          `Archive student ${selectedStudent.fullName} (${selectedStudent.studentId})?\n\nAll historical academic, fee, and exam records remain safely archived.`
+                        )
+                      ) {
+                        const res = await archiveStudent(selectedStudent.id, "ARCHIVE");
+                        if (res.success) {
+                          setSelectedStudent((prev) =>
+                            prev ? { ...prev, status: "Archived" as any } : null
+                          );
+                          setIsProfileModalOpen(false);
+                        } else {
+                          alert(res.message);
+                        }
+                      }
+                    }}
+                    className="text-[#DC2626] border-[#DC2626]/30 hover:bg-[#FEE2E2]"
+                    leftIcon={<Archive className="w-3.5 h-3.5" />}
+                  >
+                    Archive
+                  </Button>
+                )}
               </div>
               <Button variant="outline" size="sm" onClick={() => setIsProfileModalOpen(false)}>
                 Close

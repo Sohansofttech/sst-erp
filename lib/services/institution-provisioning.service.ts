@@ -254,6 +254,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     try {
       const emailResult = await sendInstitutionInvitationEmail({
         to: adminEmail,
+        institutionId: institution.id,
         institutionName: institution.name,
         institutionCode: institution.code || institution.slug,
         administratorName: adminName,

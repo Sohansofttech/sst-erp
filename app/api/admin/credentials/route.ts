@@ -13,7 +13,12 @@ import {
 } from "@/lib/services/credential-management.service";
 import db from "@/lib/db";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
-import { sendPasswordSetupInvitation, sendRoleCredentialInvitation, getAppBaseUrl } from "@/lib/services/email.service";
+import {
+  sendPasswordSetupInvitation,
+  sendRoleCredentialInvitation,
+  getAppBaseUrl,
+  getRolePortalLoginUrl,
+} from "@/lib/services/email.service";
 
 async function dispatchSetupEmailSafe(
   institutionId: string,
@@ -23,31 +28,38 @@ async function dispatchSetupEmailSafe(
   try {
     const dbUser = await db.user.findUnique({
       where: { id: user.id },
-      select: { passwordHash: true, fullName: true, name: true, role: true },
+      select: { id: true, passwordHash: true, fullName: true, name: true, role: true, status: true, isActive: true },
     });
+
+    if (!dbUser || dbUser.status === "LOCKED" || (dbUser.status as string) === "SUSPENDED" || (dbUser.status as string) === "ARCHIVED") {
+      console.warn(`[dispatchSetupEmailSafe] Blocked invitation for inactive/suspended/archived user:`, user.id);
+      return;
+    }
+
     const inst = await db.institution.findUnique({
       where: { id: institutionId },
       select: { name: true, slug: true },
+    });
+
+    // Invalidate previous tokens by updating with a fresh setup marker
+    const freshMarker = `INVITED_${Date.now()}_${crypto.randomUUID()}`;
+    await db.user.update({
+      where: { id: user.id },
+      data: { passwordHash: freshMarker },
     });
 
     const setupToken = await signPasswordSetupToken({
       userId: user.id,
       email: user.email,
       institutionId,
-      passwordHash: dbUser?.passwordHash || null,
+      passwordHash: freshMarker,
     });
 
     const appUrl = getAppBaseUrl();
     const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
 
     const resolvedRole = (user.role || dbUser?.role || "STUDENT").toUpperCase();
-    let portalLoginUrl = `${appUrl}/login`;
-    if (resolvedRole === "STUDENT") portalLoginUrl = `${appUrl}/student`;
-    else if (resolvedRole === "TEACHER" || resolvedRole === "FACULTY") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher`;
-    else if (resolvedRole === "HOD") portalLoginUrl = `${appUrl}/campus/${inst?.slug || "portal"}/teacher/hod`;
-    else if (resolvedRole === "PARENT" || resolvedRole === "GUARDIAN") portalLoginUrl = `${appUrl}/parent`;
-    else if (resolvedRole === "ADMIN" || resolvedRole === "STAFF") portalLoginUrl = `${appUrl}/admin`;
-    else if (resolvedRole === "SUPER_ADMIN") portalLoginUrl = `${appUrl}/super-admin`;
+    const portalLoginUrl = getRolePortalLoginUrl(resolvedRole, inst?.slug, appUrl);
 
     await sendRoleCredentialInvitation(
       { email: user.email, name: user.name || dbUser?.fullName || dbUser?.name || "Member" },
@@ -58,6 +70,7 @@ async function dispatchSetupEmailSafe(
         role: resolvedRole as any,
         loginUrl: portalLoginUrl,
         username: user.email,
+        institutionId,
       }
     );
   } catch (err: any) {
@@ -98,30 +111,90 @@ export async function GET(req: NextRequest) {
           },
           select: { designation: true, department: true },
         });
-        const designation = teacher?.designation || searchParams.get("designation") || "";
-        extraData.isTeachingFaculty = isTeachingFaculty(designation);
+
+        let designation = teacher?.designation || searchParams.get("designation") || "";
+        let department = teacher?.department || searchParams.get("department") || "";
+        let role = searchParams.get("role") || status?.role || "TEACHER";
+
+        if (!teacher && isValidUuid(entityId)) {
+          const userRecord = await db.user.findFirst({
+            where: { id: entityId, institutionId },
+            include: { teacherProfile: true },
+          }).catch(() => null);
+
+          if (userRecord) {
+            role = userRecord.role || role;
+            if (userRecord.teacherProfile) {
+              designation = userRecord.teacherProfile.designation || designation;
+              department = userRecord.teacherProfile.department || department;
+            }
+          }
+        }
+
+        const resolvedDesignation = designation || (role === "TEACHER" ? "Assistant Professor" : designation);
+        const resolvedDepartment = department || "General Academics";
+
+        extraData.designation = resolvedDesignation;
+        extraData.department = resolvedDepartment;
+        extraData.isTeachingFaculty = isTeachingFaculty(resolvedDesignation, role);
       } else if (entityType === "PARENT") {
         const parentOrFilters: any[] = [];
         if (isValidUuid(entityId)) {
           parentOrFilters.push({ guardianAccountId: entityId });
           parentOrFilters.push({ guardianAccount: { userId: entityId } });
+          parentOrFilters.push({ id: entityId });
         }
-        parentOrFilters.push({ guardianAccount: { guardianUniqueId: entityId } });
+        if (status?.entityId && isValidUuid(status.entityId) && status.entityId !== entityId) {
+          parentOrFilters.push({ guardianAccountId: status.entityId });
+        }
+        if (status?.userId && isValidUuid(status.userId) && status.userId !== entityId) {
+          parentOrFilters.push({ guardianAccount: { userId: status.userId } });
+        }
         if (entityId.includes("@")) {
-          parentOrFilters.push({ guardianAccount: { user: { email: entityId.trim().toLowerCase() } } });
+          parentOrFilters.push({
+            guardianAccount: { user: { email: { equals: entityId.trim().toLowerCase(), mode: "insensitive" } } },
+          });
+        }
+        if (status?.email && status.email.includes("@") && status.email.toLowerCase() !== entityId.toLowerCase()) {
+          parentOrFilters.push({
+            guardianAccount: { user: { email: { equals: status.email.trim().toLowerCase(), mode: "insensitive" } } },
+          });
+        }
+        const cleanedPhone = entityId.replace(/[\s\-\+]/g, "");
+        if (/^\d{7,15}$/.test(cleanedPhone)) {
+          parentOrFilters.push({ guardianAccount: { phone: entityId.trim() } });
         }
 
-        const guardianLinks = await db.guardianLink.findMany({
-          where: {
-            institutionId,
-            OR: parentOrFilters,
-          },
-          include: {
-            student: {
-              select: { id: true, fullName: true, rollNumber: true },
+        // If entityId is a guardianUniqueId (e.g. GRD-xxxx), resolve via GuardianAccount ID suffix
+        if (parentOrFilters.length === 0 && entityId.startsWith("GRD-")) {
+          const suffix = entityId.slice(4).toLowerCase();
+          const accounts = await db.guardianAccount.findMany({
+            where: { institutionId },
+            select: { id: true, userId: true },
+          });
+          const matched = accounts.find((ga) => ga.id.toLowerCase().endsWith(suffix));
+          if (matched) {
+            parentOrFilters.push({ guardianAccountId: matched.id });
+            if (matched.userId) {
+              parentOrFilters.push({ guardianAccount: { userId: matched.userId } });
+            }
+          }
+        }
+
+        let guardianLinks: any[] = [];
+        if (parentOrFilters.length > 0) {
+          guardianLinks = await db.guardianLink.findMany({
+            where: {
+              institutionId,
+              OR: parentOrFilters,
             },
-          },
-        });
+            include: {
+              student: {
+                select: { id: true, fullName: true, rollNumber: true },
+              },
+            },
+          });
+        }
 
         const verified = guardianLinks.filter((l) => l.isVerified);
         const unverified = guardianLinks.filter((l) => !l.isVerified);
@@ -225,7 +298,10 @@ export async function GET(req: NextRequest) {
 
         const statusMap: Record<string, any> = {};
         for (const t of teachers) {
-          const eligible = isTeachingFaculty(t.designation);
+          const designation = t.designation || "Assistant Professor";
+          const role = t.user?.role || "TEACHER";
+
+          const eligible = isTeachingFaculty(designation, role);
           const hasUser = !!t.user;
           const hasPassword = !!t.user?.passwordHash && t.user.passwordHash !== "UNPROVISIONED";
           const isActive = !!t.user?.isActive && t.user?.status === "ACTIVE";
@@ -241,7 +317,7 @@ export async function GET(req: NextRequest) {
             portalStatus = isActive ? "ACTIVE" : "DISABLED";
           }
 
-          statusMap[t.id] = {
+          const entry = {
             hasAccount: hasUser,
             isActive,
             isTeachingFaculty: eligible,
@@ -249,7 +325,51 @@ export async function GET(req: NextRequest) {
             userId: t.userId,
             email: t.user?.email || null,
             lastLoginAt: t.user?.lastLoginAt || null,
+            designation,
+            department: t.department,
           };
+
+          statusMap[t.id] = entry;
+          if (t.userId) {
+            statusMap[t.userId] = entry;
+          }
+        }
+
+        const orphanTeachers = await db.user.findMany({
+          where: {
+            institutionId,
+            role: "TEACHER",
+            teacherProfile: null,
+          },
+          select: {
+            id: true,
+            email: true,
+            isActive: true,
+            status: true,
+            passwordHash: true,
+            lastLoginAt: true,
+            fullName: true,
+            role: true,
+          },
+        }).catch(() => []);
+
+        for (const u of orphanTeachers) {
+          if (!statusMap[u.id]) {
+            const hasPassword = !!u.passwordHash && u.passwordHash !== "UNPROVISIONED";
+            const isActive = !!u.isActive && u.status === "ACTIVE";
+            const portalStatus = !hasPassword ? "PENDING_SETUP" : (isActive ? "ACTIVE" : "DISABLED");
+            statusMap[u.id] = {
+              hasAccount: true,
+              isActive,
+              isTeachingFaculty: true,
+              portalStatus,
+              userId: u.id,
+              email: u.email || null,
+              lastLoginAt: u.lastLoginAt || null,
+              designation: "Assistant Professor",
+              department: "Computer Science and Engineering",
+            };
+          }
         }
 
         return NextResponse.json({ success: true, data: statusMap });
@@ -279,7 +399,10 @@ export async function GET(req: NextRequest) {
         for (const g of guardianAccounts) {
           const verifiedCount = g.guardianLinks.filter((l) => l.isVerified).length;
           const hasUser = !!g.user;
-          const hasPassword = !!g.user?.passwordHash && g.user.passwordHash !== "UNPROVISIONED";
+          const hasPassword =
+            !!g.user?.passwordHash &&
+            !g.user.passwordHash.startsWith("INVITED_") &&
+            g.user.passwordHash.startsWith("$2");
           const isActive = !!g.user?.isActive && g.user?.status === "ACTIVE";
 
           let portalStatus = "NOT_CREATED";
@@ -500,12 +623,20 @@ export async function POST(req: NextRequest) {
           targetUserId = teacher?.userId;
         } else if (entityType === "PARENT" && body.guardianAccountId) {
           const gFilter: any[] = [];
-          if (isValidUuid(body.guardianAccountId)) gFilter.push({ id: body.guardianAccountId }, { userId: body.guardianAccountId });
-          gFilter.push({ guardianUniqueId: body.guardianAccountId });
-          const guardian = await db.guardianAccount.findFirst({
+          if (isValidUuid(body.guardianAccountId)) {
+            gFilter.push({ id: body.guardianAccountId }, { userId: body.guardianAccountId });
+          }
+          if (body.guardianAccountId.includes("@")) {
+            gFilter.push({ user: { email: body.guardianAccountId.trim().toLowerCase() } });
+          }
+          const cleanedPhone = body.guardianAccountId.replace(/[\s\-\+]/g, "");
+          if (/^\d{7,15}$/.test(cleanedPhone)) {
+            gFilter.push({ phone: body.guardianAccountId.trim() });
+          }
+          const guardian = gFilter.length > 0 ? await db.guardianAccount.findFirst({
             where: { institutionId, OR: gFilter },
             select: { userId: true },
-          });
+          }) : null;
           targetUserId = guardian?.userId;
         }
       }
@@ -587,12 +718,20 @@ export async function POST(req: NextRequest) {
           targetUserId = teacher?.userId;
         } else if (entityType === "PARENT" && body.guardianAccountId) {
           const gFilter: any[] = [];
-          if (isValidUuid(body.guardianAccountId)) gFilter.push({ id: body.guardianAccountId }, { userId: body.guardianAccountId });
-          gFilter.push({ guardianUniqueId: body.guardianAccountId });
-          const guardian = await db.guardianAccount.findFirst({
+          if (isValidUuid(body.guardianAccountId)) {
+            gFilter.push({ id: body.guardianAccountId }, { userId: body.guardianAccountId });
+          }
+          if (body.guardianAccountId.includes("@")) {
+            gFilter.push({ user: { email: body.guardianAccountId.trim().toLowerCase() } });
+          }
+          const cleanedPhone = body.guardianAccountId.replace(/[\s\-\+]/g, "");
+          if (/^\d{7,15}$/.test(cleanedPhone)) {
+            gFilter.push({ phone: body.guardianAccountId.trim() });
+          }
+          const guardian = gFilter.length > 0 ? await db.guardianAccount.findFirst({
             where: { institutionId, OR: gFilter },
             select: { userId: true },
-          });
+          }) : null;
           targetUserId = guardian?.userId;
         }
       }

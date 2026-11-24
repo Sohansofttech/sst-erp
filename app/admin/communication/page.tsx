@@ -301,9 +301,9 @@ export default function CommunicationPage() {
                 className="w-full text-xs p-2 border border-[#CBD5E1] rounded-lg bg-white"
               >
                 <option value="ALL">Entire Campus (Students, Parents, Faculty)</option>
-                <option value="STUDENT">Students Only</option>
-                <option value="PARENT">Parents Only</option>
-                <option value="TEACHER">Faculty Members Only</option>
+                <option value="STUDENT">Students</option>
+                <option value="PARENT">Parents / Guardians</option>
+                <option value="TEACHER">Faculty Members</option>
               </select>
             </div>
           </div>

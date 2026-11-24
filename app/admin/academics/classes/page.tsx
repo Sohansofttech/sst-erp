@@ -23,6 +23,9 @@ import { ClassItem, SectionItem } from "@/types/institution";
 export default function ClassesSectionsPage() {
   const {
     classes,
+    isClassesLoading,
+    classesError,
+    refreshClasses,
     sections,
     courses,
     academicYears,
@@ -34,6 +37,10 @@ export default function ClassesSectionsPage() {
     updateSection,
     deleteSection,
   } = useInstitution();
+
+  React.useEffect(() => {
+    refreshClasses();
+  }, [refreshClasses]);
 
   const [activeTab, setActiveTab] = useState<"classes" | "sections">("classes");
 

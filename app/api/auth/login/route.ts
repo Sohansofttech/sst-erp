@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
         role: true,
         platformRole: true,
         isActive: true,
+        status: true,
         lastLoginAt: true,
         institutionId: true,
         institution: {
@@ -116,11 +117,31 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive || user.status === "LOCKED" || (user.status as string) === "SUSPENDED" || (user.status as string) === "ARCHIVED") {
       return NextResponse.json(
-        { success: false, error: "Invalid email or password." },
+        { success: false, error: "Account is inactive, suspended, or archived." },
         { status: 401 }
       );
+    }
+
+    if (user.institutionId) {
+      try {
+        const archivedKey = user.role === "TEACHER" 
+          ? `archived_staff:${user.institutionId}` 
+          : (user.role === "PARENT" || user.role === "GUARDIAN")
+          ? `archived_guardians:${user.institutionId}` 
+          : `archived_students:${user.institutionId}`;
+        const archivedSetting = await db.platformSetting.findUnique({ where: { key: archivedKey } }).catch(() => null);
+        if (archivedSetting?.value && Array.isArray(archivedSetting.value)) {
+          const isArchived = (archivedSetting.value as any[]).some((a: any) => a.id === user.id || a.userId === user.id);
+          if (isArchived) {
+            return NextResponse.json(
+              { success: false, error: "Account has been archived. Access denied." },
+              { status: 403 }
+            );
+          }
+        }
+      } catch {}
     }
 
     // Check password if standard login
@@ -215,7 +236,7 @@ export async function POST(req: NextRequest) {
     let teacherToken: string | undefined;
 
     if (userRole === "STUDENT") {
-      redirectUrl = "/dashboard";
+      redirectUrl = "/student/dashboard";
       let studentRecord: any = null;
       try {
         const students = await db.$queryRaw<any[]>`
@@ -230,7 +251,7 @@ export async function POST(req: NextRequest) {
         studentId = studentRecord.id;
       }
     } else if (userRole === "PARENT" || userRole === "GUARDIAN") {
-      redirectUrl = "/dashboard";
+      redirectUrl = "/parent/dashboard";
       try {
         const guardians = await db.$queryRaw<any[]>`
           SELECT id FROM guardian_accounts WHERE "userId" = ${user.id} LIMIT 1

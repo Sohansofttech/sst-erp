@@ -8,6 +8,7 @@ import {
   previewEmail,
   getEmailServiceStatus,
   getAppBaseUrl,
+  getRolePortalLoginUrl,
 } from "@/lib/services/email.service";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
 
@@ -39,10 +40,7 @@ export async function GET(req: NextRequest) {
       const institutionName = inst?.name || "Campus Administration";
       const appUrl = getAppBaseUrl();
 
-      let loginUrl = `${appUrl}/login`;
-      if (role === "TEACHER") loginUrl = `${appUrl}/campus/${inst?.slug || "demo"}/teacher`;
-      else if (role === "PARENT") loginUrl = `${appUrl}/login`;
-      else if (role === "STUDENT") loginUrl = `${appUrl}/login`;
+      const loginUrl = getRolePortalLoginUrl(role, inst?.slug, appUrl);
 
       const preview = previewEmail(type, {
         title,
@@ -146,6 +144,8 @@ export async function GET(req: NextRequest) {
         name: true,
         role: true,
         phone: true,
+        isActive: true,
+        passwordHash: true,
         studentProfile: {
           select: { rollNumber: true, admissionNumber: true },
         },
@@ -162,11 +162,12 @@ export async function GET(req: NextRequest) {
                 canAccessPortal: true,
               },
               select: {
+                studentId: true,
                 isVerified: true,
                 canAccessPortal: true,
                 relationship: true,
                 student: {
-                  select: { fullName: true, rollNumber: true },
+                  select: { id: true, fullName: true, rollNumber: true },
                 },
               },
             },
@@ -185,6 +186,42 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
+    // Auto-heal guardians who have synthetic internal addresses if a real email was saved in AdmissionApplication
+    for (const u of authorizedUsers) {
+      if ((u.role === "PARENT" || u.role === "GUARDIAN") && (u.email.endsWith(".internal") || u.email.includes("@guardian.internal"))) {
+        try {
+          const studentIds = (u.guardianAccount?.guardianLinks || [])
+            .map((gl: any) => gl.student?.id || gl.studentId)
+            .filter(Boolean);
+
+          if (studentIds.length > 0) {
+            const appWithEmail = await db.admissionApplication.findFirst({
+              where: {
+                institutionId,
+                convertedStudentId: { in: studentIds },
+                guardianEmail: { not: null },
+              },
+              select: { guardianEmail: true },
+            });
+            if (
+              appWithEmail?.guardianEmail &&
+              !appWithEmail.guardianEmail.endsWith(".internal") &&
+              /^[^\s@]+@[^\s@]+\.[a-zA-Z0-9._-]+$/.test(appWithEmail.guardianEmail.trim())
+            ) {
+              const healedEmail = appWithEmail.guardianEmail.trim().toLowerCase();
+              u.email = healedEmail;
+              await db.user.update({
+                where: { id: u.id },
+                data: { email: healedEmail },
+              });
+            }
+          }
+        } catch {
+          // Non-blocking auto-heal fallback
+        }
+      }
+    }
+
     const formattedRecipients = authorizedUsers.map((u) => {
       let identifier: string = u.role || "Member";
       if (u.role === "STUDENT") {
@@ -198,6 +235,10 @@ export async function GET(req: NextRequest) {
         identifier = studentNames ? `Student: ${studentNames}` : (u.guardianAccount?.phone || "Guardian");
       }
 
+      const hasPassword = Boolean(u.passwordHash && u.passwordHash !== "UNPROVISIONED");
+      const invitationStatus: "ACTIVE" | "PENDING_SETUP" | "DISABLED" =
+        !u.isActive ? "DISABLED" : !hasPassword ? "PENDING_SETUP" : "ACTIVE";
+
       return {
         id: u.id,
         email: u.email,
@@ -206,6 +247,8 @@ export async function GET(req: NextRequest) {
         identifier,
         department: u.teacherProfile?.department || undefined,
         designation: u.teacherProfile?.designation || undefined,
+        invitationStatus,
+        hasPassword,
       };
     });
 
@@ -223,13 +266,36 @@ export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
     const body = await req.json();
-    const { action, recipientIds, title, message, category } = body;
+    const { action, recipientIds, title, message, category, cc } = body;
 
     if (!action || !recipientIds || !Array.isArray(recipientIds) || recipientIds.length === 0) {
       return NextResponse.json(
         { success: false, error: "Action and non-empty recipientIds array are required." },
         { status: 400 }
       );
+    }
+
+    // Parse and validate CC recipients (allows outside / external recipients)
+    let validatedCc: string[] = [];
+    if (cc) {
+      const rawCcList = Array.isArray(cc) ? cc : String(cc).split(/[,;]+/);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const seenCc = new Set<string>();
+
+      for (const raw of rawCcList) {
+        const clean = String(raw).trim().toLowerCase();
+        if (!clean) continue;
+        if (!emailRegex.test(clean)) {
+          return NextResponse.json(
+            { success: false, error: `Invalid CC email format: '${clean}'. Please provide valid email addresses.` },
+            { status: 400 }
+          );
+        }
+        if (!seenCc.has(clean)) {
+          seenCc.add(clean);
+          validatedCc.push(clean);
+        }
+      }
     }
 
     // 1. Fetch institution details
@@ -344,8 +410,71 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Ensure no CC email duplicates any primary To recipient
+    if (validatedCc.length > 0) {
+      const toEmailSet = new Set(targetUsers.map((u) => u.email.trim().toLowerCase()));
+      const duplicatesWithTo = validatedCc.filter((c) => toEmailSet.has(c));
+      if (duplicatesWithTo.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Duplicate recipient detected: ${duplicatesWithTo.join(", ")} is already in the primary recipient list and cannot be in CC.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const isSyntheticInternal = (email: string) =>
+      email.endsWith(".internal") || email.endsWith(".local") || email.includes("@guardian.internal");
+
+    // Auto-heal target users who have synthetic internal addresses if a real email was saved in AdmissionApplication
+    for (const u of targetUsers) {
+      if ((u.role === "PARENT" || u.role === "GUARDIAN") && isSyntheticInternal(u.email)) {
+        try {
+          const ga = await db.guardianAccount.findUnique({
+            where: { userId: u.id },
+            include: { guardianLinks: { select: { studentId: true } } },
+          });
+          const studentIds = (ga?.guardianLinks || []).map((gl) => gl.studentId);
+          if (studentIds.length > 0) {
+            const appWithEmail = await db.admissionApplication.findFirst({
+              where: {
+                institutionId,
+                convertedStudentId: { in: studentIds },
+                guardianEmail: { not: null },
+              },
+              select: { guardianEmail: true },
+            });
+            if (
+              appWithEmail?.guardianEmail &&
+              !isSyntheticInternal(appWithEmail.guardianEmail) &&
+              /^[^\s@]+@[^\s@]+\.[a-zA-Z0-9._-]+$/.test(appWithEmail.guardianEmail.trim())
+            ) {
+              const healedEmail = appWithEmail.guardianEmail.trim().toLowerCase();
+              u.email = healedEmail;
+              await db.user.update({
+                where: { id: u.id },
+                data: { email: healedEmail },
+              });
+            }
+          }
+        } catch {
+          // Non-blocking auto-heal fallback
+        }
+      }
+    }
+
     const appUrl = getAppBaseUrl();
-    const results: Array<{ id: string; email: string; success: boolean; previewUrl?: string | false; error?: string }> = [];
+    const results: Array<{
+      id: string;
+      email: string;
+      success: boolean;
+      status?: string;
+      messageId?: string;
+      previewUrl?: string | false;
+      error?: string;
+    }> = [];
 
     // ACTION A: DIRECT MESSAGE TO SELECTED USERS
     if (action === "SEND_DIRECT") {
@@ -356,7 +485,28 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      if (targetUsers.length === 1 && isSyntheticInternal(targetUsers[0].email)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Cannot dispatch email: Recipient "${targetUsers[0].fullName || targetUsers[0].name}" has an undeliverable placeholder address (${targetUsers[0].email}). Please update the contact email to a valid external address in Guardian Management.`,
+          },
+          { status: 400 }
+        );
+      }
+
       for (const user of targetUsers) {
+        if (isSyntheticInternal(user.email)) {
+          results.push({
+            id: user.id,
+            email: user.email,
+            success: false,
+            status: "DELIVERY_FAILED",
+            error: `Cannot dispatch to synthetic internal address (${user.email}). Please update contact email in Guardian Management.`,
+          });
+          continue;
+        }
+
         const sendRes = await sendDirectEmail(
           { email: user.email, name: user.fullName || user.name || undefined },
           {
@@ -366,6 +516,8 @@ export async function POST(req: NextRequest) {
             institutionName: institution.name,
             actionUrl: `${appUrl}/dashboard`,
             actionLabel: "View in Campus Portal",
+            cc: validatedCc.length > 0 ? validatedCc : undefined,
+            institutionId,
           }
         );
 
@@ -373,6 +525,8 @@ export async function POST(req: NextRequest) {
           id: user.id,
           email: user.email,
           success: sendRes.success,
+          status: sendRes.status,
+          messageId: sendRes.messageId,
           previewUrl: sendRes.previewUrl,
           error: sendRes.error,
         });
@@ -384,6 +538,17 @@ export async function POST(req: NextRequest) {
       if (!title || !message) {
         return NextResponse.json(
           { success: false, error: "Announcement title and message are required." },
+          { status: 400 }
+        );
+      }
+
+      const deliverableTargetUsers = targetUsers.filter((u) => !isSyntheticInternal(u.email));
+      if (deliverableTargetUsers.length === 0 && targetUsers.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Cannot dispatch announcement: All selected recipients have synthetic internal addresses. Please update their contact emails in Guardian Management.",
+          },
           { status: 400 }
         );
       }
@@ -410,7 +575,7 @@ export async function POST(req: NextRequest) {
       });
 
       // 3. Dispatch emails
-      const emailList = targetUsers.map((u) => ({
+      const emailList = deliverableTargetUsers.map((u) => ({
         email: u.email,
         name: u.fullName || u.name || undefined,
       }));
@@ -421,15 +586,20 @@ export async function POST(req: NextRequest) {
         category: category || "GENERAL",
         institutionName: institution.name,
         actionUrl: `${appUrl}/dashboard`,
+        cc: validatedCc.length > 0 ? validatedCc : undefined,
+        institutionId,
       });
 
       for (const u of targetUsers) {
+        const isSynthetic = isSyntheticInternal(u.email);
         results.push({
           id: u.id,
           email: u.email,
-          success: sendRes.success,
+          success: isSynthetic ? false : sendRes.success,
+          status: isSynthetic ? "DELIVERY_FAILED" : sendRes.status,
+          messageId: sendRes.messageId,
           previewUrl: sendRes.previewUrl,
-          error: sendRes.error,
+          error: isSynthetic ? "Skipped email dispatch due to synthetic internal address" : sendRes.error,
         });
       }
     }
@@ -437,6 +607,17 @@ export async function POST(req: NextRequest) {
     // ACTION C: ACCOUNT INVITATION & PASSWORD SETUP
     else if (action === "SEND_INVITATION") {
       for (const user of targetUsers) {
+        if (isSyntheticInternal(user.email)) {
+          results.push({
+            id: user.id,
+            email: user.email,
+            success: false,
+            status: "DELIVERY_FAILED",
+            error: `Cannot issue invitation to synthetic internal address (${user.email}). Please update contact email in Guardian Management first.`,
+          });
+          continue;
+        }
+
         // Enforce verified parent-child relationship check for Guardian accounts
         if (user.role === "PARENT" || user.role === "GUARDIAN") {
           const verifiedLink = await db.guardianLink.findFirst({
@@ -451,6 +632,7 @@ export async function POST(req: NextRequest) {
               id: user.id,
               email: user.email,
               success: false,
+              status: "DELIVERY_FAILED",
               error: "Cannot issue invitation: Guardian has no verified student relationships in this institution.",
             });
             continue;
@@ -465,11 +647,7 @@ export async function POST(req: NextRequest) {
         });
 
         const setupUrl = `${appUrl}/auth/setup-password?token=${encodeURIComponent(setupToken)}`;
-        let loginUrl = `${appUrl}/login`;
-        if (user.role === "TEACHER") loginUrl = `${appUrl}/campus/${institution.slug || "demo"}/teacher`;
-        else if (user.role === "PARENT" || user.role === "GUARDIAN") loginUrl = `${appUrl}/login`;
-        else if (user.role === "ADMIN") loginUrl = `${appUrl}/admin/dashboard`;
-        else if (user.role === "STUDENT") loginUrl = `${appUrl}/login`;
+        const loginUrl = getRolePortalLoginUrl(user.role || "", institution.slug, appUrl);
 
         const sendRes = await sendRoleCredentialInvitation(
           { email: user.email, name: user.fullName || user.name || undefined },
@@ -480,6 +658,7 @@ export async function POST(req: NextRequest) {
             username: user.email,
             institutionName: institution.name,
             expiresIn: "24 hours",
+            institutionId,
           }
         );
 
@@ -487,6 +666,8 @@ export async function POST(req: NextRequest) {
           id: user.id,
           email: user.email,
           success: sendRes.success,
+          status: sendRes.status,
+          messageId: sendRes.messageId,
           previewUrl: sendRes.previewUrl,
           error: sendRes.error,
         });
@@ -503,22 +684,49 @@ export async function POST(req: NextRequest) {
     const samplePreviewUrl = results.find((r) => r.previewUrl)?.previewUrl;
 
     const emailStatus = await getEmailServiceStatus();
+
+    // Provider failure handling: do NOT return HTTP 200 when delivery failed completely
+    if (dispatchedCount === 0 && failedCount > 0) {
+      const firstError = results.find((r) => r.error)?.error || "Email delivery failed.";
+      return NextResponse.json(
+        {
+          success: false,
+          status: "DELIVERY_FAILED",
+          transportMode: emailStatus.mode,
+          error: firstError,
+          message: `Delivery failed for ${failedCount} recipient(s): ${firstError}`,
+          dispatchedCount: 0,
+          failedCount,
+          results,
+        },
+        { status: 502 }
+      );
+    }
+
+    const isPartial = failedCount > 0 && dispatchedCount > 0;
     const isEthereal = emailStatus.mode === "ethereal";
     const isSimulated = emailStatus.mode === "simulated";
+    const isResend = emailStatus.mode === "resend";
 
-    return NextResponse.json({
-      success: dispatchedCount > 0 || results.length === 0,
-      transportMode: emailStatus.mode,
-      message: isEthereal
-        ? `Generated Ethereal test preview for ${dispatchedCount} email(s). (Demonstration Mode — no external emails sent).`
-        : isSimulated
-        ? `Simulated dispatch for ${dispatchedCount} email(s) in sandbox mode.`
-        : `Dispatched ${dispatchedCount} email(s) via live institutional SMTP.${failedCount > 0 ? ` (${failedCount} failed)` : ""}`,
-      dispatchedCount,
-      failedCount,
-      previewUrl: samplePreviewUrl || undefined,
-      results,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        status: isPartial ? "PARTIAL_DELIVERY" : "PROVIDER_ACCEPTED",
+        transportMode: emailStatus.mode,
+        message: isResend
+          ? `Dispatched via Resend transactional email provider for ${dispatchedCount} recipient(s).${isPartial ? ` (${failedCount} failed)` : ""}`
+          : isEthereal
+          ? `Generated Ethereal test preview for ${dispatchedCount} email(s). (Demonstration Mode — no external emails sent).`
+          : isSimulated
+          ? `Simulated dispatch for ${dispatchedCount} email(s) in sandbox mode.`
+          : `Dispatched ${dispatchedCount} email(s) via live institutional SMTP.${isPartial ? ` (${failedCount} failed)` : ""}`,
+        dispatchedCount,
+        failedCount,
+        previewUrl: samplePreviewUrl || undefined,
+        results,
+      },
+      { status: isPartial ? 207 : 200 }
+    );
   } catch (error) {
     return handleAdminApiError(error);
   }

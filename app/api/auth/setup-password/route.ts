@@ -39,8 +39,11 @@ export async function GET(req: NextRequest) {
         fullName: true,
         passwordHash: true,
         institutionId: true,
+        status: true,
+        isActive: true,
+        role: true,
         institution: {
-          select: { name: true, slug: true },
+          select: { name: true, slug: true, status: true, isActive: true },
         },
       },
     });
@@ -52,10 +55,38 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Security Invariant: Suspended or archived accounts must not activate or configure password
+    if (user.status === "LOCKED" || (user.status as string) === "SUSPENDED" || (user.status as string) === "ARCHIVED") {
+      return NextResponse.json(
+        { success: false, error: "This account has been suspended or archived. Password setup is not permitted." },
+        { status: 403 }
+      );
+    }
+
+    if (user.institutionId) {
+      try {
+        const archivedKey = user.role === "TEACHER" 
+          ? `archived_staff:${user.institutionId}` 
+          : user.role === "PARENT" 
+          ? `archived_guardians:${user.institutionId}` 
+          : `archived_students:${user.institutionId}`;
+        const archivedSetting = await db.platformSetting.findUnique({ where: { key: archivedKey } }).catch(() => null);
+        if (archivedSetting?.value && Array.isArray(archivedSetting.value)) {
+          const isArchived = (archivedSetting.value as any[]).some((a: any) => a.id === user.id || a.userId === user.id);
+          if (isArchived) {
+            return NextResponse.json(
+              { success: false, error: "This account has been archived. Password setup is not permitted." },
+              { status: 403 }
+            );
+          }
+        }
+      } catch {}
+    }
+
     const currentSig = computePasswordSignature(user.passwordHash || "");
     if (payload.sig !== currentSig) {
       return NextResponse.json(
-        { success: false, error: "This setup link has already been used. Please log in or request a new reset." },
+        { success: false, error: "This setup link has already been used or has been superseded by a newer invitation. Please log in or request a new reset." },
         { status: 400 }
       );
     }
@@ -134,12 +165,16 @@ export async function POST(req: NextRequest) {
         role: true,
         institutionId: true,
         passwordHash: true,
+        status: true,
+        isActive: true,
         institution: {
           select: {
             id: true,
             name: true,
             slug: true,
             code: true,
+            status: true,
+            isActive: true,
           },
         },
       },
@@ -152,10 +187,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Security Invariant: Suspended or archived accounts must not activate or configure password
+    if (user.status === "LOCKED" || (user.status as string) === "SUSPENDED" || (user.status as string) === "ARCHIVED") {
+      return NextResponse.json(
+        { success: false, error: "This account has been suspended or archived. Password setup is not permitted." },
+        { status: 403 }
+      );
+    }
+
+    if (user.institutionId) {
+      try {
+        const archivedKey = user.role === "TEACHER" 
+          ? `archived_staff:${user.institutionId}` 
+          : user.role === "PARENT" 
+          ? `archived_guardians:${user.institutionId}` 
+          : `archived_students:${user.institutionId}`;
+        const archivedSetting = await db.platformSetting.findUnique({ where: { key: archivedKey } }).catch(() => null);
+        if (archivedSetting?.value && Array.isArray(archivedSetting.value)) {
+          const isArchived = (archivedSetting.value as any[]).some((a: any) => a.id === user.id || a.userId === user.id);
+          if (isArchived) {
+            return NextResponse.json(
+              { success: false, error: "This account has been archived. Password setup is not permitted." },
+              { status: 403 }
+            );
+          }
+        }
+      } catch {}
+    }
+
     const currentSig = computePasswordSignature(user.passwordHash || "");
     if (payload.sig !== currentSig) {
       return NextResponse.json(
-        { success: false, error: "This setup link has already been used." },
+        { success: false, error: "This setup link has already been used or has been superseded by a newer invitation." },
         { status: 400 }
       );
     }

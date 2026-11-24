@@ -113,8 +113,9 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Header
           portalType={effectiveRole}
-          userFullName={user?.fullName || "John Doe"}
+          userFullName={user?.fullName || "User"}
           userRole={effectiveRole}
+          userEmail={user?.email}
           institutionName={user?.institutionName || "Campus Portal"}
           selectedChildId={currentChildId}
           onSelectChild={handleSelect}

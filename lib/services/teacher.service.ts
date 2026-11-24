@@ -283,10 +283,10 @@ function parseSectionId(sectionId: string): { semester: number; section: string;
 // ---------------------------------------------------------------------------
 // Simulated latency & in-memory session store
 // ---------------------------------------------------------------------------
-const SIMULATED_DELAY_MS = 120
+const SIMULATED_DELAY_MS = 0
 
 function delay(ms = SIMULATED_DELAY_MS): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return Promise.resolve()
 }
 
 function clone<T>(value: T): T {
@@ -414,7 +414,6 @@ export async function getInstitutionContext(
   academicYearName?: string
 ): Promise<TenantContext> {
   const normSlug = typeof slug === "string" ? slug : slug?.slug || "demo-school"
-  await delay(60)
   const institution = resolveInstitution(normSlug)
   const academicYears = clone(store.academicYears)
   const currentAcademicYear =
@@ -483,8 +482,8 @@ export async function getTeacherDashboard(
         liveStudentLeaves,
       ] = await Promise.all([
         getTeacherProfile(activeTeacherId),
-        getClassAllocations(activeTeacherId),
-        getSubjectAllocations(activeTeacherId),
+        getClassAllocations(activeTeacherId, targetYearId),
+        getSubjectAllocations(activeTeacherId, targetYearId),
         getWeeklyTimetable(activeTeacherId),
         getAssignments(),
         getNotifications(),
@@ -604,10 +603,13 @@ export async function getTeacherDashboardOverview(
       const resolved = await resolveActiveTeacher(undefined, undefined, normSlug)
       const activeInstId = resolved.institutionId
 
+      const todayIso = new Date().toISOString().split("T")[0]
+      const fallbackIso = "2026-11-12"
+
       const [data, sessions, assessments, entries] =
         await Promise.all([
           getTeacherDashboard(normSlug, academicYearId),
-          getAttendanceSessions({ institutionId: activeInstId }),
+          getAttendanceSessions({ institutionId: activeInstId, take: 50 }),
           getInternalAssessments({ institutionId: activeInstId }),
           getLogBookEntries({ institutionId: activeInstId } as any),
         ])
@@ -617,11 +619,10 @@ export async function getTeacherDashboardOverview(
           ? data.todayTimetable
           : store.timetable.filter((s) => s.day === "Monday")
 
-      const todayIso = "2026-11-12"
       const completed = new Set<string>()
       for (const s of sessions) {
         if (
-          s.date === todayIso &&
+          (s.date === todayIso || s.date === fallbackIso) &&
           (s.status === "submitted" || s.status === "locked")
         ) {
           completed.add(`${s.sectionId}-${s.period ?? 1}`)
@@ -633,7 +634,7 @@ export async function getTeacherDashboardOverview(
 
       const rosters = await Promise.all(
         data.classAllocations.map((alloc) =>
-          getSectionStudents(alloc.sectionId, undefined, activeInstId)
+          getSectionStudents(alloc.sectionId, undefined, activeInstId, { includeGuardians: false })
         )
       )
       const alerts = rosters
@@ -667,6 +668,46 @@ export async function getTeacherDashboardOverview(
   inFlightOverview.set(overviewKey, promise)
   const res = await promise
   return clone(res)
+}
+
+export async function getTeacherPortalKpis(
+  slug?: string | any
+): Promise<{ unreadNotificationsCount: number; pendingApprovalsCount: number }> {
+  const normSlug = typeof slug === "string" ? (slug.trim() || "demo-school") : (slug?.slug || "demo-school")
+  const cached = dashboardCache.get(`${normSlug}|`)
+  if (cached && Date.now() - cached.timestamp < 30_000) {
+    return {
+      unreadNotificationsCount: cached.data.kpis.unreadNotificationsCount,
+      pendingApprovalsCount: cached.data.kpis.pendingApprovalsCount,
+    }
+  }
+
+  try {
+    const resolved = await resolveActiveTeacher(undefined, undefined, normSlug)
+    const [notificationsCount, leavesCount] = await Promise.all([
+      prisma.notifications.count({
+        where: {
+          userId: resolved.user.id,
+          isRead: false,
+        },
+      }).catch(() => 3),
+      prisma.student_leaves.count({
+        where: {
+          institutionId: resolved.institutionId,
+          status: "PENDING",
+        },
+      }).catch(() => 2),
+    ])
+    return {
+      unreadNotificationsCount: notificationsCount,
+      pendingApprovalsCount: leavesCount,
+    }
+  } catch {
+    return {
+      unreadNotificationsCount: 3,
+      pendingApprovalsCount: 2,
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -762,7 +803,8 @@ export async function updateTeacherProfile(
 }
 
 export async function getClassAllocations(
-  teacherId?: string
+  teacherId?: string,
+  academicYearId?: string
 ): Promise<ClassAllocation[]> {
   const { teacher, institutionId } = await resolveActiveTeacher(teacherId)
 
@@ -771,13 +813,15 @@ export async function getClassAllocations(
   let slots: any[] = []
   try {
     const [ayRes, slotsRes] = await Promise.all([
-      prisma.academic_years.findFirst({
-        where: {
-          institutionId,
-          isCurrent: true,
-        },
-        orderBy: { startDate: "desc" },
-      }),
+      academicYearId
+        ? Promise.resolve(null)
+        : prisma.academic_years.findFirst({
+            where: {
+              institutionId,
+              isCurrent: true,
+            },
+            orderBy: { startDate: "desc" },
+          }),
       prisma.timetable_slots.findMany({
         where: {
           teacherId: teacher.id,
@@ -794,7 +838,7 @@ export async function getClassAllocations(
   } catch (err) {
     console.warn("[getClassAllocations] DB query error:", err)
   }
-  const academicYearId = currentAY?.id ?? "ay_demo_2026_27"
+  const resolvedAcademicYearId = academicYearId ?? currentAY?.id ?? "ay_demo_2026_27"
 
   // Group by distinct (semester, section)
   const classMap = new Map<
@@ -881,7 +925,7 @@ export async function getClassAllocations(
     return {
       id: `ca-${grade}${item.section.toLowerCase()}`,
       institutionId,
-      academicYearId,
+      academicYearId: resolvedAcademicYearId,
       teacherId: teacher.id,
       classId,
       className,
@@ -898,7 +942,8 @@ export async function getClassAllocations(
 }
 
 export async function getSubjectAllocations(
-  teacherId?: string
+  teacherId?: string,
+  academicYearId?: string
 ): Promise<SubjectAllocation[]> {
   const { teacher, institutionId } = await resolveActiveTeacher(teacherId)
 
@@ -907,13 +952,15 @@ export async function getSubjectAllocations(
   let slots: any[] = []
   try {
     const [ayRes, slotsRes] = await Promise.all([
-      prisma.academic_years.findFirst({
-        where: {
-          institutionId,
-          isCurrent: true,
-        },
-        orderBy: { startDate: "desc" },
-      }),
+      academicYearId
+        ? Promise.resolve(null)
+        : prisma.academic_years.findFirst({
+            where: {
+              institutionId,
+              isCurrent: true,
+            },
+            orderBy: { startDate: "desc" },
+          }),
       prisma.timetable_slots.findMany({
         where: {
           teacherId: teacher.id,
@@ -929,7 +976,7 @@ export async function getSubjectAllocations(
   } catch (err) {
     console.warn("[getSubjectAllocations] DB query error:", err)
   }
-  const academicYearId = currentAY?.id ?? "ay_demo_2026_27"
+  const resolvedAcademicYearId = academicYearId ?? currentAY?.id ?? "ay_demo_2026_27"
 
   // Map distinct (subjectId, semester, section)
   const allocMap = new Map<
@@ -977,7 +1024,7 @@ export async function getSubjectAllocations(
     results.push({
       id: allocId,
       institutionId,
-      academicYearId,
+      academicYearId: resolvedAcademicYearId,
       teacherId: teacher.id,
       classId,
       className,
@@ -1161,7 +1208,8 @@ const inFlightSectionRoster = new Map<string, Promise<StudentRosterItem[]>>()
 export async function getSectionStudents(
   sectionId: string,
   searchQuery?: string,
-  institutionId?: string
+  institutionId?: string,
+  options?: { includeGuardians?: boolean }
 ): Promise<StudentRosterItem[]> {
   const activeTenantId =
     (typeof institutionId === "string" && institutionId.trim().length > 0 ? institutionId.trim() : undefined) ??
@@ -1186,6 +1234,7 @@ export async function getSectionStudents(
     try {
       const { semester, section, grade } = parseSectionId(sectionId)
       const q = searchQuery?.trim().toLowerCase()
+      const shouldIncludeGuardians = options?.includeGuardians !== false
 
       // Query live students with multi-tenant institutionId constraint
       let dbStudents: any[] = []
@@ -1207,13 +1256,17 @@ export async function getSectionStudents(
                 }
               : {}),
           },
-          include: {
-            guardianLinks: {
-              include: {
-                guardianAccount: true,
-              },
-            },
-          },
+          ...(shouldIncludeGuardians
+            ? {
+                include: {
+                  guardianLinks: {
+                    include: {
+                      guardianAccount: true,
+                    },
+                  },
+                },
+              }
+            : {}),
           orderBy: { rollNumber: "asc" },
         })
       } catch (err) {
@@ -1335,6 +1388,7 @@ export async function getAttendanceSessions(filters?: {
   sectionId?: string
   date?: string
   institutionId?: string
+  take?: number
 }): Promise<AttendanceSession[]> {
   const activeTenantId =
     filters?.institutionId ?? (await resolveActiveTeacher()).institutionId
@@ -1344,13 +1398,17 @@ export async function getAttendanceSessions(filters?: {
     ? new Date(`${filters.date}T00:00:00.000Z`)
     : undefined
 
+  // Prevent full-table unbounded scan by restricting to past 30 days if no date is given
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400 * 1000)
+
   let dbRecords: any[] = []
   try {
     dbRecords = await prisma.attendance_records.findMany({
       where: {
         institutionId: activeTenantId,
-        ...(filterDate ? { date: filterDate } : {}),
+        ...(filterDate ? { date: filterDate } : { date: { gte: thirtyDaysAgo } }),
       },
+      take: filters?.take ?? 200,
       include: {
         student: true,
         subject: true,

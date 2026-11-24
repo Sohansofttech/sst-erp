@@ -81,3 +81,48 @@ export async function verifyPasswordSetupToken(token: string): Promise<{
   }
 }
 
+/**
+ * Sign an expiring, single-use password reset token (Phase 6)
+ */
+export async function signPasswordResetToken(payload: {
+  userId: string;
+  email: string;
+  institutionId?: string;
+  passwordHash?: string | null;
+}): Promise<string> {
+  const sig = computePasswordSignature(payload.passwordHash || "");
+  return await new SignJWT({
+    purpose: "password_reset",
+    userId: payload.userId,
+    email: payload.email,
+    institutionId: payload.institutionId,
+    sig,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("24h")
+    .sign(key);
+}
+
+export async function verifyPasswordResetToken(token: string): Promise<{
+  userId: string;
+  email: string;
+  institutionId?: string;
+  sig: string;
+  exp?: number;
+} | null> {
+  try {
+    const { payload } = await jwtVerify(token, key);
+    if (payload.purpose !== "password_reset") return null;
+    return {
+      userId: payload.userId as string,
+      email: payload.email as string,
+      institutionId: payload.institutionId as string | undefined,
+      sig: payload.sig as string,
+      exp: payload.exp as number | undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+

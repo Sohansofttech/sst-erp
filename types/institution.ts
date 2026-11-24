@@ -77,7 +77,7 @@ export interface Course {
   durationYears: number;
   totalSemesters: number;
   totalCredits: number;
-  status: "Active" | "Inactive";
+  status: "Active" | "Inactive" | "Archived";
   description?: string;
 }
 
@@ -123,7 +123,7 @@ export interface SubjectItem {
   departmentName?: string;
   semester: number;
   allocatedTeacherName?: string;
-  status: "Active" | "Inactive";
+  status: "Active" | "Inactive" | "Archived";
 }
 
 export interface Permission {
@@ -331,7 +331,7 @@ export interface GuardianItem {
   occupation: string;
   company?: string;
   isEmergencyContact: boolean;
-  status: "Active" | "Inactive";
+  status: "Active" | "Inactive" | "Archived";
 
   // Linked Students (Many-to-Many IDs)
   studentIds: string[];
@@ -350,7 +350,7 @@ export interface GuardianItem {
 // Staff Management Types
 // -------------------------------------------------------------
 export type StaffEmploymentType = "Full-Time" | "Part-Time" | "Contract" | "Visiting";
-export type StaffStatus = "Active" | "On Leave" | "Inactive";
+export type StaffStatus = "Active" | "On Leave" | "Inactive" | "Archived";
 
 export interface StaffItem {
   id: string; // e.g. "STAFF-001"

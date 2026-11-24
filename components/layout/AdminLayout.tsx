@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { InstitutionProvider, useInstitution } from "@/lib/store";
-import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
+import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
