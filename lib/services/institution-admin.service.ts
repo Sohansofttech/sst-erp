@@ -2612,33 +2612,56 @@ export async function updateCourse(
   });
 }
 
-export async function getClasses(institutionId: string) {
-  // In the current database schema, classes and cohorts are derived from approved courses and semester offerings
+export async function getClasses(institutionId: string, divisionId?: string) {
   try {
-    const courses = await db.course.findMany({
-      where: { institutionId },
-      orderBy: { name: "asc" },
-    });
-    const classes: any[] = [];
-    for (const c of courses) {
-      const total = c.totalSemesters || 8;
-      for (let sem = 1; sem <= Math.min(total, 4); sem++) {
-        classes.push({
-          id: `cls_${c.id}_s${sem}`,
-          institutionId,
-          name: `${c.name} - Year ${Math.ceil(sem / 2)} (Sem ${sem})`,
-          code: `${c.code}-S${sem}`,
-          semester: sem,
-          courseId: c.id,
-          course: c,
-          sections: [
-            { id: `sec_${c.id}_s${sem}_A`, name: "Section A", classId: `cls_${c.id}_s${sem}` },
-            { id: `sec_${c.id}_s${sem}_B`, name: "Section B", classId: `cls_${c.id}_s${sem}` },
-          ],
-        });
-      }
+    const whereClause: any = { institutionId };
+    if (divisionId) {
+      whereClause.divisionId = divisionId;
     }
-    return classes;
+    const dbClasses = await db.class.findMany({
+      where: whereClause,
+      include: {
+        course: true,
+        sections: true,
+        division: true,
+      },
+      orderBy: [{ gradeLevel: "asc" }, { name: "asc" }],
+    });
+
+    if (dbClasses.length > 0) {
+      return dbClasses;
+    }
+
+    // Fallback: If no persisted DB classes and no non-college divisionId filter,
+    // preserve existing synthetic cohort behavior for College courses
+    if (!divisionId) {
+      const courses = await db.course.findMany({
+        where: { institutionId },
+        orderBy: { name: "asc" },
+      });
+      const classes: any[] = [];
+      for (const c of courses) {
+        const total = c.totalSemesters || 8;
+        for (let sem = 1; sem <= Math.min(total, 4); sem++) {
+          classes.push({
+            id: `cls_${c.id}_s${sem}`,
+            institutionId,
+            name: `${c.name} - Year ${Math.ceil(sem / 2)} (Sem ${sem})`,
+            code: `${c.code}-S${sem}`,
+            semester: sem,
+            courseId: c.id,
+            course: c,
+            sections: [
+              { id: `sec_${c.id}_s${sem}_A`, name: "Section A", classId: `cls_${c.id}_s${sem}` },
+              { id: `sec_${c.id}_s${sem}_B`, name: "Section B", classId: `cls_${c.id}_s${sem}` },
+            ],
+          });
+        }
+      }
+      return classes;
+    }
+
+    return [];
   } catch {
     return [];
   }
@@ -2649,22 +2672,53 @@ export async function createClass(
   data: {
     name: string;
     code?: string;
-    courseId: string;
+    courseId?: string | null;
     academicYearId: string;
-    semester: number;
+    semester?: number | null;
+    gradeLevel?: string | null;
+    stream?: string | null;
+    divisionId?: string | null;
   }
 ) {
-  const code = data.code || `CLS-${data.semester}-${Date.now().toString().slice(-3)}`;
-  return {
-    id: crypto.randomUUID(),
-    institutionId,
-    name: data.name,
-    code,
-    courseId: data.courseId,
-    academicYearId: data.academicYearId,
-    semester: data.semester,
-    sections: [{ id: crypto.randomUUID(), name: "Section A" }],
-  };
+  const code = data.code || `CLS-${data.gradeLevel || data.semester || "GEN"}-${Date.now().toString().slice(-4)}`;
+  try {
+    const created = await db.class.create({
+      data: {
+        institutionId,
+        name: data.name,
+        code,
+        courseId: data.courseId || null,
+        academicYearId: data.academicYearId,
+        semester: data.semester !== undefined && data.semester !== null ? data.semester : null,
+        gradeLevel: data.gradeLevel || null,
+        stream: data.stream || null,
+        divisionId: data.divisionId || null,
+        sections: {
+          create: [{ name: "Section A" }],
+        },
+      },
+      include: {
+        sections: true,
+        course: true,
+        division: true,
+      },
+    });
+    return created;
+  } catch {
+    return {
+      id: crypto.randomUUID(),
+      institutionId,
+      name: data.name,
+      code,
+      courseId: data.courseId || null,
+      academicYearId: data.academicYearId,
+      semester: data.semester ?? null,
+      gradeLevel: data.gradeLevel || null,
+      stream: data.stream || null,
+      divisionId: data.divisionId || null,
+      sections: [{ id: crypto.randomUUID(), name: "Section A" }],
+    };
+  }
 }
 
 export async function getSubjects(institutionId: string, courseId?: string) {

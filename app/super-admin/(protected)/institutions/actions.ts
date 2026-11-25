@@ -7,6 +7,12 @@ import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { provisionInstitutionAdmin, syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
 import { createInitialInstitutionSubscription } from "@/lib/billing/initial-subscription";
 import { assignInstitutionTrial, FREE_TRIAL_PLAN_CODE } from "@/lib/services/subscription.service";
+import {
+  createDivision,
+  updateDivision,
+  deleteDivision,
+} from "@/lib/services/division.service";
+import { DivisionType, DivisionStatus } from "@prisma/client";
 
 const institutionInput = z.object({
   planId: z.uuid(),
@@ -442,4 +448,161 @@ export async function setInstitutionFeatureOverride(formData: FormData) {
   });
   revalidatePath(`/super-admin/institutions/${input.data.institutionId}`);
   revalidatePath("/super-admin/modules");
+}
+
+export async function createInstitutionDivision(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      name: z.string().trim().min(2).max(160),
+      code: z.string().trim().max(40).optional(),
+      slug: z.string().trim().toLowerCase().max(80).optional(),
+      type: z.nativeEnum(DivisionType),
+      description: z.string().trim().max(500).optional(),
+      logoUrl: z.union([z.url(), z.literal("")]).optional(),
+      brandColor: z.string().trim().max(20).optional(),
+      isDefault: z.enum(["true", "false"]).optional(),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error(input.error.issues[0]?.message || "Invalid division data.");
+  }
+
+  const { institutionId, name, code, slug, type, description, logoUrl, brandColor, isDefault } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const division = await createDivision(institutionId, {
+    name,
+    code: code || undefined,
+    slug: slug || undefined,
+    type,
+    description: description || null,
+    logoUrl: logoUrl || null,
+    academicSettings: brandColor ? { brandColor } : undefined,
+    isDefault: isDefault === "true",
+  });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DIVISION_CREATED",
+        entity: "InstitutionDivision",
+        entityId: division.id,
+        result: "SUCCESS",
+        metadata: { name: division.name, code: division.code, type: division.type },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
+}
+
+export async function updateInstitutionDivisionStatus(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      divisionId: z.uuid(),
+      status: z.nativeEnum(DivisionStatus),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error("Invalid division status update request.");
+  }
+
+  const { institutionId, divisionId, status } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const updated = await updateDivision(institutionId, divisionId, { status });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DIVISION_STATUS_CHANGED",
+        entity: "InstitutionDivision",
+        entityId: divisionId,
+        result: "SUCCESS",
+        metadata: { status: updated.status, name: updated.name },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
+}
+
+export async function setDefaultInstitutionDivision(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      divisionId: z.uuid(),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error("Invalid default division request.");
+  }
+
+  const { institutionId, divisionId } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const updated = await updateDivision(institutionId, divisionId, { isDefault: true });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DEFAULT_DIVISION_SET",
+        entity: "InstitutionDivision",
+        entityId: divisionId,
+        result: "SUCCESS",
+        metadata: { name: updated.name, code: updated.code },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
+}
+
+export async function archiveInstitutionDivision(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      divisionId: z.uuid(),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error("Invalid division archive request.");
+  }
+
+  const { institutionId, divisionId } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const result = await deleteDivision(institutionId, divisionId, { forceArchive: true });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DIVISION_ARCHIVED",
+        entity: "InstitutionDivision",
+        entityId: divisionId,
+        result: "SUCCESS",
+        metadata: { resultAction: result.action },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
 }
