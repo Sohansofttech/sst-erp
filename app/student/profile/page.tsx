@@ -125,13 +125,13 @@ export default function StudentProfilePage() {
       <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 shadow-xs mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-xl bg-[#123B5A] text-white flex items-center justify-center font-bold text-xl shadow-xs">
-            {student?.firstName?.[0]}
-            {student?.lastName?.[0]}
+            {student?.fullName?.[0] || student?.firstName?.[0] || "S"}
+            {student?.lastName?.[0] || ""}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-[#1E293B]">
-                {student?.firstName} {student?.lastName}
+                {student?.fullName || `${student?.firstName || ""} ${student?.lastName || ""}`.trim()}
               </h2>
               <Badge variant="success" size="sm">
                 {student?.status}
@@ -168,7 +168,7 @@ export default function StudentProfilePage() {
               <div>
                 <p className="text-[#64748B] font-medium">Full Name</p>
                 <p className="font-semibold text-[#1E293B] text-sm mt-0.5">
-                  {student?.firstName} {student?.lastName}
+                  {student?.fullName || `${student?.firstName || ""} ${student?.lastName || ""}`.trim()}
                 </p>
               </div>
               <div>
@@ -206,16 +206,46 @@ export default function StudentProfilePage() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <p className="text-[#64748B] font-medium">City</p>
-                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.city || "Bangalore"}</p>
+                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.city || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-[#64748B] font-medium">State</p>
-                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.state || "Karnataka"}</p>
+                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.state || "N/A"}</p>
                 </div>
                 <div>
                   <p className="text-[#64748B] font-medium">Postal Pincode</p>
-                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.pincode || "560103"}</p>
+                  <p className="font-semibold text-[#1E293B] text-sm mt-0.5">{student?.pincode || "N/A"}</p>
                 </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Institutional Affiliation Details */}
+          <Card title="Institutional Affiliation & Campus">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <p className="text-[#64748B] font-medium">Institution Name</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">
+                  {student?.institution?.name || "Campus Institution"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#64748B] font-medium">College Code</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">
+                  {student?.institution?.code || "N/A"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#64748B] font-medium">Campus Address</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">
+                  {student?.institution?.address || (student?.institution?.city ? `${student.institution.city}, ${student.institution.state || ""}` : "Campus Main")}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#64748B] font-medium">Official Contact</p>
+                <p className="font-semibold text-[#1E293B] text-sm mt-0.5">
+                  {student?.institution?.email || student?.institution?.phone || student?.institution?.website || "Campus Administration"}
+                </p>
               </div>
             </div>
           </Card>

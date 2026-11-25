@@ -13,6 +13,8 @@ interface HeaderProps {
   userRole?: string;
   userEmail?: string;
   institutionName?: string;
+  institutionCode?: string | null;
+  institutionLogo?: string | null;
   academicYearName?: string;
   selectedChildId?: string;
   onSelectChild?: (childId: string) => void;
@@ -25,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   userRole = "STUDENT",
   userEmail,
   institutionName = "Campus Portal",
+  institutionCode,
+  institutionLogo,
   academicYearName,
   selectedChildId,
   onSelectChild,
@@ -39,7 +43,9 @@ export const Header: React.FC<HeaderProps> = ({
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
         localStorage.removeItem("erp_institution_name");
+        localStorage.removeItem("erp_institution");
         localStorage.removeItem("erp_active_child_id");
+        localStorage.removeItem("sst_erp_inst_admin_profile");
       }
       await fetch("/api/auth/me", { method: "POST", credentials: "include" });
       window.location.href = "/login";
@@ -60,15 +66,20 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#123B5A] text-white font-bold shadow-xs shrink-0">
-            <School className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#123B5A] text-white font-bold shadow-xs shrink-0 overflow-hidden">
+            {institutionLogo ? (
+              <img src={institutionLogo} alt={institutionName} className="w-full h-full object-contain p-1" />
+            ) : (
+              <School className="w-5 h-5 text-white" />
+            )}
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm md:text-base font-bold text-[#1E293B] leading-tight truncate max-w-[200px] sm:max-w-xs md:max-w-md">
+            <h1 className="text-sm md:text-base font-bold text-[#1E293B] leading-tight truncate max-w-[200px] sm:max-w-xs md:max-w-md" title={institutionName}>
               {institutionName}
             </h1>
             <p className="text-[11px] text-[#64748B] font-medium hidden sm:block">
               {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"}
+              {institutionCode ? ` • ${institutionCode}` : ""}
               {academicYearName ? ` • AY ${academicYearName}` : ""}
             </p>
           </div>

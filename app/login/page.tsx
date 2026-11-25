@@ -87,9 +87,9 @@ const demoAccounts: Array<{
   email: string;
   icon: LucideIcon;
 }> = [
-  { role: "STUDENT", label: "Student", email: "john.doe@student.apex.edu", icon: GraduationCap },
-  { role: "TEACHER", label: "Teacher", email: "prof.sharma@apex.edu", icon: BookOpen },
-  { role: "ADMIN", label: "Institution Admin", email: "admin@apex.edu", icon: Building2 },
+  { role: "STUDENT", label: "Student", email: "student@campus.portal", icon: GraduationCap },
+  { role: "TEACHER", label: "Teacher", email: "teacher@campus.portal", icon: BookOpen },
+  { role: "ADMIN", label: "Institution Admin", email: "admin@campus.portal", icon: Building2 },
   { role: "SUPER_ADMIN", label: "Super Admin", email: "superadmin@sohansofttech.com", icon: ShieldCheck },
 ];
 
@@ -105,24 +105,32 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [institutionName, setInstitutionName] = useState<string>("Campus Portal");
+  const [institutionLogo, setInstitutionLogo] = useState<string | null>(null);
 
   // Dynamically load the live institution name configured by Super Admin / Admin
   React.useEffect(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("erp_institution_name");
-      if (stored && !stored.includes("E2E")) {
-        setInstitutionName(stored);
-      } else {
-        try {
-          const profile = localStorage.getItem("sst_erp_inst_admin_profile");
-          if (profile) {
-            const parsed = JSON.parse(profile);
-            if (parsed.name && !parsed.name.includes("E2E")) {
-              setInstitutionName(parsed.name);
-            }
+      try {
+        const storedName = localStorage.getItem("erp_institution_name");
+        if (storedName && (storedName.includes("Apex") || storedName.includes("E2E"))) {
+          localStorage.removeItem("erp_institution_name");
+        }
+        const storedUser = localStorage.getItem("erp_user");
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          const name = parsed.institution?.name || parsed.institutionName;
+          const logo = parsed.institution?.logo || null;
+          if (name && !name.includes("Apex") && !name.includes("E2E")) {
+            setInstitutionName(name);
+            if (logo) setInstitutionLogo(logo);
           }
-        } catch {}
-      }
+        } else {
+          const stored = localStorage.getItem("erp_institution_name");
+          if (stored && !stored.includes("Apex") && !stored.includes("E2E")) {
+            setInstitutionName(stored);
+          }
+        }
+      } catch {}
     }
 
     fetch("/api/public/institution")
@@ -130,13 +138,61 @@ function LoginForm() {
       .then((data) => {
         if (data.success && data.name) {
           setInstitutionName(data.name);
+          if (data.logo) setInstitutionLogo(data.logo);
           if (typeof window !== "undefined") {
-            localStorage.setItem("erp_institution_name", data.name);
+            const storedUser = localStorage.getItem("erp_user");
+            if (!storedUser) {
+              localStorage.setItem("erp_institution_name", data.name);
+            }
           }
         }
       })
       .catch(() => {});
   }, []);
+
+  // Dynamically resolve institution name when user enters college code
+  React.useEffect(() => {
+    const trimmedCode = institutionCode.trim();
+    if (trimmedCode.length >= 3) {
+      const timer = setTimeout(() => {
+        fetch(`/api/public/institution?code=${encodeURIComponent(trimmedCode)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.name) {
+              setInstitutionName(data.name);
+              setInstitutionLogo(data.logo || null);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("erp_institution_name", data.name);
+              }
+            }
+          })
+          .catch(() => {});
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [institutionCode]);
+
+  // Dynamically resolve institution name when user enters email address
+  React.useEffect(() => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (trimmedEmail.includes("@") && trimmedEmail.split("@")[1]?.includes(".")) {
+      const timer = setTimeout(() => {
+        fetch(`/api/public/institution?email=${encodeURIComponent(trimmedEmail)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.name) {
+              setInstitutionName(data.name);
+              setInstitutionLogo(data.logo || null);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("erp_institution_name", data.name);
+              }
+            }
+          })
+          .catch(() => {});
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,13 +233,23 @@ function LoginForm() {
         localStorage.setItem("erp_token", json.data.token);
       }
       if (json.data?.user) {
-        localStorage.setItem("erp_user", JSON.stringify(json.data.user));
-        if (json.data.user.institutionName) {
-          localStorage.setItem("erp_institution_name", json.data.user.institutionName);
+        const u = json.data.user;
+        const actualInstName = u.institution?.name || u.institutionName || "";
+        const actualLogo = u.institution?.logo || null;
+        localStorage.setItem("erp_user", JSON.stringify(u));
+        if (actualInstName) {
+          setInstitutionName(actualInstName);
+          localStorage.setItem("erp_institution_name", actualInstName);
         }
-        if (json.data.user.activeChildId) {
-          localStorage.setItem("erp_active_child_id", json.data.user.activeChildId);
-          document.cookie = `erp_active_child=${json.data.user.activeChildId}; path=/; max-age=86400`;
+        if (actualLogo) {
+          setInstitutionLogo(actualLogo);
+        }
+        if (u.institution) {
+          localStorage.setItem("erp_institution", JSON.stringify(u.institution));
+        }
+        if (u.activeChildId) {
+          localStorage.setItem("erp_active_child_id", u.activeChildId);
+          document.cookie = `erp_active_child=${u.activeChildId}; path=/; max-age=86400`;
         } else {
           localStorage.removeItem("erp_active_child_id");
           document.cookie = "erp_active_child=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
@@ -236,8 +302,12 @@ function LoginForm() {
         </div>
         {/* Top Branding Bar on Hero */}
         <div className="relative z-10 flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg shrink-0">
-            <School className="w-6 h-6 text-[#F5A000]" />
+          <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
+            {institutionLogo ? (
+              <img src={institutionLogo} alt={institutionName} className="w-9 h-9 object-contain rounded-xl" />
+            ) : (
+              <School className="w-6 h-6 text-[#F5A000]" />
+            )}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -395,7 +465,7 @@ function LoginForm() {
                     />
                   </div>
                   <p className="text-[10px] text-[#94A3B8] mt-1">
-                    Enter your assigned College Code. Existing admins (Apex) may leave this blank.
+                    Enter your assigned College Code (e.g. AIT2026).
                   </p>
                 </div>
               )}

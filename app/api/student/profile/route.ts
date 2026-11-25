@@ -18,6 +18,21 @@ export async function GET(req: NextRequest) {
     const student = await db.student.findUnique({
       where: { id: studentId },
       include: {
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            slug: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            city: true,
+            state: true,
+            country: true,
+          },
+        },
         user: { select: { email: true, phone: true, avatarUrl: true, fullName: true } },
         documents: true,
         guardianLinks: {
@@ -38,9 +53,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
 
+    let institution: any = student.institution;
+    if (!institution && (student.institutionId || session.institutionId)) {
+      const instId = student.institutionId || session.institutionId;
+      institution = await db.institution.findUnique({
+        where: { id: instId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          slug: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          city: true,
+          state: true,
+          country: true,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      data: student,
+      data: {
+        ...student,
+        institution,
+      },
     }, {
       headers: {
         "Cache-Control": "private, no-cache, no-store, must-revalidate",

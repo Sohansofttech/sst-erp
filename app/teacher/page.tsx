@@ -10,9 +10,14 @@ export default function TeacherRedirectPage() {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
-        if (data.authenticated && data.user) {
-          const slug = (data.user.institutionSlug || data.user.institutionName || "apex-tech").toLowerCase();
-          router.replace(`/campus/${slug}/teacher`);
+        if ((data.authenticated && data.user) || (data.success && data.data?.session)) {
+          const sess = data.data?.session || data.user;
+          const slug = (sess.institutionSlug || sess.institutionCode || sess.institutionName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          if (slug) {
+            router.replace(`/campus/${slug}/teacher`);
+          } else {
+            router.replace("/login");
+          }
         } else {
           router.replace("/login");
         }

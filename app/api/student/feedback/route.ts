@@ -91,8 +91,6 @@ export async function GET(req: NextRequest) {
         !item.studentId ||
         item.studentId === requestedStudentId ||
         item.studentId === session.studentId ||
-        item.student?.rollNumber === "23CS089" ||
-        item.category === "INFRASTRUCTURE" ||
         (session.userId && item.student?.userId === session.userId);
 
       if (!match) return;
@@ -232,11 +230,11 @@ export async function POST(req: NextRequest) {
         respondedAt: null,
         student: {
           id: studentId,
-          firstName: "John",
-          lastName: "Doe",
-          fullName: "John Doe",
-          rollNumber: "23CS089",
-          admissionNumber: "ADM-2023-CS089",
+          firstName: (session.fullName || (session as any).name || "Student").split(" ")[0],
+          lastName: (session.fullName || (session as any).name || "").split(" ").slice(1).join(" ") || "",
+          fullName: session.fullName || (session as any).name || "Student",
+          rollNumber: (session as any).rollNumber || "N/A",
+          admissionNumber: (session as any).admissionNumber || "N/A",
         },
       };
     }

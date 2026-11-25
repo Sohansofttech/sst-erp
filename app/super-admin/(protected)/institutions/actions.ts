@@ -86,6 +86,36 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
           startsAt: institution.createdAt,
         });
 
+        // Automatically designate newly created institution as the primary active institution in backend
+        await tx.platformSetting.upsert({
+          where: { key: "primary_institution_id" },
+          create: {
+            key: "primary_institution_id",
+            value: institution.id,
+            description: "Default active institution ID for public portal",
+            updatedById: auditUserId,
+          },
+          update: {
+            value: institution.id,
+            description: "Default active institution ID for public portal",
+            updatedById: auditUserId,
+          },
+        });
+        await tx.platformSetting.upsert({
+          where: { key: "primary_institution_name" },
+          create: {
+            key: "primary_institution_name",
+            value: institution.name,
+            description: "Default active institution name for public portal",
+            updatedById: auditUserId,
+          },
+          update: {
+            value: institution.name,
+            description: "Default active institution name for public portal",
+            updatedById: auditUserId,
+          },
+        });
+
         // Preserved transactional audit logging - failure here rolls back the transaction
         if (auditUserId) {
           await tx.platformAuditLog.create({
@@ -139,6 +169,8 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
   try {
     revalidatePath("/super-admin");
     revalidatePath("/super-admin/institutions");
+    revalidatePath("/login");
+    revalidatePath("/");
   } catch {}
   return { error: null, success: `Institution created successfully (College Code: ${collegeCode}) and administrator provisioned.` };
 }
@@ -228,6 +260,29 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
           data: { name: parsed.data.name, slug: parsed.data.slug },
         });
       } catch {}
+
+      // Keep platform setting name in sync if this institution is the primary active institution
+      try {
+        const currentPrimary = await tx.platformSetting.findUnique({
+          where: { key: "primary_institution_id" },
+        });
+        if (currentPrimary?.value === id.data) {
+          await tx.platformSetting.upsert({
+            where: { key: "primary_institution_name" },
+            create: {
+              key: "primary_institution_name",
+              value: parsed.data.name,
+              description: "Default active institution name for public portal",
+              updatedById: auditUserId,
+            },
+            update: {
+              value: parsed.data.name,
+              description: "Default active institution name for public portal",
+              updatedById: auditUserId,
+            },
+          });
+        }
+      } catch {}
       await tx.platformAuditLog.create({ data: { userId: auditUserId, institutionId: id.data, action: "INSTITUTION_UPDATED", entity: "Institution", entityId: id.data, result: "SUCCESS" } });
     });
   } catch (error) {
@@ -239,7 +294,72 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/institutions");
   revalidatePath(`/super-admin/institutions/${id.data}`);
+  revalidatePath("/login");
+  revalidatePath("/");
   return { error: null, success: "Institution details updated." };
+}
+
+export async function setPrimaryInstitution(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const id = z.uuid().safeParse(formData.get("id"));
+  if (!id.success) throw new Error("Invalid institution ID.");
+
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+  const institution = await prisma.platformInstitution.findUnique({
+    where: { id: id.data },
+    select: { id: true, name: true, code: true, slug: true, status: true, archivedAt: true },
+  });
+  if (!institution || institution.archivedAt) throw new Error("Institution not found or archived.");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.platformSetting.upsert({
+      where: { key: "primary_institution_id" },
+      create: {
+        key: "primary_institution_id",
+        value: institution.id,
+        description: "Default active institution ID for public portal",
+        updatedById: auditUserId,
+      },
+      update: {
+        value: institution.id,
+        description: "Default active institution ID for public portal",
+        updatedById: auditUserId,
+      },
+    });
+    await tx.platformSetting.upsert({
+      where: { key: "primary_institution_name" },
+      create: {
+        key: "primary_institution_name",
+        value: institution.name,
+        description: "Default active institution name for public portal",
+        updatedById: auditUserId,
+      },
+      update: {
+        value: institution.name,
+        description: "Default active institution name for public portal",
+        updatedById: auditUserId,
+      },
+    });
+    if (auditUserId) {
+      await tx.platformAuditLog.create({
+        data: {
+          userId: auditUserId,
+          institutionId: institution.id,
+          action: "PRIMARY_INSTITUTION_SET",
+          entity: "Institution",
+          entityId: institution.id,
+          result: "SUCCESS",
+          metadata: { name: institution.name, code: institution.code },
+        },
+      });
+    }
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/institutions");
+  revalidatePath(`/super-admin/institutions/${institution.id}`);
+  revalidatePath("/login");
+  revalidatePath("/");
 }
 
 export async function updateInstitutionStatus(formData: FormData) {
