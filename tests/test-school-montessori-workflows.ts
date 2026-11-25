@@ -10,8 +10,8 @@
  * ============================================================================
  */
 
-import { calculateGradeLetter } from "../app/api/admin/academics/report-cards/route";
-import { MONTESSORI_MILESTONES } from "../app/api/admin/academics/montessori/milestones/route";
+import { calculateGradeLetter } from "../lib/academics/school-grading";
+import { MONTESSORI_MILESTONES } from "../lib/academics/montessori-milestones";
 
 let passedCount = 0;
 let failedCount = 0;

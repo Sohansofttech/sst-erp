@@ -2,17 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveDivisionContext } from "@/lib/security/division-context";
 import { handleAdminApiError } from "@/lib/security/admin-auth";
 import db from "@/lib/db";
-
-export function calculateGradeLetter(percentage: number): string {
-  if (percentage >= 91) return "A1";
-  if (percentage >= 81) return "A2";
-  if (percentage >= 71) return "B1";
-  if (percentage >= 61) return "B2";
-  if (percentage >= 51) return "C1";
-  if (percentage >= 41) return "C2";
-  if (percentage >= 33) return "D";
-  return "E";
-}
+import { calculateGradeLetter } from "@/lib/academics/school-grading";
 
 export async function GET(req: NextRequest) {
   try {

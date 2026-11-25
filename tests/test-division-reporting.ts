@@ -17,7 +17,7 @@
  */
 
 import { DivisionType } from "@prisma/client";
-import { calculateGradeLetter } from "../app/api/admin/academics/report-cards/route";
+import { calculateGradeLetter } from "../lib/academics/school-grading";
 
 export function runDivisionReportingTests() {
   console.log("====================================================================");
