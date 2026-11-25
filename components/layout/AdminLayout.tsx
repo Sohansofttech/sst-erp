@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { InstitutionProvider, useInstitution } from "@/lib/store";
+import { DivisionProvider } from "@/lib/division-store";
 import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
@@ -113,9 +114,11 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <InstitutionProvider>
-      <AdminLayoutInner sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
-        {children}
-      </AdminLayoutInner>
+      <DivisionProvider>
+        <AdminLayoutInner sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
+          {children}
+        </AdminLayoutInner>
+      </DivisionProvider>
     </InstitutionProvider>
   );
 };

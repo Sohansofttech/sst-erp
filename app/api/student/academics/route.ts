@@ -46,8 +46,8 @@ export async function GET(req: NextRequest) {
         enrollmentsHistory: student.enrollments.map((en) => ({
           id: en.id,
           academicYear: en.academicYear.name,
-          courseCode: en.course.code,
-          courseName: en.course.name,
+          courseCode: en.course?.code ?? null,
+          courseName: en.course?.name ?? null,
           semester: en.semester,
           section: en.section,
           status: en.status,

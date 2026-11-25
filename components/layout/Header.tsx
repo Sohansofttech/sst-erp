@@ -6,6 +6,8 @@ import { NotificationDropdown } from "../shared/NotificationDropdown";
 import { Badge } from "../shared/Badge";
 import { ChangePasswordModal } from "../shared/ChangePasswordModal";
 import { clearClientSessionCache } from "@/lib/auth/client-session";
+import { StudentDivisionSwitcher } from "@/components/student/StudentDivisionSwitcher";
+import { ParentChildDivisionSwitcher } from "@/components/parent/ParentChildDivisionSwitcher";
 
 interface HeaderProps {
   portalType: "STUDENT" | "PARENT";
@@ -91,6 +93,16 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right side: Academic Year, Notifications, User Profile */}
       <div className="flex items-center gap-2.5 sm:gap-3.5">
+        {/* Portal Division Switching: Parent Child & Division Selector OR Student Enrollment Selector */}
+        {portalType === "PARENT" ? (
+          <ParentChildDivisionSwitcher
+            selectedChildId={selectedChildId}
+            onSelectChild={onSelectChild}
+          />
+        ) : portalType === "STUDENT" ? (
+          <StudentDivisionSwitcher />
+        ) : null}
+
         {/* Academic Year Switcher matching Admin Header */}
         {academicYearName ? (
           <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#1E293B]">

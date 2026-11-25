@@ -2,9 +2,14 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  process.env.JWT_SECRET = "test-only-jwt-secret-value-with-more-than-32-characters";
+}
+
 import assert from "assert";
 import { NextRequest } from "next/server";
 import db from "../lib/db";
+import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "../lib/auth/jwt";
 
 // Route Handlers
 import * as AYRoute from "../app/api/admin/academics/academic-years/route";
@@ -38,12 +43,18 @@ async function it(desc: string, fn: () => void | Promise<void>) {
   }
 }
 
+let tokenAlpha = "";
+let tokenBeta = "";
+
 function makeReq(url: string, method: string = "GET", body?: any, instId: string = "inst_alpha_test") {
+  const token = instId === "inst_beta_test" ? tokenBeta : tokenAlpha;
   const init: any = {
     method,
     headers: {
       "Content-Type": "application/json",
       "x-institution-id": instId,
+      Authorization: `Bearer ${token}`,
+      cookie: `${AUTH_COOKIE_NAME}=${token};`,
     },
   };
   if (body) {
@@ -61,11 +72,86 @@ async function runPhase3B1Tests() {
   const INST_ALPHA = "inst_alpha_test";
   const INST_BETA = "inst_beta_test";
 
+  const dummyPwHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+  const dummySig = computePasswordSignature(dummyPwHash);
+
+  tokenAlpha = await signToken({
+    userId: "user_alpha",
+    email: "admin@alpha.edu",
+    fullName: "Admin Alpha",
+    role: "SUPER_ADMIN",
+    institutionId: INST_ALPHA,
+    institutionName: "Alpha Institution",
+    passwordSig: dummySig,
+  });
+
+  tokenBeta = await signToken({
+    userId: "user_beta",
+    email: "admin@beta.edu",
+    fullName: "Admin Beta",
+    role: "SUPER_ADMIN",
+    institutionId: INST_BETA,
+    institutionName: "Beta Institution",
+    passwordSig: dummySig,
+  });
+
+  const origUserFindUnique = db.user.findUnique;
+  db.user.findUnique = (async (args: any) => {
+    if (args.where?.id === "user_alpha") {
+      return {
+        id: "user_alpha",
+        email: "admin@alpha.edu",
+        fullName: "Admin Alpha",
+        isActive: true,
+        status: "ACTIVE",
+        passwordHash: dummyPwHash,
+        institutionId: INST_ALPHA,
+        role: "SUPER_ADMIN",
+        platformRole: "SUPER_ADMIN",
+      };
+    }
+    if (args.where?.id === "user_beta") {
+      return {
+        id: "user_beta",
+        email: "admin@beta.edu",
+        fullName: "Admin Beta",
+        isActive: true,
+        status: "ACTIVE",
+        passwordHash: dummyPwHash,
+        institutionId: INST_BETA,
+        role: "SUPER_ADMIN",
+        platformRole: "SUPER_ADMIN",
+      };
+    }
+    return origUserFindUnique ? await origUserFindUnique(args) : null;
+  }) as any;
+
   // ==========================================================================
   // MODULE 1: ACADEMIC YEARS
   // ==========================================================================
   console.log("[MODULE 1] Academic Years API & Tenant Scoping");
   {
+    // Set up transaction mock delegating to db.academicYear methods
+    const origTx = db.$transaction;
+    const createTxMock = () => ({
+      ...db,
+      $executeRawUnsafe: async () => 0,
+      $queryRaw: async () => [],
+      academicYear: {
+        findFirst: async (args: any) => (db.academicYear.findFirst ? (db.academicYear.findFirst as any)(args) : null),
+        findMany: async (args: any) => (db.academicYear.findMany ? (db.academicYear.findMany as any)(args) : []),
+        create: async (args: any) => (db.academicYear.create ? (db.academicYear.create as any)(args) : {}),
+        updateMany: async (args: any) => (db.academicYear.updateMany ? (db.academicYear.updateMany as any)(args) : { count: 0 }),
+        deleteMany: async (args: any) => (db.academicYear.deleteMany ? (db.academicYear.deleteMany as any)(args) : { count: 0 }),
+      },
+    });
+    db.$transaction = (async (fn: any) => {
+      if (typeof fn === "function") {
+        return await fn(createTxMock());
+      }
+      return [];
+    }) as any;
+
     // 1. GET /api/admin/academics/academic-years
     await it("GET /api/admin/academics/academic-years queries scoped to authenticated institution", async () => {
       const origFindMany = db.academicYear.findMany;
@@ -111,20 +197,16 @@ async function runPhase3B1Tests() {
 
     // 3. POST /api/admin/academics/academic-years (creation with tenant scoping)
     await it("POST /api/admin/academics/academic-years creates record with institutionId", async () => {
-      const origTx = db.$transaction;
       let createdPayload: any = null;
+      const origCreate = db.academicYear.create;
+      const origFindFirst = db.academicYear.findFirst;
+      const origUpdateMany = db.academicYear.updateMany;
 
-      db.$transaction = (async (fn: any) => {
-        const txMock = {
-          academicYear: {
-            updateMany: async () => ({ count: 0 }),
-            create: async (args: any) => {
-              createdPayload = args.data;
-              return { id: "ay_new", ...args.data };
-            },
-          },
-        };
-        return await fn(txMock);
+      db.academicYear.findFirst = (async () => null) as any;
+      db.academicYear.updateMany = (async () => ({ count: 0 })) as any;
+      db.academicYear.create = (async (args: any) => {
+        createdPayload = args.data;
+        return { id: "ay_new", ...args.data };
       }) as any;
 
       const req = makeReq(
@@ -147,7 +229,9 @@ async function runPhase3B1Tests() {
       assert.strictEqual(createdPayload?.institutionId, INST_ALPHA);
       assert.strictEqual(createdPayload?.name, "2027-2028");
 
-      db.$transaction = origTx;
+      db.academicYear.create = origCreate;
+      db.academicYear.findFirst = origFindFirst;
+      db.academicYear.updateMany = origUpdateMany;
     });
 
     // 4. PUT /api/admin/academics/academic-years (atomic update with tenant isolation)
@@ -195,7 +279,9 @@ async function runPhase3B1Tests() {
     // 5. PUT /api/admin/academics/academic-years blocks cross-tenant update
     await it("PUT /api/admin/academics/academic-years strictly blocks updating academic year of another institution (404)", async () => {
       const origUpdateMany = db.academicYear.updateMany;
+      const origFindFirst = db.academicYear.findFirst;
 
+      db.academicYear.findFirst = (async () => null) as any;
       db.academicYear.updateMany = (async (args: any) => {
         const { id, institutionId } = args.where;
         if (id === "ay_beta" && institutionId === INST_ALPHA) {
@@ -218,6 +304,7 @@ async function runPhase3B1Tests() {
       assert.strictEqual(json.error, "Academic year not found or access denied.");
 
       db.academicYear.updateMany = origUpdateMany;
+      db.academicYear.findFirst = origFindFirst;
     });
 
     // 6. DELETE /api/admin/academics/academic-years blocks cross-tenant deletion
@@ -278,6 +365,8 @@ async function runPhase3B1Tests() {
 
       db.academicYear.deleteMany = origDeleteMany;
     });
+
+    db.$transaction = origTx;
   }
 
   // ==========================================================================
@@ -941,6 +1030,8 @@ async function runPhase3B1Tests() {
       db.subject.findFirst = origFindFirst;
     });
   }
+
+  db.user.findUnique = origUserFindUnique;
 
   console.log("\n========================================================");
   console.log(` PHASE 3B.1 TEST RESULTS: ${passedCount} PASSED, ${failedCount} FAILED`);

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useInstitution } from "@/lib/store";
+import { useDivision, ALL_DIVISIONS_ID } from "@/lib/division-store";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
   Calendar,
   BookOpen,
   Building,
+  Building2,
   Layers,
   BookMarked,
   UserPlus,
@@ -38,6 +40,36 @@ import {
   HelpCircle,
 } from "lucide-react";
 
+export interface AcademicNavItem {
+  href: string;
+  label: string;
+  iconName: "Calendar" | "Building" | "BookOpen" | "Layers" | "BookMarked";
+}
+
+export function getVisibleAcademicNavItems(divType: string): AcademicNavItem[] {
+  if (divType === "ALL") return [];
+
+  const items: AcademicNavItem[] = [
+    { href: "/admin/academics/academic-years", label: "Academic Years", iconName: "Calendar" },
+  ];
+
+  if (divType === "COLLEGE" || divType === "ACADEMY") {
+    items.push({ href: "/admin/academics/departments", label: "Departments", iconName: "Building" });
+  }
+
+  if (divType === "COLLEGE") {
+    items.push({ href: "/admin/academics/courses", label: "Programs & Courses", iconName: "BookOpen" });
+  }
+
+  items.push({ href: "/admin/academics/classes", label: "Classes & Sections", iconName: "Layers" });
+
+  if (divType !== "MONTESSORI") {
+    items.push({ href: "/admin/academics/subjects", label: "Subject Master", iconName: "BookMarked" });
+  }
+
+  return items;
+}
+
 interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -46,6 +78,9 @@ interface AdminSidebarProps {
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const pathname = usePathname();
   const { profile, activeAcademicYear, isAcademicYearsLoading } = useInstitution();
+  const { activeDivision, activeDivisionId } = useDivision();
+  const divType = activeDivisionId === ALL_DIVISIONS_ID ? "ALL" : (activeDivision?.type ?? "COLLEGE");
+  const visibleAcademicItems = getVisibleAcademicNavItems(divType);
   const [academicsOpen, setAcademicsOpen] = useState(
     pathname.startsWith("/admin/academics") || pathname === "/admin"
   );
@@ -159,110 +194,81 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             <span>Institution Settings</span>
           </Link>
 
-          {/* 3. Academics Collapsible Group */}
-          <div>
-            <button
-              onClick={() => setAcademicsOpen(!academicsOpen)}
-              className={cn(
-                "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
-                isAcademicsActive
-                  ? "bg-[#16466C] text-white"
-                  : "text-white hover:bg-white/10 hover:text-white"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <GraduationCap className="w-4 h-4 shrink-0 text-white" />
-                <span>Academics</span>
-              </div>
-              <ChevronDown
-                className={cn(
-                  "w-3.5 h-3.5 text-white/80 transition-transform duration-200",
-                  academicsOpen && "rotate-180"
-                )}
-              />
-            </button>
-
-            {academicsOpen && (
-              <div className="mt-1 ml-4 pl-3 border-l border-white/10 space-y-1">
-                {/* 3.1 Academic Years */}
-                <Link
-                  href="/admin/academics/academic-years"
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
-                    pathname.startsWith("/admin/academics/academic-years")
-                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span>Academic Years</span>
-                </Link>
-
-                {/* 3.2 Departments */}
-                <Link
-                  href="/admin/academics/departments"
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
-                    pathname.startsWith("/admin/academics/departments")
-                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  <Building className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span>Departments</span>
-                </Link>
-
-                {/* 3.3 Programs & Courses */}
-                <Link
-                  href="/admin/academics/courses"
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
-                    pathname.startsWith("/admin/academics/courses")
-                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  <BookOpen className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span>Programs & Courses</span>
-                </Link>
-
-                {/* 3.4 Classes & Sections */}
-                <Link
-                  href="/admin/academics/classes"
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
-                    pathname.startsWith("/admin/academics/classes")
-                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  <Layers className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span>Classes & Sections</span>
-                </Link>
-
-                {/* 3.5 Subjects */}
-                <Link
-                  href="/admin/academics/subjects"
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
-                    pathname.startsWith("/admin/academics/subjects")
-                      ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
-                      : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  <BookMarked className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span>Subject Master</span>
-                </Link>
-              </div>
+          {/* 3. Educational Divisions */}
+          <Link
+            href="/admin/divisions"
+            onClick={onClose}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+              pathname.startsWith("/admin/divisions")
+                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                : "text-white hover:bg-white/10 hover:text-white"
             )}
-          </div>
+          >
+            <Building2 className="w-4 h-4 shrink-0 text-white" />
+            <span>Educational Divisions</span>
+          </Link>
 
-          {/* 4. Admissions */}
+          {/* 4. Academics Collapsible Group (Adaptive per division type) */}
+          {visibleAcademicItems.length > 0 && (
+            <div>
+              <button
+                onClick={() => setAcademicsOpen(!academicsOpen)}
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer",
+                  isAcademicsActive
+                    ? "bg-[#16466C] text-white"
+                    : "text-white hover:bg-white/10 hover:text-white"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <GraduationCap className="w-4 h-4 shrink-0 text-white" />
+                  <span>Academics</span>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "w-3.5 h-3.5 text-white/80 transition-transform duration-200",
+                    academicsOpen && "rotate-180"
+                  )}
+                />
+              </button>
+
+              {academicsOpen && (
+                <div className="mt-1 ml-4 pl-3 border-l border-white/10 space-y-1">
+                  {visibleAcademicItems.map((item) => {
+                    const IconComponent =
+                      item.iconName === "Calendar"
+                        ? Calendar
+                        : item.iconName === "Building"
+                        ? Building
+                        : item.iconName === "BookOpen"
+                        ? BookOpen
+                        : item.iconName === "Layers"
+                        ? Layers
+                        : BookMarked;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={onClose}
+                        className={cn(
+                          "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[11px] transition-colors",
+                          pathname.startsWith(item.href)
+                            ? "bg-[var(--admin-active-nav,#F5A000)] text-white font-semibold"
+                            : "text-[#F1F5F9] hover:bg-white/10 hover:text-white"
+                        )}
+                      >
+                        <IconComponent className="w-3.5 h-3.5 text-white shrink-0" />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 5. Admissions */}
           <Link
             href="/admin/admissions"
             onClick={onClose}

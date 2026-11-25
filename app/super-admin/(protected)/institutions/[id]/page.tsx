@@ -2,7 +2,18 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
-import { archiveInstitution, provisionAdminForInstitution, revokeInstitutionInvitation, setInstitutionFeatureOverride, setPrimaryInstitution, updateInstitutionStatus } from "../actions";
+import {
+  archiveInstitution,
+  provisionAdminForInstitution,
+  revokeInstitutionInvitation,
+  setInstitutionFeatureOverride,
+  setPrimaryInstitution,
+  updateInstitutionStatus,
+  createInstitutionDivision,
+  updateInstitutionDivisionStatus,
+  setDefaultInstitutionDivision,
+  archiveInstitutionDivision,
+} from "../actions";
 import { EditInstitutionForm } from "@/components/super-admin/edit-institution-form";
 
 export const instant = false;
@@ -19,9 +30,23 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
     auditLogs: { take: 10, orderBy: { createdAt: "desc" }, select: { id: true, action: true, createdAt: true, result: true } },
   } });
   if (!institution) notFound();
-  const [features, primarySetting] = await Promise.all([
+  const [features, primarySetting, divisions] = await Promise.all([
     prisma.platformFeature.findMany({ where: { isAvailable: true }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 200 }),
     prisma.platformSetting.findUnique({ where: { key: "primary_institution_id" } }),
+    prisma.institutionDivision.findMany({
+      where: { institutionId: id },
+      include: {
+        _count: {
+          select: {
+            classes: true,
+            students: true,
+            enrollments: true,
+            feeInvoices: true,
+          },
+        },
+      },
+      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    }),
   ]);
   const isPrimary = primarySetting?.value === id;
   const editableInstitution = {
@@ -58,7 +83,138 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
       </div>
     )}
     <h3 className="sa-section-title">Institution details</h3><EditInstitutionForm institution={editableInstitution} />
-    <div className="sa-module-grid"><section className="sa-card sa-module-panel"><h3>Institution administrators & invitations</h3><div className="sa-detail-row"><strong>Provisioning status</strong><span>{institution.provisioningStatus}</span></div>{institution.memberships.length ? institution.memberships.map((membership) => <div className="sa-detail-row" key={membership.id}><strong>{membership.user.name}</strong><span>{membership.user.email} · {membership.status}</span></div>) : <p className="sa-muted-copy">No members are associated with this institution.</p>}{institution.invitations.map((invitation) => <div className="sa-detail-row" key={invitation.id}><strong>{invitation.email}</strong><span>{invitation.status} · expires {invitation.expiresAt.toLocaleString("en-IN")} {invitation.sentAt ? `· sent ${invitation.sentAt.toLocaleString("en-IN")}` : ""}</span></div>)}<form className="sa-form-grid sa-compact-form" style={{ marginTop: "1rem", borderTop: "1px solid var(--sa-border)", paddingTop: "0.75rem" }} action={provisionAdminForInstitution}><input type="hidden" name="institutionId" value={institution.id} /><label>Admin name<input name="adminName" defaultValue={`${institution.name} Administrator`} /></label><label>Admin email<input name="adminEmail" type="email" defaultValue={institution.email || ""} placeholder="admin@domain.edu" required /></label><label>Admin phone<input name="adminPhone" maxLength={40} /></label><button className="sa-button sa-button-secondary">Send / Resend invitation</button></form><form action={revokeInstitutionInvitation} style={{ marginTop: ".75rem" }}><input type="hidden" name="institutionId" value={institution.id} /><button className="sa-button sa-button-danger">Revoke active invitation</button></form></section>
+    <div className="sa-module-grid">
+      <section className="sa-card sa-module-panel" style={{ gridColumn: "1 / -1" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Educational Divisions ({divisions.length})</h3>
+            <p className="sa-muted-copy" style={{ margin: "0.25rem 0 0" }}>
+              Schools, Colleges, and Academies configured under this institution.
+            </p>
+          </div>
+        </div>
+
+        {divisions.length ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
+            {divisions.map((div) => (
+              <div
+                key={div.id}
+                className="sa-detail-row"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "0.75rem",
+                  background: "var(--sa-background, #f9fafb)",
+                  borderRadius: "6px",
+                  border: "1px solid var(--sa-border, #e5e7eb)",
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <strong>{div.name}</strong>
+                    <span style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", borderRadius: "4px", background: "#e0e7ff", color: "#3730a3", fontWeight: 600 }}>
+                      {div.code}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", borderRadius: "4px", background: "#f3f4f6", color: "#4b5563" }}>
+                      {div.type}
+                    </span>
+                    {div.isDefault && (
+                      <span style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", borderRadius: "4px", background: "#fef3c7", color: "#92400e", fontWeight: 600 }}>
+                        ★ Default
+                      </span>
+                    )}
+                    <span className={`sa-status-badge sa-status-${div.status.toLowerCase()}`}>
+                      {div.status}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
+                    /{div.slug} · {div._count?.classes ?? 0} classes · {div._count?.students ?? 0} students · {div._count?.enrollments ?? 0} enrollments · {div._count?.feeInvoices ?? 0} invoices
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  {!div.isDefault && div.status === "ACTIVE" && (
+                    <form action={setDefaultInstitutionDivision}>
+                      <input type="hidden" name="institutionId" value={institution.id} />
+                      <input type="hidden" name="divisionId" value={div.id} />
+                      <button type="submit" className="sa-button sa-button-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
+                        Set Default
+                      </button>
+                    </form>
+                  )}
+                  <form action={updateInstitutionDivisionStatus}>
+                    <input type="hidden" name="institutionId" value={institution.id} />
+                    <input type="hidden" name="divisionId" value={div.id} />
+                    <input type="hidden" name="status" value={div.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"} />
+                    <button type="submit" className="sa-button sa-button-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
+                      {div.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                    </button>
+                  </form>
+                  {div.status !== "ARCHIVED" && (
+                    <form action={archiveInstitutionDivision}>
+                      <input type="hidden" name="institutionId" value={institution.id} />
+                      <input type="hidden" name="divisionId" value={div.id} />
+                      <button type="submit" className="sa-button sa-button-danger" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
+                        Archive
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="sa-muted-copy" style={{ marginBottom: "1rem" }}>
+            No educational divisions registered. Add a division below.
+          </p>
+        )}
+
+        <form
+          className="sa-form-grid sa-compact-form"
+          style={{ marginTop: "1rem", borderTop: "1px solid var(--sa-border, #e5e7eb)", paddingTop: "0.75rem" }}
+          action={createInstitutionDivision}
+        >
+          <input type="hidden" name="institutionId" value={institution.id} />
+          <label>
+            Division Name
+            <input name="name" placeholder="e.g. High School Wing, Engineering College" required />
+          </label>
+          <label>
+            Division Code (optional)
+            <input name="code" placeholder="e.g. SCH-01, ENG-01" />
+          </label>
+          <label>
+            Division Type
+            <select name="type" required defaultValue="COLLEGE">
+              <option value="MONTESSORI">Montessori (Early Childhood)</option>
+              <option value="SCHOOL">School (K-10)</option>
+              <option value="HIGHER_SECONDARY">Higher Secondary (+1/+2)</option>
+              <option value="COLLEGE">College (Higher Education)</option>
+              <option value="ACADEMY">Academy (Vocational)</option>
+            </select>
+          </label>
+          <label>
+            Brand Accent Color (Hex)
+            <input name="brandColor" defaultValue="#2563eb" placeholder="#2563eb" />
+          </label>
+          <label>
+            Description (optional)
+            <input name="description" placeholder="Brief division overview" />
+          </label>
+          <label>
+            Set as Default
+            <select name="isDefault" defaultValue={divisions.length === 0 ? "true" : "false"}>
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
+          <div style={{ gridColumn: "1 / -1", marginTop: "0.5rem" }}>
+            <button className="sa-button sa-button-primary">Add Educational Division</button>
+          </div>
+        </form>
+      </section>
+      <section className="sa-card sa-module-panel"><h3>Institution administrators & invitations</h3><div className="sa-detail-row"><strong>Provisioning status</strong><span>{institution.provisioningStatus}</span></div>{institution.memberships.length ? institution.memberships.map((membership) => <div className="sa-detail-row" key={membership.id}><strong>{membership.user.name}</strong><span>{membership.user.email} · {membership.status}</span></div>) : <p className="sa-muted-copy">No members are associated with this institution.</p>}{institution.invitations.map((invitation) => <div className="sa-detail-row" key={invitation.id}><strong>{invitation.email}</strong><span>{invitation.status} · expires {invitation.expiresAt.toLocaleString("en-IN")} {invitation.sentAt ? `· sent ${invitation.sentAt.toLocaleString("en-IN")}` : ""}</span></div>)}<form className="sa-form-grid sa-compact-form" style={{ marginTop: "1rem", borderTop: "1px solid var(--sa-border)", paddingTop: "0.75rem" }} action={provisionAdminForInstitution}><input type="hidden" name="institutionId" value={institution.id} /><label>Admin name<input name="adminName" defaultValue={`${institution.name} Administrator`} /></label><label>Admin email<input name="adminEmail" type="email" defaultValue={institution.email || ""} placeholder="admin@domain.edu" required /></label><label>Admin phone<input name="adminPhone" maxLength={40} /></label><button className="sa-button sa-button-secondary">Send / Resend invitation</button></form><form action={revokeInstitutionInvitation} style={{ marginTop: ".75rem" }}><input type="hidden" name="institutionId" value={institution.id} /><button className="sa-button sa-button-danger">Revoke active invitation</button></form></section>
     <section className="sa-card sa-module-panel"><h3>Subscriptions</h3>{institution.subscriptions.length ? institution.subscriptions.map((subscription) => <div className="sa-detail-row" key={subscription.id}><strong>{subscription.plan.name}</strong><span>{subscription.status} · started {subscription.startsAt.toLocaleDateString("en-IN")}</span></div>) : <p className="sa-muted-copy">No subscription records are available.</p>}</section>
     <section className="sa-card sa-module-panel"><h3>Recorded usage</h3>{institution.usageMetrics.length ? institution.usageMetrics.map((metric) => <div className="sa-detail-row" key={metric.id}><strong>{metric.metric}: {metric.value.toString()} {metric.unit}</strong><span>Measured {metric.measuredAt.toLocaleString("en-IN")} · {metric.source}</span></div>) : <p className="sa-muted-copy">No usage measurements have been recorded.</p>}</section>
     <section className="sa-card sa-module-panel"><h3>Institution activity</h3>{institution.auditLogs.length ? institution.auditLogs.map((entry) => <div className="sa-detail-row" key={entry.id}><strong>{entry.action}</strong><span>{entry.result ?? "Recorded"} · {entry.createdAt.toLocaleString("en-IN")}</span></div>) : <p className="sa-muted-copy">No activity has been recorded.</p>}</section>
