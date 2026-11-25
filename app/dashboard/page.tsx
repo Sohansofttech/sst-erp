@@ -404,9 +404,9 @@ export default function DashboardPage() {
   const studentName = student?.firstName
     ? `${student.firstName} ${student.lastName || ""}`.trim()
     : (student?.fullName || "").trim();
-  const displayName = studentName || (session?.fullName || "").trim() || "Student";
-  const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "23CS089";
-  const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "ADM-2023-CS089";
+  const displayName = studentName || (session?.fullName || (session as any)?.name || "").trim() || "Student";
+  const displayRollNo = student?.rollNumber && student.rollNumber !== "N/A" ? student.rollNumber : "";
+  const displayAdmissionId = student?.admissionNumber && student.admissionNumber !== "N/A" ? student.admissionNumber : "";
 
   return (
     <PortalLayout
@@ -457,14 +457,30 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#64748B]">
             <span>Welcome, <strong className="text-[#1E293B] font-semibold">{displayName}</strong></span>
-            <span>•</span>
-            <span>Roll No: <span className="font-mono font-semibold text-[#1E293B]">{displayRollNo}</span></span>
-            <span>•</span>
-            <span>Adm ID: <span className="font-mono font-semibold text-[#1E293B]">{displayAdmissionId}</span></span>
-            <span>•</span>
-            <span>Semester {student?.currentSemester || 5} • Sec {student?.currentSection || "A"}</span>
-            <span>•</span>
-            <span className="font-medium text-[#123B5A]">{student?.course || "B.Tech in Computer Science and Engineering"}</span>
+            {displayRollNo ? (
+              <>
+                <span>•</span>
+                <span>Roll No: <span className="font-mono font-semibold text-[#1E293B]">{displayRollNo}</span></span>
+              </>
+            ) : null}
+            {displayAdmissionId ? (
+              <>
+                <span>•</span>
+                <span>Adm ID: <span className="font-mono font-semibold text-[#1E293B]">{displayAdmissionId}</span></span>
+              </>
+            ) : null}
+            {student?.currentSemester ? (
+              <>
+                <span>•</span>
+                <span>Semester {student.currentSemester} • Sec {student.currentSection || "A"}</span>
+              </>
+            ) : null}
+            {student?.course ? (
+              <>
+                <span>•</span>
+                <span className="font-medium text-[#123B5A]">{student.course}</span>
+              </>
+            ) : null}
           </div>
         </div>
 

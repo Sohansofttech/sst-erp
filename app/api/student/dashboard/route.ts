@@ -39,6 +39,21 @@ export async function GET(req: NextRequest) {
     const student = await db.student.findUnique({
       where: { id: studentId },
       include: {
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            slug: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            city: true,
+            state: true,
+            country: true,
+          },
+        },
         enrollments: {
           include: { course: true, academicYear: true },
           orderBy: { enrolledDate: "desc" },
@@ -169,13 +184,16 @@ export async function GET(req: NextRequest) {
           id: student.id,
           firstName: student.firstName,
           lastName: student.lastName,
+          fullName: `${student.firstName} ${student.lastName || ""}`.trim() || student.fullName,
           rollNumber: student.rollNumber,
           admissionNumber: student.admissionNumber,
           currentSemester: student.currentSemester,
           currentSection: student.currentSection,
           course: courseName,
           academicYear: academicYearName,
+          institutionId: student.institutionId,
         },
+        institution: student.institution,
         attendanceSummary: {
           totalClasses: attendanceCalc.countableSessions,
           totalRecords: attendanceCalc.totalRecords,

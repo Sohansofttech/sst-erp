@@ -64,7 +64,7 @@ export default function AcademicHistoryPage() {
       <div className="space-y-6">
         <Card
           title="Enrollment & Progression Timeline"
-          subtitle={`Student: ${rollNumber} • Admission: ${admissionNumber} • ${institution?.name}`}
+          subtitle={`Student: ${rollNumber || "Enrolled"} • Admission: ${admissionNumber || "Active"} • ${institution?.name || "Academic Registry"}`}
         >
           <div className="space-y-4">
             {enrollmentsHistory?.map((enrollment: any, idx: number) => {

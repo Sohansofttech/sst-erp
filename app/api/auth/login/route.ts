@@ -150,6 +150,13 @@ export async function POST(req: NextRequest) {
             code: true,
             status: true,
             isActive: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            city: true,
+            state: true,
+            country: true,
           },
         },
       },
@@ -267,7 +274,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      let currentInst = user.institution;
+      let currentInst: any = user.institution;
       if (!currentInst && user.institutionId) {
         await syncInstitutionToAppDb(user.institutionId);
         currentInst = await db.institution.findUnique({
@@ -442,22 +449,82 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let institutionName = resolvedInstitutionName || user.institution?.name || "";
-    if (!institutionName && user.institutionId) {
-      try {
-        const insts = await db.$queryRaw<any[]>`
-          SELECT name FROM institutions WHERE id = ${user.institutionId}
-          UNION ALL
-          SELECT name FROM "Institution" WHERE id::text = ${user.institutionId}
-          LIMIT 1
-        `;
-        if (insts.length > 0) {
-          institutionName = insts[0].name || "";
-        }
-      } catch (err) {
-        console.warn("Raw institution lookup error:", err);
+    const targetInstId = user.institutionId || institutionId;
+    let fullInst: any = user.institution;
+    if (!fullInst && targetInstId) {
+      fullInst = await db.institution.findUnique({
+        where: { id: targetInstId },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          code: true,
+          status: true,
+          isActive: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          city: true,
+          state: true,
+          country: true,
+        },
+      });
+      if (!fullInst) {
+        try {
+          const platInst = await db.platformInstitution.findUnique({
+            where: { id: targetInstId },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              code: true,
+              status: true,
+              address: true,
+              phone: true,
+              email: true,
+              website: true,
+              city: true,
+              state: true,
+              country: true,
+              postalCode: true,
+            },
+          });
+          if (platInst) {
+            fullInst = { ...platInst, isActive: platInst.status === "ACTIVE" };
+          }
+        } catch {}
       }
     }
+
+    let logoUrl: string | null = null;
+    if (fullInst?.id) {
+      try {
+        const branding = await db.institutionBranding.findUnique({
+          where: { institutionId: fullInst.id },
+          select: { logoUrl: true },
+        });
+        if (branding?.logoUrl) logoUrl = branding.logoUrl;
+      } catch {}
+    }
+
+    const institutionDetails = fullInst ? {
+      id: fullInst.id,
+      name: fullInst.name,
+      code: fullInst.code || null,
+      slug: fullInst.slug || null,
+      logo: logoUrl,
+      address: fullInst.address || null,
+      phone: fullInst.phone || null,
+      email: fullInst.email || null,
+      website: fullInst.website || null,
+      city: fullInst.city || null,
+      state: fullInst.state || null,
+      country: fullInst.country || null,
+      postalCode: fullInst.postalCode || null,
+    } : undefined;
+
+    const institutionName = fullInst?.name || resolvedInstitutionName || "";
 
     let mustChangePassword = await isTemporaryPasswordActive(user.id);
     if (!mustChangePassword && password) {
@@ -476,9 +543,13 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: user.email,
       fullName: user.fullName || "",
+      name: user.fullName || "",
       role: (userRole as any) || "STUDENT",
-      institutionId: user.institutionId || "",
+      institutionId: fullInst?.id || user.institutionId || "",
       institutionName,
+      institutionCode: fullInst?.code || null,
+      institutionSlug: fullInst?.slug || null,
+      institution: institutionDetails,
       studentId,
       guardianId,
       activeChildId,
@@ -498,7 +569,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Strip internal security signatures from client response
-    const safeUser = { ...sessionUser };
+    const safeUser = {
+      ...sessionUser,
+      name: user.fullName || "",
+      fullName: user.fullName || "",
+      institution: institutionDetails,
+    };
     delete safeUser.passwordSig;
 
     const response = NextResponse.json({
