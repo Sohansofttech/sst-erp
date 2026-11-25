@@ -1,9 +1,8 @@
 import crypto from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { SessionUser } from "@/types";
-
-const JWT_SECRET = process.env.JWT_SECRET || "erp-secret-super-secure-key-32-chars-long!";
-const key = new TextEncoder().encode(JWT_SECRET);
+import { getAuthJwtKey } from "@/lib/auth/jwt-secret";
+import { normalizeEmail } from "@/lib/auth/email";
 
 export const AUTH_COOKIE_NAME = "erp_session";
 
@@ -22,14 +21,14 @@ export async function signToken(payload: SessionUser): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("24h")
-    .sign(key);
+    .sign(getAuthJwtKey());
 }
 
 export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, key);
+    const { payload } = await jwtVerify(token, getAuthJwtKey());
     return payload as unknown as SessionUser;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -56,7 +55,7 @@ export async function signPasswordSetupToken(payload: {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("24h")
-    .sign(key);
+    .sign(getAuthJwtKey());
 }
 
 export async function verifyPasswordSetupToken(token: string): Promise<{
@@ -67,7 +66,7 @@ export async function verifyPasswordSetupToken(token: string): Promise<{
   exp?: number;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, key);
+    const { payload } = await jwtVerify(token, getAuthJwtKey());
     if (payload.purpose !== "password_setup") return null;
     return {
       userId: payload.userId as string,
@@ -81,9 +80,6 @@ export async function verifyPasswordSetupToken(token: string): Promise<{
   }
 }
 
-/**
- * Sign an expiring, single-use password reset token (Phase 6)
- */
 export async function signPasswordResetToken(payload: {
   userId: string;
   email: string;
@@ -100,8 +96,8 @@ export async function signPasswordResetToken(payload: {
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("24h")
-    .sign(key);
+    .setExpirationTime("15m")
+    .sign(getAuthJwtKey());
 }
 
 export async function verifyPasswordResetToken(token: string): Promise<{
@@ -112,17 +108,105 @@ export async function verifyPasswordResetToken(token: string): Promise<{
   exp?: number;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, key);
-    if (payload.purpose !== "password_reset") return null;
+    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    if (
+      payload.purpose !== "password_reset" ||
+      typeof payload.userId !== "string" ||
+      typeof payload.email !== "string" ||
+      typeof payload.sig !== "string"
+    ) {
+      return null;
+    }
     return {
-      userId: payload.userId as string,
-      email: payload.email as string,
+      userId: payload.userId,
+      email: payload.email,
       institutionId: payload.institutionId as string | undefined,
-      sig: payload.sig as string,
-      exp: payload.exp as number | undefined,
+      sig: payload.sig,
+      exp: payload.exp,
     };
   } catch {
     return null;
   }
 }
 
+export async function signOtpLoginProof(payload: {
+  userId: string;
+  email: string;
+  mobile: string;
+  role: string;
+}): Promise<string> {
+  return new SignJWT({ purpose: "otp_login", ...payload })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("60s")
+    .sign(getAuthJwtKey());
+}
+
+export async function verifyOtpLoginProof(token: string): Promise<{
+  userId: string;
+  email: string;
+  mobile: string;
+  role: string;
+} | null> {
+  try {
+    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    if (
+      payload.purpose !== "otp_login" ||
+      typeof payload.userId !== "string" ||
+      typeof payload.email !== "string" ||
+      typeof payload.mobile !== "string" ||
+      typeof payload.role !== "string"
+    ) {
+      return null;
+    }
+    return {
+      userId: payload.userId,
+      email: payload.email,
+      mobile: payload.mobile,
+      role: payload.role,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export type GoogleLoginRole = "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN";
+
+export async function signGoogleLoginProof(payload: {
+  email: string;
+  role: GoogleLoginRole;
+}): Promise<string> {
+  return new SignJWT({
+    purpose: "google_login",
+    email: normalizeEmail(payload.email),
+    role: payload.role,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("60s")
+    .sign(getAuthJwtKey());
+}
+
+export async function verifyGoogleLoginProof(token: string): Promise<{
+  email: string;
+  role: GoogleLoginRole;
+} | null> {
+  try {
+    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    const roles: GoogleLoginRole[] = ["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"];
+    if (
+      payload.purpose !== "google_login" ||
+      typeof payload.email !== "string" ||
+      typeof payload.role !== "string" ||
+      !roles.includes(payload.role as GoogleLoginRole)
+    ) {
+      return null;
+    }
+    return {
+      email: payload.email,
+      role: payload.role as GoogleLoginRole,
+    };
+  } catch {
+    return null;
+  }
+}

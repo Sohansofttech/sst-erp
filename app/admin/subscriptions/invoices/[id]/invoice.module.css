@@ -1,0 +1,42 @@
+.document {
+  max-width: 900px;
+  margin: 0 auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 32px;
+}
+
+.controls {
+  max-width: 900px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media print {
+  :global(body):has(.document) * {
+    visibility: hidden !important;
+  }
+
+  .document,
+  .document * {
+    visibility: visible !important;
+  }
+
+  .document {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .controls {
+    display: none !important;
+  }
+}

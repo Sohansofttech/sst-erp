@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
 import db from "@/lib/db";
 import {
   validatePasswordStrength,
   checkPwnedPassword,
   hashPassword,
 } from "@/lib/auth/password-security";
-
-const JWT_SECRET = process.env.JWT_SECRET || "erp-secret-super-secure-key-32-chars-long!";
-const key = new TextEncoder().encode(JWT_SECRET);
+import { computePasswordSignature, verifyPasswordResetToken } from "@/lib/auth/jwt";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,21 +33,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Verify token signature and purpose
-    let payload: any;
-    try {
-      const verified = await jwtVerify(token, key);
-      payload = verified.payload;
-    } catch {
+    const payload = await verifyPasswordResetToken(token);
+    if (!payload) {
       return NextResponse.json(
         { success: false, error: "Password reset token is invalid or has expired. Please request a new link." },
-        { status: 401 }
-      );
-    }
-
-    if (payload.purpose !== "pwd_reset" || !payload.userId) {
-      return NextResponse.json(
-        { success: false, error: "Invalid reset token." },
         { status: 401 }
       );
     }
@@ -58,13 +44,28 @@ export async function POST(req: NextRequest) {
     // 2. Fetch user to validate personal context
     const user = await db.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, email: true, fullName: true, institutionId: true },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        institutionId: true,
+        passwordHash: true,
+        isActive: true,
+        status: true,
+      },
     });
 
-    if (!user) {
+    if (
+      !user ||
+      !user.isActive ||
+      user.status !== "ACTIVE" ||
+      user.email.trim().toLowerCase() !== payload.email.trim().toLowerCase() ||
+      (user.institutionId || undefined) !== payload.institutionId ||
+      computePasswordSignature(user.passwordHash || "") !== payload.sig
+    ) {
       return NextResponse.json(
-        { success: false, error: "User account no longer exists." },
-        { status: 404 }
+        { success: false, error: "Password reset token is invalid or has expired. Please request a new link." },
+        { status: 401 }
       );
     }
 
@@ -101,12 +102,23 @@ export async function POST(req: NextRequest) {
     const newHash = await hashPassword(newPassword);
 
     // 6. Update user
-    await db.user.update({
-      where: { id: user.id },
+    const updated = await db.user.updateMany({
+      where: {
+        id: user.id,
+        passwordHash: user.passwordHash,
+        isActive: true,
+        status: "ACTIVE",
+      },
       data: {
         passwordHash: newHash,
       },
     });
+    if (updated.count !== 1) {
+      return NextResponse.json(
+        { success: false, error: "Password reset token is invalid or has expired. Please request a new link." },
+        { status: 401 }
+      );
+    }
 
     // 7. Audit log (Never log password!)
     try {

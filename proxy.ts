@@ -2,9 +2,8 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { jwtVerify } from "jose"
 import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access"
+import { getAuthJwtKey } from "@/lib/auth/jwt-secret"
 
-const JWT_SECRET = process.env.JWT_SECRET || "erp-secret-super-secure-key-32-chars-long!"
-const jwtKey = new TextEncoder().encode(JWT_SECRET)
 const TEACHER_AUTH_COOKIE = "sst_teacher_session"
 
 interface DecodedTeacherToken {
@@ -58,7 +57,7 @@ export async function proxy(request: NextRequest) {
 
     let session: DecodedTeacherToken | null = null
     try {
-      const { payload } = await jwtVerify(token, jwtKey)
+      const { payload } = await jwtVerify(token, getAuthJwtKey())
       session = payload as unknown as DecodedTeacherToken
     } catch {
       return handleUnauthorized()

@@ -5,9 +5,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { provisionInstitutionAdmin, syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
-import { assignInstitutionTrial } from "@/lib/services/subscription.service";
+import { createInitialInstitutionSubscription } from "@/lib/billing/initial-subscription";
+import { assignInstitutionTrial, FREE_TRIAL_PLAN_CODE } from "@/lib/services/subscription.service";
 
 const institutionInput = z.object({
+  planId: z.uuid(),
   name: z.string().trim().min(2).max(160),
   code: z.string().trim().max(40).optional(),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens for the slug.").max(80),
@@ -56,9 +58,9 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
     collegeCode = `CC-${slugPrefix}-${randNum}`;
   }
 
-  let newInstitutionId = "";
+  let newSubscriptionStatus: string | null = null;
   try {
-    await prisma.$transaction(
+    const created = await prisma.$transaction(
       async (tx) => {
         const institution = await tx.platformInstitution.create({
           data: {
@@ -77,14 +79,30 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
             website: data.website || null,
           },
         });
-        newInstitutionId = institution.id;
-
-        // Automatically assign 14-day complimentary free trial atomically with institution creation
-        await assignInstitutionTrial(tx, {
-          institutionId: institution.id,
-          createdById: auditUserId,
-          startsAt: institution.createdAt,
+        const selectedPlan = await tx.subscriptionPlan.findFirst({
+          where: { id: data.planId, isActive: true, archivedAt: null },
+          select: { id: true, code: true },
         });
+        if (!selectedPlan) throw new Error("Select an active subscription plan.");
+
+        let subscriptionAssignment: { planId: string; status: string };
+        if (selectedPlan.code === FREE_TRIAL_PLAN_CODE) {
+          const trialAssignment = await assignInstitutionTrial(tx, {
+            institutionId: institution.id,
+            createdById: auditUserId,
+            startsAt: institution.createdAt,
+          });
+          subscriptionAssignment = {
+            planId: trialAssignment.subscription.planId,
+            status: trialAssignment.subscription.status,
+          };
+        } else {
+          subscriptionAssignment = await createInitialInstitutionSubscription(tx, {
+            institutionId: institution.id,
+            planId: selectedPlan.id,
+            actorId: auditUserId,
+          });
+        }
 
         // Automatically designate newly created institution as the primary active institution in backend
         await tx.platformSetting.upsert({
@@ -126,23 +144,30 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
               entity: "Institution",
               entityId: institution.id,
               result: "SUCCESS",
-              metadata: { slug: institution.slug, code: collegeCode },
+              metadata: {
+                slug: institution.slug,
+                code: collegeCode,
+                planId: subscriptionAssignment.planId,
+                subscriptionStatus: subscriptionAssignment.status,
+              },
             },
           });
         }
+        return { institutionId: institution.id, status: subscriptionAssignment.status };
       },
       { maxWait: 15000, timeout: 20000 }
     );
+    newSubscriptionStatus = created.status;
 
-    if (newInstitutionId) {
-      await syncInstitutionToAppDb(newInstitutionId);
+    if (created.institutionId) {
+      await syncInstitutionToAppDb(created.institutionId);
       const adminName = data.adminName || formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
       const adminEmail = data.adminEmail || formData.get("adminEmail")?.toString().trim() || data.email || undefined;
       const adminPhone = data.adminPhone;
       const adminPassword = data.adminPassword || "Password@123";
 
       const provisionResult = await provisionInstitutionAdmin({
-        institutionId: newInstitutionId,
+        institutionId: created.institutionId,
         adminName,
         adminEmail,
         adminPassword,
@@ -169,10 +194,18 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
   try {
     revalidatePath("/super-admin");
     revalidatePath("/super-admin/institutions");
+    revalidatePath("/subscriptions");
+    revalidatePath("/subscriptions/institutions");
     revalidatePath("/login");
     revalidatePath("/");
   } catch {}
-  return { error: null, success: `Institution created successfully (College Code: ${collegeCode}) and administrator provisioned.` };
+  const planNotice =
+    newSubscriptionStatus === "TRIALING"
+      ? "The 14-day free trial is active."
+      : newSubscriptionStatus === "ACTIVE"
+        ? "The selected free plan is active."
+        : "The selected paid plan remains pending verified payment.";
+  return { error: null, success: `Institution created successfully (College Code: ${collegeCode}) and administrator provisioned. ${planNotice}` };
 }
 
 export async function provisionAdminForInstitution(formData: FormData) {
