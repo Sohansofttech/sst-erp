@@ -99,17 +99,10 @@ const demoAccounts: Array<{
   email: string;
   icon: LucideIcon;
 }> = [
-const demoAccounts: Array<{
-  role: PortalRole;
-  label: string;
-  email: string;
-  icon: LucideIcon;
-}> = [
   { role: "STUDENT", label: "Student", email: "student@campus.portal", icon: GraduationCap },
   { role: "TEACHER", label: "Teacher", email: "teacher@campus.portal", icon: BookOpen },
   { role: "ADMIN", label: "Institution Admin", email: "admin@campus.portal", icon: Building2 },
   { role: "SUPER_ADMIN", label: "Super Admin", email: "superadmin@sohansofttech.com", icon: ShieldCheck },
-];
 ];
 
 function LoginForm() {
