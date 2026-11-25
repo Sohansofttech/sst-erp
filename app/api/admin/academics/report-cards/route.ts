@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       studentWhere.currentDivisionId = context.activeDivisionId;
     }
 
-    const students = await db.student.findMany({
+    const students: any[] = await (db.student as any).findMany({
       where: studentWhere,
       include: {
         currentDivision: {
@@ -94,9 +94,9 @@ export async function GET(req: NextRequest) {
         // Also check examResults if assessmentRecords are empty
         const examResults = records.length === 0
           ? await db.examResult.findMany({
-              where: { institutionId, studentId: student.id },
-              include: { subject: { select: { id: true, name: true, code: true } } },
-            })
+            where: { institutionId, studentId: student.id },
+            include: { subject: { select: { id: true, name: true, code: true } } },
+          })
           : [];
 
         // Build subject breakdown
@@ -179,8 +179,8 @@ export async function GET(req: NextRequest) {
           teacherRemarks: overallPercentage >= 80
             ? "Excellent performance throughout the term. Shows great initiative and leadership."
             : overallPercentage >= 50
-            ? "Good academic progress. Consistent effort required in core quantitative areas."
-            : "Requires additional support and remedial practice.",
+              ? "Good academic progress. Consistent effort required in core quantitative areas."
+              : "Requires additional support and remedial practice.",
         };
       })
     );

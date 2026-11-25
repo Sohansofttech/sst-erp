@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveDivisionContext } from "@/lib/security/division-context";
 import { handleAdminApiError } from "@/lib/security/admin-auth";
 import db from "@/lib/db";
-import {
-  MONTESSORI_MILESTONES,
-  type MontessoriMilestoneDefinition,
-} from "@/lib/academics/montessori-milestones";
+import { MONTESSORI_MILESTONES } from "@/lib/academics/montessori-milestones";
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,7 +30,7 @@ export async function GET(req: NextRequest) {
       studentWhere.currentDivisionId = context.activeDivisionId;
     }
 
-    const students = await db.student.findMany({
+    const students: any[] = await (db.student as any).findMany({
       where: studentWhere,
       select: {
         id: true,
@@ -182,7 +179,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify student belongs to this institution and is in active state
-    const student = await db.student.findFirst({
+    const student: any = await (db.student as any).findFirst({
       where: { id: studentId, institutionId },
       include: {
         enrollments: { where: { status: "ACTIVE" }, take: 1 },
@@ -222,7 +219,7 @@ export async function POST(req: NextRequest) {
         orderBy: { startDate: "desc" },
       });
       if (ay) {
-        const enr = await db.enrollment.create({
+        const enr = await (db.enrollment as any).create({
           data: {
             institutionId,
             studentId,
