@@ -3,6 +3,8 @@ import db from "@/lib/db";
 
 async function resolveLogo(instId?: string | null): Promise<string | null> {
   if (!instId) return null;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(instId);
+  if (!isUuid) return null;
   try {
     const branding = await db.institutionBranding.findUnique({
       where: { institutionId: instId },

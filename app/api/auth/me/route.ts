@@ -126,13 +126,18 @@ export async function GET(req: NextRequest) {
         }
         if (inst) {
           let logoUrl: string | null = null;
-          try {
-            const branding = await db.institutionBranding.findUnique({
-              where: { institutionId: inst.id },
-              select: { logoUrl: true },
-            });
-            if (branding?.logoUrl) logoUrl = branding.logoUrl;
-          } catch {}
+          const isUuid = (val?: string | null): boolean =>
+            Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+          if (isUuid(inst.id)) {
+            try {
+              const branding = await db.institutionBranding.findUnique({
+                where: { institutionId: inst.id },
+                select: { logoUrl: true },
+              });
+              if (branding?.logoUrl) logoUrl = branding.logoUrl;
+            } catch {}
+          }
 
           institutionDetails = {
             id: inst.id,
