@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { resolveAdminContext, requireActiveSubscription, handleAdminApiError } from "@/lib/security/admin-auth";
+import { ForbiddenError } from "@/lib/auth/session";
+import { hasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import {
   getFeeInvoices,
   createFeeInvoice,
   recordFeePayment,
   assignFeeStructure,
   applyFeeConcession,
+  getFeeStructures,
+  saveFeeStructure,
+  getFeeRefunds,
+  processFeeRefund,
 } from "@/lib/services/institution-admin.service";
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.FEES_READ,
+    });
     const studentId = req.nextUrl.searchParams.get("studentId") || undefined;
     const statusFilter = req.nextUrl.searchParams.get("status") || undefined;
 
@@ -35,16 +43,25 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const [structures, refunds] = await Promise.all([
+      getFeeStructures(institutionId),
+      getFeeRefunds(institutionId),
+    ]);
+
     return NextResponse.json({
       success: true,
       data: {
         invoices,
+        structures,
+        refunds,
         summary: {
           totalInvoices: invoices.length,
           totalBilled,
           totalCollected,
           totalOutstanding,
           totalOverdue,
+          totalRefunded: refunds.reduce((acc: number, r: any) => acc + Number(r.amount || 0), 0),
+          collectionRate: totalBilled > 0 ? Number(((totalCollected / totalBilled) * 100).toFixed(1)) : 0,
         },
       },
     });
@@ -55,7 +72,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId, userId } = await resolveAdminContext(req);
+    const { institutionId, userId, permissions, userRole } = await requireActiveSubscription(req, {
+      requiredPermission: PERMISSIONS.FEES_WRITE,
+    });
     const body = await req.json();
 
     // 1. Bulk Assign Fee Structure
@@ -89,6 +108,9 @@ export async function POST(req: NextRequest) {
 
     // 2. Apply Fee Concession / Waiver
     if (body.type === "CONCESSION" || body.type === "ADJUSTMENT") {
+      if (!hasPermission(permissions, PERMISSIONS.FEES_CONCESSION, userRole)) {
+        throw new ForbiddenError("Forbidden: Fee concessions require fees:concession permission.");
+      }
       if (!body.invoiceId || !body.concessionAmount || !body.reason) {
         return NextResponse.json(
           { success: false, error: "Invoice ID, concession amount, and reason are required." },
@@ -107,6 +129,50 @@ export async function POST(req: NextRequest) {
         success: true,
         message: `Concession of ₹${body.concessionAmount} applied to invoice ${updated.invoiceNumber}.`,
         data: updated,
+      });
+    }
+
+    // 2B. Save Reusable Fee Structure
+    if (body.type === "SAVE_STRUCTURE") {
+      const saved = await saveFeeStructure(institutionId, {
+        id: body.id,
+        name: body.name,
+        courseId: body.courseId,
+        academicYearId: body.academicYearId,
+        semester: body.semester !== undefined ? Number(body.semester) : undefined,
+        amount: parseFloat(body.amount),
+        items: body.items,
+        actorUserId: userId,
+      });
+      return NextResponse.json({
+        success: true,
+        message: `Fee structure "${saved.name}" saved.`,
+        data: saved,
+      });
+    }
+
+    // 2C. Process Fee Refund (Requires fees:refund permission)
+    if (body.type === "REFUND") {
+      if (!hasPermission(permissions, PERMISSIONS.FEES_REFUND, userRole)) {
+        throw new ForbiddenError("Forbidden: Processing fee refunds requires fees:refund permission.");
+      }
+      if (!body.paymentId || !body.amount || !body.reason) {
+        return NextResponse.json(
+          { success: false, error: "Payment ID, refund amount, and reason are required." },
+          { status: 400 }
+        );
+      }
+      const refund = await processFeeRefund(institutionId, {
+        paymentId: body.paymentId,
+        amount: parseFloat(body.amount),
+        reason: body.reason,
+        refundMode: body.refundMode,
+        actorUserId: userId,
+      });
+      return NextResponse.json({
+        success: true,
+        message: `Refund of ₹${refund.amount.toLocaleString()} processed.`,
+        data: refund,
       });
     }
 

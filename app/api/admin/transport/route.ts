@@ -1,19 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { resolveAdminContext, requireActiveSubscription, handleAdminApiError } from "@/lib/security/admin-auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getTransportAllocations,
   createTransportAllocation,
   deleteTransportAllocation,
+  getTransportCatalog,
+  saveTransportCatalogItem,
+  getTransportMaintenance,
+  createTransportMaintenanceRecord,
 } from "@/lib/services/institution-admin.service";
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
-    const allocations = await getTransportAllocations(institutionId);
+    const { institutionId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.TRANSPORT_READ,
+    });
+    const [allocations, catalog, maintenance] = await Promise.all([
+      getTransportAllocations(institutionId),
+      getTransportCatalog(institutionId),
+      getTransportMaintenance(institutionId),
+    ]);
 
     return NextResponse.json({
       success: true,
       data: allocations,
+      catalog,
+      maintenance,
     });
   } catch (error) {
     return handleAdminApiError(error);
@@ -22,8 +35,45 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, userId } = await requireActiveSubscription(req, {
+      requiredPermission: PERMISSIONS.TRANSPORT_WRITE,
+    });
     const body = await req.json();
+
+    if (body.type === "SAVE_ROUTE") {
+      const saved = await saveTransportCatalogItem(institutionId, {
+        id: body.id,
+        routeNumber: body.routeNumber,
+        routeName: body.routeName,
+        vehicleNumber: body.vehicleNumber,
+        capacity: Number(body.capacity || 40),
+        driverName: body.driverName,
+        driverContact: body.driverContact,
+        stops: body.stops,
+        status: body.status,
+        actorUserId: userId,
+      });
+      return NextResponse.json({
+        success: true,
+        message: `Route ${saved.routeNumber} saved.`,
+        data: saved,
+      });
+    }
+
+    if (body.type === "MAINTENANCE") {
+      const record = await createTransportMaintenanceRecord(institutionId, {
+        vehicleNumber: body.vehicleNumber,
+        summary: body.summary,
+        cost: body.cost,
+        status: body.status,
+        actorUserId: userId,
+      });
+      return NextResponse.json({
+        success: true,
+        message: "Transport maintenance record saved.",
+        data: record,
+      });
+    }
 
     if (!body.studentId || !body.routeName || !body.routeNumber || !body.vehicleNumber) {
       return NextResponse.json(
@@ -57,7 +107,9 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await requireActiveSubscription(req, {
+      requiredPermission: PERMISSIONS.TRANSPORT_WRITE,
+    });
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

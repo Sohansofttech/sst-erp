@@ -1,4 +1,14 @@
-export type UserRole = "SUPER_ADMIN" | "ADMIN" | "TEACHER" | "STUDENT" | "PARENT";
+export type UserRole =
+  | "SUPER_ADMIN"
+  | "ADMIN"
+  | "INSTITUTION_ADMIN"
+  | "ADMISSIONS_OFFICER"
+  | "ACCOUNTANT"
+  | "HOSTEL_WARDEN"
+  | "TRANSPORT_OFFICER"
+  | "TEACHER"
+  | "STUDENT"
+  | "PARENT";
 
 export interface SessionUser {
   userId: string;
@@ -10,6 +20,8 @@ export interface SessionUser {
   studentId?: string; // Present if role is STUDENT
   guardianId?: string; // Present if role is PARENT
   activeChildId?: string; // Currently active child for PARENT
+  permissions?: string[]; // Server-resolved permission codes
+  assignedRoles?: string[]; // Server-resolved institutional role codes
   mustChangePassword?: boolean; // Force password change flag
   passwordSig?: string; // Full SHA-256 fingerprint of passwordHash for zero-migration session revocation
 }

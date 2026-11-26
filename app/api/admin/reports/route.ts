@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getFeeInvoices,
   getHostelAllocations,
@@ -11,8 +12,11 @@ import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
     const reportType = req.nextUrl.searchParams.get("type") || "overview";
+    const { institutionId } = await resolveAdminContext(
+      req,
+      reportType === "finance" ? { requiredPermission: PERMISSIONS.REPORTS_FINANCE } : undefined
+    );
 
     if (reportType === "finance") {
       const invoices = await getFeeInvoices(institutionId);

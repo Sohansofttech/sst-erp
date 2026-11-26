@@ -652,7 +652,7 @@ model AdmissionApplication {
   email                String
   phone                String
   dob                  DateTime
-  gender               Gender
+  gender               String
   addressLine          String?
   city                 String?
   state                String?
@@ -661,8 +661,8 @@ model AdmissionApplication {
   guardianRelationship String?
   guardianPhone        String?
   guardianEmail        String?
-  status               AdmissionApplicationStatus @default(SUBMITTED)
-  documentStatus       DocumentStatus             @default(PENDING)
+  status               String                     @default("SUBMITTED")
+  documentStatus       String                     @default("PENDING")
   convertedStudentId   String?                    @unique @db.Uuid
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
@@ -3156,6 +3156,7 @@ model Role {
   institution PlatformInstitution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   memberships MembershipRole[]
   permissions RolePermission[]
+  userAssignments UserRoleAssignment[]
 
   @@unique([institutionId, code])
   @@unique([id, institutionId])
@@ -3199,6 +3200,43 @@ model RolePermission {
   @@id([roleId, permissionId])
   @@index([permissionId])
 
+}
+
+model UserRoleAssignment {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String
+  roleId        String   @db.Uuid
+  institutionId String   @db.Uuid
+  assignedAt    DateTime @default(now())
+
+  role Role @relation(fields: [roleId, institutionId], references: [id, institutionId], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([institutionId, userId])
+  @@index([roleId, institutionId])
+  @@map("user_role_assignments")
+}
+
+model StudentImportJob {
+  id              String    @id @default(uuid()) @db.Uuid
+  institutionId   String    @db.Uuid
+  actorUserId     String
+  fileName        String
+  fileType        String
+  status          String    @default("PENDING")
+  totalRows       Int       @default(0)
+  processedRows   Int       @default(0)
+  successCount    Int       @default(0)
+  skippedCount    Int       @default(0)
+  failedCount     Int       @default(0)
+  errorReportJson String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+
+  @@index([institutionId, createdAt])
+  @@index([institutionId, status])
+  @@map("student_import_jobs")
 }
 
 model PlatformAuditLog {

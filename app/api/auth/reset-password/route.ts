@@ -113,10 +113,12 @@ export async function POST(req: NextRequest) {
       await db.auditLog.create({
         data: {
           institutionId: user.institutionId || "",
+          userId: user.id,
           actorUserId: user.id,
-          action: "PASSWORD_RESET_SUCCESS",
+          action: "PASSWORD_CHANGED",
           entityType: "User",
           entityId: user.id,
+          newValuesJson: JSON.stringify({ status: "SUCCESS", source: "PASSWORD_RESET_LINK" }),
         },
       });
     } catch {

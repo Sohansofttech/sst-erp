@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getCertificateTemplates,
   getIssuedCertificates,
@@ -8,7 +9,9 @@ import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const query =
       req.nextUrl.searchParams.get("query") ||
       req.nextUrl.searchParams.get("code") ||
@@ -26,7 +29,10 @@ export async function GET(req: NextRequest) {
             ...(isUuid ? [{ id: q }] : []),
           ],
         },
-        include: { student: true, template: true },
+        include: {
+          student: { select: { firstName: true, lastName: true, rollNumber: true } },
+          template: true,
+        },
       });
 
       if (!cert) {
@@ -73,7 +79,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId, userId } = await resolveAdminContext(req);
+    const { institutionId, userId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const body = await req.json();
 
     if (body.type === "TEMPLATE") {
@@ -144,7 +152,7 @@ export async function POST(req: NextRequest) {
         issuedByUserId: userId || "system",
         status: "ACTIVE",
       },
-      include: { student: true, template: true },
+      include: { template: true },
     });
 
     return NextResponse.json({
@@ -159,7 +167,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const body = await req.json();
     const { id, status, remarks } = body;
 

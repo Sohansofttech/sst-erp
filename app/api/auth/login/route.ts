@@ -18,6 +18,8 @@ import {
   type TeacherRole,
 } from "@/lib/auth/roles";
 import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context";
+import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
+import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -160,7 +162,9 @@ export async function POST(req: NextRequest) {
     const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
     let redirectUrl = "";
 
-    if (userRole === "ADMIN" || userRole === "INSTITUTION_ADMIN") {
+    const isInstitutionalPortalUser = isAdminPortalRole(userRole) && userRole !== "SUPER_ADMIN";
+
+    if (isInstitutionalPortalUser) {
       const isLegacyInstitution =
         user.institutionId === "inst_apex" ||
         user.institutionId?.startsWith("inst_") ||
@@ -359,10 +363,8 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.error("[Login] Failed to record teacher portal session in DB:", err);
       }
-    } else if (userRole === "ADMIN" || userRole === "INSTITUTION_ADMIN") {
-      redirectUrl = "/admin";
-    } else if (userRole === "SUPER_ADMIN") {
-      redirectUrl = "/super-admin";
+    } else if (isAdminPortalRole(userRole)) {
+      redirectUrl = getRoleLandingRoute(userRole);
     } else {
       return NextResponse.json(
         { success: false, error: "Access denied: Account role is unrecognized or unsupported." },
@@ -388,17 +390,14 @@ export async function POST(req: NextRequest) {
     }
 
     let mustChangePassword = await isTemporaryPasswordActive(user.id);
-    if (!mustChangePassword && password) {
-      if (isDefaultOrTemporaryPassword(password)) {
-        mustChangePassword = true;
-      } else {
-        const pwned = await checkPwnedPassword(password);
-        if (pwned.compromised) {
-          mustChangePassword = true;
-        }
-      }
+    if (!mustChangePassword && password && isDefaultOrTemporaryPassword(password)) {
+      mustChangePassword = true;
     }
     const passwordSig = computePasswordSignature(user.passwordHash || "");
+
+    const { assignedRoles, permissions } = isAdminPortalRole(userRole)
+      ? await resolveUserPermissionsFromDb(user.id, user.institutionId, userRole)
+      : { assignedRoles: [userRole], permissions: [] };
 
     const sessionUser: SessionUser = {
       userId: user.id,
@@ -410,6 +409,8 @@ export async function POST(req: NextRequest) {
       studentId,
       guardianId,
       activeChildId,
+      permissions,
+      assignedRoles,
       mustChangePassword,
       passwordSig,
     };

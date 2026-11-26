@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { DepartmentStaffPanel } from "@/components/admin/DepartmentStaffPanel";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,28 @@ function mapApiAdmission(item: any): AdmissionApplication {
     return "Submitted";
   };
 
+  const defaultDocs: DocumentSubmissionStatus[] = [
+    { documentName: "10th Grade Marksheet", isSubmitted: false },
+    { documentName: "12th Grade Marksheet", isSubmitted: false },
+    { documentName: "Transfer Certificate (TC)", isSubmitted: false },
+    { documentName: "Aadhaar Card / ID Proof", isSubmitted: false },
+  ];
+
+  let resolvedDocs: DocumentSubmissionStatus[] = defaultDocs;
+  let parsedRaw = item.documents;
+  if (!parsedRaw && item.documentsJson) {
+    try {
+      parsedRaw = typeof item.documentsJson === "string" ? JSON.parse(item.documentsJson) : item.documentsJson;
+    } catch {}
+  }
+  if (Array.isArray(parsedRaw) && parsedRaw.length > 0) {
+    resolvedDocs = parsedRaw.map((d: any) => ({
+      documentName: String(d.documentName || "Document"),
+      isSubmitted: Boolean(d.isSubmitted),
+      verifiedAt: d.verifiedAt,
+    }));
+  }
+
   const fullName = item.fullName || `${item.firstName || ""} ${item.lastName || ""}`.trim() || "Applicant";
   return {
     id: item.id,
@@ -88,15 +111,12 @@ function mapApiAdmission(item: any): AdmissionApplication {
     appliedDate: item.createdAt ? new Date(item.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
     status: normStatus(item.status),
     statusHistory: [],
-    documents: [
-      { documentName: "10th Grade Marksheet", isSubmitted: true },
-      { documentName: "12th Grade Marksheet", isSubmitted: true },
-      { documentName: "Transfer Certificate (TC)", isSubmitted: false },
-      { documentName: "Aadhaar Card / ID Proof", isSubmitted: true },
-    ],
+    documents: resolvedDocs,
+    documentStatus: item.documentStatus || "PENDING",
     isConvertedToStudent: Boolean(item.convertedStudentId || item.status === "ENROLLED"),
     convertedStudentId: item.convertedStudentId || undefined,
-  };
+    convertedStudent: item.convertedStudent || null,
+  } as any;
 }
 
 export default function AdmissionsPage() {
@@ -109,14 +129,38 @@ export default function AdmissionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [admissionsError, setAdmissionsError] = useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = useState<"overview" | "applications" | "documents" | "followups" | "history" | "team">("applications");
+  const [followUps, setFollowUps] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [followUpAppId, setFollowUpAppId] = useState("");
+  const [followUpDate, setFollowUpDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [followUpChannel, setFollowUpChannel] = useState("PHONE");
+  const [followUpNotes, setFollowUpNotes] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      if (tab === "overview" || tab === "applications" || tab === "documents" || tab === "followups" || tab === "history") {
+        setActiveTab(tab);
+      }
+    }
+  }, []);
+
   const loadAdmissions = useCallback(async () => {
     try {
       setIsLoading(true);
       setAdmissionsError(null);
-      const res = await fetch("/api/admin/admissions");
+      const res = await fetch("/api/admin/admissions?includeMeta=true&includeHistory=true");
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setAdmissions(json.data.map(mapApiAdmission));
+        if (json.meta) {
+          if (Array.isArray(json.meta.departments)) setDepartments(json.meta.departments);
+          if (Array.isArray(json.meta.courses)) setCourses(json.meta.courses);
+          if (Array.isArray(json.meta.academicYears)) setAcademicYears(json.meta.academicYears);
+        }
+        if (Array.isArray(json.followUps)) setFollowUps(json.followUps);
+        if (Array.isArray(json.auditLogs)) setAuditLogs(json.auditLogs);
       } else if (!json.success) {
         setAdmissionsError(json.error || "Failed to load admissions.");
       }
@@ -132,20 +176,8 @@ export default function AdmissionsPage() {
   const isAdmissionsLoading = isLoading;
 
   const loadAcademics = useCallback(async () => {
-    try {
-      const [deptRes, courseRes, ayRes, classRes] = await Promise.all([
-        fetch("/api/admin/academics/departments").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/admin/academics/courses").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/admin/academics/academic-years").then((r) => r.json()).catch(() => ({})),
-        fetch("/api/admin/academics/classes").then((r) => r.json()).catch(() => ({})),
-      ]);
-      if (deptRes.success) setDepartments(deptRes.data || []);
-      if (courseRes.success) setCourses(courseRes.data || []);
-      if (ayRes.success) setAcademicYears(ayRes.data || []);
-      if (classRes.success) setClasses(classRes.data || []);
-    } catch (err) {
-      console.error("Failed to load academics:", err);
-    }
+    // Academic metadata is now loaded via /api/admin/admissions?includeMeta=true
+    // so departmental Admissions Officers never hit 403 on /api/admin/academics/*.
   }, []);
 
   useEffect(() => {
@@ -483,14 +515,37 @@ export default function AdmissionsPage() {
 
     try {
       if (editingApp) {
-        await fetch("/api/admin/admissions", {
+        const res = await fetch("/api/admin/admissions", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: editingApp.id,
-            status: editingApp.status,
+            applicantFirstName: firstName.trim(),
+            applicantLastName: lastName.trim(),
+            applicantFullName: `${firstName.trim()} ${lastName.trim()}`,
+            email: email.trim(),
+            phone: phone.trim(),
+            dob,
+            gender: gender.toUpperCase(),
+            addressLine,
+            city,
+            state,
+            postalCode,
+            guardianName: guardianName.trim(),
+            guardianRelationship: guardianRelation,
+            guardianPhone: guardianPhone.trim(),
+            guardianEmail: guardianEmail.trim(),
+            guardianOccupation: guardianOccupation.trim(),
+            courseId: selectedCourseId || editingApp.courseId,
+            academicYearId: selectedAYId || editingApp.academicYearId,
+            documents,
           }),
         });
+        const json = await res.json();
+        if (!json.success) {
+          setFormError(json.error || "Failed to update admission application.");
+          return;
+        }
       } else {
         const res = await fetch("/api/admin/admissions", {
           method: "POST",
@@ -503,6 +558,7 @@ export default function AdmissionsPage() {
             academicYearId: selectedAYId || academicYears[0]?.id || "",
             gender: gender.toUpperCase(),
             dob: new Date(dob),
+            documents,
           }),
         });
         const json = await res.json();
@@ -584,6 +640,31 @@ export default function AdmissionsPage() {
         >
           New Application
         </Button>
+      </div>
+
+      {/* Portal Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-[#E2E8F0] pb-2">
+        {[
+          { id: "overview", label: "Overview" },
+          { id: "applications", label: `Applications (${stats.total})` },
+          { id: "documents", label: "Document Verification" },
+          { id: "followups", label: `Follow-ups (${followUps.filter((f) => f.status === "PENDING").length})` },
+          { id: "history", label: "Admission History" },
+          { id: "team", label: "Department Team" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              activeTab === tab.id
+                ? "bg-[#123B5A] text-white"
+                : "bg-white text-[#64748B] border border-[#E2E8F0] hover:text-[#1E293B]"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* KPI Cards Grid */}
@@ -738,7 +819,317 @@ export default function AdmissionsPage() {
         </Alert>
       )}
 
+      {activeTab === "overview" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-bold text-[#1E293B]">Admissions Pipeline Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              <div className="flex justify-between py-1.5 border-b border-[#F1F5F9]">
+                <span className="text-[#64748B]">New Submissions</span>
+                <span className="font-bold text-[#1E293B]">{stats.submitted}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-[#F1F5F9]">
+                <span className="text-[#64748B]">Under Review</span>
+                <span className="font-bold text-[#D97706]">{stats.underReview}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-[#F1F5F9]">
+                <span className="text-[#64748B]">Approved (Ready to Enroll)</span>
+                <span className="font-bold text-[#16A34A]">{stats.approved}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-[#F1F5F9]">
+                <span className="text-[#64748B]">Enrolled Students</span>
+                <span className="font-bold text-[#123B5A]">{stats.enrolled}</span>
+              </div>
+              <div className="flex justify-between py-1.5">
+                <span className="text-[#64748B]">Pending Follow-ups</span>
+                <span className="font-bold text-[#7C3AED]">{followUps.filter((f) => f.status === "PENDING").length}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-bold text-[#1E293B]">Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" onClick={handleOpenAddModal}>
+                Register Applicant
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setActiveTab("documents")}>
+                Verify Documents
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setActiveTab("followups")}>
+                Schedule Follow-up
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setActiveTab("applications")}>
+                Open Applications Queue
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "documents" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-bold text-[#1E293B]">Document Verification Queue</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Application ID</TableHead>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Checklist</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {admissions.length === 0 ? (
+                  <TableEmpty colSpan={4} message="No applications available for document verification." />
+                ) : (
+                  admissions.map((app) => {
+                    const verifiedCount = app.documents.filter((d) => d.isSubmitted).length;
+                    return (
+                      <TableRow key={app.id}>
+                        <TableCell className="font-mono text-xs font-bold">{app.applicationNumber}</TableCell>
+                        <TableCell className="text-xs font-semibold">{app.applicantFullName}</TableCell>
+                        <TableCell className="text-xs">
+                          {verifiedCount}/{app.documents.length} Submitted
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              const nextDocs = app.documents.map((d) => ({ ...d, isSubmitted: true }));
+                              const res = await fetch("/api/admin/admissions", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  id: app.id,
+                                  action: "VERIFY_DOCUMENTS",
+                                  documents: nextDocs,
+                                }),
+                              });
+                              const j = await res.json();
+                              if (j.success) {
+                                setSaveSuccessMessage(`Verified all documents for ${app.applicantFullName}.`);
+                                loadAdmissions();
+                              } else {
+                                alert(j.error || "Failed to verify documents.");
+                              }
+                            }}
+                          >
+                            Mark All Verified
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "followups" && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-bold text-[#1E293B]">Schedule Applicant Follow-up</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form
+                className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!followUpAppId || !followUpNotes.trim()) return;
+                  const res = await fetch("/api/admin/admissions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      type: "FOLLOWUP",
+                      applicationId: followUpAppId,
+                      followUpDate,
+                      channel: followUpChannel,
+                      notes: followUpNotes,
+                    }),
+                  });
+                  const j = await res.json();
+                  if (j.success) {
+                    setFollowUpNotes("");
+                    setSaveSuccessMessage("Follow-up scheduled successfully.");
+                    loadAdmissions();
+                  } else {
+                    alert(j.error || "Failed to schedule follow-up.");
+                  }
+                }}
+              >
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Applicant</label>
+                  <select
+                    value={followUpAppId}
+                    onChange={(e) => setFollowUpAppId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white"
+                  >
+                    <option value="">Select Application...</option>
+                    {admissions.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.applicationNumber} — {a.applicantFullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Follow-up Date</label>
+                  <input
+                    type="date"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Channel &amp; Notes</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={followUpChannel}
+                      onChange={(e) => setFollowUpChannel(e.target.value)}
+                      className="px-2 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white"
+                    >
+                      <option value="PHONE">Phone</option>
+                      <option value="EMAIL">Email</option>
+                      <option value="IN_PERSON">In Person</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Follow-up notes..."
+                      value={followUpNotes}
+                      onChange={(e) => setFollowUpNotes(e.target.value)}
+                      required
+                      className="flex-1 px-3 py-2 text-xs rounded-lg border border-[#E2E8F0]"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" size="sm" variant="primary">
+                  Save Follow-up
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Applicant</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Channel</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {followUps.length === 0 ? (
+                    <TableEmpty colSpan={6} message="No follow-ups scheduled yet." />
+                  ) : (
+                    followUps.map((f) => (
+                      <TableRow key={f.id}>
+                        <TableCell className="text-xs font-semibold">
+                          {f.applicantName} <span className="text-[#64748B] font-mono">({f.applicationNumber})</span>
+                        </TableCell>
+                        <TableCell className="text-xs">{f.followUpDate}</TableCell>
+                        <TableCell className="text-xs">{f.channel}</TableCell>
+                        <TableCell className="text-xs">{f.notes}</TableCell>
+                        <TableCell>
+                          <Badge variant={f.status === "COMPLETED" ? "success" : "warning"}>{f.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {f.status !== "COMPLETED" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                const res = await fetch("/api/admin/admissions", {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    action: "UPDATE_FOLLOWUP",
+                                    followUpId: f.id,
+                                    followUpStatus: "COMPLETED",
+                                  }),
+                                });
+                                if ((await res.json()).success) loadAdmissions();
+                              }}
+                            >
+                              Mark Done
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "history" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-bold text-[#1E293B]">Admission History &amp; Audit Trail</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Entity ID</TableHead>
+                  <TableHead>Details</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {auditLogs.length === 0 ? (
+                  <TableEmpty colSpan={4} message="No admission audit events recorded yet." />
+                ) : (
+                  auditLogs.map((log: any) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-xs text-[#64748B]">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="navy">{log.action}</Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{log.entityId || log.recordId || "—"}</TableCell>
+                      <TableCell className="text-xs text-[#475569] max-w-md truncate">
+                        {log.newValuesJson || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "team" && (
+        <DepartmentStaffPanel departmentRole="ADMISSIONS_OFFICER" departmentLabel="Admissions Officer" />
+      )}
+
       {/* Main Applications Table */}
+      {activeTab === "applications" && (
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -844,7 +1235,11 @@ export default function AdmissionsPage() {
                         {app.isConvertedToStudent ? (
                           <div className="flex items-center gap-1 text-[11px] font-bold text-[#16A34A] bg-[#DCFCE7] px-2 py-0.5 rounded-md border border-[#BBF7D0] w-fit">
                             <UserCheck className="w-3.5 h-3.5" />
-                            <span>{app.convertedStudentId}</span>
+                            <span>
+                              {(app as any).convertedStudent?.hasActiveEnrollment
+                                ? "Enrolled"
+                                : "Student Record Created"}
+                            </span>
                           </div>
                         ) : app.status === "Approved" ? (
                           <Button
@@ -857,7 +1252,7 @@ export default function AdmissionsPage() {
                             Enroll Student
                           </Button>
                         ) : (
-                          <span className="text-[11px] text-[#94A3B8]">Pending Approval</span>
+                          <span className="text-[11px] text-[#94A3B8]">Not Enrolled</span>
                         )}
                       </TableCell>
 
@@ -909,6 +1304,7 @@ export default function AdmissionsPage() {
           </Table>
         </CardContent>
       </Card>
+      )}
 
       {/* ================================================================= */}
       {/* 1. APPLICATION DETAILS MODAL                                      */}

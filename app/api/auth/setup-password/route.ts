@@ -1,6 +1,5 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import db from "@/lib/db";
 import {
   verifyPasswordSetupToken,
@@ -8,7 +7,14 @@ import {
   signToken,
   AUTH_COOKIE_NAME,
 } from "@/lib/auth/jwt";
+import {
+  validatePasswordStrength,
+  checkPwnedPassword,
+  hashPassword,
+} from "@/lib/auth/password-security";
 import { SessionUser } from "@/types";
+import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
+import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 
 export async function GET(req: NextRequest) {
   try {
@@ -223,7 +229,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
+    const strengthResult = validatePasswordStrength(newPassword, {
+      email: user.email,
+      fullName: user.fullName || user.name || undefined,
+    });
+    if (!strengthResult.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: strengthResult.errors[0] || "Password does not meet complexity requirements.",
+          details: strengthResult.errors,
+        },
+        { status: 400 }
+      );
+    }
+
+    const pwnedResult = await checkPwnedPassword(newPassword);
+    if (pwnedResult.compromised) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This password has been exposed in public data breaches. Please choose a more unique, secure password.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const newHash = await hashPassword(newPassword);
     const updatedSig = computePasswordSignature(newHash);
     const now = new Date();
 
@@ -297,14 +329,34 @@ export async function POST(req: NextRequest) {
       console.warn("Failed to record setup audit log:", auditErr);
     }
 
+    const userRoleUpper = ((user.role as string) || "STUDENT").toUpperCase();
+    const { assignedRoles, permissions } = isAdminPortalRole(userRoleUpper)
+      ? await resolveUserPermissionsFromDb(user.id, user.institutionId, userRoleUpper)
+      : { assignedRoles: [userRoleUpper], permissions: [] };
+
+    let redirectUrl = "/dashboard";
+    if (isAdminPortalRole(userRoleUpper)) {
+      redirectUrl = getRoleLandingRoute(userRoleUpper);
+    } else if (userRoleUpper === "TEACHER") {
+      redirectUrl = institutionSlug ? `/campus/${institutionSlug}/teacher` : "/login";
+    } else if (userRoleUpper === "HOD") {
+      redirectUrl = institutionSlug ? `/campus/${institutionSlug}/teacher/hod` : "/login";
+    } else if (userRoleUpper === "PARENT" || userRoleUpper === "GUARDIAN") {
+      redirectUrl = "/parent/dashboard";
+    } else if (userRoleUpper === "STUDENT") {
+      redirectUrl = "/student/dashboard";
+    }
+
     // Generate active session so user is immediately logged in upon setting password
     const sessionPayload: SessionUser = {
       userId: user.id,
       email: user.email,
       fullName: user.fullName || user.name || "Member",
-      role: (user.role as any) || "STUDENT",
+      role: (userRoleUpper as any) || "STUDENT",
       institutionId: user.institutionId || "",
       institutionName: institutionName || "Campus Administration",
+      assignedRoles,
+      permissions,
       mustChangePassword: false,
       passwordSig: updatedSig,
     };
@@ -313,13 +365,24 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: "Password configured successfully! Welcome to SST-ERP.",
-      role: user.role,
+      role: userRoleUpper,
+      redirectUrl,
       institutionSlug: institutionSlug || undefined,
       institutionName: institutionName || undefined,
     });
 
     response.cookies.set({
       name: AUTH_COOKIE_NAME,
+      value: sessionToken,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
+
+    response.cookies.set({
+      name: "sst_session",
       value: sessionToken,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

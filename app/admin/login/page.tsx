@@ -123,15 +123,24 @@ function LoginContent() {
       }
 
       // Check role
-      const userRole = data.data?.user?.role;
-      if (userRole !== "ADMIN" && userRole !== "SUPER_ADMIN") {
+      const userRole = (data.data?.user?.role || "").toUpperCase();
+      const allowedAdminRoles = [
+        "ADMIN",
+        "INSTITUTION_ADMIN",
+        "SUPER_ADMIN",
+        "ADMISSIONS_OFFICER",
+        "ACCOUNTANT",
+        "HOSTEL_WARDEN",
+        "TRANSPORT_OFFICER",
+      ];
+      if (!allowedAdminRoles.includes(userRole)) {
         setIsLoading(false);
-        setAuthError("Access restricted: This account does not have Institution Admin privileges.");
+        setAuthError("Access restricted: This account does not have Institution Admin or Departmental Staff privileges.");
         return;
       }
 
       setLoginSuccess(true);
-      router.replace("/admin");
+      router.replace(data.data?.redirectUrl || "/admin");
     } catch (err: unknown) {
       setIsLoading(false);
       const msg = err instanceof Error ? err.message : "A network or server error occurred during login. Please try again.";

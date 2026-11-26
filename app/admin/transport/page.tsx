@@ -9,13 +9,30 @@ import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Bus, Plus, Trash2, MapPin, Clock, Navigation, Radio, Route, CheckCircle2 } from "lucide-react";
 import { useInstitution } from "@/lib/store";
+import { DepartmentStaffPanel } from "@/components/admin/DepartmentStaffPanel";
 
 export default function TransportPage() {
   const { students } = useInstitution();
+  const [directoryStudents, setDirectoryStudents] = useState<any[]>([]);
+  const availableStudents = directoryStudents.length > 0 ? directoryStudents : students;
   const [allocations, setAllocations] = useState<any[]>([]);
+  const [catalog, setCatalog] = useState<any[]>([]);
+  const [maintenance, setMaintenance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"allocations" | "fleet" | "routes">("allocations");
+  const [activeTab, setActiveTab] = useState<"overview" | "allocations" | "fleet" | "routes" | "maintenance" | "team">("allocations");
+  const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
+  const [catRouteNo, setCatRouteNo] = useState("");
+  const [catRouteName, setCatRouteName] = useState("");
+  const [catVehicleNo, setCatVehicleNo] = useState("");
+  const [catCapacity, setCatCapacity] = useState("40");
+  const [catDriverName, setCatDriverName] = useState("");
+  const [catDriverContact, setCatDriverContact] = useState("");
+  const [catStops, setCatStops] = useState("");
+  const [catStatus, setCatStatus] = useState<"ACTIVE" | "INACTIVE" | "MAINTENANCE">("ACTIVE");
+  const [maintVehicle, setMaintVehicle] = useState("KA-01-F-4921");
+  const [maintSummary, setMaintSummary] = useState("");
+  const [maintCost, setMaintCost] = useState("");
 
   // Form
   const [studentId, setStudentId] = useState("");
@@ -35,6 +52,8 @@ export default function TransportPage() {
       const json = await res.json();
       if (json.success && json.data) {
         setAllocations(json.data);
+        setCatalog(json.catalog || []);
+        setMaintenance(json.maintenance || []);
       }
     } catch (err) {
       console.warn("Failed to load transport allocations:", err);
@@ -44,7 +63,25 @@ export default function TransportPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      if (
+        tab === "overview" ||
+        tab === "allocations" ||
+        tab === "fleet" ||
+        tab === "routes" ||
+        tab === "maintenance"
+      ) {
+        setActiveTab(tab);
+      }
+    }
     fetchAllocations();
+    fetch("/api/admin/students/directory?take=200")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && Array.isArray(j.data)) setDirectoryStudents(j.data);
+      })
+      .catch(() => {});
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -170,10 +207,21 @@ export default function TransportPage() {
       </div>
 
       {/* Module Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#E2E8F0]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#E2E8F0]">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+            activeTab === "overview"
+              ? "border-[#F5A000] text-[#F5A000]"
+              : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+          }`}
+        >
+          <Bus className="w-4 h-4" />
+          Overview
+        </button>
         <button
           onClick={() => setActiveTab("allocations")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
             activeTab === "allocations"
               ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
@@ -184,27 +232,175 @@ export default function TransportPage() {
         </button>
         <button
           onClick={() => setActiveTab("fleet")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
             activeTab === "fleet"
               ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
           <Bus className="w-4 h-4" />
-          Campus Fleet & Vehicles Roster (8)
+          Vehicles &amp; Drivers ({catalog.length})
         </button>
         <button
           onClick={() => setActiveTab("routes")}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors ${
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
             activeTab === "routes"
               ? "border-[#F5A000] text-[#F5A000]"
               : "border-transparent text-[#64748B] hover:text-[#1E293B]"
           }`}
         >
           <Route className="w-4 h-4" />
-          Route Stops & Schedules
+          Route Stops &amp; Schedules
+        </button>
+        <button
+          onClick={() => setActiveTab("maintenance")}
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+            activeTab === "maintenance"
+              ? "border-[#F5A000] text-[#F5A000]"
+              : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          Maintenance &amp; Reports ({maintenance.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("team")}
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+            activeTab === "team"
+              ? "border-[#F5A000] text-[#F5A000]"
+              : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+          }`}
+        >
+          <Bus className="w-4 h-4" />
+          Department Team
         </button>
       </div>
+
+      {activeTab === "team" && (
+        <DepartmentStaffPanel departmentRole="TRANSPORT_OFFICER" departmentLabel="Transport Officer" />
+      )}
+
+      {activeTab === "overview" && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <span className="text-xs font-bold uppercase text-[#64748B]">Allocated Students</span>
+              <h3 className="text-2xl font-black text-[#1E293B] mt-1">{allocations.length}</h3>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <span className="text-xs font-bold uppercase text-[#64748B]">Configured Routes / Vehicles</span>
+              <h3 className="text-2xl font-black text-[#123B5A] mt-1">{catalog.length}</h3>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <span className="text-xs font-bold uppercase text-[#64748B]">Maintenance Records</span>
+              <h3 className="text-2xl font-black text-[#D97706] mt-1">{maintenance.length}</h3>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === "maintenance" && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-bold text-[#1E293B]">Log Vehicle Maintenance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form
+                className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!maintVehicle.trim() || !maintSummary.trim()) return;
+                  const res = await fetch("/api/admin/transport", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      type: "MAINTENANCE",
+                      vehicleNumber: maintVehicle,
+                      summary: maintSummary,
+                      cost: maintCost ? parseFloat(maintCost) : 0,
+                    }),
+                  });
+                  const j = await res.json();
+                  if (j.success) {
+                    setMaintSummary("");
+                    setMaintCost("");
+                    fetchAllocations();
+                  } else {
+                    alert(j.error || "Failed to log maintenance.");
+                  }
+                }}
+              >
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Vehicle Number</label>
+                  <Input value={maintVehicle} onChange={(e) => setMaintVehicle(e.target.value)} required />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Summary</label>
+                  <Input
+                    value={maintSummary}
+                    onChange={(e) => setMaintSummary(e.target.value)}
+                    placeholder="Brake & tire inspection"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Cost (₹)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={maintCost}
+                    onChange={(e) => setMaintCost(e.target.value)}
+                    placeholder="3500"
+                  />
+                </div>
+                <Button type="submit" size="sm" variant="primary">
+                  Save Record
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vehicle</TableHead>
+                    <TableHead>Summary</TableHead>
+                    <TableHead>Cost</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {maintenance.length === 0 ? (
+                    <TableEmpty colSpan={5} message="No maintenance records logged yet." />
+                  ) : (
+                    maintenance.map((m: any) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="font-mono text-xs font-bold">{m.vehicleNumber}</TableCell>
+                        <TableCell className="text-xs">{m.summary}</TableCell>
+                        <TableCell className="text-xs font-semibold">₹{Number(m.cost || 0).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant="warning">{m.status}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-[#64748B]">
+                          {new Date(m.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {activeTab === "allocations" && (
         <Card className="border-[#E2E8F0]">
@@ -287,199 +483,215 @@ export default function TransportPage() {
       )}
 
       {activeTab === "fleet" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              busNo: "Bus #01",
-              reg: "KA-01-F-4921",
-              route: "R-12 (Airport via Indiranagar)",
-              capacity: "52 Seats",
-              driver: "Mr. Manjunath S",
-              phone: "+91 98450 77889",
-              status: "LIVE_IN_ROUTE",
-              fuel: "82%",
-            },
-            {
-              busNo: "Bus #02",
-              reg: "KA-04-E-8812",
-              route: "R-05 (Whitefield ITPL)",
-              capacity: "52 Seats",
-              driver: "Mr. Suresh Gowda",
-              phone: "+91 98450 66554",
-              status: "LIVE_IN_ROUTE",
-              fuel: "68%",
-            },
-            {
-              busNo: "Bus #03",
-              reg: "KA-05-G-1902",
-              route: "R-08 (Jayanagar South)",
-              capacity: "45 Seats",
-              driver: "Mr. Anand Murthy",
-              phone: "+91 98450 33441",
-              status: "LIVE_IN_ROUTE",
-              fuel: "74%",
-            },
-            {
-              busNo: "Bus #04",
-              reg: "KA-01-MJ-9901",
-              route: "R-15 (Electronic City Phase 1)",
-              capacity: "52 Seats",
-              driver: "Mr. Venkatesh R",
-              phone: "+91 97412 11220",
-              status: "AT_DEPOT",
-              fuel: "95%",
-            },
-            {
-              busNo: "Bus #05",
-              reg: "KA-03-AB-4450",
-              route: "R-03 (Malleshwaram / Rajajinagar)",
-              capacity: "45 Seats",
-              driver: "Mr. Somasekhar",
-              phone: "+91 98860 44551",
-              status: "LIVE_IN_ROUTE",
-              fuel: "60%",
-            },
-            {
-              busNo: "Bus #06",
-              reg: "KA-02-F-1123",
-              route: "R-21 (Kengeri Satellite Town)",
-              capacity: "52 Seats",
-              driver: "Mr. Basavaraj K",
-              phone: "+91 94480 99882",
-              status: "AT_DEPOT",
-              fuel: "88%",
-            },
-            {
-              busNo: "Bus #07",
-              reg: "KA-01-F-7711",
-              route: "Campus Reserve Shuttle",
-              capacity: "32 Seats",
-              driver: "Mr. Narayana Swamy",
-              phone: "+91 99001 22334",
-              status: "STANDBY",
-              fuel: "100%",
-            },
-            {
-              busNo: "Bus #08",
-              reg: "KA-04-MM-3309",
-              route: "Sports & Event Transit",
-              capacity: "45 Seats",
-              driver: "Mr. Girish M",
-              phone: "+91 98440 55667",
-              status: "STANDBY",
-              fuel: "90%",
-            },
-          ].map((bus, i) => (
-            <Card key={i} className="border-[#E2E8F0]">
-              <CardHeader className="p-3.5 border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-xs text-[#123B5A]">{bus.busNo}</span>
-                    <p className="font-mono text-[11px] text-[#64748B]">{bus.reg}</p>
-                  </div>
-                  <Badge variant={bus.status === "LIVE_IN_ROUTE" ? "success" : "default"}>
-                    {bus.status === "LIVE_IN_ROUTE" ? "IN TRANSIT" : bus.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-3.5 space-y-2 text-xs">
+        <div className="space-y-4">
+          <Card className="border-[#E2E8F0]">
+            <CardHeader className="p-4 border-b border-[#E2E8F0]">
+              <CardTitle className="text-sm font-bold text-[#1E293B]">
+                {editingCatalogId ? "Edit Vehicle, Driver & Route" : "Register Vehicle, Driver & Route"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <form
+                className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const cap = parseInt(catCapacity, 10);
+                  if (!catRouteNo.trim() || !catRouteName.trim() || !catVehicleNo.trim() || !catDriverName.trim() || isNaN(cap) || cap <= 0) {
+                    alert("Route number, route name, vehicle plate, driver name, and positive capacity are required.");
+                    return;
+                  }
+                  const stopsArr = catStops
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  const res = await fetch("/api/admin/transport", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      type: "SAVE_ROUTE",
+                      id: editingCatalogId || undefined,
+                      routeNumber: catRouteNo.trim(),
+                      routeName: catRouteName.trim(),
+                      vehicleNumber: catVehicleNo.trim(),
+                      capacity: cap,
+                      driverName: catDriverName.trim(),
+                      driverContact: catDriverContact.trim(),
+                      stops: stopsArr,
+                      status: catStatus,
+                    }),
+                  });
+                  const j = await res.json();
+                  if (j.success) {
+                    setEditingCatalogId(null);
+                    setCatRouteNo("");
+                    setCatRouteName("");
+                    setCatVehicleNo("");
+                    setCatDriverName("");
+                    setCatDriverContact("");
+                    setCatStops("");
+                    fetchAllocations();
+                  } else {
+                    alert(j.error || "Failed to save vehicle/route.");
+                  }
+                }}
+              >
                 <div>
-                  <span className="text-[#64748B] text-[10px] uppercase font-semibold">Assigned Route</span>
-                  <p className="font-semibold text-[#1E293B] text-[11px] truncate">{bus.route}</p>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Route # *</label>
+                  <Input value={catRouteNo} onChange={(e) => setCatRouteNo(e.target.value)} placeholder="R-12" required />
                 </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-[#64748B]">Capacity:</span>
-                  <span className="font-bold text-[#1E293B]">{bus.capacity}</span>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Route Name *</label>
+                  <Input value={catRouteName} onChange={(e) => setCatRouteName(e.target.value)} placeholder="Airport via Indiranagar" required />
                 </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-[#64748B]">Fuel Level:</span>
-                  <span className="font-semibold text-[#16A34A]">{bus.fuel}</span>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Vehicle Plate # *</label>
+                  <Input value={catVehicleNo} onChange={(e) => setCatVehicleNo(e.target.value)} placeholder="KA-01-F-4921" required />
                 </div>
-                <div className="pt-2 border-t border-[#E2E8F0]">
-                  <span className="text-[#64748B] text-[10px] uppercase font-semibold">Driver Contact</span>
-                  <p className="text-[11px] font-medium text-[#1E293B]">{bus.driver}</p>
-                  <p className="text-[10px] text-[#F5A000]">{bus.phone}</p>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Seating Capacity *</label>
+                  <Input type="number" min="1" value={catCapacity} onChange={(e) => setCatCapacity(e.target.value)} required />
                 </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Driver Name *</label>
+                  <Input value={catDriverName} onChange={(e) => setCatDriverName(e.target.value)} placeholder="Mr. Manjunath S" required />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Driver Contact</label>
+                  <Input value={catDriverContact} onChange={(e) => setCatDriverContact(e.target.value)} placeholder="+91 98450 77889" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#64748B] mb-1">Stops (comma-separated)</label>
+                  <Input value={catStops} onChange={(e) => setCatStops(e.target.value)} placeholder="Stop A, Stop B, Campus" />
+                </div>
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={catStatus}
+                    onChange={(e) => setCatStatus(e.target.value as any)}
+                    className="px-2.5 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white"
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="MAINTENANCE">MAINTENANCE</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
+                  <Button type="submit" size="sm" variant="primary">
+                    {editingCatalogId ? "Update" : "Save"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {catalog.length === 0 ? (
+            <Card className="border-[#E2E8F0]">
+              <CardContent className="p-6 text-center text-xs text-[#64748B]">
+                No vehicles or routes configured yet. Register your first vehicle and route above.
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {catalog.map((bus: any) => {
+                const usedSeats = allocations.filter(
+                  (a) => a.vehicleNumber === bus.vehicleNumber && a.routeNumber === bus.routeNumber
+                ).length;
+                return (
+                  <Card key={bus.id} className="border-[#E2E8F0]">
+                    <CardHeader className="p-3.5 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-xs text-[#123B5A]">{bus.routeNumber}</span>
+                          <p className="font-mono text-[11px] text-[#64748B]">{bus.vehicleNumber}</p>
+                        </div>
+                        <Badge variant={bus.status === "ACTIVE" ? "success" : "warning"}>{bus.status || "ACTIVE"}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3.5 space-y-2 text-xs">
+                      <div>
+                        <span className="text-[#64748B] text-[10px] uppercase font-semibold">Route</span>
+                        <p className="font-semibold text-[#1E293B] text-[11px] truncate">{bus.routeName}</p>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-[#64748B]">Occupancy / Capacity:</span>
+                        <span className="font-bold text-[#1E293B]">
+                          {usedSeats} / {bus.capacity} Seats
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] font-medium text-[#1E293B]">{bus.driverName}</p>
+                          <p className="text-[10px] text-[#F5A000]">{bus.driverContact || "—"}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingCatalogId(bus.id);
+                            setCatRouteNo(bus.routeNumber || "");
+                            setCatRouteName(bus.routeName || "");
+                            setCatVehicleNo(bus.vehicleNumber || "");
+                            setCatCapacity(String(bus.capacity || 40));
+                            setCatDriverName(bus.driverName || "");
+                            setCatDriverContact(bus.driverContact || "");
+                            setCatStops(Array.isArray(bus.stops) ? bus.stops.join(", ") : "");
+                            setCatStatus(bus.status || "ACTIVE");
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === "routes" && (
         <div className="space-y-4">
-          {[
-            {
-              routeNo: "Route 12",
-              title: "Airport Expressway via Indiranagar & Domlur",
-              vehicle: "KA-01-F-4921 (Bus #01)",
-              stops: [
-                { stop: "Sony Signal Koramangala", time: "07:15 AM", evening: "05:15 PM" },
-                { stop: "Domlur Flyover Junction", time: "07:30 AM", evening: "05:00 PM" },
-                { stop: "Indiranagar 100ft Road", time: "07:45 AM", evening: "04:45 PM" },
-                { stop: "Hebbal Flyover Depot", time: "08:05 AM", evening: "04:25 PM" },
-                { stop: "SST Campus Main Gate", time: "08:25 AM", evening: "04:05 PM" },
-              ],
-            },
-            {
-              routeNo: "Route 05",
-              title: "Whitefield ITPL via Marathahalli & Kundalahalli",
-              vehicle: "KA-04-E-8812 (Bus #02)",
-              stops: [
-                { stop: "ITPL Main Gate Whitefield", time: "07:10 AM", evening: "05:25 PM" },
-                { stop: "Kundalahalli Gate", time: "07:25 AM", evening: "05:10 PM" },
-                { stop: "Marathahalli Bridge", time: "07:40 AM", evening: "04:55 PM" },
-                { stop: "HAL Old Airport Road", time: "07:55 AM", evening: "04:40 PM" },
-                { stop: "SST Campus Main Gate", time: "08:20 AM", evening: "04:15 PM" },
-              ],
-            },
-            {
-              routeNo: "Route 08",
-              title: "Jayanagar 4th Block via Banashankari & JP Nagar",
-              vehicle: "KA-05-G-1902 (Bus #03)",
-              stops: [
-                { stop: "Banashankari Bus Terminal", time: "07:15 AM", evening: "05:20 PM" },
-                { stop: "JP Nagar 6th Phase", time: "07:30 AM", evening: "05:05 PM" },
-                { stop: "South End Circle Jayanagar", time: "07:45 AM", evening: "04:50 PM" },
-                { stop: "Lalbagh West Gate", time: "08:00 AM", evening: "04:35 PM" },
-                { stop: "SST Campus Main Gate", time: "08:25 AM", evening: "04:10 PM" },
-              ],
-            },
-          ].map((r, i) => (
-            <Card key={i} className="border-[#E2E8F0]">
-              <CardHeader className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <span className="font-bold text-xs bg-[#F5A000]/10 text-[#F5A000] px-2 py-0.5 rounded uppercase">
-                      {r.routeNo}
-                    </span>
-                    <h4 className="text-sm font-bold text-[#1E293B] mt-1">{r.title}</h4>
-                  </div>
-                  <span className="font-mono text-xs text-[#64748B] bg-white border px-2.5 py-1 rounded">
-                    {r.vehicle}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                  {r.stops.map((s, idx) => (
-                    <div key={idx} className="p-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg text-xs space-y-1">
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-[#123B5A]">
-                        <span className="w-4 h-4 rounded-full bg-[#123B5A] text-white flex items-center justify-center text-[10px]">
-                          {idx + 1}
-                        </span>
-                        <span className="truncate">{s.stop}</span>
-                      </div>
-                      <div className="text-[10px] text-[#64748B] flex justify-between pt-1 border-t border-[#E2E8F0]">
-                        <span>Pickup: <strong className="text-[#16A34A]">{s.time}</strong></span>
-                        <span>Drop: <strong className="text-[#F5A000]">{s.evening}</strong></span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          {catalog.length === 0 ? (
+            <Card className="border-[#E2E8F0]">
+              <CardContent className="p-6 text-center text-xs text-[#64748B]">
+                No routes configured yet. Add routes and stops in the Vehicles &amp; Drivers tab.
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            catalog.map((r: any) => (
+              <Card key={r.id} className="border-[#E2E8F0]">
+                <CardHeader className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-xs bg-[#F5A000]/10 text-[#F5A000] px-2 py-0.5 rounded uppercase">
+                        {r.routeNumber}
+                      </span>
+                      <h4 className="text-sm font-bold text-[#1E293B] mt-1">{r.routeName}</h4>
+                    </div>
+                    <span className="font-mono text-xs text-[#64748B] bg-white border px-2.5 py-1 rounded">
+                      {r.vehicleNumber} • {r.driverName}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  {Array.isArray(r.stops) && r.stops.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      {r.stops.map((stopName: string, idx: number) => (
+                        <div key={idx} className="p-2.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg text-xs">
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#123B5A]">
+                            <span className="w-4 h-4 rounded-full bg-[#123B5A] text-white flex items-center justify-center text-[10px]">
+                              {idx + 1}
+                            </span>
+                            <span className="truncate">{stopName}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[#64748B]">No stops defined for this route yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       )}
 
@@ -495,7 +707,7 @@ export default function TransportPage() {
               className="w-full text-xs p-2 border border-[#CBD5E1] rounded-lg bg-white"
             >
               <option value="">-- Choose Student --</option>
-              {students.map((s) => (
+              {availableStudents.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.fullName} ({s.rollNumber})
                 </option>

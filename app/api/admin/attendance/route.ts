@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getAttendanceRecords,
   markStudentAttendance,
@@ -14,7 +15,9 @@ import {
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const studentId = req.nextUrl.searchParams.get("studentId") || undefined;
     const subjectId = req.nextUrl.searchParams.get("subjectId") || undefined;
     const academicYearId = req.nextUrl.searchParams.get("academicYearId") || undefined;
@@ -69,14 +72,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId, userId } = await resolveAdminContext(req);
+    const { institutionId, userId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const body = await req.json();
 
     // 1. Direct Attendance Correction for a single record
     if (body.recordId && body.status) {
       const existing = await db.attendanceRecord.findFirst({
         where: { id: body.recordId, institutionId },
-        include: { student: true },
+        include: { student: { select: { fullName: true, firstName: true } } },
       });
 
       if (!existing) {

@@ -35,6 +35,8 @@ import {
   Layers,
   GraduationCap,
   RefreshCw,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react";
 import { TrialSubscriptionBanner } from "@/components/admin/TrialSubscriptionBanner";
 
@@ -539,6 +541,74 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {/* 3B. Centralized Departmental Operations Control */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link href="/admin/admissions" className="block group">
+          <Card className="h-full border-t-4 border-t-[#F5A000] group-hover:shadow-md transition-shadow">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Admissions</span>
+                <UserPlus className="w-4 h-4 text-[#F5A000]" />
+              </div>
+              <div className="text-2xl font-black text-[#1E293B]">
+                {dashboardData?.departmentMetrics?.admissions?.total ?? liveStats?.pendingAdmissions ?? 0}
+              </div>
+              <p className="text-[11px] text-[#64748B]">
+                {dashboardData?.departmentMetrics?.admissions?.submitted ?? 0} pending •{" "}
+                {dashboardData?.departmentMetrics?.admissions?.enrolled ?? 0} enrolled
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/admin/fees" className="block group">
+          <Card className="h-full border-t-4 border-t-[#16A34A] group-hover:shadow-md transition-shadow">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Finance &amp; Accounts</span>
+                <CreditCard className="w-4 h-4 text-[#16A34A]" />
+              </div>
+              <div className="text-2xl font-black text-[#1E293B]">
+                ₹{(dashboardData?.departmentMetrics?.finance?.totalCollected ?? liveStats?.totalFeesCollected ?? 0).toLocaleString()}
+              </div>
+              <p className="text-[11px] text-[#64748B]">
+                Outstanding: ₹{(dashboardData?.departmentMetrics?.finance?.pendingDue ?? 0).toLocaleString()}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/admin/hostel" className="block group">
+          <Card className="h-full border-t-4 border-t-[#123B5A] group-hover:shadow-md transition-shadow">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Hostel Management</span>
+                <Home className="w-4 h-4 text-[#123B5A]" />
+              </div>
+              <div className="text-2xl font-black text-[#1E293B]">
+                {dashboardData?.departmentMetrics?.hostel?.occupiedBeds ?? 0}
+              </div>
+              <p className="text-[11px] text-[#64748B]">Active bed allocations</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/admin/transport" className="block group">
+          <Card className="h-full border-t-4 border-t-[#7C3AED] group-hover:shadow-md transition-shadow">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#64748B]">Transport Management</span>
+                <Bus className="w-4 h-4 text-[#7C3AED]" />
+              </div>
+              <div className="text-2xl font-black text-[#1E293B]">
+                {dashboardData?.departmentMetrics?.transport?.allocatedStudents ?? 0}
+              </div>
+              <p className="text-[11px] text-[#64748B]">Active student route passes</p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
       {/* 4. Quick Actions */}
       <Card className="shadow-xs">
         <CardHeader className="p-4 pb-2 border-b border-[#E2E8F0]">
@@ -625,6 +695,26 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#F5A000]">Audit Logs</span>
                 <span className="text-[10px] text-[#64748B]">Security Trail</span>
+              </div>
+            </Link>
+
+            <Link href="/admin/students/import" className="group">
+              <div className="p-3 rounded-xl bg-[#EEF2FF] border border-[#C7D2FE] group-hover:border-[#F5A000] group-hover:shadow-xs transition-all text-center h-full flex flex-col items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-[#123B5A] text-white flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-bold text-[#0F2942] group-hover:text-[#F5A000]">Bulk Import Students</span>
+                <span className="text-[10px] text-[#475569]">CSV / Excel Onboarding</span>
+              </div>
+            </Link>
+
+            <Link href="/admin/students/import?tab=history" className="group">
+              <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] group-hover:border-[#F5A000] group-hover:shadow-xs transition-all text-center h-full flex flex-col items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-[#FEF3C7] text-[#F5A000] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-bold text-[#1E293B] group-hover:text-[#F5A000]">Import History</span>
+                <span className="text-[10px] text-[#64748B]">Past Import Reports</span>
               </div>
             </Link>
           </div>

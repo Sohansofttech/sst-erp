@@ -341,7 +341,7 @@ export async function getInstitutionSubscriptionStatus(
  * Excludes archived, inactive, and internal free trial plans.
  */
 export async function getAvailableSubscriptionPlans() {
-  return await prisma.subscriptionPlan.findMany({
+  const plans = await prisma.subscriptionPlan.findMany({
     where: {
       isActive: true,
       archivedAt: null,
@@ -375,6 +375,12 @@ export async function getAvailableSubscriptionPlans() {
       },
     },
   });
+
+  return plans.map((p) => ({
+    ...p,
+    price: Number(p.price),
+    storageLimitMb: p.storageLimitMb != null ? Number(p.storageLimitMb) : null,
+  }));
 }
 
 /**

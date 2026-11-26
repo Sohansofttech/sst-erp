@@ -7,6 +7,7 @@ import { Card } from "@/components/shared/Card";
 import { Badge } from "@/components/shared/Badge";
 import { Button } from "@/components/shared/Button";
 import { fetchClientSession } from "@/lib/auth/client-session";
+import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import {
   CheckCircle2,
   Calendar,
@@ -107,12 +108,8 @@ export default function DashboardPage() {
         const storedUser = localStorage.getItem("erp_user");
         if (storedUser) {
           const u = JSON.parse(storedUser);
-          if (u.role === "ADMIN") {
-            window.location.replace("/admin");
-            return;
-          }
-          if (u.role === "SUPER_ADMIN") {
-            window.location.replace("/super-admin");
+          if (isAdminPortalRole(u.role)) {
+            window.location.replace(getRoleLandingRoute(u.role));
             return;
           }
           if (u.role === "TEACHER") {
@@ -145,12 +142,8 @@ export default function DashboardPage() {
           // Role Redirection Guard:
           // /dashboard is exclusively for STUDENT and PARENT/GUARDIAN.
           // Other roles must be directed to their respective portals:
-          if (sess.role === "ADMIN") {
-            window.location.replace("/admin");
-            return;
-          }
-          if (sess.role === "SUPER_ADMIN") {
-            window.location.replace("/super-admin");
+          if (isAdminPortalRole(sess.role)) {
+            window.location.replace(json.data.landingRoute || getRoleLandingRoute(sess.role));
             return;
           }
           if (sess.role === "TEACHER") {
@@ -224,22 +217,18 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // 3. Initiate dashboard data fetch only for student/parent roles
+  // 3. Initiate dashboard data fetch only for verified student/parent sessions
   useEffect(() => {
-    try {
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem("erp_user");
-        if (stored) {
-          const u = JSON.parse(stored);
-          if (u.role && u.role !== "STUDENT" && u.role !== "PARENT" && u.role !== "GUARDIAN") {
-            return; // Do not fetch student dashboard for admin/teacher/super-admin
-          }
-        }
-      }
-    } catch {}
+    if (!session) return;
+    if (session.role !== "STUDENT" && session.role !== "PARENT" && session.role !== "GUARDIAN") {
+      return;
+    }
+    if ((session.role === "PARENT" || session.role === "GUARDIAN") && selectedChildId) {
+      return;
+    }
 
     fetchDashboardData();
-  }, [fetchDashboardData]);
+  }, [session, selectedChildId, fetchDashboardData]);
 
   // 4. Refetch when parent changes active child
   useEffect(() => {

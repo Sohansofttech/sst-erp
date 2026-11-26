@@ -1,22 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, requireActiveSubscription, handleAdminApiError } from "@/lib/security/admin-auth";
+import { isFullAdminRole, PERMISSIONS } from "@/lib/security/rbac";
 import {
   getStudents,
   createStudent,
   updateStudent,
   archiveOrDeleteStudent,
   restoreStudent,
+  projectStudentDirectoryItem,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, userRole } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.STUDENTS_READ,
+    });
     const search = req.nextUrl.searchParams.get("search") || undefined;
     const status = req.nextUrl.searchParams.get("status") || undefined;
     const take = parseInt(req.nextUrl.searchParams.get("take") || "100", 10);
+    const scope = req.nextUrl.searchParams.get("scope");
 
     const students = await getStudents(institutionId, { search, status, take });
+
+    // Departmental staff receive a sanitized read-only directory projection without sensitive personal data
+    if (!isFullAdminRole(userRole) || scope === "directory") {
+      const directory = students.map(projectStudentDirectoryItem);
+      return NextResponse.json({
+        success: true,
+        readOnly: true,
+        data: directory,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: students,
