@@ -13,26 +13,51 @@ import { CreditCard, CheckCircle2, AlertTriangle, Receipt, ShieldCheck } from "l
 export default function ParentFeesPage() {
   const [selectedChildId, setSelectedChildId] = useState("");
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_active_child_id");
+      if (stored) setSelectedChildId(stored);
+    }
+    const handleChildChanged = (e: any) => {
+      if (e.detail?.childId) {
+        setSelectedChildId(e.detail.childId);
+      }
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => window.removeEventListener("activeChildChanged", handleChildChanged);
+  }, []);
+
   const fetchFees = async (childId: string) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/student/fees?studentId=${childId}`);
+      setError(null);
+      const res = await fetch(`/api/student/fees?studentId=${encodeURIComponent(childId)}`);
       const json = await res.json();
-      if (json.success) setData(json.data);
-    } catch (e) {
+      if (json.success) {
+        setData(json.data);
+      } else {
+        setError(json.error || "Failed to load fee information.");
+      }
+    } catch (e: any) {
       console.error(e);
+      setError("Network error loading fee accounts.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (selectedChildId) fetchFees(selectedChildId);
+    if (selectedChildId) {
+      fetchFees(selectedChildId);
+    } else {
+      setLoading(false);
+    }
   }, [selectedChildId]);
 
   const handlePaymentSuccess = (receipt: any) => {
@@ -49,6 +74,31 @@ export default function ParentFeesPage() {
       selectedChildId={selectedChildId}
       onSelectChild={(id) => setSelectedChildId(id)}
     >
+      {!selectedChildId ? (
+        <Card className="p-8 text-center bg-white border border-[#CBD5E1] shadow-xs">
+          <CreditCard className="w-10 h-10 text-[#F5A000] mx-auto mb-3" />
+          <h2 className="text-base font-bold text-[#1E293B]">No Linked Child Selected</h2>
+          <p className="text-xs text-[#64748B] mt-1 max-w-md mx-auto">
+            Please choose your linked child from the header selector to review their tuition invoices, fee receipts, and payment status.
+          </p>
+        </Card>
+      ) : loading ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-xs font-semibold text-[#64748B]">Loading fee records...</p>
+        </div>
+      ) : error ? (
+        <Card className="p-6 text-center border-red-200 bg-red-50">
+          <p className="text-sm font-bold text-red-800">{error}</p>
+          <button
+            onClick={() => fetchFees(selectedChildId)}
+            className="mt-3 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 cursor-pointer"
+          >
+            Retry
+          </button>
+        </Card>
+      ) : (
+        <>
       {toast && (
         <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -171,6 +221,8 @@ export default function ParentFeesPage() {
           />
         </Card>
       </div>
+      </>
+      )}
 
       <FeePaymentModal
         isOpen={isPayModalOpen}

@@ -118,6 +118,9 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           "relative p-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] rounded-lg transition-colors focus:outline-none cursor-pointer"
         }
         aria-label="Notifications"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        aria-controls="notification-dropdown-panel"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
@@ -128,7 +131,12 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E2E8F0] z-50 overflow-hidden animate-in fade-in-50 duration-150">
+        <div
+          id="notification-dropdown-panel"
+          role="region"
+          aria-label="Notifications List"
+          className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E2E8F0] z-50 overflow-hidden animate-in fade-in-50 duration-150"
+        >
           <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#EEF1F5] flex items-center justify-between">
             <div>
               <h4 className="text-[14px] font-semibold text-[#1E293B]">

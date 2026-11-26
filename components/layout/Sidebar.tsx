@@ -96,8 +96,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isParent = userRole === "PARENT" || portalType === "PARENT";
 
-  // Unified Student Portal Navigation for both Students and Parents
-  const navItems = [
+  // Role-Aware Navigation: Separated Parent-Specific vs Student-Specific routes
+  const studentNavItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "Student Profile", href: "/student/profile", icon: User },
     { label: "Academic History", href: "/student/academic-history", icon: GraduationCap },
@@ -112,13 +112,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: "Feedback & Inquiries", href: "/student/feedback", icon: MessageSquare },
   ];
 
-  // Examinations & Results is strictly restricted to Student accounts (hidden from Parents)
-  const displayNavItems = navItems.filter((item) => {
-    if (isParent && item.href === "/student/examinations") {
-      return false;
-    }
-    return true;
-  });
+  const parentNavItems = [
+    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Child Attendance", href: "/parent/attendance", icon: CheckCircle2 },
+    { label: "Timetable & Schedule", href: "/parent/timetable", icon: Calendar },
+    { label: "Exam Results", href: "/parent/results", icon: Award },
+    { label: "Fees & Invoices", href: "/parent/fees", icon: CreditCard },
+    { label: "Faculty Mentoring", href: "/parent/mentoring", icon: Users2 },
+    { label: "Requests & Inquiries", href: "/parent/requests", icon: MessageSquare },
+  ];
+
+  const displayNavItems = isParent ? parentNavItems : studentNavItems;
 
   const handleLogout = async () => {
     try {
@@ -230,6 +234,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 onClick={() => {
                   if (typeof window !== "undefined" && window.innerWidth < 1024) onClose();
                 }}

@@ -61,13 +61,17 @@ export async function GET(req: NextRequest) {
             class: true,
             division: { select: { id: true, name: true, code: true, type: true } },
           },
-          orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
+          orderBy: { enrolledDate: "desc" },
         },
       },
     });
 
     if (!student) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
+    }
+
+    if (student.enrollments && student.enrollments.length > 1) {
+      student.enrollments.sort((a: any, b: any) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));
     }
 
     const requestedDivisionId =

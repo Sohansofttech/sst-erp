@@ -87,45 +87,54 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   const currentChildId = selectedChildId || internalChildId;
   const handleSelect = (id: string) => {
     setInternalChildId(id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("erp_active_child_id", id);
+      document.cookie = `erp_active_child=${id}; path=/; max-age=86400`;
+      window.dispatchEvent(new CustomEvent("activeChildChanged", { detail: { childId: id } }));
+    }
     if (onSelectChild) onSelectChild(id);
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#EEF1F5]">
-      {/* Shared Responsive Sidebar */}
-      <Sidebar
-        portalType={effectiveRole}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        selectedChildId={currentChildId}
-        userFullName={user?.fullName}
-        userEmail={user?.email}
-        institutionName={user?.institutionName}
-        institutionCode={user?.institutionCode}
-        institutionLogo={user?.institutionLogo}
-      />
-
-      {/* Main Content Area with Fixed Header and Independent Main Scrolling */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <Header
+    <div className="flex min-h-screen lg:h-screen lg:overflow-hidden bg-[#EEF1F5]">
+      {/* Shared Responsive Sidebar - Hidden in Print */}
+      <div className="print:hidden">
+        <Sidebar
           portalType={effectiveRole}
-          userFullName={user?.fullName || "User"}
-          userRole={effectiveRole}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          selectedChildId={currentChildId}
+          userFullName={user?.fullName}
           userEmail={user?.email}
-          institutionName={user?.institutionName || "Campus Portal"}
+          institutionName={user?.institutionName}
           institutionCode={user?.institutionCode}
           institutionLogo={user?.institutionLogo}
-          selectedChildId={currentChildId}
-          onSelectChild={handleSelect}
-          onMenuToggle={() => setSidebarOpen((prev) => !prev)}
         />
+      </div>
 
-        <MustChangePasswordBanner />
+      {/* Main Content Area with Fixed Header and Independent Main Scrolling */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen lg:h-screen lg:overflow-hidden print:h-auto print:overflow-visible">
+        <div className="print:hidden">
+          <Header
+            portalType={effectiveRole}
+            userFullName={user?.fullName || "User"}
+            userRole={effectiveRole}
+            userEmail={user?.email}
+            institutionName={user?.institutionName || "Campus Portal"}
+            institutionCode={user?.institutionCode}
+            institutionLogo={user?.institutionLogo}
+            selectedChildId={currentChildId}
+            onSelectChild={handleSelect}
+            onMenuToggle={() => setSidebarOpen((prev) => !prev)}
+          />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <div className="max-w-7xl w-full mx-auto space-y-6">
+          <MustChangePasswordBanner />
+        </div>
+
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 print:p-0 print:overflow-visible">
+          <div className="max-w-7xl w-full mx-auto space-y-6 print:max-w-none print:space-y-4">
             {pageTitle && (
-              <div>
+              <div className="print:hidden">
                 <h1 className="text-xl sm:text-2xl font-bold text-[#1E293B]">
                   {pageTitle}
                 </h1>

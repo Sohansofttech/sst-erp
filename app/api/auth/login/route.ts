@@ -500,7 +500,10 @@ export async function POST(req: NextRequest) {
     }
 
     let logoUrl: string | null = null;
-    if (fullInst?.id) {
+    const isUuid = (val?: string | null): boolean =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+    if (fullInst?.id && isUuid(fullInst.id)) {
       try {
         const branding = await db.institutionBranding.findUnique({
           where: { institutionId: fullInst.id },
