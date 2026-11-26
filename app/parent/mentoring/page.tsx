@@ -102,41 +102,41 @@ export default function ParentMentoringPage() {
             ) : mentoring.length === 0 ? (
               <p className="text-xs text-[#64748B]">No permitted mentoring records available.</p>
             ) : (
-          <div className="space-y-4">
-            {mentoring.map((m) => (
-              <div
-                key={m.id}
-                className="p-5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-3 text-xs"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
-                  <div>
-                    <h4 className="font-bold text-[#1E293B]">
-                      Mentor: {m.mentorName} ({m.mentorDesignation})
-                    </h4>
-                    <p className="text-[11px] text-[#64748B]">{m.mentorDepartment}</p>
-                  </div>
-                  <Badge variant="brand" size="sm">
-                    Date: {new Date(m.sessionDate).toLocaleDateString()}
-                  </Badge>
-                </div>
+              <div className="space-y-4">
+                {mentoring.map((m) => (
+                  <div
+                    key={m.id}
+                    className="p-5 rounded-xl border border-[#E2E8F0] bg-[#EEF2F6]/50 space-y-3 text-xs"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
+                      <div>
+                        <h4 className="font-bold text-[#1E293B]">
+                          Mentor: {m.mentorName} ({m.mentorDesignation})
+                        </h4>
+                        <p className="text-[11px] text-[#64748B]">{m.mentorDepartment}</p>
+                      </div>
+                      <Badge variant="brand" size="sm">
+                        Date: {new Date(m.sessionDate).toLocaleDateString()}
+                      </Badge>
+                    </div>
 
-                <div>
-                  <span className="font-bold text-[#0F2942]">Academic Review & Discussion:</span>
-                  <p className="text-[#1E293B] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
-                </div>
+                    <div>
+                      <span className="font-bold text-[#0F2942]">Academic Review & Discussion:</span>
+                      <p className="text-[#1E293B] mt-0.5 leading-relaxed">{m.topicsDiscussed}</p>
+                    </div>
 
-                {m.studentActionItems && (
-                  <div className="p-3 bg-white rounded-lg border border-[#E2E8F0]">
-                    <span className="font-bold text-emerald-800">Child's Action Plan:</span>
-                    <p className="text-[#1E293B] mt-0.5">{m.studentActionItems}</p>
+                    {m.studentActionItems && (
+                      <div className="p-3 bg-white rounded-lg border border-[#E2E8F0]">
+                        <span className="font-bold text-emerald-800">Child's Action Plan:</span>
+                        <p className="text-[#1E293B] mt-0.5">{m.studentActionItems}</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
-      </>
+            )}
+          </Card>
+        </>
       )}
     </PortalLayout>
   );
