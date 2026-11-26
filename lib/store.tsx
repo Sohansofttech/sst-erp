@@ -5,6 +5,7 @@ import {
   InstitutionThemeConfig,
   DEFAULT_INSTITUTION_THEME,
 } from "@/lib/theme-utils";
+import type { InstitutionTypeKey } from "@/lib/institution-type-config";
 import {
   InstitutionProfile,
   AcademicYear,
@@ -139,6 +140,8 @@ interface InstitutionContextType {
   refreshProfile: () => Promise<void>;
   isProfileLoading: boolean;
   profileError: string | null;
+  /** Template key from the database-backed profile; null while loading or if the profile could not be loaded. */
+  institutionKind: InstitutionTypeKey | null;
   theme: InstitutionThemeConfig;
   updateTheme: (newTheme: Partial<InstitutionThemeConfig>) => void;
   resetThemeToDefaults: () => void;
@@ -1113,6 +1116,8 @@ export function InstitutionProvider({
 
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const institutionKind: InstitutionTypeKey | null =
+    isProfileLoading || profileError ? null : profile.institutionType ?? null;
 
   // Save state helper
   const saveState = useCallback((key: string, data: unknown) => {
@@ -7076,6 +7081,7 @@ export function InstitutionProvider({
         refreshProfile,
         isProfileLoading,
         profileError,
+        institutionKind,
         theme,
         updateTheme,
         resetThemeToDefaults,

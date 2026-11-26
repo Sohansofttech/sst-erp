@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
     const subscriptionStatus = await getInstitutionSubscriptionStatus(institutionId);
-    const availablePlans = await getAvailableSubscriptionPlans();
+    const availablePlans = await getAvailableSubscriptionPlans(institutionId);
 
     return NextResponse.json({
       success: true,

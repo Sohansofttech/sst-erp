@@ -7,13 +7,18 @@ export type InstitutionType =
   | "University"
   | "Polytechnic / Diploma"
   | "Medical & Health Sciences"
-  | "K-12 School";
+  | "K-12 School"
+  | "Academy";
 
 export interface InstitutionProfile {
   id: string;
   name: string;
   code: string;
   type: InstitutionType;
+  /** Authoritative template key derived server-side from the stored institution type. */
+  institutionType?: "COLLEGE" | "SCHOOL" | "ACADEMY";
+  /** Super Admin-provided category (school category, affiliation, or academy course category). */
+  institutionCategory?: string;
   affiliation: string;
   accreditation: string;
   establishedYear: number;

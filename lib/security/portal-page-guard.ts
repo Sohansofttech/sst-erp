@@ -4,7 +4,6 @@ import db from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 
 export type PortalRole = "STUDENT" | "PARENT";
 
@@ -54,10 +53,6 @@ export async function verifyPortalPageAccess(
   requiredRole: PortalRole
 ): Promise<PortalAuthContext | null> {
   await connection();
-
-  if (isDevelopmentBypassEnabled()) {
-    return null;
-  }
 
   const session = await getSession();
   if (!session || !session.userId || !session.passwordSig) {

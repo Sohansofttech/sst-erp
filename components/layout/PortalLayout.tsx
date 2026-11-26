@@ -8,7 +8,7 @@ import { fetchClientSession } from "@/lib/auth/client-session";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  portalType?: "STUDENT" | "PARENT";
+  portalType?: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN";
   pageTitle?: string;
   selectedChildId?: string;
   onSelectChild?: (childId: string) => void;
@@ -25,7 +25,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   const [internalChildId, setInternalChildId] = useState<string>("");
   const [user, setUser] = useState<{
     fullName: string;
-    role: "STUDENT" | "PARENT" | string;
+    role: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN" | string;
     institutionName: string;
     institutionCode?: string | null;
     institutionLogo?: string | null;
@@ -83,7 +83,13 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     };
   }, []);
 
-  const effectiveRole = user?.role === "PARENT" || (!user && portalType === "PARENT") ? "PARENT" : "STUDENT";
+  const effectiveRole = portalType === "INSTITUTION_ADMIN"
+    ? "INSTITUTION_ADMIN"
+    : portalType === "SUPER_ADMIN"
+      ? "SUPER_ADMIN"
+      : user?.role === "PARENT" || (!user && portalType === "PARENT")
+        ? "PARENT"
+        : "STUDENT";
   const currentChildId = selectedChildId || internalChildId;
   const handleSelect = (id: string) => {
     setInternalChildId(id);

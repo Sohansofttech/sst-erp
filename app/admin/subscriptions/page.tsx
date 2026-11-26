@@ -3,6 +3,8 @@ import { connection } from "next/server";
 import { requireRole, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import db from "@/lib/db";
 import { countInstitutionStudents } from "@/lib/billing/student-usage";
+import { hasStudentLimitColumn } from "@/lib/subscriptions/management-data";
+import { planCompatibilityWhere } from "@/lib/institution-type-config";
 import { InstitutionSubscriptions } from "@/components/admin/InstitutionSubscriptions";
 
 export const instant = false;
@@ -24,19 +26,38 @@ export default async function InstitutionSubscriptionsPage() {
   }
   const institution = await db.platformInstitution.findFirst({
     where: { id: institutionId, archivedAt: null },
-    select: { id: true },
+    select: { id: true, type: true },
   });
   if (!institution) {
     return <p className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">Your institution billing profile is unavailable. Contact your Super Admin.</p>;
   }
 
   const now = new Date();
+  const studentLimitAvailable = await hasStudentLimitColumn();
+  const planSelect = {
+    name: true,
+    price: true,
+    currency: true,
+    billingCycle: true,
+    customCycleDays: true,
+        storageLimitMb: true,
+    ...(studentLimitAvailable ? { studentLimit: true } : {}),
+  } as const;
   const [plans, subscriptions, invoices, registeredStudents, currentSubscription] = await Promise.all([
     db.subscriptionPlan.findMany({
-      where: { isActive: true, archivedAt: null },
+      where: { isActive: true, archivedAt: null, ...planCompatibilityWhere(institution.type) },
       orderBy: { price: "asc" },
       take: 100,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        currency: true,
+        billingCycle: true,
+        customCycleDays: true,
+            storageLimitMb: true,
+        ...(studentLimitAvailable ? { studentLimit: true } : {}),
         features: {
           where: { enabled: true, feature: { isAvailable: true } },
           include: { feature: { select: { name: true } } },
@@ -47,7 +68,14 @@ export default async function InstitutionSubscriptionsPage() {
       where: { institutionId: institution.id },
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { plan: { select: { name: true, studentLimit: true } } },
+      select: {
+        id: true,
+        planId: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        plan: { select: planSelect },
+      },
     }),
     db.invoice.findMany({
       where: { institutionId: institution.id },
@@ -69,7 +97,7 @@ export default async function InstitutionSubscriptionsPage() {
         OR: [{ endsAt: null }, { endsAt: { gt: now } }],
       },
       orderBy: { startsAt: "desc" },
-      select: { plan: { select: { name: true, studentLimit: true } } },
+      select: { plan: { select: planSelect } },
     }),
   ]);
 
@@ -77,8 +105,16 @@ export default async function InstitutionSubscriptionsPage() {
     <InstitutionSubscriptions
       usage={{
         registeredStudents,
+        studentLimitAvailable,
         activePlanName: currentSubscription?.plan.name ?? null,
-        studentLimit: currentSubscription?.plan.studentLimit ?? null,
+        studentLimit: currentSubscription && "studentLimit" in currentSubscription.plan
+          ? currentSubscription.plan.studentLimit
+          : null,
+        planPrice: currentSubscription ? Number(currentSubscription.plan.price) : null,
+        planCurrency: currentSubscription?.plan.currency ?? null,
+        billingCycle: currentSubscription?.plan.billingCycle ?? null,
+        customCycleDays: currentSubscription?.plan.customCycleDays ?? null,
+        storageLimitMb: currentSubscription?.plan.storageLimitMb?.toString() ?? null,
         hasActivePlan: currentSubscription !== null,
       }}
       plans={plans.map((plan) => ({
@@ -89,7 +125,7 @@ export default async function InstitutionSubscriptionsPage() {
         currency: plan.currency,
         billingCycle: plan.billingCycle,
         customCycleDays: plan.customCycleDays,
-        studentLimit: plan.studentLimit,
+        studentLimit: "studentLimit" in plan ? plan.studentLimit : null,
         storageLimitMb: plan.storageLimitMb?.toString() ?? null,
         features: plan.features.map((item) => item.feature.name),
       }))}
@@ -97,6 +133,12 @@ export default async function InstitutionSubscriptionsPage() {
         id: subscription.id,
         planId: subscription.planId,
         planName: subscription.plan.name,
+        planPrice: Number(subscription.plan.price),
+        planCurrency: subscription.plan.currency,
+        billingCycle: subscription.plan.billingCycle,
+        customCycleDays: subscription.plan.customCycleDays,
+        studentLimit: "studentLimit" in subscription.plan ? subscription.plan.studentLimit : null,
+        storageLimitMb: subscription.plan.storageLimitMb?.toString() ?? null,
         status: subscription.status,
         startsAt: subscription.startsAt.toISOString(),
         endsAt: subscription.endsAt?.toISOString() ?? null,

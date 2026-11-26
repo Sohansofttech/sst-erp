@@ -22,6 +22,12 @@ type Subscription = {
   id: string;
   planId: string;
   planName: string;
+  planPrice: number;
+  planCurrency: string;
+  billingCycle: string;
+  customCycleDays: number | null;
+  studentLimit: number | null;
+  storageLimitMb: string | null;
   status: string;
   startsAt: string;
   endsAt: string | null;
@@ -122,8 +128,14 @@ export function InstitutionSubscriptions({
   invoices: Invoice[];
   usage: {
     registeredStudents: number;
+    studentLimitAvailable: boolean;
     activePlanName: string | null;
     studentLimit: number | null;
+    planPrice: number | null;
+    planCurrency: string | null;
+    billingCycle: string | null;
+    customCycleDays: number | null;
+    storageLimitMb: string | null;
     hasActivePlan: boolean;
   };
   transactions?: PaymentTransaction[];
@@ -243,11 +255,24 @@ export function InstitutionSubscriptions({
         <p className="mt-2 text-sm text-slate-700">
           {usage.registeredStudents} student records are currently stored for this institution.
           {usage.hasActivePlan
-            ? ` ${usage.activePlanName}: ${usage.studentLimit === null ? "unlimited capacity" : `${usage.registeredStudents} of ${usage.studentLimit} students used`}.`
+            ? ` ${usage.activePlanName}: ${!usage.studentLimitAvailable ? "student capacity unavailable" : usage.studentLimit === null ? "unlimited capacity" : `${usage.registeredStudents} of ${usage.studentLimit} students used`}.`
             : " No active subscription is available; new student registration is blocked."}
         </p>
         <p className="mt-1 text-xs text-slate-500">All stored student records count toward capacity, regardless of lifecycle status.</p>
       </section>
+
+      {usage.hasActivePlan && (
+        <section className="rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-900">Assigned subscription</h2>
+          <p className="mt-1 text-sm text-slate-600">{usage.activePlanName}</p>
+          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div><dt className="text-slate-500">Price</dt><dd className="font-semibold text-slate-900">{usage.planPrice !== null && usage.planCurrency ? money(usage.planPrice, usage.planCurrency) : "Not available"}</dd></div>
+            <div><dt className="text-slate-500">Billing cycle</dt><dd className="font-semibold text-slate-900">{usage.billingCycle === "CUSTOM" ? `${usage.customCycleDays ?? "Custom"} days` : usage.billingCycle?.toLowerCase() ?? "Not available"}</dd></div>
+            <div><dt className="text-slate-500">Student limit</dt><dd className="font-semibold text-slate-900">{usage.studentLimitAvailable ? usage.studentLimit ?? "Unlimited" : "Unavailable"}</dd></div>
+            <div><dt className="text-slate-500">Storage limit</dt><dd className="font-semibold text-slate-900">{usage.storageLimitMb ? `${usage.storageLimitMb} MB` : "Unlimited"}</dd></div>
+          </dl>
+        </section>
+      )}
 
       <section aria-labelledby="available-plans" className="space-y-4">
         <div>
@@ -277,8 +302,7 @@ export function InstitutionSubscriptions({
                     <span className="ml-1 text-sm font-normal text-slate-500">/ {plan.billingCycle.toLowerCase()}</span>
                   </p>
                   <ul className="mt-4 flex-1 space-y-1 text-sm text-slate-700">
-                    {plan.studentLimit !== null && <li>Up to {plan.studentLimit} students</li>}
-                    {plan.studentLimit === null && <li>Unlimited students</li>}
+                    {!usage.studentLimitAvailable ? <li>Student limit unavailable</li> : plan.studentLimit === null ? <li>Unlimited students</li> : <li>Up to {plan.studentLimit} students</li>}
                     {plan.storageLimitMb && <li>{plan.storageLimitMb} MB storage</li>}
                     {plan.features.map((feature) => <li key={feature}>• {feature}</li>)}
                     {!plan.features.length && <li>No feature list configured</li>}
@@ -314,16 +338,17 @@ export function InstitutionSubscriptions({
         <h2 id="current-subscriptions" className="text-lg font-semibold text-slate-900">Subscription history</h2>
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Start date</th><th className="px-4 py-3">Expiry</th></tr></thead>
+            <thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3">Plan</th><th className="px-4 py-3">Terms</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Start date</th><th className="px-4 py-3">Expiry</th></tr></thead>
             <tbody>
               {subscriptions.length ? subscriptions.map((subscription) => (
                 <tr key={subscription.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 font-medium text-slate-900">{subscription.planName}</td>
+                  <td className="px-4 py-3">{money(subscription.planPrice, subscription.planCurrency)} · {subscription.billingCycle === "CUSTOM" ? `${subscription.customCycleDays ?? "Custom"} days` : subscription.billingCycle.toLowerCase()}<small className="block text-slate-500">{usage.studentLimitAvailable ? subscription.studentLimit ?? "Unlimited" : "Unavailable"} students · {subscription.storageLimitMb ?? "Unlimited"} MB</small></td>
                   <td className="px-4 py-3">{subscription.status}</td>
                   <td className="px-4 py-3">{new Date(subscription.startsAt).toLocaleDateString("en-IN")}</td>
                   <td className="px-4 py-3">{subscription.endsAt ? new Date(subscription.endsAt).toLocaleDateString("en-IN") : "No expiry"}</td>
                 </tr>
-              )) : <tr><td className="px-4 py-4 text-slate-600" colSpan={4}>No subscriptions have been assigned yet.</td></tr>}
+              )) : <tr><td className="px-4 py-4 text-slate-600" colSpan={5}>No subscriptions have been assigned yet.</td></tr>}
             </tbody>
           </table>
         </div>

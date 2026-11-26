@@ -258,6 +258,7 @@ export default function InstitutionSettingsPage() {
     { value: "Polytechnic / Diploma", label: "Polytechnic / Diploma College" },
     { value: "Medical & Health Sciences", label: "Medical & Allied Health Sciences" },
     { value: "K-12 School", label: "K-12 Higher Secondary School" },
+    { value: "Academy", label: "Academy / Training Institute" },
   ];
 
   const calendarTypeOptions = [
@@ -1064,6 +1065,8 @@ export default function InstitutionSettingsPage() {
                       value={formData.type}
                       onChange={handleInputChange}
                       options={institutionTypeOptions}
+                      disabled
+                      helperText="Set by your platform administrator and cannot be changed here."
                     />
 
                     <Input

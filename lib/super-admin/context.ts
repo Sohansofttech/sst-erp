@@ -5,7 +5,6 @@ import { computePasswordSignature } from "@/lib/auth/jwt";
 import { emailsMatch } from "@/lib/auth/email";
 import { createClient } from "@/lib/supabase/server";
 import { getSuperAdminDb } from "@/lib/super-admin/prisma";
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 import { wrapWithMapping } from "@/lib/prisma";
 import type { RolePrismaClient } from "@/lib/db/role-pools";
 
@@ -13,8 +12,7 @@ export interface TrustedSuperAdminPrincipal {
   userId: string | null;
   email: string | null;
   passwordSig?: string | null;
-  source: "jwt" | "supabase" | "dev_bypass";
-  developmentMode: boolean;
+  source: "jwt" | "supabase";
 }
 
 export interface SuperAdminIdentity {
@@ -36,15 +34,6 @@ export interface SuperAdminContextDeps {
 }
 
 async function resolveTrustedSuperAdminPrincipal(): Promise<TrustedSuperAdminPrincipal> {
-  if (isDevelopmentBypassEnabled()) {
-    return {
-      userId: null,
-      email: null,
-      source: "dev_bypass",
-      developmentMode: true,
-    };
-  }
-
   const session = await getSession();
   if (session) {
     if (!session.userId || session.role !== "SUPER_ADMIN" || !session.passwordSig) {
@@ -55,7 +44,6 @@ async function resolveTrustedSuperAdminPrincipal(): Promise<TrustedSuperAdminPri
       email: session.email || null,
       passwordSig: session.passwordSig,
       source: "jwt",
-      developmentMode: false,
     };
   }
 
@@ -73,7 +61,6 @@ async function resolveTrustedSuperAdminPrincipal(): Promise<TrustedSuperAdminPri
     userId: user.id,
     email: user.email ?? null,
     source: "supabase",
-    developmentMode: false,
   };
 }
 
@@ -114,13 +101,6 @@ export async function withSuperAdminContext<T>(
   fn: (tx: RolePrismaClient, identity: SuperAdminIdentity) => Promise<T>,
   deps?: SuperAdminContextDeps
 ): Promise<T> {
-  if (
-    process.env.NODE_ENV !== "development" &&
-    process.env.SUPER_ADMIN_DEV_AUTH_BYPASS === "true"
-  ) {
-    throw new ForbiddenError("Super Admin development bypass is forbidden outside development.");
-  }
-
   const verifyPrincipal = deps?.verifyPrincipal ?? resolveTrustedSuperAdminPrincipal;
   const principal = await verifyPrincipal();
 
@@ -128,11 +108,7 @@ export async function withSuperAdminContext<T>(
     throw new ForbiddenError("Super Admin authentication is required.");
   }
 
-  if (principal.developmentMode && process.env.NODE_ENV !== "development") {
-    throw new ForbiddenError("Super Admin development mode is forbidden outside development.");
-  }
-
-  if (!principal.developmentMode && !principal.userId) {
+  if (!principal.userId) {
     throw new ForbiddenError("Super Admin actor identity is required.");
   }
 
@@ -155,7 +131,7 @@ export async function withSuperAdminContext<T>(
     let verifiedUserId: string | null = principal.userId;
     let verifiedPlatformUserId: string | null = null;
 
-    if (!principal.developmentMode && principal.userId) {
+    if (principal.userId) {
       if (principal.source === "jwt") {
         const dbUser = await rawTx.user.findUnique({
           where: { id: principal.userId },

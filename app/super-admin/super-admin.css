@@ -250,8 +250,14 @@
 .sa-empty-state strong { color:var(--sa-text); }
 .sa-pagination,.sa-pagination>div,.sa-action-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .sa-pagination { margin-top:15px; color:var(--sa-muted); font-size:12px; }
-.sa-form-disclosure { padding:0 18px 18px; }
-.sa-form-disclosure summary { padding:17px 0; cursor:pointer; color:var(--sa-navy); font-size:14px; font-weight:650; }
+.sa-form-disclosure { display:grid; justify-items:start; gap:14px; }
+.sa-form-disclosure summary { list-style:none; }
+.sa-form-disclosure summary::-webkit-details-marker { display:none; }
+.sa-create-institution-trigger { min-height:42px; height:42px; gap:9px; border-radius:8px; padding:0 16px; box-shadow:0 2px 5px rgb(15 23 42 / 12%); }
+.sa-create-institution-trigger:focus-visible { outline:3px solid rgb(245 160 0 / 35%); outline-offset:3px; }
+.sa-create-institution-trigger svg:last-child { margin-left:3px; transition:transform .15s ease; }
+.sa-form-disclosure[open] .sa-create-institution-trigger svg:last-child { transform:rotate(180deg); }
+.sa-create-institution-form { width:100%; }
 .sa-form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
 .sa-form-grid label { display:grid; gap:6px; color:var(--sa-text); font-size:12px; font-weight:600; }
 .sa-form-grid input,.sa-form-grid select,.sa-form-grid textarea { width:100%; min-height:39px; border:1px solid #cbd5e1; border-radius:7px; background:white; padding:9px 10px; color:var(--sa-text); font:inherit; font-size:13px; }

@@ -26,8 +26,12 @@ export function currentInstitutionSubscription<T extends SubscribablePeriod>(
   );
   return ordered.find((subscription) =>
     subscription.startsAt <= now
-      && (!subscription.endsAt || subscription.endsAt >= now)
-      && subscription.status !== "EXPIRED",
+      && (!subscription.endsAt || subscription.endsAt > now)
+      && (subscription.status === "ACTIVE" || subscription.status === "TRIALING"),
+  ) ?? ordered.find((subscription) =>
+    subscription.startsAt <= now
+      && (!subscription.endsAt || subscription.endsAt > now)
+      && !["EXPIRED", "CANCELED"].includes(subscription.status),
   ) ?? ordered[0] ?? null;
 }
 

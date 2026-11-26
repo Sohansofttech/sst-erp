@@ -2,14 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
 import { InstitutionProfile, InstitutionType } from "@/types/institution";
+import { applyDatabaseAuthority, normalizeInstitutionType } from "@/lib/institution-type-config";
 import db from "@/lib/db";
 
 const globalSettingsRegistry = new Map<string, InstitutionProfile>();
+
+/** Fields that always come from the database; the in-memory cache and request body can never override them. */
+const DATABASE_AUTHORITATIVE_KEYS = [
+  "id", "name", "code", "type", "institutionType", "institutionCategory",
+  "email", "phone", "website", "city", "state", "country",
+] as const satisfies ReadonlyArray<keyof InstitutionProfile>;
 
 function mapToInstitutionType(val?: string | null): InstitutionType {
   if (!val) return "Engineering & Technology";
   if (val === "UNIVERSITY") return "University";
   if (val === "SCHOOL" || val === "K12") return "K-12 School";
+  if (val === "ACADEMY") return "Academy";
   if (val === "POLYTECHNIC") return "Polytechnic / Diploma";
   if (val === "MEDICAL") return "Medical & Health Sciences";
   if (val === "ARTS_SCIENCE") return "Arts & Science";
@@ -19,7 +27,8 @@ function mapToInstitutionType(val?: string | null): InstitutionType {
     val === "University" ||
     val === "Polytechnic / Diploma" ||
     val === "Medical & Health Sciences" ||
-    val === "K-12 School"
+    val === "K-12 School" ||
+    val === "Academy"
   ) {
     return val as InstitutionType;
   }
@@ -32,6 +41,7 @@ function createDefaultInstitutionProfile(id: string, name: string, code: string 
     name: name || "Educational Institution",
     code: code || "INST",
     type: "Engineering & Technology",
+    institutionType: "COLLEGE",
     email: "",
     phone: "",
     alternatePhone: "",
@@ -101,6 +111,8 @@ export async function GET(req: NextRequest) {
           name: inst.name || base.name,
           code: inst.code || base.code,
           type: mapToInstitutionType(inst.type),
+          institutionType: normalizeInstitutionType(inst.type),
+          institutionCategory: inst.category || undefined,
           email: inst.email || "",
           phone: inst.phone || "",
           addressLine1: inst.address || "",
@@ -110,7 +122,7 @@ export async function GET(req: NextRequest) {
           website: inst.website || "",
         };
         const cached = globalSettingsRegistry.get(institutionId);
-        const merged = cached ? { ...profile, ...cached, id: inst.id } : profile;
+        const merged = applyDatabaseAuthority(profile, cached, DATABASE_AUTHORITATIVE_KEYS);
         const effectiveTheme = savedTheme || merged.themeConfig || DEFAULT_INSTITUTION_THEME;
         merged.themeConfig = effectiveTheme;
         merged.primaryColor = effectiveTheme.sidebarBackground || merged.primaryColor;
@@ -130,7 +142,7 @@ export async function GET(req: NextRequest) {
     // 2. Try finding in table "Institution" (PlatformInstitution)
     try {
       const platformRows: any = await db.$queryRaw`
-        SELECT id, name, code, slug, type, status, email, phone, address, city, state, "postalCode", country, website
+        SELECT id, name, code, category, slug, type, status, email, phone, address, city, state, "postalCode", country, website
         FROM "Institution"
         WHERE id::text = ${institutionId}
         LIMIT 1
@@ -143,6 +155,8 @@ export async function GET(req: NextRequest) {
           name: row.name || base.name,
           code: row.code || row.slug || "INST",
           type: mapToInstitutionType(row.type),
+          institutionType: normalizeInstitutionType(row.type),
+          institutionCategory: row.category || undefined,
           email: row.email || "",
           phone: row.phone || "",
           addressLine1: row.address || "",
@@ -154,7 +168,7 @@ export async function GET(req: NextRequest) {
         };
 
         const cached = globalSettingsRegistry.get(institutionId);
-        const merged = cached ? { ...mappedProfile, ...cached, id: row.id } : mappedProfile;
+        const merged = applyDatabaseAuthority(mappedProfile, cached, DATABASE_AUTHORITATIVE_KEYS);
         const effectiveTheme = savedTheme || merged.themeConfig || DEFAULT_INSTITUTION_THEME;
         merged.themeConfig = effectiveTheme;
         merged.primaryColor = effectiveTheme.sidebarBackground || merged.primaryColor;
@@ -221,7 +235,10 @@ export async function POST(req: NextRequest) {
       institutionId,
       body.name || institutionName || "Educational Institution"
     );
-    const updated = { ...current, ...body, id: institutionId };
+    // The institution type and code are managed by the platform (Super Admin); never accept them from the browser.
+    const { type: _ignoredType, institutionType: _ignoredKind, institutionCategory: _ignoredCategory, code: _ignoredCode, ...safeBody } = body;
+    void _ignoredType; void _ignoredKind; void _ignoredCategory; void _ignoredCode;
+    const updated = { ...current, ...safeBody, id: institutionId };
     globalSettingsRegistry.set(institutionId, updated);
 
     // Update table "institutions"

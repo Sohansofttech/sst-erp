@@ -42,7 +42,12 @@ export interface ProvisionAdminResult {
   error?: string;
 }
 
-export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Promise<ProvisionAdminResult> {
+export async function provisionInstitutionAdmin(
+  input: ProvisionAdminInput,
+  dependencies = { prisma, syncInstitutionToAppDb, sendInstitutionInvitationEmail, invitationBaseUrl },
+): Promise<ProvisionAdminResult> {
+  const { prisma, syncInstitutionToAppDb, sendInstitutionInvitationEmail, invitationBaseUrl } = dependencies;
+  let invitationId = "";
   try {
     const institution = await prisma.platformInstitution.findUnique({
       where: { id: input.institutionId },
@@ -51,22 +56,23 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     if (!institution || institution.archivedAt) {
       return { success: false, error: "Institution not found or archived." };
     }
+    if (institution.status === "SUSPENDED") {
+      return { success: false, error: "Activate the institution before provisioning its administrator." };
+    }
 
     const adminEmail = (input.adminEmail || institution.email || "").trim().toLowerCase();
     if (!adminEmail) return { success: false, error: "A primary administrator email is required." };
     const adminName = (input.adminName || `${institution.name} Administrator`).trim();
     const adminPhone = input.adminPhone?.trim() || null;
-    const adminPassword = input.adminPassword || input.password || "Password@123";
-    const passwordHash = await bcrypt.hash(adminPassword, 10);
-
     if (!await syncInstitutionToAppDb(institution.id)) {
-      return { success: false, error: "Institution could not be synchronized into the application database." };
+      throw new Error("Institution could not be synchronized into the application database.");
     }
 
+    const adminPassword = input.adminPassword || input.password || crypto.randomBytes(32).toString("hex");
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
     const rawToken = generateInvitationToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     let platformUserId = "";
-    let invitationId = "";
 
     await prisma.$transaction(async (tx) => {
       await tx.platformInstitution.update({
@@ -129,6 +135,9 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
       if (existingAppUser?.institutionId && existingAppUser.institutionId !== institution.id) {
         throw new Error("This administrator email is already associated with another institution.");
       }
+      if (existingAppUser && existingAppUser.id !== platformUserId) {
+        throw new Error("The administrator's platform and application accounts do not match.");
+      }
 
       if (existingAppUser) {
         await tx.user.update({
@@ -138,7 +147,6 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
             name: existingAppUser.name ?? adminName,
             fullName: existingAppUser.fullName ?? adminName,
             phone: existingAppUser.phone ?? adminPhone,
-            passwordHash: passwordHash,
             role: "ADMIN",
             status: "ACTIVE",
             isActive: true,
@@ -183,7 +191,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
 
       await tx.platformInstitution.update({
         where: { id: institution.id },
-        data: { provisioningStatus: "ACTIVATED", primaryAdminUserId: platformUserId, onboardingStage: "COMPLETED", status: "ACTIVE" },
+        data: { primaryAdminUserId: platformUserId },
       });
 
       if (input.actorUserId) {
@@ -200,9 +208,6 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
         });
       }
     }, { maxWait: 15000, timeout: 20000 });
-
-    // Make sure changes are fully synced to application institutions table
-    await syncInstitutionToAppDb(institution.id);
 
     const activationUrl = `${invitationBaseUrl()}/institution/activate?token=${encodeURIComponent(rawToken)}`;
     let emailSent = false;
@@ -224,23 +229,18 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
       emailReason = err?.message || "Email dispatch failed";
     }
 
-    try {
-      await prisma.institutionAdminInvitation.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.institutionAdminInvitation.update({
         where: { id: invitationId },
         data: emailSent
           ? { status: "SENT", sentAt: new Date(), failedReason: null }
           : { status: "FAILED", failedReason: emailReason },
       });
-    } catch (e) {
-      console.warn("Could not update invitation record status:", e);
-    }
-
-    try {
-      await prisma.platformInstitution.update({
+      await tx.platformInstitution.update({
         where: { id: institution.id },
-        data: { provisioningStatus: "ACTIVATED", status: "ACTIVE" },
+        data: { provisioningStatus: emailSent ? "INVITED" : "FAILED" },
       });
-    } catch {}
+    });
 
     if (input.actorUserId) {
       try {
@@ -259,7 +259,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     }
 
     return {
-      success: true,
+      success: emailSent,
       user: {
         id: platformUserId,
         email: adminEmail,
@@ -277,9 +277,18 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
       invitationSent: emailSent,
       invitation: { status: emailSent ? "SENT" : "FAILED", expiresAt, sent: emailSent },
       invitationError: emailReason,
+      ...(!emailSent ? { error: `Administrator account created, but invitation delivery failed: ${emailReason || "Email dispatch failed."}` } : {}),
     };
   } catch (error) {
     console.error("[InstitutionProvisioning] Failed:", error);
+    if (invitationId) {
+      try {
+        await prisma.institutionAdminInvitation.updateMany({
+          where: { id: invitationId, status: "PENDING" },
+          data: { status: "FAILED", failedReason: "Provisioning did not complete; delivery status could not be confirmed." },
+        });
+      } catch {}
+    }
     try {
       await prisma.platformInstitution.update({
         where: { id: input.institutionId },

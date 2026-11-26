@@ -33,7 +33,7 @@ interface SubscriptionPlan {
   billingCycle: string;
   price: number;
   currency: string;
-  maxUsers?: number | null;
+  studentLimit?: number | null;
   storageLimitMb?: number | null;
   features?: PlanFeature[];
 }
@@ -401,10 +401,10 @@ function SubscriptionPortalContent() {
                               Highlights:
                             </span>
                             <ul className="space-y-1.5 text-xs text-[#334155]">
-                              {plan.maxUsers && (
+                              {plan.studentLimit && (
                                 <li className="flex items-center gap-2">
                                   <Check className="w-3.5 h-3.5 text-[#10B981]" />
-                                  Up to {plan.maxUsers} users
+                                  Up to {plan.studentLimit} students
                                 </li>
                               )}
                               {plan.storageLimitMb && (

@@ -9,6 +9,7 @@ generator client {
 enum InstitutionType {
   SCHOOL
   COLLEGE
+  ACADEMY
   OTHER
 }
 
@@ -140,6 +141,7 @@ model Institution {
   certificateAuditLogs       CertificateAuditLog[]
 
   code      String?           @unique
+  category  String?
   logoUrl   String?
   website   String?
   isActive  Boolean           @default(true)
@@ -3135,6 +3137,7 @@ model PlatformInstitution {
   id        String            @id @default(uuid()) @db.Uuid
   name      String
   code      String?           @unique
+  category  String?
   slug      String            @unique
   type      InstitutionType
   status    InstitutionStatus @default(PENDING)
@@ -3388,6 +3391,7 @@ model SubscriptionPlan {
   maxUsers        Int?
   studentLimit    Int?
   storageLimitMb  BigInt?
+  institutionTypes String[] @default([])
   isActive        Boolean      @default(true)
   archivedAt      DateTime?
   createdById     String?      @db.Uuid

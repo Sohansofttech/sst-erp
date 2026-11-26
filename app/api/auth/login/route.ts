@@ -26,6 +26,7 @@ import {
   findDeterministicAccount,
   type TeacherRole,
 } from "@/lib/auth/roles";
+import { isKnownPortalRole, portalRoleAllows } from "@/lib/auth/portal-roles";
 import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
       password,
       loginType,
       institutionCode,
+      portalRole: requestedPortalRole,
       otpProof,
       googleProof,
     } = await req.json();
@@ -185,10 +187,11 @@ export async function POST(req: NextRequest) {
     if (verifiedOtpProof) {
       const storedMobile = (user.phone || "").replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
       const actualRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
+      const roleMatches = portalRoleAllows(verifiedOtpProof.role, actualRole);
       if (
         user.id !== verifiedOtpProof.userId ||
         storedMobile !== verifiedOtpProof.mobile ||
-        actualRole !== verifiedOtpProof.role
+        !roleMatches
       ) {
         return NextResponse.json(
           { success: false, error: "OTP verification no longer matches an active account." },
@@ -198,7 +201,7 @@ export async function POST(req: NextRequest) {
     }
     if (verifiedGoogleProof) {
       const actualRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
-      if (actualRole !== verifiedGoogleProof.role) {
+      if (!portalRoleAllows(verifiedGoogleProof.role, actualRole)) {
         return NextResponse.json(
           { success: false, error: "This Google account does not belong to the selected portal." },
           { status: 403 }
@@ -254,6 +257,22 @@ export async function POST(req: NextRequest) {
 
     // Normalize and verify role from trusted database record
     const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
+    if (
+      requestedPortalRole !== undefined &&
+      !isKnownPortalRole(requestedPortalRole)
+    ) {
+      return NextResponse.json({ success: false, error: "Select a valid portal." }, { status: 400 });
+    }
+    const requestedRole =
+      typeof requestedPortalRole === "string"
+        ? requestedPortalRole.trim().toUpperCase()
+        : verifiedOtpProof?.role || verifiedGoogleProof?.role;
+    if (requestedRole && !portalRoleAllows(requestedRole, userRole)) {
+      return NextResponse.json(
+        { success: false, error: "This account does not have access to the selected portal." },
+        { status: 403 }
+      );
+    }
     let redirectUrl = "";
 
     const isInstitutionalPortalUser = isAdminPortalRole(userRole) && userRole !== "SUPER_ADMIN";

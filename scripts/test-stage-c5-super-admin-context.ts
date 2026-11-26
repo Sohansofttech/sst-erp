@@ -228,31 +228,38 @@ async function main() {
   assert.equal(rolledBack, true);
   console.log("PASS [Check 6]: Revoked Super Admin rejected inside transaction & rolled back");
 
-  // 7. Development bypass rejected outside NODE_ENV === "development"
+  // 7. Development bypass is unavailable in every environment
   const prevNodeEnv = process.env.NODE_ENV;
   const prevBypass = process.env.SUPER_ADMIN_DEV_AUTH_BYPASS;
   try {
-    (process.env as any).NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "development";
     process.env.SUPER_ADMIN_DEV_AUTH_BYPASS = "true";
-    await assert.rejects(
-      () => withSuperAdminContext(async () => "should-not-run", { verifyPrincipal: saPrincipal, getDb: () => orderedMockDb }),
-      ForbiddenError
-    );
-    delete process.env.SUPER_ADMIN_DEV_AUTH_BYPASS;
     await assert.rejects(
       () =>
         withSuperAdminContext(async () => "should-not-run", {
           verifyPrincipal: async () => ({
             userId: null,
             email: null,
-            source: "dev_bypass",
-            developmentMode: true,
+            source: "jwt",
           }),
           getDb: () => orderedMockDb,
         }),
       ForbiddenError
     );
-    console.log("PASS [Check 7]: Development bypass rejected in production");
+    (process.env as any).NODE_ENV = "production";
+    await assert.rejects(
+      () =>
+        withSuperAdminContext(async () => "should-not-run", {
+          verifyPrincipal: async () => ({
+            userId: null,
+            email: null,
+            source: "jwt",
+          }),
+          getDb: () => orderedMockDb,
+        }),
+      ForbiddenError
+    );
+    console.log("PASS [Check 7]: Development bypass unavailable in all environments");
   } finally {
     (process.env as any).NODE_ENV = prevNodeEnv;
     if (prevBypass === undefined) delete process.env.SUPER_ADMIN_DEV_AUTH_BYPASS;
