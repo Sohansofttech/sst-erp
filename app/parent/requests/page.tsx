@@ -293,10 +293,10 @@ export default function ParentRequestsPage() {
                             st === "RESOLVED" || st === "APPROVED"
                               ? "success"
                               : st === "IN_PROGRESS"
-                              ? "brand"
-                              : st === "REJECTED"
-                              ? "error"
-                              : "warning"
+                                ? "brand"
+                                : st === "REJECTED"
+                                  ? "error"
+                                  : "warning"
                           }
                           size="sm"
                         >

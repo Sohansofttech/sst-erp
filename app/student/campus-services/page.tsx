@@ -352,8 +352,8 @@ export default function CampusServicesPage() {
                     item.status === "APPROVED"
                       ? "success"
                       : item.status === "REJECTED"
-                      ? "error"
-                      : "warning"
+                        ? "error"
+                        : "warning"
                   }
                   size="sm"
                 >
