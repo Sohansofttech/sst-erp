@@ -253,7 +253,7 @@ export async function resolveActiveTeacher(
 /**
  * TSEC-01: Action-level role capability check. Denies execution if teacher lacks required role.
  */
-export function requireTeacherRole(
+function requireTeacherRole(
   resolved: ResolvedTeacher,
   allowedRoles: TeacherRole[],
   actionName: string
@@ -3486,7 +3486,13 @@ export async function evaluateQuizSubmission(
   throw new Error(`Quiz submission "${submissionId}" not found in this institution.`)
 }
 
-export const updateQuizSubmissionScore = evaluateQuizSubmission
+export async function updateQuizSubmissionScore(
+  submissionId: string,
+  score: number,
+  feedback?: string
+) {
+  return evaluateQuizSubmission(submissionId, score, feedback)
+}
 
 /**
  * Auto-evaluates student answers against quiz questions.
