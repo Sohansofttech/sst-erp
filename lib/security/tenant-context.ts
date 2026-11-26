@@ -1,32 +1,47 @@
 import db from "@/lib/db";
 import { ForbiddenError, UnauthorizedError } from "@/lib/auth/session";
+import type { TenantActorType } from "@/lib/security/tenant-als";
+
+export interface PreparedTenantContextParams {
+  institutionId: string;
+  userId?: string | null;
+  actorType?: TenantActorType;
+}
 
 /**
- * Transaction-scoped PostgreSQL Row-Level Security (RLS) execution wrapper.
- * Sets the role to 'erp_app_user' (which has NOBYPASSRLS) and binds 'app.current_tenant_id'
- * strictly to the provided institutionId for the duration of the transaction.
+ * Preparation-layer tenant transaction boundary for Stage E/F.
  *
- * Automatically clears at transaction commit/rollback, guaranteeing zero tenant leakage
- * across pooled database connections.
+ * Security Invariants (Stage C.7.2):
+ *   - Does NOT accept caller-controlled `verifyAuthorization` callbacks or `dbClient` overrides.
+ *   - Does NOT trust caller-supplied institutionIds or set bare PostgreSQL GUCs.
+ *   - Always fails closed until the Stage E database-side HMAC & membership verifier is provisioned.
+ */
+export async function withPreparedTenantContext<T>(
+  params: PreparedTenantContextParams,
+  _fn: (tx: any) => Promise<T>
+): Promise<T> {
+  const cleanInstId =
+    typeof params?.institutionId === "string" ? params.institutionId.trim() : "";
+  if (!cleanInstId) {
+    throw new ForbiddenError(
+      "Tenant context violation: A valid institutionId is required for database operations."
+    );
+  }
+
+  throw new ForbiddenError(
+    "Tenant context unavailable: Stage E database authorization verifier is not yet provisioned."
+  );
+}
+
+/**
+ * Legacy-signature wrapper kept fail-closed until Stage E database HMAC
+ * verification is provisioned.
  */
 export async function withTenantContext<T>(
   institutionId: string,
   fn: (tx: any) => Promise<T>
 ): Promise<T> {
-  if (!institutionId || typeof institutionId !== "string" || institutionId.trim() === "") {
-    throw new ForbiddenError("Tenant context violation: A valid institutionId is required for database operations.");
-  }
-
-  const cleanInstId = institutionId.trim();
-
-  return await db.$transaction(async (tx) => {
-    // 1. Switch to application role subject to RLS
-    await tx.$executeRawUnsafe(`SET LOCAL ROLE erp_app_user;`);
-    // 2. Set transaction-scoped tenant identity
-    await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id', $1, true);`, cleanInstId);
-    // 3. Execute tenant-isolated queries
-    return await fn(tx);
-  });
+  return withPreparedTenantContext({ institutionId }, fn);
 }
 
 /**

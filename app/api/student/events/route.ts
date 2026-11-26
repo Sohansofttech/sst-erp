@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireRole, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireRole(req, ["STUDENT"]);
 
     const events = await db.event.findMany({
       where: {
@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    const status = err instanceof UnauthorizedError ? 401 : err instanceof ForbiddenError ? 403 : 500;
+    return NextResponse.json({ success: false, error: err.message }, { status });
   }
 }

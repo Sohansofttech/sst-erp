@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { getActiveTenantTx } from "@/lib/security/tenant-als";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -51,12 +52,54 @@ export interface BiometricPrismaModels {
   biometricUnknownScan: any;
 }
 
-export const db = (global.prisma ||
+const rootDb = (global.prisma ||
   new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   })) as PrismaClient & BiometricPrismaModels;
 
-global.prisma = db;
+global.prisma = rootDb;
+
+const ROOT_ONLY_PROPS = new Set<string | symbol>([
+  "$connect",
+  "$disconnect",
+  "$on",
+  "$extends",
+]);
+
+/**
+ * Non-breaking ALS-aware proxy:
+ * - When no verified tenant ALS transaction is active, behaves identically to `rootDb`.
+ * - When an active ALS transaction exists, routes model operations, `$queryRaw`, `$executeRaw`,
+ *   and `$transaction` through that single active transaction connection.
+ */
+export const db = new Proxy(rootDb, {
+  get(target, prop, receiver) {
+    const activeTx = getActiveTenantTx();
+    if (!activeTx || ROOT_ONLY_PROPS.has(prop)) {
+      const val = Reflect.get(target, prop, receiver);
+      return typeof val === "function" ? val.bind(target) : val;
+    }
+
+    if (prop === "$transaction") {
+      return async (arg: any, _options?: any) => {
+        if (typeof arg === "function") {
+          return arg(activeTx);
+        }
+        if (Array.isArray(arg)) {
+          const results: any[] = [];
+          for (const op of arg) {
+            results.push(await op);
+          }
+          return results;
+        }
+        throw new TypeError("Unsupported $transaction argument inside active tenant context.");
+      };
+    }
+
+    const txVal = activeTx[prop];
+    return typeof txVal === "function" ? txVal.bind(activeTx) : txVal;
+  },
+}) as PrismaClient & BiometricPrismaModels;
 
 export default db;

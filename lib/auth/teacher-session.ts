@@ -98,7 +98,19 @@ export async function signTeacherSession(payload: TeacherSessionPayload): Promis
  */
 export async function verifyTeacherSession(token: string): Promise<TeacherSessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getAuthJwtKey())
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), {
+      algorithms: ["HS256"],
+    })
+    if (
+      payload.purpose !== undefined ||
+      typeof payload.userId !== "string" ||
+      typeof payload.teacherId !== "string" ||
+      typeof payload.institutionId !== "string" ||
+      typeof payload.institutionSlug !== "string" ||
+      typeof payload.activeRole !== "string"
+    ) {
+      return null
+    }
     return payload as unknown as TeacherSessionPayload
   } catch {
     return null
