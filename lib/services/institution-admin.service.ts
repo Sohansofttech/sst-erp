@@ -107,6 +107,9 @@ export async function getDashboardMetrics(institutionId: string) {
       appRes,
       evRes,
       ayRes,
+      hostelRes,
+      transportRes,
+      admBreakdownRes,
     ] = await Promise.allSettled([
       db.$queryRaw`
         SELECT COUNT(*)::int as count,
@@ -186,6 +189,25 @@ export async function getDashboardMetrics(institutionId: string) {
         FROM academic_years
         WHERE "institutionId" = ${institutionId} AND "isCurrent" = true
         LIMIT 1
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM hostel_allocations
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT COUNT(*)::int as count
+        FROM transport_allocations
+        WHERE "institutionId" = ${institutionId}
+      `,
+      db.$queryRaw`
+        SELECT
+          COUNT(*)::int as total,
+          COUNT(*) FILTER (WHERE status = 'SUBMITTED')::int as submitted,
+          COUNT(*) FILTER (WHERE status = 'APPROVED')::int as approved,
+          COUNT(*) FILTER (WHERE status = 'ENROLLED' OR "convertedStudentId" IS NOT NULL)::int as enrolled
+        FROM "AdmissionApplication"
+        WHERE "institutionId" = ${institutionId}
       `,
     ]);
 
@@ -315,6 +337,27 @@ export async function getDashboardMetrics(institutionId: string) {
       console.warn("Could not load subscription status for dashboard:", subErr.message);
     }
 
+    let hostelOccupiedBeds = 0;
+    if (hostelRes.status === "fulfilled") {
+      hostelOccupiedBeds = (hostelRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let transportAllocatedStudents = 0;
+    if (transportRes.status === "fulfilled") {
+      transportAllocatedStudents = (transportRes.value as any[])[0]?.count ?? 0;
+    }
+
+    let admBreakdown = { total: 0, submitted: 0, approved: 0, enrolled: 0 };
+    if (admBreakdownRes.status === "fulfilled") {
+      const r = (admBreakdownRes.value as any[])[0];
+      admBreakdown = {
+        total: r?.total ?? 0,
+        submitted: r?.submitted ?? 0,
+        approved: r?.approved ?? 0,
+        enrolled: r?.enrolled ?? 0,
+      };
+    }
+
     return {
       connected: true,
       stats: {
@@ -331,6 +374,12 @@ export async function getDashboardMetrics(institutionId: string) {
         attendanceRate,
         attendanceRateNumber,
         feeMetrics,
+      },
+      departmentMetrics: {
+        admissions: admBreakdown,
+        finance: feeMetrics,
+        hostel: { occupiedBeds: hostelOccupiedBeds },
+        transport: { allocatedStudents: transportAllocatedStudents },
       },
       departmentEnrollment: [],
       schemaStatus: {
@@ -371,14 +420,65 @@ export async function getAdmissions(institutionId: string, status?: string) {
 
     if (apps && apps.length > 0) {
       try {
-        const rawExtras: any[] = await db.$queryRawUnsafe(
-          `SELECT id, "documentsJson", remarks, "guardianOccupation" FROM admission_applications WHERE "institutionId" = $1`,
-          institutionId
-        );
+        const [rawPrimary, rawLegacy] = await Promise.all([
+          db
+            .$queryRawUnsafe<any[]>(
+              `SELECT id, "documentsJson", "documentStatus", remarks, "guardianOccupation" FROM "AdmissionApplication" WHERE "institutionId" = $1`,
+              institutionId
+            )
+            .catch(() => []),
+          db
+            .$queryRawUnsafe<any[]>(
+              `SELECT id, "documentsJson", "documentStatus", remarks, "guardianOccupation" FROM admission_applications WHERE "institutionId" = $1`,
+              institutionId
+            )
+            .catch(() => []),
+        ]);
+
         const extrasMap = new Map<string, any>();
-        for (const row of rawExtras) {
+        for (const row of rawLegacy || []) {
           extrasMap.set(row.id, row);
         }
+        for (const row of rawPrimary || []) {
+          const prev = extrasMap.get(row.id) || {};
+          extrasMap.set(row.id, {
+            ...prev,
+            ...row,
+            documentsJson: row.documentsJson || prev.documentsJson || null,
+            documentStatus: row.documentStatus || prev.documentStatus || null,
+            remarks: row.remarks ?? prev.remarks ?? null,
+            guardianOccupation: row.guardianOccupation ?? prev.guardianOccupation ?? null,
+          });
+        }
+
+        const convertedIds = apps
+          .map((a) => a.convertedStudentId)
+          .filter((id): id is string => Boolean(id));
+        const studentMap = new Map<string, { id: string; rollNumber: string; status: string; hasActiveEnrollment: boolean }>();
+        if (convertedIds.length > 0) {
+          const studentRows = await db
+            .$queryRawUnsafe<any[]>(
+              `SELECT s.id, s."rollNumber", s.status::text as status,
+                      EXISTS (
+                        SELECT 1 FROM enrollments e
+                        WHERE e."studentId" = s.id AND e."institutionId" = $1 AND e.status = 'ACTIVE'
+                      ) as "hasActiveEnrollment"
+               FROM students s
+               WHERE s."institutionId" = $1 AND s.id = ANY($2::text[])`,
+              institutionId,
+              convertedIds
+            )
+            .catch(() => []);
+          for (const sr of studentRows || []) {
+            studentMap.set(sr.id, {
+              id: sr.id,
+              rollNumber: sr.rollNumber || "",
+              status: sr.status || "ACTIVE",
+              hasActiveEnrollment: Boolean(sr.hasActiveEnrollment),
+            });
+          }
+        }
+
         return apps.map((app) => {
           const extra = extrasMap.get(app.id);
           let parsedDocs = null;
@@ -391,8 +491,10 @@ export async function getAdmissions(institutionId: string, status?: string) {
             ...app,
             documents: parsedDocs,
             documentsJson: extra?.documentsJson || null,
+            documentStatus: extra?.documentStatus || app.documentStatus || "PENDING",
             remarks: extra?.remarks || (app as any).remarks || null,
             guardianOccupation: extra?.guardianOccupation || null,
+            convertedStudent: app.convertedStudentId ? studentMap.get(app.convertedStudentId) || null : null,
           };
         });
       } catch {
@@ -480,22 +582,41 @@ export async function createAdmissionApplication(
       const docsJson = data.documents ? JSON.stringify(data.documents) : null;
       const allSubmitted = Array.isArray(data.documents) && data.documents.length > 0 && data.documents.every((d: any) => d.isSubmitted);
       const anySubmitted = Array.isArray(data.documents) && data.documents.some((d: any) => d.isSubmitted);
-      const docStatus = allSubmitted ? "VERIFIED" : anySubmitted ? "PARTIALLY_SUBMITTED" : "PENDING";
+      const docStatus = allSubmitted ? "SUBMITTED" : anySubmitted ? "PARTIALLY_SUBMITTED" : "PENDING";
 
       if (docsJson) {
-        await db.$executeRawUnsafe(
-          `UPDATE admission_applications SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3`,
-          docsJson,
-          docStatus,
-          created.id
-        );
+        try {
+          await db.$executeRawUnsafe(
+            `UPDATE "AdmissionApplication" SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3`,
+            docsJson,
+            docStatus,
+            created.id
+          );
+        } catch {}
+        try {
+          await db.$executeRawUnsafe(
+            `UPDATE admission_applications SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3`,
+            docsJson,
+            docStatus,
+            created.id
+          );
+        } catch {}
       }
       if (data.guardianOccupation) {
-        await db.$executeRawUnsafe(
-          `UPDATE admission_applications SET "guardianOccupation" = $1 WHERE id = $2`,
-          data.guardianOccupation.trim() || null,
-          created.id
-        );
+        try {
+          await db.$executeRawUnsafe(
+            `UPDATE "AdmissionApplication" SET "guardianOccupation" = $1 WHERE id = $2`,
+            data.guardianOccupation.trim() || null,
+            created.id
+          );
+        } catch {}
+        try {
+          await db.$executeRawUnsafe(
+            `UPDATE admission_applications SET "guardianOccupation" = $1 WHERE id = $2`,
+            data.guardianOccupation.trim() || null,
+            created.id
+          );
+        } catch {}
       }
     } catch {}
   }
@@ -511,8 +632,16 @@ export async function updateAdmissionStatus(
   institutionId: string,
   applicationId: string,
   status: "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "ENROLLED" | "CANCELLED",
-  remarks?: string
+  remarks?: string,
+  actorUserId?: string
 ) {
+  const existing = await db.admissionApplication.findFirst({
+    where: { id: applicationId, institutionId },
+  });
+  if (!existing) {
+    throw new Error("Admission application not found or access denied.");
+  }
+
   const result = await db.admissionApplication.updateMany({
     where: { id: applicationId, institutionId },
     data: {
@@ -522,7 +651,25 @@ export async function updateAdmissionStatus(
   if (result.count === 0) {
     throw new Error("Admission application not found or access denied.");
   }
+
+  try {
+    await db.$executeRawUnsafe(
+      `UPDATE "AdmissionApplication" SET "reviewedByUserId" = $1, "reviewedAt" = NOW() WHERE id = $2 AND "institutionId" = $3`,
+      actorUserId || null,
+      applicationId,
+      institutionId
+    );
+  } catch {}
+
   if (remarks !== undefined) {
+    try {
+      await db.$executeRawUnsafe(
+        `UPDATE "AdmissionApplication" SET remarks = $1 WHERE id = $2 AND "institutionId" = $3`,
+        remarks,
+        applicationId,
+        institutionId
+      );
+    } catch {}
     try {
       await db.$executeRawUnsafe(
         `UPDATE admission_applications SET remarks = $1 WHERE id = $2 AND "institutionId" = $3`,
@@ -532,80 +679,332 @@ export async function updateAdmissionStatus(
       );
     } catch {}
   }
+
+  await recordAuditLog(db, {
+    institutionId,
+    userId: actorUserId || "admin",
+    action: "ADMISSION_STATUS_UPDATED",
+    entityType: "ADMISSION_APPLICATION",
+    entityId: applicationId,
+    oldValuesJson: JSON.stringify({ status: existing.status }),
+    newValuesJson: JSON.stringify({ status, remarks: remarks || null }),
+  });
+
   return await db.admissionApplication.findFirst({
     where: { id: applicationId, institutionId },
   });
 }
 
-export async function convertAdmissionApplicationToStudent(
-  institutionId: string,
-  applicationId: string,
-  options?: { classId?: string; sectionId?: string; rollNumber?: string }
-) {
-  const application = await db.admissionApplication.findFirst({
-    where: { id: applicationId, institutionId },
-  });
+export async function getAdmissionMeta(institutionId: string) {
+  const [courses, academicYears, departments] = await Promise.all([
+    db.course.findMany({
+      where: { institutionId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, code: true, department: true },
+    }),
+    db.academicYear.findMany({
+      where: { institutionId },
+      orderBy: { startDate: "desc" },
+      select: { id: true, name: true, startDate: true, endDate: true, isCurrent: true },
+    }),
+    db.$queryRawUnsafe<any[]>(
+      `SELECT DISTINCT department as name FROM courses WHERE "institutionId" = $1 AND department IS NOT NULL AND department != '' ORDER BY department ASC`,
+      institutionId
+    ).catch(() => []),
+  ]);
+  return {
+    courses,
+    academicYears,
+    departments: (departments || []).map((d: any) => ({ id: d.name, name: d.name, code: d.name })),
+  };
+}
 
-  if (!application) {
+export async function getAdmissionFollowUps(institutionId: string, applicationId?: string) {
+  const key = `admission_followups:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  const list: any[] = Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+  if (applicationId) {
+    return list.filter((f) => f.applicationId === applicationId);
+  }
+  return list;
+}
+
+export async function createAdmissionFollowUp(
+  institutionId: string,
+  data: {
+    applicationId: string;
+    followUpDate: string;
+    channel?: string;
+    notes: string;
+    status?: "PENDING" | "COMPLETED" | "CANCELLED";
+    actorUserId?: string;
+  }
+) {
+  const app = await db.admissionApplication.findFirst({
+    where: { id: data.applicationId, institutionId },
+    select: { id: true, fullName: true, applicationNumber: true },
+  });
+  if (!app) {
     throw new Error("Admission application not found or access denied.");
   }
 
-  if (application.convertedStudentId) {
-    return {
-      success: false,
-      studentId: application.convertedStudentId,
-      message: `Applicant is already enrolled as Student (ID: ${application.convertedStudentId}).`,
-    };
-  }
+  const key = `admission_followups:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  const list: any[] = Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
 
-  const studentCount = await db.student.count({ where: { institutionId } });
-  const nextIndex = studentCount + 1;
-  const rollNumber =
-    options?.rollNumber?.trim() ||
-    `ROLL-${new Date().getFullYear()}-${String(nextIndex).padStart(4, "0")}`;
+  const item = {
+    id: crypto.randomUUID(),
+    applicationId: app.id,
+    applicantName: app.fullName,
+    applicationNumber: app.applicationNumber,
+    followUpDate: data.followUpDate,
+    channel: data.channel || "PHONE",
+    notes: data.notes.trim(),
+    status: data.status || "PENDING",
+    createdBy: data.actorUserId || "ADMISSIONS_OFFICER",
+    createdAt: new Date().toISOString(),
+  };
 
-  const createdStudent: any = await createStudent(institutionId, {
-    firstName: application.firstName,
-    lastName: application.lastName,
-    fullName: application.fullName,
-    email: application.email,
-    phone: application.phone,
-    gender: application.gender,
-    dateOfBirth: application.dob,
-    courseId: application.courseId,
-    academicYearId: application.academicYearId,
-    classId: options?.classId,
-    sectionId: options?.sectionId,
-    rollNumber,
-  });
-
-  const studentId = createdStudent.id || createdStudent.student?.id;
-
-  await db.admissionApplication.update({
-    where: { id: applicationId },
-    data: {
-      status: "ENROLLED",
-      convertedStudentId: studentId,
-    },
+  const next = [item, ...list];
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Admission follow-ups for ${institutionId}` },
+    update: { value: next },
   });
 
   await recordAuditLog(db, {
     institutionId,
-    action: "ADMISSION_CONVERTED_TO_STUDENT",
-    entityType: "AdmissionApplication",
-    entityId: applicationId,
-    newValuesJson: JSON.stringify({
-      studentId,
-      rollNumber,
-      applicantEmail: application.email,
-    }),
+    userId: data.actorUserId || "admin",
+    action: "ADMISSION_FOLLOWUP_SCHEDULED",
+    entityType: "ADMISSION_APPLICATION",
+    entityId: app.id,
+    newValuesJson: JSON.stringify(item),
   });
 
-  return {
-    success: true,
-    studentId,
-    message: `Applicant successfully enrolled as Student (Roll: ${rollNumber}).`,
-  };
+  return item;
+}
+
+export async function updateAdmissionFollowUpStatus(
+  institutionId: string,
+  followUpId: string,
+  status: "PENDING" | "COMPLETED" | "CANCELLED",
+  actorUserId?: string
+) {
+  const key = `admission_followups:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  const list: any[] = Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+  const idx = list.findIndex((f) => f.id === followUpId);
+  if (idx === -1) {
+    throw new Error("Follow-up record not found or access denied.");
+  }
+  const updated = { ...list[idx], status, updatedAt: new Date().toISOString(), updatedBy: actorUserId || "ADMISSIONS_OFFICER" };
+  const next = [...list];
+  next[idx] = updated;
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Admission follow-ups for ${institutionId}` },
+    update: { value: next },
+  });
+  return updated;
+}
+
+export async function verifyAdmissionDocuments(
+  institutionId: string,
+  applicationId: string,
+  documents: any[],
+  remarks?: string,
+  actorUserId?: string
+) {
+  const existing = await db.admissionApplication.findFirst({
+    where: { id: applicationId, institutionId },
+  });
+  if (!existing) {
+    throw new Error("Admission application not found or access denied.");
+  }
+
+  const allSubmitted = Array.isArray(documents) && documents.length > 0 && documents.every((d: any) => d.isSubmitted);
+  const anySubmitted = Array.isArray(documents) && documents.some((d: any) => d.isSubmitted);
+  const documentStatus = allSubmitted ? "VERIFIED" : anySubmitted ? "PARTIALLY_SUBMITTED" : "PENDING";
+  const docsJson = JSON.stringify(documents || []);
+
+  await db.admissionApplication.updateMany({
+    where: { id: applicationId, institutionId },
+    data: { documentStatus: documentStatus as any },
+  });
+
+  try {
+    await db.$executeRawUnsafe(
+      `UPDATE "AdmissionApplication" SET "documentsJson" = $1, "documentStatus" = $2, "reviewedByUserId" = $3, "reviewedAt" = NOW()${remarks !== undefined ? `, remarks = $4` : ""} WHERE id = ${remarks !== undefined ? "$5" : "$4"} AND "institutionId" = ${remarks !== undefined ? "$6" : "$5"}`,
+      ...(remarks !== undefined
+        ? [docsJson, documentStatus, actorUserId || null, remarks, applicationId, institutionId]
+        : [docsJson, documentStatus, actorUserId || null, applicationId, institutionId])
+    );
+  } catch {}
+  try {
+    await db.$executeRawUnsafe(
+      `UPDATE admission_applications SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3 AND "institutionId" = $4`,
+      docsJson,
+      documentStatus,
+      applicationId,
+      institutionId
+    );
+  } catch {}
+
+  await recordAuditLog(db, {
+    institutionId,
+    userId: actorUserId || "admin",
+    action: "ADMISSION_DOCS_VERIFIED",
+    entityType: "ADMISSION_APPLICATION",
+    entityId: applicationId,
+    newValuesJson: JSON.stringify({ documentStatus, count: documents?.length || 0, remarks: remarks || null }),
+  });
+
+  return { id: applicationId, documentStatus, documents, remarks };
+}
+
+export async function convertAdmissionApplicationToStudent(
+  institutionId: string,
+  applicationId: string,
+  options?: { classId?: string; sectionId?: string; rollNumber?: string; actorUserId?: string }
+) {
+  return await db.$transaction(async (tx) => {
+    const application = await tx.admissionApplication.findFirst({
+      where: { id: applicationId, institutionId },
+    });
+
+    if (!application) {
+      throw new Error("Admission application not found or access denied.");
+    }
+
+    if (application.convertedStudentId) {
+      return {
+        success: false,
+        alreadyConverted: true,
+        studentId: application.convertedStudentId,
+        message: `Applicant is already enrolled as Student (ID: ${application.convertedStudentId}).`,
+      };
+    }
+
+    if (application.status === "REJECTED" || application.status === "CANCELLED") {
+      throw new Error(`Cannot convert a ${application.status.toLowerCase()} admission application.`);
+    }
+
+    // Collision-safe roll number & admission number generation (no User account or invite email created)
+    const studentCountRows = await tx.$queryRawUnsafe<{ count: number }[]>(
+      `SELECT COUNT(*)::int as count FROM students WHERE "institutionId" = $1`,
+      institutionId
+    );
+    let seq = (studentCountRows[0]?.count ?? 0) + 1;
+    const year = new Date().getFullYear();
+    let rollNumber = options?.rollNumber?.trim() || `ROLL-${year}-${String(seq).padStart(4, "0")}`;
+
+    // Ensure rollNumber does not collide within institution
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const dup = await tx.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT id FROM students WHERE "institutionId" = $1 AND "rollNumber" = $2 LIMIT 1`,
+        institutionId,
+        rollNumber
+      );
+      if (!dup || dup.length === 0) break;
+      if (options?.rollNumber?.trim() && attempt === 0) {
+        throw new Error(`Roll number '${rollNumber}' is already assigned to another student.`);
+      }
+      seq++;
+      rollNumber = `ROLL-${year}-${String(seq).padStart(4, "0")}`;
+    }
+
+    const admissionNumber = application.applicationNumber || `ADM-${year}-${String(seq).padStart(4, "0")}`;
+    const studentId = crypto.randomUUID();
+
+    // Insert into students with userId = NULL (strictly no User account or invitation email)
+    await tx.$queryRawUnsafe(
+      `INSERT INTO students (
+        "id", "institutionId", "userId", "firstName", "lastName", "fullName",
+        "email", "rollNumber", "admissionNumber", "phone", "gender", "status",
+        "dateOfBirth", "currentCourseId", "currentAcademicYearId",
+        "addressLine", "city", "state", "postalCode", "batch",
+        "currentSemester", "currentSection", "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, NULL, $3, $4, $5,
+        $6, $7, $8, $9, $10, 'ACTIVE'::"StudentStatus",
+        $11, $12::uuid, $13::uuid,
+        $14, $15, $16, $17, $18,
+        1, $19, NOW(), NOW()
+      )`,
+      studentId,
+      institutionId,
+      application.firstName,
+      application.lastName,
+      application.fullName,
+      application.email.toLowerCase().trim(),
+      rollNumber,
+      admissionNumber,
+      application.phone || null,
+      application.gender || "OTHER",
+      application.dob || new Date("2005-01-01"),
+      application.courseId,
+      application.academicYearId,
+      application.addressLine || null,
+      application.city || null,
+      application.state || null,
+      application.postalCode || null,
+      String(year),
+      options?.sectionId || "A"
+    );
+
+    await tx.$queryRawUnsafe(
+      `INSERT INTO enrollments (
+        "id", "institutionId", "studentId", "academicYearId", "courseId",
+        "semester", "section", "status", "enrolledDate"
+      ) VALUES ($1, $2, $3, $4, $5, 1, $6, 'ACTIVE', NOW())`,
+      crypto.randomUUID(),
+      institutionId,
+      studentId,
+      application.academicYearId,
+      application.courseId,
+      options?.sectionId || "A"
+    );
+
+    await tx.admissionApplication.update({
+      where: { id: applicationId },
+      data: {
+        status: "ENROLLED",
+        convertedStudentId: studentId,
+      },
+    });
+
+    try {
+      await tx.$executeRawUnsafe(
+        `UPDATE "AdmissionApplication" SET "reviewedByUserId" = $1, "reviewedAt" = NOW() WHERE id = $2 AND "institutionId" = $3`,
+        options?.actorUserId || null,
+        applicationId,
+        institutionId
+      );
+    } catch {}
+
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: options?.actorUserId || "admin",
+      action: "ADMISSION_CONVERTED_TO_STUDENT",
+      entityType: "ADMISSION_APPLICATION",
+      entityId: applicationId,
+      newValuesJson: JSON.stringify({
+        studentId,
+        rollNumber,
+        admissionNumber,
+        applicantEmail: application.email,
+        userIdCreated: false,
+      }),
+    });
+
+    return {
+      success: true,
+      studentId,
+      rollNumber,
+      admissionNumber,
+      message: `Applicant successfully enrolled as Student (Roll: ${rollNumber}).`,
+    };
+  });
 }
 
 export async function updateAdmissionApplication(
@@ -713,36 +1112,77 @@ export async function updateAdmissionApplication(
 
   // 5. Update raw SQL remarks, documentsJson, or guardian occupation if provided
   let updatedDocs = data.documents;
+  let computedDocStatus = data.documentStatus;
   try {
     if (data.documents !== undefined) {
       const docsJson = JSON.stringify(data.documents);
       const allSubmitted = Array.isArray(data.documents) && data.documents.length > 0 && data.documents.every((d: any) => d.isSubmitted);
       const anySubmitted = Array.isArray(data.documents) && data.documents.some((d: any) => d.isSubmitted);
-      const docStatus = allSubmitted ? "VERIFIED" : anySubmitted ? "PARTIALLY_SUBMITTED" : "PENDING";
+      // Submitting documents does NOT auto-verify them; preserve VERIFIED/REJECTED if explicitly passed, else SUBMITTED/PARTIALLY_SUBMITTED/PENDING
+      const docStatus =
+        data.documentStatus && ["VERIFIED", "REJECTED", "PENDING", "PARTIALLY_SUBMITTED", "SUBMITTED"].includes(data.documentStatus)
+          ? data.documentStatus
+          : allSubmitted
+          ? "SUBMITTED"
+          : anySubmitted
+          ? "PARTIALLY_SUBMITTED"
+          : "PENDING";
+      computedDocStatus = docStatus;
 
-      await db.$executeRawUnsafe(
-        `UPDATE admission_applications SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3 AND "institutionId" = $4`,
-        docsJson,
-        docStatus,
-        applicationId,
-        institutionId
-      );
+      try {
+        await db.$executeRawUnsafe(
+          `UPDATE "AdmissionApplication" SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3 AND "institutionId" = $4`,
+          docsJson,
+          docStatus,
+          applicationId,
+          institutionId
+        );
+      } catch {}
+      try {
+        await db.$executeRawUnsafe(
+          `UPDATE admission_applications SET "documentsJson" = $1, "documentStatus" = $2 WHERE id = $3 AND "institutionId" = $4`,
+          docsJson,
+          docStatus,
+          applicationId,
+          institutionId
+        );
+      } catch {}
     }
     if (data.remarks !== undefined) {
-      await db.$executeRawUnsafe(
-        `UPDATE admission_applications SET remarks = $1 WHERE id = $2 AND "institutionId" = $3`,
-        data.remarks,
-        applicationId,
-        institutionId
-      );
+      try {
+        await db.$executeRawUnsafe(
+          `UPDATE "AdmissionApplication" SET remarks = $1 WHERE id = $2 AND "institutionId" = $3`,
+          data.remarks,
+          applicationId,
+          institutionId
+        );
+      } catch {}
+      try {
+        await db.$executeRawUnsafe(
+          `UPDATE admission_applications SET remarks = $1 WHERE id = $2 AND "institutionId" = $3`,
+          data.remarks,
+          applicationId,
+          institutionId
+        );
+      } catch {}
     }
     if (data.guardianOccupation !== undefined) {
-      await db.$executeRawUnsafe(
-        `UPDATE admission_applications SET "guardianOccupation" = $1 WHERE id = $2 AND "institutionId" = $3`,
-        data.guardianOccupation.trim() || null,
-        applicationId,
-        institutionId
-      );
+      try {
+        await db.$executeRawUnsafe(
+          `UPDATE "AdmissionApplication" SET "guardianOccupation" = $1 WHERE id = $2 AND "institutionId" = $3`,
+          data.guardianOccupation.trim() || null,
+          applicationId,
+          institutionId
+        );
+      } catch {}
+      try {
+        await db.$executeRawUnsafe(
+          `UPDATE admission_applications SET "guardianOccupation" = $1 WHERE id = $2 AND "institutionId" = $3`,
+          data.guardianOccupation.trim() || null,
+          applicationId,
+          institutionId
+        );
+      } catch {}
     }
   } catch (err: any) {
     console.warn("Raw SQL update in updateAdmissionApplication failed:", err.message);
@@ -750,6 +1190,7 @@ export async function updateAdmissionApplication(
 
   return {
     ...updated,
+    documentStatus: computedDocStatus || updated.documentStatus,
     documents: updatedDocs !== undefined ? updatedDocs : (updated as any).documents,
     remarks: data.remarks !== undefined ? data.remarks : (updated as any).remarks,
     guardianOccupation: data.guardianOccupation !== undefined ? data.guardianOccupation : (updated as any).guardianOccupation,
@@ -768,6 +1209,7 @@ export async function getStudents(institutionId: string, options?: { search?: st
       const rows: any = await db.$queryRaw`
         SELECT s.*,
                c.name as "courseName",
+               c.code as "courseCode",
                ay.name as "academicYearName"
         FROM students s
         LEFT JOIN courses c ON s."currentCourseId"::text = c.id
@@ -811,6 +1253,7 @@ export async function getStudents(institutionId: string, options?: { search?: st
       const fallbackRows: any = await db.$queryRaw`
         SELECT s.*,
                c.name as "courseName",
+               c.code as "courseCode",
                ay.name as "academicYearName"
         FROM students s
         LEFT JOIN courses c ON s."currentCourseId"::text = c.id
@@ -824,6 +1267,37 @@ export async function getStudents(institutionId: string, options?: { search?: st
       return [];
     }
   }
+}
+
+export function projectStudentDirectoryItem(s: any) {
+  const courseObj = s.currentCourse || s.course || null;
+  const ayObj = s.currentAcademicYear || s.academicYear || null;
+  const courseId = s.currentCourseId || s.courseId || courseObj?.id || null;
+  const academicYearId = s.currentAcademicYearId || s.academicYearId || ayObj?.id || null;
+
+  return {
+    id: s.id,
+    fullName: s.fullName,
+    rollNumber: s.rollNumber,
+    admissionNumber: s.admissionNumber,
+    status: s.status,
+    courseId,
+    course: courseObj
+      ? { id: courseObj.id, name: courseObj.name, code: courseObj.code }
+      : s.courseName || s.courseCode
+      ? { id: courseId, name: s.courseName || s.courseCode, code: s.courseCode || null }
+      : null,
+    academicYearId,
+    academicYear: ayObj
+      ? { id: ayObj.id, name: ayObj.name }
+      : s.academicYearName
+      ? { id: academicYearId, name: s.academicYearName }
+      : null,
+    classId: s.currentClassId || s.classId || null,
+    class: s.class ? { id: s.class.id, name: s.class.name } : null,
+    sectionId: s.currentSectionId || s.sectionId || null,
+    section: s.section ? { id: s.section.id, name: s.section.name } : null,
+  };
 }
 
 export async function createStudent(
@@ -1775,11 +2249,22 @@ export async function updateGuardian(
 // ----------------------------------------------------------------------------
 export async function getStaff(institutionId: string) {
   try {
-    const [users, archivedSetting] = await Promise.all([
+    const [users, archivedSetting, roleAssignments] = await Promise.all([
       db.user.findMany({
         where: {
           institutionId,
-          role: { in: ["TEACHER", "ADMIN", "STAFF"] },
+          role: {
+            in: [
+              "TEACHER",
+              "ADMIN",
+              "STAFF",
+              "HOD",
+              "ADMISSIONS_OFFICER",
+              "ACCOUNTANT",
+              "HOSTEL_WARDEN",
+              "TRANSPORT_OFFICER",
+            ],
+          },
         },
         include: {
           teacherProfile: true,
@@ -1791,7 +2276,33 @@ export async function getStaff(institutionId: string) {
           where: { key: `archived_staff:${institutionId}` },
         })
         .catch(() => null),
+      db.userRoleAssignment
+        .findMany({
+          where: { institutionId },
+          include: {
+            role: {
+              select: { id: true, name: true, code: true },
+            },
+          },
+        })
+        .catch(() => []),
     ]);
+
+    const assignmentsByUser = new Map<string, Array<{ id: string; name: string; code: string }>>();
+    for (const a of roleAssignments as any[]) {
+      if (!a.role) continue;
+      const list = assignmentsByUser.get(a.userId) || [];
+      list.push(a.role);
+      assignmentsByUser.set(a.userId, list);
+    }
+
+    const ROLE_META: Record<string, { designation: string; department: string }> = {
+      ADMIN: { designation: "Administrator", department: "Administration" },
+      ADMISSIONS_OFFICER: { designation: "Admissions Officer", department: "Admissions" },
+      ACCOUNTANT: { designation: "Accountant", department: "Accounts & Finance" },
+      HOSTEL_WARDEN: { designation: "Hostel Warden", department: "Hostel Administration" },
+      TRANSPORT_OFFICER: { designation: "Transport Officer", department: "Transport Department" },
+    };
 
     const archivedList: any[] = Array.isArray(archivedSetting?.value)
       ? (archivedSetting?.value as any[])
@@ -1843,9 +2354,9 @@ export async function getStaff(institutionId: string) {
             fullName: u.fullName || `${firstName} ${lastName}`,
             email: u.email,
             phone: u.phone || "",
-            designation: u.role === "ADMIN" ? "Administrator" : "Staff Member",
-            department: "Administration",
-            departmentId: "Administration",
+            designation: ROLE_META[u.role || ""]?.designation || "Staff Member",
+            department: ROLE_META[u.role || ""]?.department || "Administration",
+            departmentId: ROLE_META[u.role || ""]?.department || "Administration",
             status: u.isActive ? "ACTIVE" : "INACTIVE",
           };
 
@@ -1857,6 +2368,7 @@ export async function getStaff(institutionId: string) {
         ...u,
         teacherProfile,
         staff: staffObj,
+        assignedRoles: assignmentsByUser.get(u.id) || [],
         isArchived: Boolean(archiveRecord),
         archivedAt: archiveRecord?.archivedAt || null,
         archivedBy: archiveRecord?.archivedBy || null,
@@ -1869,17 +2381,52 @@ export async function getStaff(institutionId: string) {
   }
 }
 
+type StaffRoleAssignmentTransaction = {
+  userRoleAssignment: {
+    deleteMany: (args: { where: { userId: string; institutionId: string } }) => Promise<unknown>;
+    createMany: (args: {
+      data: Array<{ userId: string; roleId: string; institutionId: string }>;
+      skipDuplicates: boolean;
+    }) => Promise<unknown>;
+  };
+};
+
+export async function replaceStaffRoleAssignments(
+  tx: StaffRoleAssignmentTransaction,
+  userId: string,
+  institutionId: string,
+  roleIds: string[]
+): Promise<void> {
+  await tx.userRoleAssignment.deleteMany({ where: { userId, institutionId } });
+  if (roleIds.length === 0) return;
+
+  await tx.userRoleAssignment.createMany({
+    data: roleIds.map((roleId) => ({ userId, roleId, institutionId })),
+    skipDuplicates: true,
+  });
+}
+
 export async function createStaff(
   institutionId: string,
   data: {
     fullName: string;
     email: string;
-    role?: "TEACHER" | "ADMIN" | "STAFF" | "HOD";
+    role?:
+      | "TEACHER"
+      | "ADMIN"
+      | "STAFF"
+      | "HOD"
+      | "ADMISSIONS_OFFICER"
+      | "ACCOUNTANT"
+      | "HOSTEL_WARDEN"
+      | "TRANSPORT_OFFICER";
     phone?: string;
     designation?: string;
     departmentId?: string;
     department?: string;
     employeeId?: string;
+    roleIds?: string[];
+    actorUserId?: string;
   }
 ) {
   const email = data.email.trim().toLowerCase();
@@ -1932,7 +2479,18 @@ export async function createStaff(
     const parts = fullName.trim().split(/\s+/);
     const firstName = parts[0] || "Faculty";
     const lastName = parts.slice(1).join(" ") || "Member";
-    const designation = data.designation?.trim() || (data.role === "HOD" ? "Professor & HOD" : data.role === "ADMIN" ? "Administrator" : "Assistant Professor");
+    const DEFAULT_ROLE_DESIGNATIONS: Record<string, string> = {
+      HOD: "Professor & HOD",
+      ADMIN: "Administrator",
+      ADMISSIONS_OFFICER: "Admissions Officer",
+      ACCOUNTANT: "Accountant",
+      HOSTEL_WARDEN: "Hostel Warden",
+      TRANSPORT_OFFICER: "Transport Officer",
+    };
+    const designation =
+      data.designation?.trim() ||
+      DEFAULT_ROLE_DESIGNATIONS[effectiveRole] ||
+      "Assistant Professor";
     const departmentName = data.department?.trim() || data.departmentId?.trim() || "General Academics";
 
     let teacherRecord: any = null;
@@ -1965,8 +2523,13 @@ export async function createStaff(
       status: "ACTIVE",
     };
 
+    if (Array.isArray(data.roleIds)) {
+      await replaceStaffRoleAssignments(tx, userRecord.id, institutionId, data.roleIds);
+    }
+
     await recordAuditLog(tx, {
       institutionId,
+      actorUserId: data.actorUserId || null,
       userId: userRecord.id,
       action: "STAFF_CREATED",
       entityType: isFacultyRole ? (data.role === "HOD" ? "HOD" : "TEACHER") : (data.role === "ADMIN" ? "ADMIN" : "STAFF"),
@@ -1977,6 +2540,7 @@ export async function createStaff(
         employeeId,
         teacherId: teacherRecord?.id,
         staffEmployeeId: staffRecord.staffEmployeeId,
+        ...(Array.isArray(data.roleIds) && data.roleIds.length > 0 ? { roleIds: data.roleIds } : {}),
       }),
     });
 
@@ -2003,6 +2567,10 @@ export async function createStaff(
       invitationRole = "TEACHER";
     } else if (rawRole === "ADMIN") {
       invitationRole = "ADMIN";
+    } else if (
+      ["ADMISSIONS_OFFICER", "ACCOUNTANT", "HOSTEL_WARDEN", "TRANSPORT_OFFICER"].includes(rawRole)
+    ) {
+      invitationRole = rawRole;
     } else {
       invitationRole = "STAFF";
     }
@@ -4067,7 +4635,16 @@ export async function getIssuedCertificates(institutionId: string) {
     return await db.issuedCertificate.findMany({
       where: { institutionId },
       include: {
-        student: true,
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            fullName: true,
+            rollNumber: true,
+            currentCourse: { select: { name: true } },
+          },
+        },
         template: true,
       },
       orderBy: { issuedAt: "desc" },
@@ -4090,9 +4667,20 @@ export async function getFeeInvoices(institutionId: string, studentId?: string) 
         ...(studentId ? { studentId } : {}),
       },
       include: {
-        student: true,
+        student: {
+          select: {
+            id: true,
+            fullName: true,
+            rollNumber: true,
+            admissionNumber: true,
+          },
+        },
         items: true,
-        payments: true,
+        payments: {
+          include: {
+            receipt: true,
+          },
+        },
       },
       orderBy: { dueDate: "asc" },
     });
@@ -4417,11 +5005,20 @@ export async function applyFeeConcession(
 // 19. HOSTEL
 // ----------------------------------------------------------------------------
 
+const ALLOCATION_STUDENT_SELECT = {
+  id: true,
+  fullName: true,
+  rollNumber: true,
+  admissionNumber: true,
+  currentSemester: true,
+  currentSection: true,
+} as const;
+
 export async function getHostelAllocations(institutionId: string) {
   try {
     const list = await db.hostelAllocation.findMany({
       where: { institutionId },
-      include: { student: true },
+      include: { student: { select: ALLOCATION_STUDENT_SELECT } },
       orderBy: { allocatedDate: "desc" },
     });
     return list || [];
@@ -4429,6 +5026,19 @@ export async function getHostelAllocations(institutionId: string) {
     console.error("Hostel allocations database query error:", err.message);
     throw new Error(`Failed to load hostel allocations from database: ${err.message}`);
   }
+}
+
+async function acquireAllocationLock(
+  tx: any,
+  namespace: "hostel_alloc" | "transport_alloc",
+  institutionId: string,
+  ...parts: string[]
+): Promise<void> {
+  if (typeof tx.$executeRaw !== "function") return;
+  const key = [institutionId, ...parts.map((p) => p.trim().toLowerCase())].join(":");
+  // Transaction-scoped advisory lock serializes concurrent allocations for the same
+  // room/vehicle within an institution and releases automatically on commit/rollback.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${namespace}), hashtext(${key}))`;
 }
 
 export async function createHostelAllocation(
@@ -4446,31 +5056,69 @@ export async function createHostelAllocation(
     throw new Error("Student ID, hostel name, room number, and bed number are required.");
   }
 
-  const existing = await db.hostelAllocation.findFirst({
-    where: {
-      institutionId,
-      hostelName: data.hostelName,
-      roomNumber: data.roomNumber,
-      bedNumber: data.bedNumber,
-    },
-  });
+  const catalog = await getHostelCatalog(institutionId);
+  const configuredRoom = catalog.find(
+    (r: any) => r.hostelName === data.hostelName && r.roomNumber === data.roomNumber
+  );
 
-  if (existing) {
-    throw new Error(`Bed ${data.bedNumber} in ${data.hostelName} Room ${data.roomNumber} is already occupied.`);
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        await acquireAllocationLock(tx, "hostel_alloc", institutionId, data.hostelName, data.roomNumber);
+
+        const existingStudent = await tx.hostelAllocation.findFirst({
+          where: { institutionId, studentId: data.studentId },
+        });
+        if (existingStudent) {
+          throw new Error("Student already has an active hostel allocation. Transfer or vacate first.");
+        }
+
+        if (configuredRoom && configuredRoom.capacity > 0) {
+          const roomCount = await tx.hostelAllocation.count({
+            where: { institutionId, hostelName: data.hostelName, roomNumber: data.roomNumber },
+          });
+          if (roomCount >= configuredRoom.capacity) {
+            throw new Error(
+              `Room ${data.roomNumber} in ${data.hostelName} is at full capacity (${configuredRoom.capacity} beds).`
+            );
+          }
+        }
+
+        const existing = await tx.hostelAllocation.findFirst({
+          where: {
+            institutionId,
+            hostelName: data.hostelName,
+            roomNumber: data.roomNumber,
+            bedNumber: data.bedNumber,
+          },
+        });
+        if (existing) {
+          throw new Error(
+            `Bed ${data.bedNumber} in ${data.hostelName} Room ${data.roomNumber} is already occupied.`
+          );
+        }
+
+        return await tx.hostelAllocation.create({
+          data: {
+            institutionId,
+            studentId: data.studentId,
+            hostelName: data.hostelName,
+            roomNumber: data.roomNumber,
+            bedNumber: data.bedNumber,
+            wardenName: data.wardenName,
+            wardenContact: data.wardenContact,
+          },
+          include: { student: { select: ALLOCATION_STUDENT_SELECT } },
+        });
+      },
+      { maxWait: 10000, timeout: 15000 }
+    );
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      throw new Error("Student already has an active hostel allocation. Transfer or vacate first.");
+    }
+    throw err;
   }
-
-  return await db.hostelAllocation.create({
-    data: {
-      institutionId,
-      studentId: data.studentId,
-      hostelName: data.hostelName,
-      roomNumber: data.roomNumber,
-      bedNumber: data.bedNumber,
-      wardenName: data.wardenName,
-      wardenContact: data.wardenContact,
-    },
-    include: { student: true },
-  });
 }
 
 export async function deleteHostelAllocation(institutionId: string, id: string) {
@@ -4515,7 +5163,7 @@ export async function getTransportAllocations(institutionId: string) {
   try {
     const list = await db.transportAllocation.findMany({
       where: { institutionId },
-      include: { student: true },
+      include: { student: { select: ALLOCATION_STUDENT_SELECT } },
       orderBy: { routeNumber: "asc" },
     });
     return list || [];
@@ -4540,38 +5188,70 @@ export async function createTransportAllocation(
     vehicleCapacity?: number;
   }
 ) {
-  // 1. Check vehicle capacity
-  const capacity = data.vehicleCapacity || 40;
-  const currentAllocCount = await db.transportAllocation.count({
-    where: { institutionId, routeNumber: data.routeNumber, vehicleNumber: data.vehicleNumber },
-  });
-  if (currentAllocCount >= capacity) {
-    throw new Error(`Vehicle '${data.vehicleNumber}' on Route '${data.routeNumber}' has reached maximum passenger seating capacity (${capacity} seats).`);
+  if (!data.studentId || !data.routeNumber || !data.routeName || !data.vehicleNumber || !data.driverName?.trim()) {
+    throw new Error("Student ID, route number, route name, vehicle number, and driver name are required.");
   }
 
-  // 2. Prevent duplicate allocation for the same student
-  const existingStudentAlloc = await db.transportAllocation.findFirst({
-    where: { institutionId, studentId: data.studentId },
-  });
-  if (existingStudentAlloc) {
-    throw new Error(`Student already has an active allocation on Route '${existingStudentAlloc.routeNumber}'. Revoke existing allocation first.`);
+  // Validate against configured transport catalog if present
+  const catalog = await getTransportCatalog(institutionId);
+  const catalogMatch = catalog.find(
+    (c: any) => c.routeNumber === data.routeNumber && c.vehicleNumber === data.vehicleNumber
+  );
+  if (catalogMatch && catalogMatch.status && catalogMatch.status !== "ACTIVE") {
+    throw new Error(`Vehicle '${data.vehicleNumber}' on Route '${data.routeNumber}' is currently ${catalogMatch.status} and cannot accept allocations.`);
   }
 
-  return await db.transportAllocation.create({
-    data: {
-      institutionId,
-      studentId: data.studentId,
-      routeName: data.routeName,
-      routeNumber: data.routeNumber,
-      vehicleNumber: data.vehicleNumber,
-      driverName: data.driverName,
-      driverContact: data.driverContact,
-      pickupPoint: data.pickupPoint,
-      pickupTime: data.pickupTime,
-      dropTime: data.dropTime,
-    },
-    include: { student: true },
-  });
+  const capacity = catalogMatch?.capacity || data.vehicleCapacity || 40;
+
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        await acquireAllocationLock(tx, "transport_alloc", institutionId, data.routeNumber, data.vehicleNumber);
+
+        // 1. Check vehicle capacity
+        const currentAllocCount = await tx.transportAllocation.count({
+          where: { institutionId, routeNumber: data.routeNumber, vehicleNumber: data.vehicleNumber },
+        });
+        if (currentAllocCount >= capacity) {
+          throw new Error(
+            `Vehicle '${data.vehicleNumber}' on Route '${data.routeNumber}' has reached maximum passenger seating capacity (${capacity} seats).`
+          );
+        }
+
+        // 2. Prevent duplicate allocation for the same student
+        const existingStudentAlloc = await tx.transportAllocation.findFirst({
+          where: { institutionId, studentId: data.studentId },
+        });
+        if (existingStudentAlloc) {
+          throw new Error(
+            `Student already has an active allocation on Route '${existingStudentAlloc.routeNumber}'. Revoke existing allocation first.`
+          );
+        }
+
+        return await tx.transportAllocation.create({
+          data: {
+            institutionId,
+            studentId: data.studentId,
+            routeName: data.routeName,
+            routeNumber: data.routeNumber,
+            vehicleNumber: data.vehicleNumber,
+            driverName: data.driverName,
+            driverContact: data.driverContact,
+            pickupPoint: data.pickupPoint,
+            pickupTime: data.pickupTime,
+            dropTime: data.dropTime,
+          },
+          include: { student: { select: ALLOCATION_STUDENT_SELECT } },
+        });
+      },
+      { maxWait: 10000, timeout: 15000 }
+    );
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      throw new Error("Student already has an active transport allocation. Revoke existing allocation first.");
+    }
+    throw err;
+  }
 }
 
 export async function deleteTransportAllocation(institutionId: string, id: string) {
@@ -4582,6 +5262,544 @@ export async function deleteTransportAllocation(institutionId: string, id: strin
     throw new Error("Transport allocation not found or access denied.");
   }
   return { success: true };
+}
+
+// ----------------------------------------------------------------------------
+// 20B. DEPARTMENTAL WORKFLOWS (FEES STRUCTURES/REFUNDS, HOSTEL OPS, TRANSPORT OPS)
+// ----------------------------------------------------------------------------
+
+export async function getFeeStructures(institutionId: string) {
+  const key = `fee_structures:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  return Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+}
+
+export async function saveFeeStructure(
+  institutionId: string,
+  data: {
+    id?: string;
+    name: string;
+    courseId?: string;
+    academicYearId?: string;
+    semester?: number;
+    amount: number;
+    items?: { description: string; amount: number }[];
+    actorUserId?: string;
+  }
+) {
+  if (!data.name?.trim() || !data.amount || data.amount <= 0) {
+    throw new Error("Fee structure name and positive amount are required.");
+  }
+  const key = `fee_structures:${institutionId}`;
+  const existing = await getFeeStructures(institutionId);
+  const item = {
+    id: data.id || crypto.randomUUID(),
+    name: data.name.trim(),
+    courseId: data.courseId || null,
+    academicYearId: data.academicYearId || null,
+    semester: data.semester ?? null,
+    amount: Number(data.amount),
+    items: data.items && data.items.length > 0 ? data.items : [{ description: data.name.trim(), amount: Number(data.amount) }],
+    updatedAt: new Date().toISOString(),
+  };
+  const next = data.id ? existing.map((s: any) => (s.id === data.id ? item : s)) : [item, ...existing];
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Fee structures for ${institutionId}` },
+    update: { value: next },
+  });
+  await recordAuditLog(db, {
+    institutionId,
+    userId: data.actorUserId || "admin",
+    action: "FEE_STRUCTURE_SAVED",
+    entityType: "FEE_STRUCTURE",
+    entityId: item.id,
+    newValuesJson: JSON.stringify(item),
+  });
+  return item;
+}
+
+export async function getFeeRefunds(institutionId: string) {
+  const key = `fee_refunds:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  return Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+}
+
+export async function processFeeRefund(
+  institutionId: string,
+  data: {
+    paymentId: string;
+    amount: number;
+    reason: string;
+    refundMode?: string;
+    actorUserId?: string;
+  }
+) {
+  if (!data.paymentId) throw new Error("Payment ID is required for refund.");
+  if (!data.amount || data.amount <= 0) throw new Error("Refund amount must be greater than zero.");
+  if (!data.reason?.trim()) throw new Error("Refund reason is required.");
+
+  return await db.$transaction(async (tx) => {
+    const payment = await tx.feePayment.findFirst({
+      where: { id: data.paymentId, institutionId },
+      include: { invoice: true, student: true },
+    });
+    if (!payment) {
+      throw new Error("Fee payment not found or does not belong to this institution.");
+    }
+    if (payment.status !== "SUCCESS") {
+      throw new Error("Only successful payments can be refunded.");
+    }
+    if (data.amount > payment.amount) {
+      throw new Error(`Refund amount (₹${data.amount}) exceeds original payment (₹${payment.amount}).`);
+    }
+
+    const key = `fee_refunds:${institutionId}`;
+    const setting = await tx.platformSetting.findUnique({ where: { key } }).catch(() => null);
+    const existingRefunds: any[] = Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+    const alreadyRefunded = existingRefunds
+      .filter((r: any) => r.paymentId === payment.id)
+      .reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+
+    if (alreadyRefunded + data.amount > payment.amount) {
+      throw new Error(
+        `Total refunded (₹${alreadyRefunded + data.amount}) exceeds payment amount (₹${payment.amount}).`
+      );
+    }
+
+    const invoice = payment.invoice;
+    const newPaid = Math.max(0, invoice.paidAmount - data.amount);
+    const newOutstanding = Math.min(invoice.totalAmount, invoice.outstandingAmount + data.amount);
+    const newStatus = newOutstanding === 0 ? "PAID" : newPaid > 0 ? "PARTIAL" : "UNPAID";
+
+    await tx.feeInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        paidAmount: newPaid,
+        outstandingAmount: newOutstanding,
+        status: newStatus,
+      },
+    });
+
+    const refundRecord = {
+      id: crypto.randomUUID(),
+      paymentId: payment.id,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      studentId: payment.studentId,
+      studentName: payment.student?.fullName || "Student",
+      amount: Number(data.amount),
+      reason: data.reason.trim(),
+      refundMode: data.refundMode || payment.paymentMethod,
+      processedBy: data.actorUserId || "ACCOUNTANT",
+      createdAt: new Date().toISOString(),
+    };
+
+    const nextRefunds = [refundRecord, ...existingRefunds];
+    await tx.platformSetting.upsert({
+      where: { key },
+      create: { key, value: nextRefunds, description: `Fee refunds for ${institutionId}` },
+      update: { value: nextRefunds },
+    });
+
+    await recordAuditLog(tx, {
+      institutionId,
+      userId: data.actorUserId || "admin",
+      action: "FEE_REFUND_PROCESSED",
+      entityType: "FEE_PAYMENT",
+      entityId: payment.id,
+      newValuesJson: JSON.stringify(refundRecord),
+    });
+
+    return refundRecord;
+  });
+}
+
+export async function getHostelCatalog(institutionId: string) {
+  const key = `hostel_catalog:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  return Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+}
+
+export async function saveHostelCatalogRoom(
+  institutionId: string,
+  data: {
+    id?: string;
+    hostelName: string;
+    roomNumber: string;
+    capacity: number;
+    wardenName?: string;
+    wardenContact?: string;
+    actorUserId?: string;
+  }
+) {
+  if (!data.hostelName?.trim() || !data.roomNumber?.trim() || !data.capacity || data.capacity <= 0) {
+    throw new Error("Hostel name, room number, and positive bed capacity are required.");
+  }
+  const key = `hostel_catalog:${institutionId}`;
+  const existing = await getHostelCatalog(institutionId);
+  const item = {
+    id: data.id || crypto.randomUUID(),
+    hostelName: data.hostelName.trim(),
+    roomNumber: data.roomNumber.trim(),
+    capacity: Number(data.capacity),
+    wardenName: data.wardenName?.trim() || "Hostel Warden",
+    wardenContact: data.wardenContact?.trim() || "",
+    updatedAt: new Date().toISOString(),
+  };
+  const next = data.id ? existing.map((r: any) => (r.id === data.id ? item : r)) : [item, ...existing];
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Hostel room catalog for ${institutionId}` },
+    update: { value: next },
+  });
+  await recordAuditLog(db, {
+    institutionId,
+    userId: data.actorUserId || "admin",
+    action: "HOSTEL_ROOM_SAVED",
+    entityType: "HOSTEL",
+    entityId: item.id,
+    newValuesJson: JSON.stringify(item),
+  });
+  return item;
+}
+
+class SourceRoomChangedError extends Error {
+  constructor() {
+    super("Hostel allocation source room changed before locks were acquired.");
+  }
+}
+
+const MAX_TRANSFER_LOCK_ATTEMPTS = 3;
+
+function normalizeRoomLockKey(hostelName: string, roomNumber: string): string {
+  return `${hostelName.trim().toLowerCase()}:${roomNumber.trim().toLowerCase()}`;
+}
+
+export async function transferHostelAllocation(
+  institutionId: string,
+  allocationId: string,
+  data: {
+    hostelName: string;
+    roomNumber: string;
+    bedNumber: string;
+    wardenName?: string;
+    wardenContact?: string;
+    actorUserId?: string;
+  }
+) {
+  if (!data.hostelName || !data.roomNumber || !data.bedNumber) {
+    throw new Error("Target hostel, room, and bed number are required for transfer.");
+  }
+
+  const catalog = await getHostelCatalog(institutionId);
+  const configuredRoom = catalog.find(
+    (r: any) => r.hostelName === data.hostelName && r.roomNumber === data.roomNumber
+  );
+
+  for (let attempt = 1; attempt <= MAX_TRANSFER_LOCK_ATTEMPTS; attempt++) {
+    try {
+      return await db.$transaction(
+        async (tx) => {
+          const initial = await tx.hostelAllocation.findFirst({
+            where: { id: allocationId, institutionId },
+          });
+          if (!initial) {
+            throw new Error("Hostel allocation not found or access denied.");
+          }
+
+          const expectedSourceKey = normalizeRoomLockKey(initial.hostelName, initial.roomNumber);
+
+          // Acquire source and destination room locks in deterministic sorted order to prevent deadlocks
+          const roomEntries = [
+            {
+              lockKey: expectedSourceKey,
+              hostelName: initial.hostelName,
+              roomNumber: initial.roomNumber,
+            },
+            {
+              lockKey: normalizeRoomLockKey(data.hostelName, data.roomNumber),
+              hostelName: data.hostelName,
+              roomNumber: data.roomNumber,
+            },
+          ];
+          const uniqueRooms = Array.from(
+            new Map(roomEntries.map((r) => [r.lockKey, r])).values()
+          ).sort((a, b) => a.lockKey.localeCompare(b.lockKey));
+
+          for (const room of uniqueRooms) {
+            await acquireAllocationLock(tx, "hostel_alloc", institutionId, room.hostelName, room.roomNumber);
+          }
+
+          // Re-fetch allocation after acquiring locks; if its source room changed concurrently,
+          // abort this transaction cleanly so locks are released and retry with the new source room.
+          const current = await tx.hostelAllocation.findFirst({
+            where: { id: allocationId, institutionId },
+          });
+          if (!current) {
+            throw new Error("Hostel allocation not found or access denied.");
+          }
+
+          const actualSourceKey = normalizeRoomLockKey(current.hostelName, current.roomNumber);
+          if (actualSourceKey !== expectedSourceKey) {
+            throw new SourceRoomChangedError();
+          }
+
+          if (configuredRoom && configuredRoom.capacity > 0) {
+            const destCount = await tx.hostelAllocation.count({
+              where: {
+                institutionId,
+                hostelName: data.hostelName,
+                roomNumber: data.roomNumber,
+                id: { not: allocationId },
+              },
+            });
+            if (destCount >= configuredRoom.capacity) {
+              throw new Error(
+                `Room ${data.roomNumber} in ${data.hostelName} is at full capacity (${configuredRoom.capacity} beds).`
+              );
+            }
+          }
+
+          const occupied = await tx.hostelAllocation.findFirst({
+            where: {
+              institutionId,
+              hostelName: data.hostelName,
+              roomNumber: data.roomNumber,
+              bedNumber: data.bedNumber,
+              id: { not: allocationId },
+            },
+          });
+          if (occupied) {
+            throw new Error(`Bed ${data.bedNumber} in ${data.hostelName} Room ${data.roomNumber} is already occupied.`);
+          }
+
+          const updated = await tx.hostelAllocation.update({
+            where: { id: allocationId },
+            data: {
+              hostelName: data.hostelName,
+              roomNumber: data.roomNumber,
+              bedNumber: data.bedNumber,
+              ...(data.wardenName ? { wardenName: data.wardenName } : {}),
+              ...(data.wardenContact ? { wardenContact: data.wardenContact } : {}),
+            },
+            include: { student: { select: ALLOCATION_STUDENT_SELECT } },
+          });
+          await recordAuditLog(tx, {
+            institutionId,
+            userId: data.actorUserId || "admin",
+            action: "HOSTEL_BED_TRANSFERRED",
+            entityType: "HOSTEL",
+            entityId: allocationId,
+            oldValuesJson: JSON.stringify({
+              hostelName: current.hostelName,
+              roomNumber: current.roomNumber,
+              bedNumber: current.bedNumber,
+            }),
+            newValuesJson: JSON.stringify({
+              hostelName: data.hostelName,
+              roomNumber: data.roomNumber,
+              bedNumber: data.bedNumber,
+            }),
+          });
+          return updated;
+        },
+        { maxWait: 10000, timeout: 15000 }
+      );
+    } catch (err) {
+      if (err instanceof SourceRoomChangedError) {
+        if (attempt < MAX_TRANSFER_LOCK_ATTEMPTS) {
+          continue;
+        }
+        throw new Error("Transfer could not complete because the allocation's source room changed concurrently. Please retry.");
+      }
+      throw err;
+    }
+  }
+
+  throw new Error("Transfer could not complete due to concurrent room updates. Please retry.");
+}
+
+export async function getHostelOperations(institutionId: string) {
+  const key = `hostel_ops:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  return Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+}
+
+export async function createHostelOperationRecord(
+  institutionId: string,
+  data: {
+    type: "ATTENDANCE" | "MAINTENANCE";
+    hostelName: string;
+    roomNumber?: string;
+    summary: string;
+    status?: string;
+    actorUserId?: string;
+  }
+) {
+  if (!data.hostelName?.trim() || !data.summary?.trim()) {
+    throw new Error("Hostel name and summary are required.");
+  }
+  const key = `hostel_ops:${institutionId}`;
+  const existing = await getHostelOperations(institutionId);
+  const record = {
+    id: crypto.randomUUID(),
+    type: data.type,
+    hostelName: data.hostelName.trim(),
+    roomNumber: data.roomNumber?.trim() || null,
+    summary: data.summary.trim(),
+    status: data.status || (data.type === "MAINTENANCE" ? "OPEN" : "RECORDED"),
+    createdBy: data.actorUserId || "HOSTEL_WARDEN",
+    createdAt: new Date().toISOString(),
+  };
+  const next = [record, ...existing];
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Hostel ops for ${institutionId}` },
+    update: { value: next },
+  });
+  await recordAuditLog(db, {
+    institutionId,
+    userId: data.actorUserId || "admin",
+    action: `HOSTEL_${data.type}_RECORDED`,
+    entityType: "HOSTEL",
+    entityId: record.id,
+    newValuesJson: JSON.stringify(record),
+  });
+  return record;
+}
+
+export async function updateHostelOperationStatus(
+  institutionId: string,
+  operationId: string,
+  status: string,
+  actorUserId?: string
+) {
+  const key = `hostel_ops:${institutionId}`;
+  const existing = await getHostelOperations(institutionId);
+  const idx = existing.findIndex((o: any) => o.id === operationId);
+  if (idx === -1) {
+    throw new Error("Hostel operation record not found or access denied.");
+  }
+  const updated = { ...existing[idx], status, updatedAt: new Date().toISOString() };
+  const next = [...existing];
+  next[idx] = updated;
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Hostel ops for ${institutionId}` },
+    update: { value: next },
+  });
+  await recordAuditLog(db, {
+    institutionId,
+    userId: actorUserId || "admin",
+    action: "HOSTEL_OPERATION_UPDATED",
+    entityType: "HOSTEL",
+    entityId: operationId,
+    newValuesJson: JSON.stringify({ status }),
+  });
+  return updated;
+}
+
+export async function getTransportCatalog(institutionId: string) {
+  const key = `transport_catalog:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  return Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+}
+
+export async function saveTransportCatalogItem(
+  institutionId: string,
+  data: {
+    id?: string;
+    routeNumber: string;
+    routeName: string;
+    vehicleNumber: string;
+    capacity: number;
+    driverName: string;
+    driverContact: string;
+    stops?: string[];
+    status?: "ACTIVE" | "INACTIVE" | "MAINTENANCE";
+    actorUserId?: string;
+  }
+) {
+  if (!data.routeNumber?.trim() || !data.routeName?.trim() || !data.vehicleNumber?.trim()) {
+    throw new Error("Route number, route name, and vehicle number are required.");
+  }
+  const key = `transport_catalog:${institutionId}`;
+  const existing = await getTransportCatalog(institutionId);
+  const item = {
+    id: data.id || crypto.randomUUID(),
+    routeNumber: data.routeNumber.trim(),
+    routeName: data.routeName.trim(),
+    vehicleNumber: data.vehicleNumber.trim(),
+    capacity: Number(data.capacity) || 40,
+    driverName: data.driverName?.trim() || "Assigned Driver",
+    driverContact: data.driverContact?.trim() || "",
+    stops: Array.isArray(data.stops) ? data.stops : [],
+    status: data.status || "ACTIVE",
+    updatedAt: new Date().toISOString(),
+  };
+  const next = data.id ? existing.map((t: any) => (t.id === data.id ? item : t)) : [item, ...existing];
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Transport routes/fleet for ${institutionId}` },
+    update: { value: next },
+  });
+  await recordAuditLog(db, {
+    institutionId,
+    userId: data.actorUserId || "admin",
+    action: "TRANSPORT_ROUTE_SAVED",
+    entityType: "TRANSPORT",
+    entityId: item.id,
+    newValuesJson: JSON.stringify(item),
+  });
+  return item;
+}
+
+export async function getTransportMaintenance(institutionId: string) {
+  const key = `transport_maintenance:${institutionId}`;
+  const setting = await db.platformSetting.findUnique({ where: { key } }).catch(() => null);
+  return Array.isArray(setting?.value) ? (setting?.value as any[]) : [];
+}
+
+export async function createTransportMaintenanceRecord(
+  institutionId: string,
+  data: {
+    vehicleNumber: string;
+    summary: string;
+    cost?: number;
+    status?: string;
+    actorUserId?: string;
+  }
+) {
+  if (!data.vehicleNumber?.trim() || !data.summary?.trim()) {
+    throw new Error("Vehicle number and maintenance summary are required.");
+  }
+  const key = `transport_maintenance:${institutionId}`;
+  const existing = await getTransportMaintenance(institutionId);
+  const record = {
+    id: crypto.randomUUID(),
+    vehicleNumber: data.vehicleNumber.trim(),
+    summary: data.summary.trim(),
+    cost: Number(data.cost || 0),
+    status: data.status || "SCHEDULED",
+    createdBy: data.actorUserId || "TRANSPORT_OFFICER",
+    createdAt: new Date().toISOString(),
+  };
+  const next = [record, ...existing];
+  await db.platformSetting.upsert({
+    where: { key },
+    create: { key, value: next, description: `Transport maintenance for ${institutionId}` },
+    update: { value: next },
+  });
+  await recordAuditLog(db, {
+    institutionId,
+    userId: data.actorUserId || "admin",
+    action: "TRANSPORT_MAINTENANCE_RECORDED",
+    entityType: "TRANSPORT",
+    entityId: record.id,
+    newValuesJson: JSON.stringify(record),
+  });
+  return record;
 }
 
 // ----------------------------------------------------------------------------

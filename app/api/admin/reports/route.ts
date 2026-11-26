@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveDivisionContext } from "@/lib/security/division-context";
 import { handleAdminApiError } from "@/lib/security/admin-auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getHostelAllocations,
   getTransportAllocations,
@@ -15,10 +16,12 @@ import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
-    const institutionId = context.institutionId;
-
     const reportType = (req.nextUrl.searchParams.get("type") || "overview").toLowerCase();
+    const context = await resolveDivisionContext(req, undefined, {
+      allowUnscoped: true,
+      ...(reportType === "finance" ? { requiredPermission: PERMISSIONS.REPORTS_FINANCE } : {}),
+    });
+    const institutionId = context.institutionId;
     const divisionIdParam = req.nextUrl.searchParams.get("divisionId");
     const academicYearId = req.nextUrl.searchParams.get("academicYearId") || undefined;
     const gradeLevel = req.nextUrl.searchParams.get("gradeLevel") || undefined;

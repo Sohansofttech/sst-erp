@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { KeyRound, ShieldCheck, CheckCircle2, AlertCircle, ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
+import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 
 function SetupPasswordForm() {
   const searchParams = useSearchParams();
@@ -69,9 +70,13 @@ function SetupPasswordForm() {
       if (data.success) {
         setSuccess(true);
         setTimeout(() => {
+          if (typeof data.redirectUrl === "string" && data.redirectUrl.startsWith("/")) {
+            router.push(data.redirectUrl);
+            return;
+          }
           const roleUpper = (data.role || "").toUpperCase();
-          if (roleUpper === "ADMIN" || roleUpper === "SUPER_ADMIN") {
-            router.push("/admin");
+          if (isAdminPortalRole(roleUpper)) {
+            router.push(getRoleLandingRoute(roleUpper));
           } else if (roleUpper === "TEACHER") {
             const institutionSlug = (data.institutionSlug || "").trim();
             if (institutionSlug) {

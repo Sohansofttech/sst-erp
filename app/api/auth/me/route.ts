@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import db from "@/lib/db";
 import { AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
 import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
+import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
+import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,11 +16,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    let additionalInfo: any = {};
+
     // Verify account active status (Safeguard: invalidates disabled sessions immediately)
     if (session.userId) {
       const userRecord = await db.user.findUnique({
         where: { id: session.userId },
-        select: { id: true, isActive: true, status: true },
+        select: { id: true, isActive: true, status: true, role: true, institutionId: true },
       });
 
       if (!userRecord || !userRecord.isActive || userRecord.status !== "ACTIVE") {
@@ -28,11 +32,24 @@ export async function GET(req: NextRequest) {
         );
       }
 
+      if (userRecord.role) {
+        session.role = userRecord.role.toUpperCase() as any;
+      }
+      if (isAdminPortalRole(session.role)) {
+        const rbac = await resolveUserPermissionsFromDb(
+          userRecord.id,
+          userRecord.institutionId || session.institutionId,
+          session.role
+        );
+        session.assignedRoles = rbac.assignedRoles;
+        session.permissions = rbac.permissions;
+        additionalInfo.landingRoute = getRoleLandingRoute(session.role);
+      }
+
       session.mustChangePassword = await isTemporaryPasswordActive(session.userId);
     }
 
     // Retrieve fresh details
-    let additionalInfo: any = {};
     if (session.role === "STUDENT" && session.studentId) {
       additionalInfo.student = await db.student.findUnique({
         where: { id: session.studentId },

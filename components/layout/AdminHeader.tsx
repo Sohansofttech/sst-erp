@@ -19,13 +19,16 @@ import {
 } from "lucide-react";
 import { NotificationDropdown } from "@/components/shared/NotificationDropdown";
 import { ChangePasswordModal } from "../shared/ChangePasswordModal";
+import { ROLE_LABELS } from "@/lib/security/rbac";
 import { DivisionSwitcher } from "@/components/layout/DivisionSwitcher";
 
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
+  userRole?: string;
+  initialUser?: { fullName: string; email: string; role: string } | null;
 }
 
-export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => {
+export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar, userRole, initialUser }) => {
   const router = useRouter();
   const {
     profile,
@@ -38,13 +41,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
-  // Authenticated user identity derived from secure server session
+  // Authenticated user identity derived from trusted server session
   const [currentUser, setCurrentUser] = useState<{
     fullName: string;
     email: string;
     role: string;
-  } | null>(null);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  } | null>(initialUser || null);
+  const [isLoadingUser, setIsLoadingUser] = useState(!initialUser);
 
   useEffect(() => {
     let isMounted = true;
@@ -53,9 +56,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
         if (isMounted && data?.success && data?.data?.session) {
           const sess = data.data.session;
           setCurrentUser({
-            fullName: sess.fullName || "Administrator",
+            fullName: sess.fullName || "Authenticated User",
             email: sess.email || "",
-            role: sess.role || "INSTITUTION_ADMIN",
+            role: sess.role || "",
           });
         }
       })
@@ -76,19 +79,12 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
   }, [currentUser]);
 
   const roleDisplay = useMemo(() => {
-    switch (currentUser?.role) {
-      case "SUPER_ADMIN":
-        return "Super Admin";
-      case "TEACHER":
-        return "Faculty / Staff";
-      case "STUDENT":
-        return "Student";
-      case "PARENT":
-        return "Parent / Guardian";
-      default:
-        return "Institution Admin";
+    const resolved = (currentUser?.role || userRole || "").toUpperCase();
+    if (!resolved) {
+      return isLoadingUser ? "Loading..." : "Authenticated User";
     }
-  }, [currentUser?.role]);
+    return ROLE_LABELS[resolved] || "Authenticated User";
+  }, [currentUser?.role, userRole, isLoadingUser]);
 
   const handleLogout = async () => {
     try {
@@ -251,11 +247,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar }) => 
                 </p>
                 <div className="mt-1 flex items-center gap-1 text-[10px] text-[#14B8A6] font-bold">
                   <ShieldCheck className="w-3 h-3" />
-                  {currentUser?.role === "SUPER_ADMIN"
-                    ? "Platform Administrator"
-                    : currentUser?.role === "TEACHER"
-                    ? "Faculty Member"
-                    : "System Administrator"}
+                  {roleDisplay}
                 </div>
               </div>
               <div className="py-1">

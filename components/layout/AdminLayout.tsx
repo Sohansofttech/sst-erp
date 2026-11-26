@@ -8,12 +8,22 @@ import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-u
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
+import type { VerifiedAdminPageAuth } from "@/lib/security/admin-page-guard";
+import {
+  canAccessAdminPage,
+  getRoleLandingRoute,
+  isAdminPortalRole,
+  isDepartmentalRole,
+} from "@/lib/security/rbac";
 
 const AdminLayoutInner: React.FC<{
   sidebarOpen: boolean;
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  userRole?: string;
+  userPermissions?: string[];
+  initialUser?: { fullName: string; email: string; role: string } | null;
   children: React.ReactNode;
-}> = ({ sidebarOpen, setSidebarOpen, children }) => {
+}> = ({ sidebarOpen, setSidebarOpen, userRole, userPermissions, initialUser, children }) => {
   const { theme } = useInstitution();
   const activeTheme = theme || DEFAULT_INSTITUTION_THEME;
 
@@ -42,13 +52,22 @@ const AdminLayoutInner: React.FC<{
     >
       {/* Responsive Fixed/Sticky Left Sidebar with Independent Scrolling */}
       <Suspense fallback={<aside className="w-64 bg-[#123B5A] shrink-0 h-screen hidden lg:block" />}>
-        <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AdminSidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          userRole={userRole}
+          userPermissions={userPermissions}
+        />
       </Suspense>
 
       {/* Main Content Area with Fixed Header and Independent Main Scrolling */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Suspense fallback={<header className="h-16 bg-white border-b border-[#E2E8F0] shrink-0" />}>
-          <AdminHeader onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
+          <AdminHeader
+            onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+            userRole={userRole}
+            initialUser={initialUser}
+          />
         </Suspense>
         <MustChangePasswordBanner />
         <main
@@ -66,8 +85,13 @@ const AdminLayoutInner: React.FC<{
   );
 };
 
-export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AdminLayout: React.FC<{
+  children: React.ReactNode;
+  initialAuth?: VerifiedAdminPageAuth | null;
+}> = ({ children, initialAuth }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userRole, setUserRole] = useState<string | undefined>(initialAuth?.role);
+  const [userPermissions, setUserPermissions] = useState<string[]>(initialAuth?.permissions || []);
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === "/admin/login";
@@ -78,27 +102,42 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Guard: Verify authenticated role on admin portal routes
-    fetch("/api/auth/me")
-      .then((res) => res.json())
+    fetch("/api/auth/me", { credentials: "include" })
+      .then(async (res) => {
+        if (res.status === 401) {
+          router.replace("/admin/login");
+          return null;
+        }
+        return res.json();
+      })
       .then((json) => {
+        if (!json) return;
         if (!json.success || !json.data?.session) {
-          router.replace("/login");
+          router.replace("/admin/login");
           return;
         }
         const role = (json.data.session.role || "").toUpperCase();
+        const perms: string[] = Array.isArray(json.data.session.permissions)
+          ? json.data.session.permissions
+          : [];
+        setUserRole(role);
+        setUserPermissions(perms);
+
         if (role === "STUDENT" || role === "PARENT") {
           router.replace("/dashboard");
         } else if (role === "TEACHER") {
           const slug = (json.data.session.institutionSlug || json.data.session.institutionCode || json.data.session.institutionId || "vidyaniketan").toLowerCase();
           router.replace(`/campus/${slug}/teacher`);
-        } else if (role !== "ADMIN" && role !== "INSTITUTION_ADMIN" && role !== "SUPER_ADMIN") {
+        } else if (!isAdminPortalRole(role)) {
           router.replace("/login");
+        } else if (isDepartmentalRole(role) && !canAccessAdminPage(role, perms, pathname)) {
+          router.replace(getRoleLandingRoute(role));
         }
       })
       .catch(() => {
         router.replace("/login");
       });
-  }, [isLoginPage, router]);
+  }, [isLoginPage, pathname, router]);
 
   if (isLoginPage) {
     return (
@@ -115,7 +154,13 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <InstitutionProvider>
       <DivisionProvider>
-        <AdminLayoutInner sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
+        <AdminLayoutInner
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          userRole={userRole}
+          userPermissions={userPermissions}
+          initialUser={initialAuth ? { fullName: initialAuth.fullName, email: initialAuth.email, role: initialAuth.role } : null}
+        >
           {children}
         </AdminLayoutInner>
       </DivisionProvider>

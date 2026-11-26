@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { PERMISSIONS, RESERVED_PRIVILEGED_ROLE_CODES } from "@/lib/security/rbac";
+import { recordAuditLog } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -10,7 +12,7 @@ function isValidUuid(id: string): boolean {
 
 export async function GET(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId } = await resolveAdminContext(req, { requiredPermission: PERMISSIONS.ADMIN_ALL });
 
     if (!isValidUuid(institutionId)) {
       return NextResponse.json({
@@ -62,7 +64,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const body = await req.json();
 
     if (!body.name) {
@@ -76,14 +80,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const code = body.code || body.name.toUpperCase().replace(/\s+/g, "_");
-    const role = await db.role.create({
-      data: {
+    const code = (body.code || body.name.toUpperCase().replace(/\s+/g, "_")).trim().toUpperCase();
+    if (RESERVED_PRIVILEGED_ROLE_CODES.has(code)) {
+      return NextResponse.json(
+        { success: false, error: `Forbidden: Role code '${code}' is reserved for system administrators.` },
+        { status: 403 }
+      );
+    }
+
+    const role = await db.$transaction(async (tx) => {
+      const created = await tx.role.create({
+        data: {
+          institutionId,
+          name: body.name,
+          code,
+          description: body.description,
+        },
+      });
+
+      await recordAuditLog(tx, {
         institutionId,
-        name: body.name,
-        code,
-        description: body.description,
-      },
+        actorUserId: adminUserId || null,
+        action: "ROLE_CREATED",
+        entityType: "ROLE",
+        entityId: created.id,
+        newValuesJson: JSON.stringify({ name: created.name, code: created.code }),
+      });
+
+      return created;
     });
 
     return NextResponse.json({
@@ -98,7 +122,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const { id, name, description, permissionIds } = await req.json();
 
     if (!id) {
@@ -121,6 +147,35 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "System roles cannot be modified." }, { status: 403 });
     }
 
+    let uniquePermissionIds: string[] = [];
+    if (Array.isArray(permissionIds)) {
+      uniquePermissionIds = Array.from(new Set<string>(permissionIds.map((p: any) => String(p))));
+      if (!uniquePermissionIds.every((pId) => isValidUuid(pId))) {
+        return NextResponse.json(
+          { success: false, error: "Valid UUID permission IDs are required." },
+          { status: 400 }
+        );
+      }
+      if (uniquePermissionIds.length > 0) {
+        const requestedPerms = await db.permission.findMany({
+          where: { id: { in: uniquePermissionIds } },
+          select: { id: true, code: true },
+        });
+        if (requestedPerms.length !== uniquePermissionIds.length) {
+          return NextResponse.json(
+            { success: false, error: "One or more permission IDs do not exist." },
+            { status: 400 }
+          );
+        }
+        if (requestedPerms.some((p) => p.code === PERMISSIONS.ADMIN_ALL)) {
+          return NextResponse.json(
+            { success: false, error: "Forbidden: Tenant-defined roles cannot be granted 'admin:all' permission." },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
     const updated = await db.$transaction(async (tx) => {
       const role = await tx.role.update({
         where: { id },
@@ -132,15 +187,28 @@ export async function PUT(req: NextRequest) {
 
       if (Array.isArray(permissionIds)) {
         await tx.rolePermission.deleteMany({ where: { roleId: id } });
-        if (permissionIds.length > 0) {
+        if (uniquePermissionIds.length > 0) {
           await tx.rolePermission.createMany({
-            data: permissionIds.map((pId: string) => ({
+            data: uniquePermissionIds.map((pId: string) => ({
               roleId: id,
               permissionId: pId,
             })),
           });
         }
       }
+
+      await recordAuditLog(tx, {
+        institutionId,
+        actorUserId: adminUserId || null,
+        action: "ROLE_UPDATED",
+        entityType: "ROLE",
+        entityId: id,
+        newValuesJson: JSON.stringify({
+          ...(name ? { name } : {}),
+          ...(description !== undefined ? { description } : {}),
+          ...(Array.isArray(permissionIds) ? { permissionIds: uniquePermissionIds } : {}),
+        }),
+      });
 
       return role;
     });
@@ -157,7 +225,9 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { institutionId } = await resolveAdminContext(req);
+    const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
+      requiredPermission: PERMISSIONS.ADMIN_ALL,
+    });
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {
@@ -180,9 +250,27 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "System roles cannot be deleted." }, { status: 403 });
     }
 
+    const assignmentCount = await db.userRoleAssignment.count({
+      where: { roleId: id, institutionId },
+    });
+    if (assignmentCount > 0) {
+      return NextResponse.json(
+        { success: false, error: "Cannot delete role: it is currently assigned to one or more staff members." },
+        { status: 409 }
+      );
+    }
+
     await db.$transaction(async (tx) => {
       await tx.rolePermission.deleteMany({ where: { roleId: id } });
       await tx.role.delete({ where: { id } });
+      await recordAuditLog(tx, {
+        institutionId,
+        actorUserId: adminUserId || null,
+        action: "ROLE_DELETED",
+        entityType: "ROLE",
+        entityId: id,
+        oldValuesJson: JSON.stringify({ code: existing.code, name: existing.name }),
+      });
     });
 
     return NextResponse.json({

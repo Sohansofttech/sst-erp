@@ -7,6 +7,13 @@ import { useInstitution } from "@/lib/store";
 import { useDivision, ALL_DIVISIONS_ID } from "@/lib/division-store";
 import { cn } from "@/lib/utils";
 import {
+  getRoleLandingRoute,
+  hasPermission,
+  isDepartmentalRole,
+  PERMISSIONS,
+  ROLE_LABELS,
+} from "@/lib/security/rbac";
+import {
   LayoutDashboard,
   Settings,
   GraduationCap,
@@ -28,6 +35,7 @@ import {
   TrendingUp,
   FileText,
   CreditCard,
+  BarChart3,
   Home,
   Bus,
   CalendarDays,
@@ -38,6 +46,7 @@ import {
   ChevronDown,
   Sparkles,
   HelpCircle,
+  Upload,
 } from "lucide-react";
 
 export interface AcademicNavItem {
@@ -73,16 +82,34 @@ export function getVisibleAcademicNavItems(divType: string): AcademicNavItem[] {
 interface AdminSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  userRole?: string;
+  userPermissions?: string[];
 }
 
-export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
+export const AdminSidebar: React.FC<AdminSidebarProps> = ({
+  isOpen,
+  onClose,
+  userRole,
+  userPermissions = [],
+}) => {
   const pathname = usePathname();
   const { profile, activeAcademicYear, isAcademicYearsLoading } = useInstitution();
+  const isRoleResolved = Boolean(userRole && userRole.trim().length > 0);
+  const isDeptStaff = isRoleResolved && isDepartmentalRole(userRole);
+  const homeHref = !isRoleResolved ? "/admin" : isDeptStaff ? getRoleLandingRoute(userRole) : "/admin";
+  const badgeText = !isRoleResolved
+    ? "..."
+    : isDeptStaff
+    ? ROLE_LABELS[(userRole || "").toUpperCase()] || "Staff"
+    : "Admin";
   const { activeDivision, activeDivisionId } = useDivision();
   const divType = activeDivisionId === ALL_DIVISIONS_ID ? "ALL" : (activeDivision?.type ?? "COLLEGE");
   const visibleAcademicItems = getVisibleAcademicNavItems(divType);
   const [academicsOpen, setAcademicsOpen] = useState(
     pathname.startsWith("/admin/academics") || pathname === "/admin"
+  );
+  const [studentsOpen, setStudentsOpen] = useState(
+    pathname.startsWith("/admin/students")
   );
 
   const institutionInitials = React.useMemo(() => {
@@ -99,11 +126,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
   const isAcademicsActive = pathname.startsWith("/admin/academics");
 
   const campusServiceLinks = [
-    { href: "/admin/fees", label: "Fees & Finance", icon: CreditCard },
+    { href: "/admin/roles-permissions", label: "Roles & Permissions", icon: ShieldAlert },
     { href: "/subscriptions", label: "Central Subscriptions & Billing", icon: CreditCard },
     { href: "/admin/subscriptions", label: "Subscriptions & Billing", icon: CreditCard },
-    { href: "/admin/hostel", label: "Hostel", icon: Home },
-    { href: "/admin/transport", label: "Transport", icon: Bus },
     { href: "/admin/events", label: "Events & Resources", icon: CalendarDays },
     { href: "/admin/gate-management", label: "Gate Management", icon: Shield },
     { href: "/admin/communication", label: "Communication", icon: MessageSquare },
@@ -134,7 +159,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
       >
         {/* Brand / Logo Area (Fixed Top) */}
         <div className="flex items-center justify-between h-16 px-5 border-b border-white/10 bg-black/20 shrink-0">
-          <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
+          <Link href={homeHref} className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-[var(--admin-accent,#F5A000)] flex items-center justify-center font-black text-white text-xs shadow-xs shrink-0 overflow-hidden">
               {profile?.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -144,21 +169,210 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               )}
             </div>
             <div className="min-w-0">
-              <span className="text-sm font-extrabold tracking-wide text-white block leading-tight truncate" title={profile?.name || "Institution Admin"}>
-                {profile?.name || "Institution Admin"}
+              <span className="text-sm font-extrabold tracking-wide text-white block leading-tight truncate" title={profile?.name || "Campus Portal"}>
+                {profile?.name || "Campus Portal"}
               </span>
               <span className="text-[10px] uppercase font-bold text-[#8EA4C2] tracking-wider block truncate">
-                {profile?.code ? `${profile.code} • Admin` : "Institution Admin"}
+                {profile?.code ? `${profile.code} • ${badgeText}` : `Portal • ${badgeText}`}
               </span>
             </div>
           </Link>
           <span className="text-[10px] font-semibold bg-[var(--admin-accent,#F5A000)]/30 text-white border border-white/30 px-1.5 py-0.5 rounded shrink-0">
-            Admin
+            {badgeText}
           </span>
         </div>
 
         {/* Navigation Items (Scrollable independently with white icons and text) */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+          {!isRoleResolved ? (
+            <div className="space-y-2 px-2 py-2" aria-label="Loading navigation">
+              <div className="h-7 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-7 rounded-lg bg-white/10 animate-pulse" />
+              <div className="h-7 rounded-lg bg-white/10 animate-pulse" />
+            </div>
+          ) : isDeptStaff ? (
+            <>
+              <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
+                Department Workspace
+              </div>
+
+              {hasPermission(userPermissions, PERMISSIONS.ADMISSIONS_READ, userRole) && (
+                <div className="space-y-0.5">
+                  <Link
+                    href="/admin/admissions"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                      pathname.startsWith("/admin/admissions")
+                        ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                        : "text-white hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <UserPlus className="w-4 h-4 shrink-0 text-white" />
+                    <span>Admissions Portal</span>
+                  </Link>
+                  <div className="ml-4 pl-3 border-l border-white/10 space-y-0.5 py-0.5">
+                    {[
+                      { href: "/admin/admissions?tab=overview", label: "Overview" },
+                      { href: "/admin/admissions?tab=applications", label: "Applications" },
+                      { href: "/admin/admissions?tab=documents", label: "Document Verification" },
+                      { href: "/admin/admissions?tab=followups", label: "Follow-ups" },
+                      { href: "/admin/admissions?tab=history", label: "Admission History" },
+                    ].map((sub) => (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={onClose}
+                        className="block px-2.5 py-1 rounded-md text-[11px] text-[#E2E8F0] hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hasPermission(userPermissions, PERMISSIONS.FEES_READ, userRole) && (
+                <div className="space-y-0.5">
+                  <Link
+                    href="/admin/fees"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                      pathname.startsWith("/admin/fees")
+                        ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                        : "text-white hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <CreditCard className="w-4 h-4 shrink-0 text-white" />
+                    <span>Finance &amp; Accounts</span>
+                  </Link>
+                  <div className="ml-4 pl-3 border-l border-white/10 space-y-0.5 py-0.5">
+                    {[
+                      { href: "/admin/fees?tab=overview", label: "Overview" },
+                      { href: "/admin/fees?tab=structures", label: "Fee Structures" },
+                      { href: "/admin/fees?tab=collection", label: "Fee Collection" },
+                      { href: "/admin/fees?tab=invoices", label: "Invoices" },
+                      { href: "/admin/fees?tab=receipts", label: "Payments & Receipts" },
+                      { href: "/admin/fees?tab=concessions", label: "Concessions" },
+                      { href: "/admin/fees?tab=refunds", label: "Refunds" },
+                    ].map((sub) => (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={onClose}
+                        className="block px-2.5 py-1 rounded-md text-[11px] text-[#E2E8F0] hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        {sub.label}
+                      </Link>
+                    ))}
+                    {hasPermission(userPermissions, PERMISSIONS.REPORTS_FINANCE, userRole) && (
+                      <Link
+                        href="/admin/reports?type=finance"
+                        onClick={onClose}
+                        className="block px-2.5 py-1 rounded-md text-[11px] text-[#E2E8F0] hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        Financial Reports
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {hasPermission(userPermissions, PERMISSIONS.HOSTEL_READ, userRole) && (
+                <div className="space-y-0.5">
+                  <Link
+                    href="/admin/hostel"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                      pathname.startsWith("/admin/hostel")
+                        ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                        : "text-white hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <Home className="w-4 h-4 shrink-0 text-white" />
+                    <span>Hostel Management</span>
+                  </Link>
+                  <div className="ml-4 pl-3 border-l border-white/10 space-y-0.5 py-0.5">
+                    {[
+                      { href: "/admin/hostel?tab=overview", label: "Overview" },
+                      { href: "/admin/hostel?tab=matrix", label: "Buildings & Rooms" },
+                      { href: "/admin/hostel?tab=allocations", label: "Allocations" },
+                      { href: "/admin/hostel?tab=maintenance", label: "Attendance & Maintenance" },
+                    ].map((sub) => (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={onClose}
+                        className="block px-2.5 py-1 rounded-md text-[11px] text-[#E2E8F0] hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hasPermission(userPermissions, PERMISSIONS.TRANSPORT_READ, userRole) && (
+                <div className="space-y-0.5">
+                  <Link
+                    href="/admin/transport"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                      pathname.startsWith("/admin/transport")
+                        ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                        : "text-white hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <Bus className="w-4 h-4 shrink-0 text-white" />
+                    <span>Transport Management</span>
+                  </Link>
+                  <div className="ml-4 pl-3 border-l border-white/10 space-y-0.5 py-0.5">
+                    {[
+                      { href: "/admin/transport?tab=overview", label: "Overview" },
+                      { href: "/admin/transport?tab=fleet", label: "Vehicles & Drivers" },
+                      { href: "/admin/transport?tab=routes", label: "Routes & Stops" },
+                      { href: "/admin/transport?tab=allocations", label: "Allocations" },
+                      { href: "/admin/transport?tab=maintenance", label: "Maintenance & Reports" },
+                    ].map((sub) => (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={onClose}
+                        className="block px-2.5 py-1 rounded-md text-[11px] text-[#E2E8F0] hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hasPermission(userPermissions, PERMISSIONS.STUDENTS_READ, userRole) && (
+                <>
+                  <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
+                    Shared Directory
+                  </div>
+                  <Link
+                    href="/admin/students"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                      pathname.startsWith("/admin/students")
+                        ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                        : "text-white hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    <Users className="w-4 h-4 shrink-0 text-white" />
+                    <span>Student Directory (Read-Only)</span>
+                  </Link>
+                </>
+              )}
+            </>
+          ) : (
+            <>
           {/* Section: Main Administration */}
           <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
             Main Administration
@@ -209,8 +423,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             <span>Educational Divisions</span>
           </Link>
 
-          {/* 4. Academics Collapsible Group (Adaptive per division type) */}
-          {visibleAcademicItems.length > 0 && (
+          {/* 4. Academics Collapsible Group (Adaptive per division type, full admins only) */}
+          {!isDeptStaff && visibleAcademicItems.length > 0 && (
             <div>
               <button
                 onClick={() => setAcademicsOpen(!academicsOpen)}
@@ -268,27 +482,29 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             </div>
           )}
 
-          {/* 5. Admissions */}
-          <Link
-            href="/admin/admissions"
-            onClick={onClose}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/admissions")
-                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
-                : "text-white hover:bg-white/10 hover:text-white"
-            )}
-          >
-            <UserPlus className="w-4 h-4 shrink-0 text-white" />
-            <span>Admissions</span>
-          </Link>
-
-          {/* Section: People & Workload */}
+          {/* Section: People & Workload (Exact 7 top-level entries, no nested submenus) */}
           <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
             People & Workload
           </div>
 
-          {/* 5. Students */}
+          {/* 1. Admissions */}
+          {hasPermission(userPermissions, PERMISSIONS.ADMISSIONS_READ, userRole) && (
+            <Link
+              href="/admin/admissions"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                pathname.startsWith("/admin/admissions")
+                  ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                  : "text-white hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <UserPlus className="w-4 h-4 shrink-0 text-white" />
+              <span>Admissions</span>
+            </Link>
+          )}
+
+          {/* 2. Students */}
           <Link
             href="/admin/students"
             onClick={onClose}
@@ -303,7 +519,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             <span>Students</span>
           </Link>
 
-          {/* 6. Guardians */}
+          {/* 3. Guardians */}
           <Link
             href="/admin/guardians"
             onClick={onClose}
@@ -318,7 +534,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             <span>Guardians</span>
           </Link>
 
-          {/* 7. Faculty & Staff */}
+          {/* 4. Faculty & Staff */}
           <Link
             href="/admin/staff"
             onClick={onClose}
@@ -333,20 +549,56 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
             <span>Faculty & Staff</span>
           </Link>
 
-          {/* 8. Roles & Permissions */}
-          <Link
-            href="/admin/roles-permissions"
-            onClick={onClose}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
-              pathname.startsWith("/admin/roles-permissions")
-                ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
-                : "text-white hover:bg-white/10 hover:text-white"
-            )}
-          >
-            <ShieldAlert className="w-4 h-4 shrink-0 text-white" />
-            <span>Roles & Permissions</span>
-          </Link>
+          {/* 5. Accountant */}
+          {hasPermission(userPermissions, PERMISSIONS.FEES_READ, userRole) && (
+            <Link
+              href="/admin/fees"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                pathname.startsWith("/admin/fees")
+                  ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                  : "text-white hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <CreditCard className="w-4 h-4 shrink-0 text-white" />
+              <span>Accountant</span>
+            </Link>
+          )}
+
+          {/* 6. Warden */}
+          {hasPermission(userPermissions, PERMISSIONS.HOSTEL_READ, userRole) && (
+            <Link
+              href="/admin/hostel"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                pathname.startsWith("/admin/hostel")
+                  ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                  : "text-white hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Home className="w-4 h-4 shrink-0 text-white" />
+              <span>Warden</span>
+            </Link>
+          )}
+
+          {/* 7. Transport Manager */}
+          {hasPermission(userPermissions, PERMISSIONS.TRANSPORT_READ, userRole) && (
+            <Link
+              href="/admin/transport"
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors",
+                pathname.startsWith("/admin/transport")
+                  ? "bg-[var(--admin-active-nav,#F5A000)] text-white shadow-xs"
+                  : "text-white hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Bus className="w-4 h-4 shrink-0 text-white" />
+              <span>Transport Manager</span>
+            </Link>
+          )}
 
           {/* Section: Academic Operations */}
           <div className="pt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
@@ -484,6 +736,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) =
               </Link>
             );
           })}
+            </>
+          )}
         </div>
 
         {/* Sidebar Footer */}

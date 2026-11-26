@@ -90,7 +90,12 @@ export default function StaffPage() {
   const [emailStaff, setEmailStaff] = useState<StaffItem | null>(null);
 
   const getStaffPortalBadge = (st: StaffItem) => {
-    const isEligible = st.isTeachingFaculty !== undefined ? st.isTeachingFaculty : isTeachingFacultyTitle(st.designation, st.assignedRoleName);
+    const roleUpper = ((st as any).role || st.assignedRoleName || "").toUpperCase();
+    const isDepartmentalStaff = ["ADMISSIONS_OFFICER", "ACCOUNTANT", "HOSTEL_WARDEN", "TRANSPORT_OFFICER"].includes(roleUpper);
+    const isEligible =
+      isDepartmentalStaff ||
+      (st.isTeachingFaculty !== undefined ? st.isTeachingFaculty : isTeachingFacultyTitle(st.designation, st.assignedRoleName));
+
     if (!isEligible || st.portalStatus === "INELIGIBLE") {
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
@@ -98,17 +103,30 @@ export default function StaffPage() {
         </span>
       );
     }
-    const status = st.portalStatus || (st.portalAccess ? "ACTIVE" : "NOT_CREATED");
+
+    if (st.status === "Inactive" || st.portalStatus === "DISABLED") {
+      return <Badge variant="error" size="sm">Inactive</Badge>;
+    }
+
+    const status = (st.portalStatus || (st.portalAccess ? "ACTIVE" : "NOT_CREATED")) as string;
     switch (status) {
       case "ACTIVE":
-        return <Badge variant="success" size="sm">Active Portal</Badge>;
+        return <Badge variant="success" size="sm">Active</Badge>;
       case "PENDING_SETUP":
-        return <Badge variant="warning" size="sm">Pending Setup</Badge>;
-      case "DISABLED":
-        return <Badge variant="error" size="sm">Disabled</Badge>;
+        return (
+          <Badge variant="warning" size="sm">
+            {isDepartmentalStaff ? "Password Setup Pending" : "Pending Setup"}
+          </Badge>
+        );
+      case "INVITATION_PENDING":
+        return <Badge variant="warning" size="sm">Invitation Pending</Badge>;
       case "NOT_CREATED":
       default:
-        return <Badge variant="neutral" size="sm">No Account</Badge>;
+        return (
+          <Badge variant="neutral" size="sm">
+            {isDepartmentalStaff ? "Revoked / Unassigned" : "No Account"}
+          </Badge>
+        );
     }
   };
 
@@ -364,7 +382,28 @@ export default function StaffPage() {
     const roleObj = roles.find((r) => r.id === formData.assignedRoleId);
 
     const deptName = deptObj ? deptObj.name : "General Department";
-    const roleName = roleObj ? roleObj.name : "Faculty Member";
+    const DEPT_ROLE_OPTIONS: Record<string, string> = {
+      ADMISSIONS_OFFICER: "Admissions Officer",
+      ACCOUNTANT: "Accountant",
+      HOSTEL_WARDEN: "Hostel Warden",
+      TRANSPORT_OFFICER: "Transport Officer",
+    };
+    const isDirectDeptCode = Boolean(DEPT_ROLE_OPTIONS[formData.assignedRoleId]);
+    const roleName = isDirectDeptCode
+      ? DEPT_ROLE_OPTIONS[formData.assignedRoleId]
+      : roleObj
+      ? roleObj.name
+      : "Faculty Member";
+    const resolvedServerRole = isDirectDeptCode
+      ? formData.assignedRoleId
+      : roleObj?.code &&
+        ["TEACHER", "ADMIN", "STAFF", "HOD", "ADMISSIONS_OFFICER", "ACCOUNTANT", "HOSTEL_WARDEN", "TRANSPORT_OFFICER"].includes(
+          roleObj.code.toUpperCase()
+        )
+      ? roleObj.code.toUpperCase()
+      : "TEACHER";
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const roleIds = roleObj?.id && uuidRegex.test(roleObj.id) ? [roleObj.id] : undefined;
 
     if (editingStaff) {
       try {
@@ -375,7 +414,9 @@ export default function StaffPage() {
             id: editingStaff.portalUserId || editingStaff.id,
             fullName: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
             phone: formData.phone.trim(),
-            role: "TEACHER",
+            role: resolvedServerRole,
+            roleIds,
+            isActive: formData.status === "Active",
             designation: formData.designation.trim(),
             departmentId: formData.departmentId,
             department: deptName,
@@ -419,7 +460,8 @@ export default function StaffPage() {
             fullName: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
             email: formData.email.trim().toLowerCase(),
             phone: formData.phone.trim(),
-            role: "TEACHER",
+            role: resolvedServerRole,
+            roleIds,
             designation: formData.designation.trim(),
             departmentId: formData.departmentId,
             employeeId: formData.employeeId.trim(),
@@ -662,6 +704,10 @@ export default function StaffPage() {
                     {r.name}
                   </option>
                 ))}
+                <option value="ADMISSIONS_OFFICER">Admissions Officer (Departmental)</option>
+                <option value="ACCOUNTANT">Accountant (Departmental)</option>
+                <option value="HOSTEL_WARDEN">Hostel Warden (Departmental)</option>
+                <option value="TRANSPORT_OFFICER">Transport Officer (Departmental)</option>
               </select>
 
               {/* Status */}
@@ -1165,6 +1211,10 @@ export default function StaffPage() {
                     {r.name}
                   </option>
                 ))}
+                <option value="ADMISSIONS_OFFICER">Admissions Officer (Departmental)</option>
+                <option value="ACCOUNTANT">Accountant (Departmental)</option>
+                <option value="HOSTEL_WARDEN">Hostel Warden (Departmental)</option>
+                <option value="TRANSPORT_OFFICER">Transport Officer (Departmental)</option>
               </select>
             </div>
 

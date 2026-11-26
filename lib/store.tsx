@@ -1498,15 +1498,30 @@ export function InstitutionProvider({
       setIsStaffLoading(true);
       setIsGuardiansLoading(true);
 
-      refreshAcademicYears(profile.id);
-      refreshDepartments(profile.id);
-      refreshCourses(profile.id);
-      refreshClasses(profile.id);
-      refreshSubjects(profile.id);
-      refreshAdmissions(profile.id);
-      refreshStudents(profile.id);
-      refreshStaff(profile.id);
-      refreshGuardians(profile.id);
+      let cancelled = false;
+      (async () => {
+        // Stagger hydration in waves of 3 to avoid bursting Supabase's 15-connection session pool
+        await Promise.all([
+          refreshAcademicYears(profile.id),
+          refreshDepartments(profile.id),
+          refreshCourses(profile.id),
+        ]);
+        if (cancelled) return;
+        await Promise.all([
+          refreshClasses(profile.id),
+          refreshSubjects(profile.id),
+          refreshAdmissions(profile.id),
+        ]);
+        if (cancelled) return;
+        await Promise.all([
+          refreshStudents(profile.id),
+          refreshStaff(profile.id),
+          refreshGuardians(profile.id),
+        ]);
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
   }, [
     profile.id,

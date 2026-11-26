@@ -99,6 +99,10 @@ export function getRolePortalLoginUrl(
       return `${appUrl}/campus/${slug}/teacher/hod`;
     case "ADMIN":
     case "INSTITUTION_ADMIN":
+    case "ADMISSIONS_OFFICER":
+    case "ACCOUNTANT":
+    case "HOSTEL_WARDEN":
+    case "TRANSPORT_OFFICER":
       return `${appUrl}/admin/login`;
     case "STAFF":
       return `${appUrl}/admin`;

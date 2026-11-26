@@ -4,12 +4,17 @@ import { computePasswordSignature } from "@/lib/auth/jwt";
 import { assertInstitutionAdminMembership } from "@/lib/security/institution-admin";
 import db from "@/lib/db";
 import { assertActiveSubscription, SubscriptionExpiredError } from "./subscription-guard";
+import { hasPermission, isAdminPortalRole, isFullAdminRole } from "./rbac";
+import { resolveUserPermissionsFromDb } from "./rbac-server";
+import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
 
 export interface ResolvedAdminContext {
   institutionId: string;
   institutionName?: string;
   userId?: string;
   userRole: string;
+  assignedRoles?: string[];
+  permissions?: string[];
   isDevFallback: boolean;
 }
 
@@ -18,6 +23,10 @@ export interface AdminContextOptions {
   allowExpired?: boolean;
   /** Explicit override to enforce active subscription */
   enforceSubscription?: boolean;
+  /** Explicit roles permitted to access this route (in addition to full admins) */
+  allowedRoles?: string[];
+  /** Explicit permission code required for departmental staff */
+  requiredPermission?: string;
 }
 
 export async function resolveAdminContext(
@@ -31,8 +40,8 @@ export async function resolveAdminContext(
   }
 
   const roleUpper = (session.role || "").toUpperCase();
-  if (roleUpper !== "ADMIN" && roleUpper !== "INSTITUTION_ADMIN" && roleUpper !== "SUPER_ADMIN") {
-    throw new ForbiddenError("Forbidden: Account does not have Institution Admin privileges.");
+  if (!isAdminPortalRole(roleUpper)) {
+    throw new ForbiddenError("Forbidden: Account does not have Institution Admin or Departmental Staff privileges.");
   }
 
   // Reject legacy or malformed tokens without password signature before querying DB
@@ -77,26 +86,34 @@ export async function resolveAdminContext(
     throw new ForbiddenError("Access denied: Institution Admin account is no longer authorized.");
   }
 
-  // Server-side mandatory password change enforcement
+  // Server-side mandatory password change enforcement (authoritative DB check prevents stale-JWT traps)
   if (session.mustChangePassword) {
-    const pathname = req.nextUrl?.pathname || "";
-    const isAllowed =
-      pathname.startsWith("/api/auth/change-password") ||
-      pathname.startsWith("/api/auth/me") ||
-      pathname.startsWith("/api/auth/logout");
+    const stillTemporary = session.userId ? await isTemporaryPasswordActive(session.userId) : true;
+    if (stillTemporary) {
+      const pathname = req.nextUrl?.pathname || "";
+      const isAllowed =
+        pathname.startsWith("/api/auth/change-password") ||
+        pathname.startsWith("/api/auth/me") ||
+        pathname.startsWith("/api/auth/logout");
 
-    if (!isAllowed) {
-      throw new ForbiddenError(
-        "Password change required: You must change your temporary password before accessing admin features."
-      );
+      if (!isAllowed) {
+        throw new ForbiddenError(
+          "Password change required: You must change your temporary password before accessing admin features."
+        );
+      }
     }
+  }
+
+  const liveRoleUpper = ((dbUser?.role || roleUpper) as string).toUpperCase();
+  if (!isAdminPortalRole(liveRoleUpper)) {
+    throw new ForbiddenError("Forbidden: Account role is no longer authorized for administrative access.");
   }
 
   // Determine institution boundary
   let institutionId = session.institutionId || dbUser.institutionId || undefined;
 
   // Super Admin may optionally inspect or operate on behalf of a specific institution
-  if (roleUpper === "SUPER_ADMIN") {
+  if (liveRoleUpper === "SUPER_ADMIN") {
     const requested = req.headers.get("x-institution-id") || req.nextUrl.searchParams.get("institutionId");
     if (requested) {
       institutionId = requested;
@@ -110,27 +127,55 @@ export async function resolveAdminContext(
     }
     institutionId = dbUser.institutionId;
 
-    // For standard administrators, tenant access is strictly bound to the live account.
+    // For standard ADMIN and departmental staff, tenant is strictly bound to live account (anti-spoofing)
     const headerInstId = req.headers.get("x-institution-id");
     if (headerInstId && headerInstId !== institutionId) {
       throw new ForbiddenError("Tenant violation: Cross-institution administrative access is forbidden.");
     }
 
     if (!institutionId) {
-      throw new ForbiddenError("Forbidden: Administrator has no associated institution.");
+      throw new ForbiddenError("Forbidden: Account has no associated institution.");
     }
 
-    await assertInstitutionAdminMembership(
-      { email: dbUser.email, userInstitutionId: dbUser.institutionId },
-      institutionId,
-    );
+    // Verify active InstitutionMembership ONLY for full-admin roles (ADMIN / INSTITUTION_ADMIN);
+    // departmental staff are provisioned in `users` and authorized via `UserRoleAssignment`.
+    if (isFullAdminRole(liveRoleUpper)) {
+      await assertInstitutionAdminMembership(
+        { email: dbUser.email || session.email, userInstitutionId: dbUser.institutionId },
+        institutionId
+      );
+    }
+  }
+
+  const { assignedRoles, permissions } = await resolveUserPermissionsFromDb(
+    session.userId,
+    institutionId,
+    liveRoleUpper
+  );
+
+  // Departmental RBAC enforcement: full admins pass; departmental roles require explicit permission or role match
+  if (!isFullAdminRole(liveRoleUpper)) {
+    const roleAllowed = options?.allowedRoles
+      ? options.allowedRoles.some((r) => assignedRoles.includes(r.toUpperCase()))
+      : false;
+    const permAllowed = options?.requiredPermission
+      ? hasPermission(permissions, options.requiredPermission, liveRoleUpper)
+      : false;
+
+    if (!roleAllowed && !permAllowed) {
+      throw new ForbiddenError(
+        "Forbidden: Your departmental role does not have permission to access this resource."
+      );
+    }
   }
 
   const resolvedContext: ResolvedAdminContext = {
     institutionId,
     institutionName: session.institutionName,
     userId: session.userId,
-    userRole: session.role,
+    userRole: liveRoleUpper,
+    assignedRoles,
+    permissions,
     isDevFallback: false,
   };
 
@@ -168,8 +213,11 @@ function shouldEnforceActiveSubscription(
  * Throws SubscriptionExpiredError (HTTP 402) if 14-day trial has elapsed.
  * Super Admin is always exempt.
  */
-export async function requireActiveSubscription(req: NextRequest): Promise<ResolvedAdminContext> {
-  return await resolveAdminContext(req, { enforceSubscription: true });
+export async function requireActiveSubscription(
+  req: NextRequest,
+  options?: AdminContextOptions
+): Promise<ResolvedAdminContext> {
+  return await resolveAdminContext(req, { ...options, enforceSubscription: true });
 }
 
 export async function requireInstitutionAdminSession(req?: NextRequest) {

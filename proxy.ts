@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { jwtVerify } from "jose"
 import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access"
+import { AUTH_COOKIE_NAME, verifyToken } from "@/lib/auth/jwt"
+import { isAdminPortalRole } from "@/lib/security/rbac"
 import { getAuthJwtKey } from "@/lib/auth/jwt-secret"
 
 const TEACHER_AUTH_COOKIE = "sst_teacher_session"
@@ -210,9 +212,40 @@ export async function proxy(request: NextRequest) {
   // ---------------------------------------------------------------------------
   // 2. Admin & Super-Admin Proxy Handling
   // ---------------------------------------------------------------------------
-  if (isDevelopmentBypassEnabled()) return NextResponse.next({ request })
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set("x-pathname", pathname)
 
-  let response = NextResponse.next({ request })
+  if (isDevelopmentBypassEnabled()) {
+    return NextResponse.next({ request: { headers: requestHeaders } })
+  }
+
+  // The admin layout enforces live database permissions after the session check.
+  if (pathname.startsWith("/admin") && pathname !== "/admin/login" && !pathname.startsWith("/admin/login/")) {
+    const adminToken =
+      request.cookies.get(AUTH_COOKIE_NAME)?.value || request.cookies.get("sst_session")?.value
+
+    if (!adminToken) {
+      const loginUrl = new URL("/admin/login", request.url)
+      loginUrl.searchParams.set("from", pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+
+    const session = await verifyToken(adminToken)
+    if (!session || !session.userId) {
+      const loginUrl = new URL("/admin/login", request.url)
+      loginUrl.searchParams.set("from", pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+
+    const roleUpper = (session.role || "").toUpperCase()
+    if (!isAdminPortalRole(roleUpper)) {
+      const loginUrl = new URL("/login", request.url)
+      loginUrl.searchParams.set("error", "forbidden")
+      return NextResponse.redirect(loginUrl)
+    }
+  }
+
+  let response = NextResponse.next({ request: { headers: requestHeaders } })
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
