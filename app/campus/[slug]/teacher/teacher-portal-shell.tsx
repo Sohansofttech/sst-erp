@@ -74,33 +74,40 @@ import { TEACHER_ROLE_CONFIGS } from "@/lib/auth/roles"
 import { getTeacherPortalKpis } from "@/lib/services/teacher.service"
 import { TeacherDivisionSwitcher } from "@/components/teacher/TeacherDivisionSwitcher"
 
-const DEFAULT_ACADEMIC_YEARS = ["2026-27", "2025-26", "2024-25"]
+const FALLBACK_ACADEMIC_YEARS = ["2026-27", "2025-26", "2024-25"]
 
-const ROLE_OPTIONS: Array<{
+function getRoleOptions(user: TeacherRoleContextUser): Array<{
   value: TeacherRole
   label: string
   shortLabel: string
   title: string
-}> = [
-  {
-    value: "teacher",
-    label: "Teacher",
-    shortLabel: "Teacher",
-    title: "Senior PGT — Mathematics",
-  },
-  {
-    value: "class_teacher",
-    label: "Class Teacher",
-    shortLabel: "CT (10-A)",
-    title: "Class Teacher — Class 10-A",
-  },
-  {
-    value: "hod",
-    label: "HoD",
-    shortLabel: "HoD",
-    title: "HoD — Department of Mathematics",
-  },
-]
+}> {
+  const homeroomDisplay = user.homeroomClass ? user.homeroomClass.replace(/^Class\s*/i, "") : ""
+  const deptDisplay = user.department ? user.department.replace(/^Department of\s*/i, "") : ""
+
+  return [
+    {
+      value: "teacher",
+      label: "Teacher",
+      shortLabel: "Teacher",
+      title: user.role || "Teacher Workspace",
+    },
+    {
+      value: "class_teacher",
+      label: "Class Teacher",
+      shortLabel: homeroomDisplay ? `CT (${homeroomDisplay})` : "Class Teacher",
+      title: user.homeroomClass ? `Class Teacher — ${user.homeroomClass}` : "Class Teacher Workspace",
+    },
+    {
+      value: "hod",
+      label: "HoD",
+      shortLabel: deptDisplay ? `HoD (${deptDisplay.slice(0, 4)})` : "HoD",
+      title: user.department
+        ? `HoD — ${user.department.startsWith("Department of") ? user.department : `Department of ${user.department}`}`
+        : "Head of Department",
+    },
+  ]
+}
 
 function getInitials(name: string): string {
   if (!name) return "T"
@@ -124,13 +131,15 @@ function TeacherRoleSwitch({
   inDrawer?: boolean
   onSwitched?: () => void
 }) {
-  const { role, availableRoles, switchRole, isSwitching } = useTeacherRole()
+  const { role, availableRoles, switchRole, isSwitching, user } = useTeacherRole()
+
+  const roleOptions = React.useMemo(() => getRoleOptions(user), [user])
 
   if (!availableRoles || availableRoles.length <= 1) {
     return null
   }
 
-  const visibleOptions = ROLE_OPTIONS.filter((option) =>
+  const visibleOptions = roleOptions.filter((option) =>
     availableRoles.includes(option.value)
   )
 
@@ -163,13 +172,13 @@ function TeacherRoleSwitch({
                 className={cn(
                   "relative flex min-h-[38px] items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-center text-[11px] font-bold transition-all",
                   active
-                    ? "bg-[#F5A000] text-white shadow-xs"
+                    ? "bg-[#F5A000] text-[#123B5A] shadow-xs"
                     : "text-white/80 hover:bg-white/10 hover:text-white",
                   isSwitching && "opacity-70 cursor-wait"
                 )}
               >
                 {active && isSwitching && (
-                  <Loader2 className="size-3 animate-spin text-white" />
+                  <Loader2 className="size-3 animate-spin text-[#123B5A]" />
                 )}
                 <span className="truncate">{option.shortLabel}</span>
               </button>
@@ -229,6 +238,7 @@ function SidebarContent({
   sidebarFooter,
   onNavigate,
   academicYear,
+  academicYears,
   onAcademicYearChange,
 }: {
   institutionName: string
@@ -241,6 +251,7 @@ function SidebarContent({
   sidebarFooter?: React.ReactNode
   onNavigate?: () => void
   academicYear: string
+  academicYears: string[]
   onAcademicYearChange: (year: string) => void
 }) {
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -261,13 +272,14 @@ function SidebarContent({
   }
 
   const userInitials = user.initials || getInitials(user.name)
+  const displayYears = academicYears && academicYears.length > 0 ? academicYears : FALLBACK_ACADEMIC_YEARS
 
   return (
     <div className="flex h-full flex-col bg-[#123B5A] text-white select-none">
       {/* Brand header */}
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#F5A000] text-white shadow-xs">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#F5A000] text-[#123B5A] shadow-xs">
             <GraduationCap className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -301,7 +313,7 @@ function SidebarContent({
       {/* Profile banner inside sidebar */}
       <div className="mx-3 mt-2 mb-1 flex items-center gap-3 rounded-xl bg-white/[0.06] p-3 border border-white/10">
         <Avatar className="size-10 shrink-0 ring-2 ring-[#F5A000]/60">
-          <AvatarFallback className="bg-[#F5A000] text-white font-bold text-xs">
+          <AvatarFallback className="bg-[#F5A000] text-[#123B5A] font-bold text-xs">
             {userInitials}
           </AvatarFallback>
         </Avatar>
@@ -328,7 +340,7 @@ function SidebarContent({
             aria-label="Select academic year in drawer"
             className="bg-transparent text-[12px] font-bold text-white outline-none cursor-pointer text-right [&>option]:text-black"
           >
-            {DEFAULT_ACADEMIC_YEARS.map((y) => (
+            {displayYears.map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>
@@ -352,6 +364,8 @@ function SidebarContent({
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
+                  aria-expanded={isOpen}
+                  aria-controls={`nav-group-${group.id}`}
                   className="flex w-full min-h-[36px] items-center justify-between rounded-lg px-3 py-1.5 text-left text-[11px] font-bold tracking-wider text-white/60 uppercase transition-colors hover:text-white/90"
                 >
                   <span>{group.label}</span>
@@ -368,7 +382,7 @@ function SidebarContent({
               )}
 
               {isOpen && (
-                <div className="space-y-1">
+                <div id={`nav-group-${group.id}`} className="space-y-1">
                   {group.items.map((item) => {
                     const isActive = item.exact
                       ? pathname === item.href
@@ -380,10 +394,11 @@ function SidebarContent({
                         key={item.href}
                         href={item.href}
                         onClick={onNavigate}
+                        aria-current={isActive ? "page" : undefined}
                         className={cn(
                           "group relative flex min-h-[40px] items-center gap-3 rounded-lg px-3 py-2 text-xs transition-all",
                           isActive
-                            ? "bg-[#F5A000] font-bold text-white shadow-xs"
+                            ? "bg-[#F5A000] font-bold text-[#123B5A] shadow-xs"
                             : "text-white/80 font-semibold hover:bg-[#1B4D70] hover:text-white"
                         )}
                       >
@@ -392,7 +407,7 @@ function SidebarContent({
                             className={cn(
                               "flex size-4 shrink-0 items-center justify-center transition-colors",
                               isActive
-                                ? "text-white"
+                                ? "text-[#123B5A]"
                                 : "text-white/75 group-hover:text-white"
                             )}
                           >
@@ -405,7 +420,7 @@ function SidebarContent({
                             className={cn(
                               "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10.5px] font-bold",
                               isActive
-                                ? "bg-white/25 text-white"
+                                ? "bg-[#123B5A]/20 text-[#123B5A]"
                                 : item.badgeTone === "warning"
                                   ? "bg-[#F5A000]/30 text-amber-200"
                                   : "bg-white/15 text-white"
@@ -447,6 +462,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
   const {
     role,
     academicYear,
+    academicYears,
     setAcademicYear,
     slug,
     institutionName,
@@ -455,8 +471,11 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
   } = useTeacherRole()
 
   const [mobileOpen, setMobileOpen] = React.useState(false)
-  const [unreadCount, setUnreadCount] = React.useState(3)
-  const [pendingApprovals, setPendingApprovals] = React.useState(2)
+  const [unreadCount, setUnreadCount] = React.useState(0)
+  const [pendingApprovals, setPendingApprovals] = React.useState(0)
+
+  const menuButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const drawerRef = React.useRef<HTMLDivElement | null>(null)
 
   // Auto-close drawer on route change
   React.useEffect(() => {
@@ -474,16 +493,65 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [mobileOpen])
 
+  // Accessibility: Focus trap & Escape key handler for drawer
+  React.useEffect(() => {
+    if (!mobileOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileOpen(false)
+        menuButtonRef.current?.focus()
+        return
+      }
+
+      if (e.key === "Tab" && drawerRef.current) {
+        const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusable.length === 0) return
+
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+
+    const timer = setTimeout(() => {
+      if (drawerRef.current) {
+        const first = drawerRef.current.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+        first?.focus()
+      }
+    }, 50)
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown)
+      clearTimeout(timer)
+    }
+  }, [mobileOpen])
+
   React.useEffect(() => {
     let active = true
     getTeacherPortalKpis(slug)
       .then((kpis) => {
         if (!active) return
-        setUnreadCount(kpis.unreadNotificationsCount)
-        setPendingApprovals(kpis.pendingApprovalsCount)
+        setUnreadCount(kpis.unreadNotificationsCount || 0)
+        setPendingApprovals(kpis.pendingApprovalsCount || 0)
       })
       .catch(() => {
-        // Keep defaults on error
+        if (!active) return
+        setUnreadCount(0)
+        setPendingApprovals(0)
       })
     return () => {
       active = false
@@ -498,7 +566,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
       return [
         {
           id: "homeroom-main",
-          label: "Homeroom Class 10-A",
+          label: user.homeroomClass ? `Homeroom ${user.homeroomClass}` : "Homeroom Section",
           defaultOpen: true,
           items: [
             {
@@ -508,7 +576,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
               exact: true,
             },
             {
-              label: "Section Students (18)",
+              label: "Section Students",
               href: `${base}/class-teacher/students`,
               icon: <Users className="size-4" />,
             },
@@ -516,7 +584,6 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
               label: "Attendance Defaulters",
               href: `${base}/class-teacher/defaulters`,
               icon: <ShieldAlert className="size-4" />,
-              badge: "2 Alert",
               badgeTone: "warning",
             },
           ],
@@ -574,7 +641,9 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
       return [
         {
           id: "hod-oversight",
-          label: "Department of Mathematics",
+          label: user.department
+            ? (user.department.startsWith("Department of") ? user.department : `Department of ${user.department}`)
+            : "Department Leadership",
           defaultOpen: true,
           items: [
             {
@@ -587,11 +656,11 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
               label: "IA Approval & Lock Queue",
               href: `${base}/hod/ia-approvals`,
               icon: <ClipboardCheck className="size-4" />,
-              badge: "2 Pending",
+              badge: pendingApprovals > 0 ? `${pendingApprovals} Pending` : undefined,
               badgeTone: "warning",
             },
             {
-              label: "Faculty Workload (5)",
+              label: "Faculty Workload",
               href: `${base}/hod/faculty-load`,
               icon: <Users className="size-4" />,
             },
@@ -742,27 +811,34 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
         ],
       },
     ]
-  }, [base, pendingApprovals, role])
+  }, [base, pendingApprovals, role, user.department, user.homeroomClass])
 
   const currentRoleMeta = TEACHER_ROLE_CONFIGS[role]
 
   const portalLabel = React.useMemo(() => {
-    if (role === "hod") return "Faculty · HoD Mathematics"
-    if (role === "class_teacher") return "Faculty · Class Teacher (10-A)"
+    if (role === "hod") {
+      const dept = user.department ? user.department.replace(/^Department of\s*/i, "") : "Department"
+      return `Faculty · HoD ${dept}`
+    }
+    if (role === "class_teacher") {
+      const cls = user.homeroomClass ? user.homeroomClass.replace(/^Class\s*/i, "") : "Section"
+      return `Faculty · Class Teacher (${cls})`
+    }
     return "Teacher Portal"
-  }, [role])
+  }, [role, user.department, user.homeroomClass])
 
   const userInitials = user.initials || getInitials(user.name)
+
+  const displayYears = academicYears && academicYears.length > 0 ? academicYears : FALLBACK_ACADEMIC_YEARS
 
   const handleYearChange = (year: string) => {
     setAcademicYear(year)
     toast.info(`Switched academic year to ${year}`)
   }
 
-  const handleNotificationClick = () => {
-    toast.info(`${unreadCount} unread notifications`, {
-      description: "Review pending student leave requests & attendance reminders.",
-    })
+  const handleCloseDrawer = () => {
+    setMobileOpen(false)
+    menuButtonRef.current?.focus()
   }
 
   const sidebarFooter = (
@@ -794,6 +870,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
           onSignOut={signOut}
           sidebarFooter={sidebarFooter}
           academicYear={academicYear}
+          academicYears={displayYears}
           onAcademicYearChange={handleYearChange}
         />
       </aside>
@@ -804,12 +881,13 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
           {/* Backdrop overlay */}
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-200"
-            onClick={() => setMobileOpen(false)}
+            onClick={handleCloseDrawer}
             aria-hidden="true"
           />
 
           {/* Drawer container */}
           <div
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label={`${institutionName} Navigation`}
@@ -824,8 +902,9 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
               user={user}
               onSignOut={signOut}
               sidebarFooter={sidebarFooter}
-              onNavigate={() => setMobileOpen(false)}
+              onNavigate={handleCloseDrawer}
               academicYear={academicYear}
+              academicYears={displayYears}
               onAcademicYearChange={handleYearChange}
             />
           </div>
@@ -839,6 +918,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
           {/* Left section: Hamburger + Institution Brand */}
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Button
+              ref={menuButtonRef}
               type="button"
               variant="ghost"
               size="icon"
@@ -858,7 +938,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
               </span>
               <Badge
                 variant="outline"
-                className="hidden rounded-full border-[#F5A000]/40 bg-amber-50 font-sans text-[11px] font-bold text-[#F5A000] sm:inline-flex"
+                className="hidden rounded-full border-[#F5A000]/40 bg-amber-50 font-sans text-[11px] font-bold text-[#9A6200] sm:inline-flex"
               >
                 {currentRoleMeta?.label ?? "Active Teacher"}
               </Badge>
@@ -888,7 +968,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent align="end" className="rounded-xl border-[#E5E9EF] bg-white">
-                  {DEFAULT_ACADEMIC_YEARS.map((year) => (
+                  {displayYears.map((year) => (
                     <SelectItem
                       key={year}
                       value={year}
@@ -952,7 +1032,7 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
                     Academic Year
                   </p>
                   <div className="mt-1 flex gap-1">
-                    {DEFAULT_ACADEMIC_YEARS.map((y) => (
+                    {displayYears.map((y) => (
                       <button
                         key={y}
                         type="button"
@@ -1008,6 +1088,8 @@ export function TeacherPortalShell({
   institutionName,
   initialRole = "teacher",
   availableRoles = ["teacher", "class_teacher", "hod"],
+  academicYears,
+  initialAcademicYear,
   user,
   children,
 }: {
@@ -1015,6 +1097,8 @@ export function TeacherPortalShell({
   institutionName: string
   initialRole?: TeacherRole
   availableRoles?: TeacherRole[]
+  academicYears?: string[]
+  initialAcademicYear?: string
   user?: TeacherRoleContextUser
   children: React.ReactNode
 }) {
@@ -1024,6 +1108,8 @@ export function TeacherPortalShell({
       institutionName={institutionName}
       initialRole={initialRole}
       availableRoles={availableRoles}
+      academicYears={academicYears}
+      initialAcademicYear={initialAcademicYear}
       user={user}
     >
       <TeacherPortalShellInner>{children}</TeacherPortalShellInner>

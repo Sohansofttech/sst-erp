@@ -108,8 +108,11 @@ function mapStatusBadge(status: ApprovalStatus | StudentLeaveRequest["status"]) 
   return "Draft" as const
 }
 
+const getTodayDate = () => new Date().toISOString().split("T")[0]
+
 export default function TeacherLeavePage() {
-  const { role, slug } = useTeacherRole()
+  const { role, slug, user, academicYear } = useTeacherRole()
+  const homeroomName = user?.homeroomClass || "Assigned Homeroom"
   const [teacherLeaves, setTeacherLeaves] = React.useState<
     TeacherLeaveRequest[]
   >([])
@@ -127,8 +130,8 @@ export default function TeacherLeavePage() {
     resolver: zodResolver(teacherLeaveSchema),
     defaultValues: {
       leaveType: "Casual Leave",
-      fromDate: "2026-11-20",
-      toDate: "2026-11-20",
+      fromDate: getTodayDate(),
+      toDate: getTodayDate(),
       reason: "",
       substituteTeacherName: SUBSTITUTE_OPTIONS[0],
       handoverNotes: "",
@@ -205,8 +208,8 @@ export default function TeacherLeavePage() {
       setTeacherLeaves((prev) => [created, ...prev])
       form.reset({
         leaveType: "Casual Leave",
-        fromDate: "2026-11-20",
-        toDate: "2026-11-20",
+        fromDate: getTodayDate(),
+        toDate: getTodayDate(),
         reason: "",
         substituteTeacherName: SUBSTITUTE_OPTIONS[0],
         handoverNotes: "",
@@ -251,7 +254,7 @@ export default function TeacherLeavePage() {
     return (
       <LoadingState
         title="Loading leave & substitution records"
-        description="Fetching your leave applications and Class 10-A student leave requests..."
+        description={`Fetching your leave applications and ${homeroomName} student leave requests...`}
       />
     )
   }
@@ -287,7 +290,7 @@ export default function TeacherLeavePage() {
     <div className="space-y-6">
       <PageHeader
         title="Leave & Substitution Management"
-        subtitle="Apply for faculty leave with class substitution handover, track approvals, and process Class 10-A student leave or on-duty requests."
+        subtitle={`Apply for faculty leave with class substitution handover, track approvals, and process ${homeroomName} student leave or on-duty requests.`}
         action={
           <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/timetable`}>
@@ -305,7 +308,7 @@ export default function TeacherLeavePage() {
           icon={<CalendarPlus />}
           variant="dark"
           tone="darkNavy"
-          description="Academic Year 2026-27"
+          description={`Academic Year ${academicYear}`}
         />
         <StatCard
           label="My Pending Requests"
@@ -319,7 +322,7 @@ export default function TeacherLeavePage() {
           value={pendingStudent}
           icon={<UserCheck />}
           tone="teal"
-          description="Class 10-A pending approvals"
+          description={`${homeroomName} pending approvals`}
         />
         <StatCard
           label="Approved Leave Days"
@@ -480,7 +483,7 @@ export default function TeacherLeavePage() {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]" disabled={submitting}>
+                  <Button type="submit" className="w-full rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]" disabled={submitting}>
                     <Send className="size-4" />
                     {submitting
                       ? "Submitting Application..."
@@ -612,7 +615,7 @@ export default function TeacherLeavePage() {
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               You are viewing in <strong>Subject Teacher</strong> mode. Switch
               the top header role selector to <strong>Class Teacher</strong> or{" "}
-              <strong>HoD</strong> to approve or reject Class 10-A student leave
+              <strong>HoD</strong> to approve or reject {homeroomName} student leave
               requests.
             </div>
           )}
@@ -621,7 +624,7 @@ export default function TeacherLeavePage() {
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="text-lg font-bold text-[#202936]">
-                  Class 10-A Student Leave & On-Duty Queue
+                  {homeroomName} Student Leave & On-Duty Queue
                 </CardTitle>
                 <CardDescription className="text-sm text-[#788391]">
                   Review parent-submitted medical, family, and official school On-Duty (OD) applications.

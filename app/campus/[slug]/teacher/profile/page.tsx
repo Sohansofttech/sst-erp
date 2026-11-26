@@ -234,7 +234,7 @@ export default function TeacherProfilePage() {
           <div className="flex flex-col sm:flex-row items-start gap-4">
             <Avatar className="size-16 border-2 border-[#F5A000]/40">
               <AvatarFallback className="bg-[#123B5A] text-lg font-bold text-white">
-                {initials || "AS"}
+                {initials || "FM"}
               </AvatarFallback>
             </Avatar>
             <div className="space-y-1.5">
@@ -246,7 +246,7 @@ export default function TeacherProfilePage() {
                   {profile.employeeCode}
                 </Badge>
                 {profile.isClassTeacher && profile.classTeacherOf && (
-                  <Badge variant="outline" className="border-amber-200 bg-amber-50 font-semibold text-[#F5A000]">
+                  <Badge variant="outline" className="border-amber-300 bg-amber-50 font-semibold text-amber-800">
                     Class Teacher: {profile.classTeacherOf}
                   </Badge>
                 )}
@@ -261,7 +261,7 @@ export default function TeacherProfilePage() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Phone className="size-3.5 text-[#F5A000]" />
-                  {profile.phone}
+                  {profile.phone || "Not provided"}
                 </span>
                 {profile.officeRoom && (
                   <span className="inline-flex items-center gap-1.5">
@@ -304,7 +304,7 @@ export default function TeacherProfilePage() {
                   id="teacher-phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 98450 00000"
+                  placeholder="Enter contact number"
                   className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 />
               </div>
@@ -315,7 +315,7 @@ export default function TeacherProfilePage() {
                   id="teacher-office"
                   value={officeRoom}
                   onChange={(e) => setOfficeRoom(e.target.value)}
-                  placeholder="Staff Room 2, Block B"
+                  placeholder="e.g. Staff Room 2, Block B"
                   className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 />
               </div>
@@ -326,7 +326,7 @@ export default function TeacherProfilePage() {
                   id="teacher-spec"
                   value={specialization}
                   onChange={(e) => setSpecialization(e.target.value)}
-                  placeholder="e.g., Algebra & Olympiad Mentoring"
+                  placeholder="e.g. Subject Pedagogy & Mentoring"
                   className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 />
               </div>
@@ -338,7 +338,7 @@ export default function TeacherProfilePage() {
                   rows={3}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="Brief teaching overview..."
+                  placeholder="Brief teaching overview or academic profile..."
                   className="rounded-xl border-[#E5E9EF] bg-white text-[#202936] focus-visible:ring-[#F5A000]"
                 />
               </div>
@@ -353,7 +353,7 @@ export default function TeacherProfilePage() {
               >
                 Reset
               </Button>
-              <Button type="submit" disabled={!hasChanges || saving} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+              <Button type="submit" disabled={!hasChanges || saving} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]">
                 <Save className="size-4" />
                 {saving ? "Saving..." : "Save Contact Info"}
               </Button>
@@ -421,7 +421,7 @@ export default function TeacherProfilePage() {
                   Assigned Institution
                 </Label>
                 <Input
-                  value={`${institution?.name ?? "Vidya Niketan Public School"} (${institution?.boardOrUniversity ?? "CBSE"})`}
+                  value={institution?.name ? `${institution.name} (${institution.boardOrUniversity ?? "CBSE"})` : "Assigned Campus Institution"}
                   disabled
                   className="rounded-xl border-[#E5E9EF] bg-[#EEF1F5] text-[#202936] font-medium"
                 />
@@ -433,7 +433,7 @@ export default function TeacherProfilePage() {
                 Verified Qualifications
               </Label>
               <Input
-                value={profile.qualification}
+                value={profile.qualification || "Not provided"}
                 disabled
                 className="rounded-xl border-[#E5E9EF] bg-[#EEF1F5] text-[#202936] font-medium"
               />
@@ -446,12 +446,16 @@ export default function TeacherProfilePage() {
                 Assigned Subjects (Current AY)
               </p>
               <div className="flex flex-wrap gap-2">
-                {profile.subjectsHandled.map((sub) => (
-                  <Badge key={sub} variant="outline" className="gap-1 border-[#E5E9EF] bg-[#EEF1F5] text-[#123B5A] font-semibold">
-                    <Building2 className="size-3 text-[#123B5A]" />
-                    {sub}
-                  </Badge>
-                ))}
+                {profile.subjectsHandled.length > 0 ? (
+                  profile.subjectsHandled.map((sub) => (
+                    <Badge key={sub} variant="outline" className="gap-1 border-[#E5E9EF] bg-[#EEF1F5] text-[#123B5A] font-semibold">
+                      <Building2 className="size-3 text-[#123B5A]" />
+                      {sub}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-[#788391]">No subjects assigned in current academic term.</span>
+                )}
               </div>
             </div>
           </CardContent>

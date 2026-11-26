@@ -74,6 +74,18 @@ import type {
 } from "@/types/teacher"
 import { useTeacherRole } from "../teacher-role-context"
 
+const getDefaultQuizSchedule = () => {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const yyyy = tomorrow.getFullYear()
+  const mm = String(tomorrow.getMonth() + 1).padStart(2, "0")
+  const dd = String(tomorrow.getDate()).padStart(2, "0")
+  return {
+    scheduledAt: `${yyyy}-${mm}-${dd}T09:00`,
+    closesAt: `${yyyy}-${mm}-${dd}T18:00`,
+  }
+}
+
 const quizQuestionSchema = z
   .object({
     prompt: z.string().min(4, "Question prompt must be at least 4 characters"),
@@ -110,7 +122,16 @@ const createQuizSchema = z
     subjectAllocationId: z.string().min(1, "Select class & subject"),
     title: z.string().min(3, "Quiz title must be at least 3 characters"),
     description: z.string().optional(),
-    scheduledAt: z.string().min(1, "Start date-time is required"),
+    scheduledAt: z
+      .string()
+      .min(1, "Start date-time is required")
+      .refine(
+        (val) => {
+          const today = new Date().toISOString().slice(0, 10)
+          return val.slice(0, 10) >= today
+        },
+        { message: "Scheduled start date cannot be in the past" }
+      ),
     closesAt: z.string().min(1, "End date-time is required"),
     durationMinutes: z
       .number({ error: "Enter duration" })
@@ -163,8 +184,7 @@ export default function TeacherQuizzesPage() {
       subjectAllocationId: "",
       title: "",
       description: "",
-      scheduledAt: "2026-11-16T09:00",
-      closesAt: "2026-11-16T18:00",
+      ...getDefaultQuizSchedule(),
       durationMinutes: 20,
       questions: [
         {
@@ -339,8 +359,7 @@ export default function TeacherQuizzesPage() {
         subjectAllocationId: alloc.id,
         title: "",
         description: "",
-        scheduledAt: "2026-11-16T09:00",
-        closesAt: "2026-11-16T18:00",
+        ...getDefaultQuizSchedule(),
         durationMinutes: 20,
         questions: [
           {
@@ -515,7 +534,7 @@ export default function TeacherQuizzesPage() {
                     </Button>
                     <Button
                       type="button"
-                      className="w-full sm:flex-1 rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                      className="w-full sm:flex-1 rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                       onClick={() => void handleSelectResultQuiz(quiz.id)}
                     >
                       <ListChecks className="size-4" />

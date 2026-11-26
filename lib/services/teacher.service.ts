@@ -725,32 +725,35 @@ export async function getTeacherProfile(
     }
   })
   const subjectsHandled = Array.from(subjectsSet)
-  if (subjectsHandled.length === 0) {
-    subjectsHandled.push(`${teacher.department} (10-A)`)
-  }
 
-  const deptCode = `dept-${teacher.department.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+  const deptCode = teacher.department
+    ? `dept-${teacher.department.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+    : "dept-general"
+
+  const hasClassTeacherDesignation = Boolean(
+    teacher.designation?.toLowerCase().includes("class teacher")
+  )
 
   return {
     id: teacher.id,
     institutionId: teacher.institutionId,
     employeeCode: teacher.employeeId,
-    fullName: user.fullName,
+    fullName: user.fullName || "Faculty Member",
     email: user.email,
-    phone: user.phone ?? "+91 98450 21478",
+    phone: user.phone || "",
     photoUrl: user.avatarUrl ?? undefined,
     designation: teacher.designation,
     departmentId: deptCode,
-    departmentName: `Department of ${teacher.department}`,
-    qualification: "Ph.D. (Applied Mathematics), M.Sc., B.Ed.",
-    specialization: "Algebra, Calculus & Olympiad Mentoring",
-    experienceYears: 11,
-    joiningDate: teacher.createdAt ? new Date(teacher.createdAt).toISOString().split("T")[0] : "2026-06-01",
-    isClassTeacher: Boolean(teacher.designation?.toLowerCase().includes("class teacher") || teacher.designation?.toLowerCase().includes("grade 10")),
-    classTeacherOf: (teacher.designation?.toLowerCase().includes("class teacher") || teacher.designation?.toLowerCase().includes("grade 10")) ? "Class 10 - A" : undefined,
+    departmentName: teacher.department ? `Department of ${teacher.department}` : "General Department",
+    qualification: (teacher as any).qualification || "Not provided",
+    specialization: (teacher as any).specialization || "",
+    experienceYears: (teacher as any).experienceYears ?? 0,
+    joiningDate: teacher.createdAt ? new Date(teacher.createdAt).toISOString().split("T")[0] : "",
+    isClassTeacher: hasClassTeacherDesignation,
+    classTeacherOf: (teacher as any).homeroomClass || (teacher as any).classTeacherOf || (hasClassTeacherDesignation ? "Assigned Section" : undefined),
     subjectsHandled,
-    officeRoom: "Staff Room 2, Academic Block B",
-    bio: "Senior Mathematics faculty & Class Teacher for Grade 10-A, coordinating STEM Olympiad mentoring and CBSE board readiness.",
+    officeRoom: (teacher as any).officeRoom || "",
+    bio: (teacher as any).bio || "",
     status: user.isActive ? "active" : "inactive",
   }
 }
