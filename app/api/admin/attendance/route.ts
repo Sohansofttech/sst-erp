@@ -91,12 +91,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const updated = await db.attendanceRecord.update({
-        where: { id: body.recordId },
+      const updateResult = await db.attendanceRecord.updateMany({
+        where: { id: body.recordId, institutionId },
         data: {
           status: body.status,
           remarks: body.remarks || body.reason || existing.remarks,
         },
+      });
+      if (updateResult.count === 0) {
+        return NextResponse.json(
+          { success: false, error: "Attendance record not found in this institution." },
+          { status: 404 }
+        );
+      }
+      const updated = await db.attendanceRecord.findFirst({
+        where: { id: body.recordId, institutionId },
       });
 
       // Institutional Audit Log entry for attendance correction

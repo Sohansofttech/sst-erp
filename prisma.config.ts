@@ -2,6 +2,7 @@
 // npm install --save-dev prisma dotenv
 import dotenv from "dotenv";
 import { defineConfig } from "prisma/config";
+import { resolvePrismaDatasourceUrl } from "./lib/db/prisma-migration-url";
 
 // Load environment variables: .env.local first (standard Next.js secrets), then fallback to .env
 dotenv.config({ path: ".env.local" });
@@ -13,6 +14,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: resolvePrismaDatasourceUrl(process.env, process.argv),
   },
 });

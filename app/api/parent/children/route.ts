@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireRole, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireRole(req, ["PARENT", "STUDENT"]);
 
     let guardianAccountId = session.guardianId;
 
@@ -38,16 +38,29 @@ export async function GET(req: NextRequest) {
       },
       include: {
         student: {
-          include: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            rollNumber: true,
+            admissionNumber: true,
+            currentSemester: true,
+            currentSection: true,
+            currentDivisionId: true,
+            status: true,
             currentDivision: {
               select: { id: true, name: true, code: true, type: true },
             },
             enrollments: {
-              include: {
+              select: {
+                id: true,
+                status: true,
+                isPrimary: true,
+                divisionId: true,
                 division: { select: { id: true, name: true, code: true, type: true } },
                 class: { select: { id: true, name: true, gradeLevel: true } },
-                course: true,
-                academicYear: true,
+                course: { select: { name: true } },
+                academicYear: { select: { name: true } },
               },
               orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
             },
@@ -96,6 +109,7 @@ export async function GET(req: NextRequest) {
       }),
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    const status = err instanceof UnauthorizedError ? 401 : err instanceof ForbiddenError ? 403 : 500;
+    return NextResponse.json({ success: false, error: err.message }, { status });
   }
 }

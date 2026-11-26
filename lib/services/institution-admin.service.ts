@@ -3616,6 +3616,17 @@ export async function markStudentAttendance(
     remarks?: string;
   }[]
 ) {
+  const uniqueStudentIds = Array.from(new Set(records.map((r) => r.studentId).filter(Boolean)));
+  if (uniqueStudentIds.length > 0) {
+    const ownedStudents = await db.student.findMany({
+      where: { institutionId, id: { in: uniqueStudentIds } },
+      select: { id: true },
+    });
+    if (ownedStudents.length !== uniqueStudentIds.length) {
+      throw new Error("Forbidden: One or more student IDs do not belong to this institution.");
+    }
+  }
+
   return await db.$transaction(async (tx) => {
     const results = [];
     for (const r of records) {
@@ -3625,8 +3636,8 @@ export async function markStudentAttendance(
       });
 
       if (!enrollment) {
-        const student = await tx.student.findUnique({
-          where: { id: r.studentId },
+        const student = await tx.student.findFirst({
+          where: { id: r.studentId, institutionId },
         });
         const ay = await tx.academicYear.findFirst({
           where: { institutionId, isCurrent: true },

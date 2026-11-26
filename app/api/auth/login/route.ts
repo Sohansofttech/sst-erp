@@ -10,7 +10,7 @@ import {
 } from "@/lib/auth/jwt";
 import { isDefaultOrTemporaryPassword, checkPwnedPassword } from "@/lib/auth/password-security";
 import { SessionUser } from "@/types";
-import { syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
+import { syncInstitutionToAppDb } from "@/lib/services/institution-sync.service";
 import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
 import { assertInstitutionAdminMembership } from "@/lib/security/institution-admin";
 import { ForbiddenError } from "@/lib/auth/session";

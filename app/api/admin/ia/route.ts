@@ -211,7 +211,7 @@ export async function DELETE(req: NextRequest) {
         where: { institutionId, requestType: "INTERNAL_ASSESSMENT", title: { contains: targetName } },
       });
     } else if (record) {
-      await db.assessmentRecord.delete({ where: { id: record.id } });
+      await db.assessmentRecord.deleteMany({ where: { id: record.id, institutionId } });
     }
 
     return NextResponse.json({ success: true, message: "Internal assessment deleted." });
