@@ -95,80 +95,80 @@ export default function ParentResultsPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white border border-[#E2E8F0] p-6 rounded-2xl shadow-sm flex flex-col justify-center">
-          <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
-            Cumulative Grade Point (CGPA)
-          </p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-[#0F2942]">{cgpa || "N/A"}</span>
-            <span className="text-xs text-[#64748B]">/ 10.00</span>
-          </div>
-          <Badge variant="success" size="sm" className="mt-2 w-fit">
-            First Class Distinction
-          </Badge>
-        </div>
-
-        <div className="md:col-span-2 bg-[#EEF2F6]/50 border border-[#E2E8F0] p-6 rounded-2xl flex flex-col justify-center text-xs">
-          <h3 className="font-bold text-[#1E293B] text-sm">Protected Gradebook Ledger</h3>
-          <p className="text-[#64748B] mt-1 leading-relaxed">
-            Grades and internal assessment marks are certified by the institutional controller of examinations. Parents may view their linked child's performance records but cannot modify protected academic marks.
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        {/* Exam results */}
-        <Card title="Published Examination Grades & Performance">
-          <Table
-            columns={[
-              { header: "Exam Session", accessorKey: "examName" },
-              { header: "Subject Code", accessorKey: "subjectCode" },
-              { header: "Subject Name", accessorKey: "subjectName" },
-              { header: "Total Marks (100)", accessorKey: "totalMarks" },
-              {
-                header: "Grade",
-                cell: (item: any) => (
-                  <Badge variant={item.grade === "A+" || item.grade === "A" ? "success" : "brand"} size="sm">
-                    {item.grade}
-                  </Badge>
-                ),
-              },
-              { header: "Credits", accessorKey: "credits" },
-              {
-                header: "Result",
-                cell: (item: any) => (
-                  <Badge variant={item.isPassed ? "success" : "error"} size="sm">
-                    {item.isPassed ? "PASS" : "RA"}
-                  </Badge>
-                ),
-              },
-            ]}
-            data={results || []}
-            emptyMessage="No examination results published."
-          />
-        </Card>
-
-        {/* Internal Assessment Summary */}
-        <Card title="Internal Assessment (IA) Progress">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {subjectWise?.map((sub: any, idx: number) => (
-              <div key={idx} className="p-4 bg-[#EEF2F6]/50 border border-[#E2E8F0] rounded-xl text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-[#1E293B]">{sub.subjectName}</span>
-                  <Badge variant="brand" size="sm">{sub.subjectCode}</Badge>
-                </div>
-                <div className="flex justify-between text-[#64748B]">
-                  <span>Total IA Score:</span>
-                  <span className="font-bold text-[#0F2942]">
-                    {sub.totalMarksScored} / {sub.totalMaxMarks} ({sub.percentage}%)
-                  </span>
-                </div>
+            <div className="bg-white border border-[#E2E8F0] p-6 rounded-2xl shadow-sm flex flex-col justify-center">
+              <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
+                Cumulative Grade Point (CGPA)
+              </p>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-[#0F2942]">{cgpa || "N/A"}</span>
+                <span className="text-xs text-[#64748B]">/ 10.00</span>
               </div>
-            ))}
+              <Badge variant="success" size="sm" className="mt-2 w-fit">
+                First Class Distinction
+              </Badge>
+            </div>
+
+            <div className="md:col-span-2 bg-[#EEF2F6]/50 border border-[#E2E8F0] p-6 rounded-2xl flex flex-col justify-center text-xs">
+              <h3 className="font-bold text-[#1E293B] text-sm">Protected Gradebook Ledger</h3>
+              <p className="text-[#64748B] mt-1 leading-relaxed">
+                Grades and internal assessment marks are certified by the institutional controller of examinations. Parents may view their linked child's performance records but cannot modify protected academic marks.
+              </p>
+            </div>
           </div>
-        </Card>
-      </div>
-      </>
+
+          <div className="space-y-6">
+            {/* Exam results */}
+            <Card title="Published Examination Grades & Performance">
+              <Table
+                columns={[
+                  { header: "Exam Session", accessorKey: "examName" },
+                  { header: "Subject Code", accessorKey: "subjectCode" },
+                  { header: "Subject Name", accessorKey: "subjectName" },
+                  { header: "Total Marks (100)", accessorKey: "totalMarks" },
+                  {
+                    header: "Grade",
+                    cell: (item: any) => (
+                      <Badge variant={item.grade === "A+" || item.grade === "A" ? "success" : "brand"} size="sm">
+                        {item.grade}
+                      </Badge>
+                    ),
+                  },
+                  { header: "Credits", accessorKey: "credits" },
+                  {
+                    header: "Result",
+                    cell: (item: any) => (
+                      <Badge variant={item.isPassed ? "success" : "error"} size="sm">
+                        {item.isPassed ? "PASS" : "RA"}
+                      </Badge>
+                    ),
+                  },
+                ]}
+                data={results || []}
+                emptyMessage="No examination results published."
+              />
+            </Card>
+
+            {/* Internal Assessment Summary */}
+            <Card title="Internal Assessment (IA) Progress">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {subjectWise?.map((sub: any, idx: number) => (
+                  <div key={idx} className="p-4 bg-[#EEF2F6]/50 border border-[#E2E8F0] rounded-xl text-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-[#1E293B]">{sub.subjectName}</span>
+                      <Badge variant="brand" size="sm">{sub.subjectCode}</Badge>
+                    </div>
+                    <div className="flex justify-between text-[#64748B]">
+                      <span>Total IA Score:</span>
+                      <span className="font-bold text-[#0F2942]">
+                        {sub.totalMarksScored} / {sub.totalMaxMarks} ({sub.percentage}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </>
       )}
     </PortalLayout>
   );
