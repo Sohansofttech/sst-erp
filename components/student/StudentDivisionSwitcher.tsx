@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { BookOpen, Check, ChevronDown, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface StudentEnrollmentItem {
   enrollmentId: string;
@@ -56,12 +57,13 @@ export function StudentDivisionSwitcher({ studentId }: { studentId?: string }) {
         setIsOpen(false);
         // Dispatch global event for listeners & refresh
         window.dispatchEvent(new CustomEvent("activeDivisionChanged", { detail: { divisionId } }));
+        toast.success("Switched division context successfully.");
         window.location.reload();
       } else {
-        alert(json.error || "Failed to switch division view.");
+        toast.error(json.error || "Failed to switch division view.");
       }
     } catch {
-      alert("Network error while switching division.");
+      toast.error("Network error while switching division.");
     } finally {
       setSwitching(false);
     }

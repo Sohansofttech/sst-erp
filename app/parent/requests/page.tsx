@@ -11,6 +11,7 @@ import { MessageSquare, Send, CheckCircle2, Clock, AlertCircle } from "lucide-re
 
 export default function ParentRequestsPage() {
   const [selectedChildId, setSelectedChildId] = useState("");
+  const [children, setChildren] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +24,42 @@ export default function ParentRequestsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_active_child_id");
+      if (stored) setSelectedChildId(stored);
+    }
+    const fetchChildren = async () => {
+      try {
+        const res = await fetch("/api/parent/children");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setChildren(json.data);
+          const stored = typeof window !== "undefined" ? localStorage.getItem("erp_active_child_id") : null;
+          const initialId =
+            stored && json.data.some((c: any) => c.student.id === stored)
+              ? stored
+              : json.data[0].student.id;
+          setSelectedChildId(initialId);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("erp_active_child_id", initialId);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load parent children", err);
+      }
+    };
+    fetchChildren();
+
+    const handleChildChanged = (e: any) => {
+      if (e.detail?.childId) {
+        setSelectedChildId(e.detail.childId);
+      }
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => window.removeEventListener("activeChildChanged", handleChildChanged);
+  }, []);
 
   const fetchRequests = async () => {
     try {
@@ -53,7 +90,7 @@ export default function ParentRequestsPage() {
     setErrorToast(null);
 
     if (!selectedChildId) {
-      setErrorToast("Please select your linked child using the child switcher at the top before submitting a request.");
+      setErrorToast("Please select your linked child from the selector before submitting a request.");
       setSubmitting(false);
       return;
     }
@@ -118,6 +155,31 @@ export default function ParentRequestsPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
+                  Linked Student / Ward <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedChildId}
+                  onChange={(e) => {
+                    setSelectedChildId(e.target.value);
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("erp_active_child_id", e.target.value);
+                      window.dispatchEvent(new CustomEvent("activeChildChanged", { detail: { childId: e.target.value } }));
+                    }
+                  }}
+                  className="w-full px-3.5 py-2 text-xs border border-[#E2E8F0] rounded-lg bg-white font-medium"
+                  required
+                >
+                  <option value="">-- Select Linked Child --</option>
+                  {children.map((c) => (
+                    <option key={c.student.id} value={c.student.id}>
+                      {c.student.fullName || c.student.firstName} ({c.student.rollNumber})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-[13px] font-medium text-[#1E293B] mb-1">
                   Request Category
@@ -231,10 +293,10 @@ export default function ParentRequestsPage() {
                             st === "RESOLVED" || st === "APPROVED"
                               ? "success"
                               : st === "IN_PROGRESS"
-                              ? "brand"
-                              : st === "REJECTED"
-                              ? "error"
-                              : "warning"
+                                ? "brand"
+                                : st === "REJECTED"
+                                  ? "error"
+                                  : "warning"
                           }
                           size="sm"
                         >

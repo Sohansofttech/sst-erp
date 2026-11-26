@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { Card } from "@/components/shared/Card";
 import { Badge } from "@/components/shared/Badge";
@@ -86,6 +87,7 @@ export default function StudentProfilePage() {
 
       const json = await res.json();
       if (json.success) {
+        toast.success("Correction request submitted for administrative approval.");
         setMessage("Correction request submitted for administrative approval.");
         setIsModalOpen(false);
         setProposedPhone("");
@@ -93,10 +95,11 @@ export default function StudentProfilePage() {
         setReason("");
         fetchData();
       } else {
-        alert(json.error || "Failed to submit correction request.");
+        toast.error(json.error || "Failed to submit correction request.");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Network error while submitting correction request.");
     } finally {
       setSubmitting(false);
     }

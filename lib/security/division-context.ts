@@ -261,12 +261,14 @@ export async function resolveSessionDivisionContext(
         enrollments: {
           where: { status: "ACTIVE", divisionId: { not: null } },
           select: { divisionId: true, isPrimary: true, division: { select: { id: true, type: true } } },
-          orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
+          orderBy: { enrolledDate: "desc" },
         },
       },
     });
 
-    const activeEnrollments = student?.enrollments || [];
+    const activeEnrollments = (student?.enrollments || []).sort(
+      (a: any, b: any) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0)
+    );
     const permittedIds = activeEnrollments.map((e) => e.divisionId!).filter(Boolean);
 
     if (student?.currentDivisionId && !permittedIds.includes(student.currentDivisionId)) {

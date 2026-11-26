@@ -6,24 +6,33 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
 
+    // SEC-02: Enforce strict PARENT role check. Reject student sessions from accessing sibling/child records.
+    if ((session.role as string) !== "PARENT" && (session.role as string) !== "GUARDIAN") {
+      return NextResponse.json(
+        { success: false, error: "Access denied: Only parent/guardian accounts are permitted to access the children directory." },
+        { status: 403 }
+      );
+    }
+
     let guardianAccountId = session.guardianId;
 
-    if (!guardianAccountId && session.role === "STUDENT" && session.studentId) {
-      const link = await db.guardianLink.findFirst({
+    // Resolve guardian account strictly associated with the authenticated parent user
+    if (!guardianAccountId && session.userId) {
+      const guardianAccount = await db.guardianAccount.findFirst({
         where: {
-          studentId: session.studentId,
+          userId: session.userId,
           institutionId: session.institutionId,
-          isVerified: true,
         },
+        select: { id: true },
       });
-      if (link) {
-        guardianAccountId = link.guardianAccountId;
+      if (guardianAccount) {
+        guardianAccountId = guardianAccount.id;
       }
     }
 
     if (!guardianAccountId) {
       return NextResponse.json(
-        { success: false, error: "No guardian account linked to session." },
+        { success: false, error: "No verified guardian account associated with authenticated parent." },
         { status: 403 }
       );
     }
@@ -49,7 +58,7 @@ export async function GET(req: NextRequest) {
                 course: true,
                 academicYear: true,
               },
-              orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
+              orderBy: { enrolledDate: "desc" },
             },
           },
         },
@@ -96,6 +105,11 @@ export async function GET(req: NextRequest) {
       }),
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    const isForbidden = err.name === "ForbiddenError" || err.status === 403;
+    const isUnauthorized = err.name === "UnauthorizedError" || err.status === 401;
+    return NextResponse.json(
+      { success: false, error: err.message },
+      { status: isForbidden ? 403 : isUnauthorized ? 401 : 500 }
+    );
   }
 }
