@@ -62,6 +62,7 @@ import {
   resolveInstitution as resolveDbInstitution,
 } from "@/lib/auth/teacher-session"
 import { getSession } from "@/lib/auth/session"
+import type { TeacherRole } from "@/lib/auth/roles"
 import { calculateAttendance, RawAttendanceRecord } from "@/lib/services/attendance-calculator"
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,11 @@ export interface ResolvedTeacher {
   teacher: any
   user: any
   institutionId: string
+  activeRole?: TeacherRole
+  availableRoles?: TeacherRole[]
+  homeroomClass?: string
+  department?: string
+  isAdmin?: boolean
 }
 
 const teacherCache = new Map<string, { data: ResolvedTeacher; timestamp: number }>()
@@ -230,10 +236,119 @@ export async function resolveActiveTeacher(
     }
   }
 
+  const isAdmin = isSuperAdmin || erpSession?.role === "ADMIN"
+
   return {
     teacher: effectiveTeacher,
     user: effectiveUser,
     institutionId: effectiveInstId,
+    activeRole: session?.activeRole || ((erpSession?.role as any) === "HOD" ? "hod" : "teacher"),
+    availableRoles: session?.availableRoles || (isAdmin ? ["teacher", "class_teacher", "hod"] : ["teacher"]),
+    homeroomClass: session?.profile?.classTeacherOf,
+    department: session?.profile?.departmentName || effectiveTeacher.department,
+    isAdmin,
+  }
+}
+
+/**
+ * TSEC-01: Action-level role capability check. Denies execution if teacher lacks required role.
+ */
+export function requireTeacherRole(
+  resolved: ResolvedTeacher,
+  allowedRoles: TeacherRole[],
+  actionName: string
+) {
+  if (resolved.isAdmin) return
+  if (resolved.activeRole && allowedRoles.includes(resolved.activeRole)) return
+  if (resolved.availableRoles && resolved.availableRoles.some((r) => allowedRoles.includes(r))) return
+  throw new TeacherAuthError(
+    `Forbidden: '${actionName}' requires one of [${allowedRoles.join(", ")}] roles. Active role: '${resolved.activeRole || "unknown"}'.`,
+    "FORBIDDEN",
+    403
+  )
+}
+
+/**
+ * TSEC-03 & TSEC-06: Verifies teacher allocation to a section (homeroom, timetable, or HoD/Admin).
+ */
+export async function checkTeacherSectionAllocation(
+  resolved: ResolvedTeacher,
+  sectionId: string
+): Promise<boolean> {
+  if (resolved.isAdmin) return true
+  if (resolved.activeRole === "hod" || resolved.availableRoles?.includes("hod")) return true
+
+  const { semester, section } = parseSectionId(sectionId)
+
+  // 1. Check homeroom assignment
+  if (resolved.homeroomClass) {
+    const homeroomClean = resolved.homeroomClass.toLowerCase().replace(/[^a-z0-9]/g, "")
+    const targetClean = sectionId.toLowerCase().replace(/[^a-z0-9]/g, "")
+    const sectionLetterClean = section.toLowerCase().trim()
+    if (
+      homeroomClean.includes(targetClean) ||
+      targetClean.includes(homeroomClean) ||
+      homeroomClean.endsWith(sectionLetterClean)
+    ) {
+      return true
+    }
+  }
+
+  // 2. Check timetable slots for this section
+  try {
+    const slot = await prisma.timetable_slots.findFirst({
+      where: {
+        institutionId: resolved.institutionId,
+        teacherId: resolved.teacher.id,
+        semester,
+        section: { equals: section, mode: "insensitive" },
+      },
+      select: { id: true },
+    })
+    if (slot) return true
+  } catch (err) {
+    console.warn("[checkTeacherSectionAllocation] slot check error:", err)
+  }
+
+  // 3. Check Section table classTeacherStaffId
+  try {
+    const secRecord = await prisma.$queryRaw<any[]>`
+      SELECT s.id
+      FROM "Section" s
+      WHERE s."institutionId"::text = ${resolved.institutionId}
+        AND s."classTeacherStaffId"::text = ${resolved.teacher.id}
+        AND LOWER(s.name) = LOWER(${section})
+      LIMIT 1
+    `
+    if (secRecord && secRecord.length > 0) return true
+  } catch {}
+
+  return false
+}
+
+/**
+ * TSEC-11 & TSEC-12: Verifies teacher allocation to a subject (timetable slot or HoD/Admin).
+ */
+export async function checkTeacherSubjectAllocation(
+  resolved: ResolvedTeacher,
+  subjectId: string
+): Promise<boolean> {
+  if (resolved.isAdmin) return true
+  if (resolved.activeRole === "hod" || resolved.availableRoles?.includes("hod")) return true
+
+  try {
+    const slot = await prisma.timetable_slots.findFirst({
+      where: {
+        institutionId: resolved.institutionId,
+        teacherId: resolved.teacher.id,
+        subjectId,
+      },
+      select: { id: true },
+    })
+    return Boolean(slot)
+  } catch (err) {
+    console.warn("[checkTeacherSubjectAllocation] DB error:", err)
+    return false
   }
 }
 
@@ -1191,25 +1306,37 @@ export async function getSectionStudents(
 
   let targetSectionId = sectionId || ""
   if (!targetSectionId) {
-    try {
-      const secRecord: any = await prisma.$queryRaw`
-        SELECT s.id, s.name
-        FROM "Section" s
-        WHERE s."institutionId"::text = ${activeTenantId}
-          AND s."classTeacherStaffId"::text = ${resolved.teacher.id}
-        LIMIT 1
-      `
-      if (secRecord && secRecord.length > 0) {
-        targetSectionId = `sec-10${(secRecord[0].name || "A").toLowerCase()}`
-      }
-    } catch {}
+    if (resolved.homeroomClass) {
+      const cleanClass = resolved.homeroomClass.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()
+      targetSectionId = cleanClass.startsWith("sec") ? cleanClass : `sec-10${cleanClass.slice(-1) || "a"}`
+    } else {
+      try {
+        const secRecord: any = await prisma.$queryRaw`
+          SELECT s.id, s.name
+          FROM "Section" s
+          WHERE s."institutionId"::text = ${activeTenantId}
+            AND s."classTeacherStaffId"::text = ${resolved.teacher.id}
+          LIMIT 1
+        `
+        if (secRecord && secRecord.length > 0) {
+          targetSectionId = `sec-10${(secRecord[0].name || "A").toLowerCase()}`
+        }
+      } catch {}
+    }
     if (!targetSectionId) {
       return []
     }
   }
 
+  // TSEC-03: Verify teacher assignment to requested section
+  const isAllocated = await checkTeacherSectionAllocation(resolved, targetSectionId)
+  if (!isAllocated) {
+    console.warn(`[getSectionStudents] Teacher ${resolved.teacher.id} unauthorized for section ${targetSectionId}`)
+    return []
+  }
+
   const isCacheable = !searchQuery?.trim()
-  const cacheKey = `${activeTenantId}|${targetSectionId}`
+  const cacheKey = `${activeTenantId}|${targetSectionId}|guardians:${Boolean(options?.includeGuardians)}`
   const now = Date.now()
 
   if (isCacheable) {
@@ -1227,7 +1354,8 @@ export async function getSectionStudents(
     try {
       const { semester, section, grade } = parseSectionId(targetSectionId)
       const q = searchQuery?.trim().toLowerCase()
-      const shouldIncludeGuardians = options?.includeGuardians !== false
+      // TSEC-21: Least privilege - guardian account data is strictly opt-in
+      const shouldIncludeGuardians = options?.includeGuardians === true
 
       // Query live students with multi-tenant institutionId constraint
       let dbStudents: any[] = []
@@ -1301,9 +1429,7 @@ export async function getSectionStudents(
       const className = `Class ${grade}`
       const normalizedSectionId = `sec-${grade}${section.toLowerCase()}`
 
-      const houses = ["Ashoka", "Tagore", "Raman", "Sarojini"]
-
-      const roster: StudentRosterItem[] = dbStudents.map((st: any, index: number) => {
+      const roster: StudentRosterItem[] = dbStudents.map((st: any) => {
         const guardianLinks = st.guardianLinks ?? st.guardian_links
         const primaryGlink =
           guardianLinks?.find((gl: any) => gl.isPrimary) ?? guardianLinks?.[0]
@@ -1314,32 +1440,42 @@ export async function getSectionStudents(
           relation = primaryGlink.relationship
         }
 
+        // TSEC-04 & TSEC-21: Return authentic masked phone or real phone when authorized
+        const rawPhone = guardianAccount?.phone ?? st.emergencyContact
+        const maskedPhone = rawPhone
+          ? rawPhone.length > 5
+            ? `${rawPhone.slice(0, 3)}****${rawPhone.slice(-2)}`
+            : rawPhone
+          : "Not provided"
+
         const guardianContact: GuardianContact = {
           guardianName: guardianAccount?.fullName ?? "Guardian",
           relation,
-          phone: guardianAccount?.phone ?? st.emergencyContact ?? "+91 98450 00000",
+          phone: shouldIncludeGuardians && (resolved.activeRole === "class_teacher" || resolved.isAdmin)
+            ? (rawPhone || "Not provided")
+            : maskedPhone,
         }
 
-        const houseIndex = (st.rollNumber.charCodeAt(st.rollNumber.length - 1) + index) % houses.length
         const recordsForStudent = attendanceByStudent.get(st.id) ?? []
         const calc = calculateAttendance(recordsForStudent)
         const attendancePercent = calc.hasData ? calc.percentage : null
-        const iaAverage = 75 + ((index * 4) % 22)
 
         return {
           studentId: st.id,
           rollNo: st.rollNumber,
           admissionNo: st.admissionNumber,
-          fullName: `${st.firstName} ${st.lastName}`,
+          fullName: `${st.firstName} ${st.lastName}`.trim(),
           photoUrl: undefined,
           classId,
           className,
           sectionId: normalizedSectionId,
           section,
           attendancePercent,
-          iaAverage: Math.min(98, Math.max(55, iaAverage)),
+          // TSEC-04: Do not generate fake synthetic IA averages; report real or 0
+          iaAverage: 0,
           guardianContact,
-          houseOrGroup: houses[houseIndex],
+          // TSEC-04: Do not fabricate synthetic house assignments
+          houseOrGroup: (st as any).house || undefined,
         }
       })
 
@@ -1374,6 +1510,23 @@ export async function getAttendanceSessions(filters?: {
   const activeTeacher = resolved.teacher
   const activeUser = resolved.user
 
+  // TSEC-05 & TSEC-22: Scope attendance records to teacher's assigned subjects unless HoD/Admin
+  let allowedSubjectIds: string[] | undefined = undefined
+  if (!resolved.isAdmin && resolved.activeRole !== "hod" && !resolved.availableRoles?.includes("hod")) {
+    try {
+      const slots = await prisma.timetable_slots.findMany({
+        where: {
+          institutionId: activeTenantId,
+          teacherId: activeTeacher.id,
+        },
+        select: { subjectId: true },
+      })
+      allowedSubjectIds = Array.from(new Set(slots.map((s: any) => s.subjectId).filter(Boolean) as string[]))
+    } catch (err) {
+      console.warn("[getAttendanceSessions] Timetable slot check error:", err)
+    }
+  }
+
   // 1. Fetch live attendance records from database with multi-tenant filtering
   const filterDate = filters?.date
     ? new Date(`${filters.date}T00:00:00.000Z`)
@@ -1388,6 +1541,7 @@ export async function getAttendanceSessions(filters?: {
       where: {
         institutionId: activeTenantId,
         ...(filterDate ? { date: filterDate } : { date: { gte: thirtyDaysAgo } }),
+        ...(allowedSubjectIds ? { subjectId: { in: allowedSubjectIds } } : {}),
       },
       take: filters?.take ?? 200,
       include: {
@@ -1400,11 +1554,14 @@ export async function getAttendanceSessions(filters?: {
     console.warn("[getAttendanceSessions] DB query error:", err)
   }
 
+  const todayStr = new Date().toISOString().split("T")[0]
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
+
   // Group database attendance records into session cards by date, section, and subject
   const sessionGroups = new Map<string, typeof dbRecords>()
   for (const rec of dbRecords) {
     const st = rec.student ?? rec.students
-    const dateStr = rec.date ? new Date(rec.date).toISOString().split("T")[0] : "2026-11-12"
+    const dateStr = rec.date ? new Date(rec.date).toISOString().split("T")[0] : todayStr
     const grade = (st?.currentSemester ?? 1) === 1 ? "10" : "11"
     const sectionId = `sec-${grade}${(st?.currentSection ?? "A").toLowerCase()}`
     const key = `${dateStr}-${sectionId}-${rec.subjectId}`
@@ -1420,7 +1577,7 @@ export async function getAttendanceSessions(filters?: {
     const first = records[0]
     const fSt = first.student ?? first.students
     const fSub = first.subject ?? first.subjects
-    const dateStr = first.date ? new Date(first.date).toISOString().split("T")[0] : "2026-11-12"
+    const dateStr = first.date ? new Date(first.date).toISOString().split("T")[0] : todayStr
     const grade = (fSt?.currentSemester ?? 1) === 1 ? "10" : "11"
     const sectionId = `sec-${grade}${(fSt?.currentSection ?? "A").toLowerCase()}`
     const classId = `cls-${grade}`
@@ -1449,14 +1606,14 @@ export async function getAttendanceSessions(filters?: {
     liveSessions.push({
       id: sessionId,
       institutionId: activeTenantId,
-      academicYearId: "ay-2026-27",
+      academicYearId: activeAYId,
       teacherId: activeTeacher?.id || "faculty",
       classId,
       className,
       sectionId,
       section: fSt?.currentSection ?? "A",
       subjectId: first.subjectId,
-      subjectName: fSub?.name ?? "Mathematics",
+      subjectName: fSub?.name ?? "Subject",
       date: dateStr,
       period: 1,
       totalStudents: records.length,
@@ -1507,10 +1664,106 @@ export async function getAttendanceSession(
 export async function submitAttendance(
   input: SubmitAttendanceInput
 ): Promise<AttendanceSession> {
-  const { teacher, user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = input.institutionId || institutionId
+  const resolved = await resolveActiveTeacher()
+  const { teacher, user, institutionId } = resolved
+  const activeTenantId = institutionId
   const nowIso = new Date().toISOString()
+
+  // TSEC-06: Strict validation of date format
+  if (!input.date || !/^\d{4}-\d{2}-\d{2}$/.test(input.date) || isNaN(new Date(input.date).getTime())) {
+    throw new TeacherAuthError("Invalid date format. Expected YYYY-MM-DD.", "BAD_REQUEST", 400)
+  }
   const sessionDate = new Date(`${input.date}T00:00:00.000Z`)
+
+  // TSEC-06: Validate attendance records input
+  if (!Array.isArray(input.records) || input.records.length === 0) {
+    throw new TeacherAuthError("No student attendance records provided.", "BAD_REQUEST", 400)
+  }
+
+  const ALLOWED_STATUSES = new Set(["present", "absent", "late", "on_duty", "half_day", "excused"])
+  for (const r of input.records) {
+    if (!r.studentId) {
+      throw new TeacherAuthError("Missing student ID in attendance record.", "BAD_REQUEST", 400)
+    }
+    if (!ALLOWED_STATUSES.has(r.status.toLowerCase())) {
+      throw new TeacherAuthError(
+        `Invalid attendance status: '${r.status}'. Allowed: ${Array.from(ALLOWED_STATUSES).join(", ")}`,
+        "BAD_REQUEST",
+        400
+      )
+    }
+  }
+
+  // Duplicate student check
+  const studentIds = input.records.map((r) => r.studentId)
+  if (new Set(studentIds).size !== studentIds.length) {
+    throw new TeacherAuthError("Duplicate student IDs found in attendance submission.", "BAD_REQUEST", 400)
+  }
+
+  // TSEC-06: Verify teacher allocation to the submitted section
+  const isSectionAlloc = await checkTeacherSectionAllocation(resolved, input.sectionId)
+  if (!isSectionAlloc) {
+    throw new TeacherAuthError(`Forbidden: You are not assigned to class section ${input.sectionId}.`, "FORBIDDEN", 403)
+  }
+
+  // TSEC-09: Verify teacher allocation to the subject
+  if (input.subjectId) {
+    const isSubjAlloc = await checkTeacherSubjectAllocation(resolved, input.subjectId)
+    if (!isSubjAlloc) {
+      throw new TeacherAuthError(`Forbidden: You are not assigned to teach subject ${input.subjectId}.`, "FORBIDDEN", 403)
+    }
+  }
+
+  // TSEC-06: Validate that all submitted students are actively enrolled in the specified section
+  const { semester, section } = parseSectionId(input.sectionId)
+  const validStudents = await prisma.students.findMany({
+    where: {
+      institutionId: activeTenantId,
+      id: { in: studentIds },
+      currentSemester: semester,
+      currentSection: { equals: section, mode: "insensitive" },
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  })
+  const validStudentIdSet = new Set(validStudents.map((s: any) => s.id))
+  const invalidStudentIds = studentIds.filter((id) => !validStudentIdSet.has(id))
+  if (invalidStudentIds.length > 0) {
+    throw new TeacherAuthError(
+      `Invalid submission: ${invalidStudentIds.length} student(s) are not actively enrolled in section ${section} (Semester ${semester}).`,
+      "BAD_REQUEST",
+      400
+    )
+  }
+
+  // TSEC-09: Subject resolution strictly scoped to active tenant
+  let resolvedSubjectId = input.subjectId
+  if (resolvedSubjectId) {
+    const validSubj = await prisma.subjects.findFirst({
+      where: { id: resolvedSubjectId, institutionId: activeTenantId },
+      select: { id: true },
+    })
+    if (!validSubj) {
+      throw new TeacherAuthError(`Subject '${resolvedSubjectId}' not found in this institution.`, "BAD_REQUEST", 400)
+    }
+  } else {
+    // Resolve from teacher's timetable
+    const slot = await prisma.timetable_slots.findFirst({
+      where: {
+        institutionId: activeTenantId,
+        teacherId: teacher.id,
+        semester,
+        section: { equals: section, mode: "insensitive" },
+        periodNumber: input.period ?? 1,
+      },
+      select: { subjectId: true },
+    })
+    if (slot?.subjectId) {
+      resolvedSubjectId = slot.subjectId
+    } else {
+      throw new TeacherAuthError("Subject ID is required for recording attendance.", "BAD_REQUEST", 400)
+    }
+  }
 
   // 1. Validation: check if existing slot is locked or already submitted without correction reason
   const liveSessions = await getAttendanceSessions({ institutionId: activeTenantId })
@@ -1583,79 +1836,33 @@ export async function submitAttendance(
 
   // 3. Batch upsert into attendance_records inside a Prisma transaction
   await prisma.$transaction(async (tx: any) => {
+    // TSEC-08: Query existing enrollments for students in active tenant; no synthetic creation
     const enrollments = await tx.enrollments.findMany({
       where: {
         institutionId: activeTenantId,
-        studentId: { in: input.records.map((r) => r.studentId) },
+        studentId: { in: studentIds },
       },
+      orderBy: { enrolledDate: "desc" },
     })
     const enrollmentMap = new Map(enrollments.map((e: any) => [e.studentId, e.id]))
 
-    // Ensure all students have a valid enrollment ID to avoid foreign key violations
-    for (const r of input.records) {
-      if (!enrollmentMap.has(r.studentId)) {
-        const existingEnr = await tx.enrollments.findFirst({
-          where: { studentId: r.studentId, institutionId: activeTenantId },
-          orderBy: { enrolledDate: "desc" },
-        })
-        if (existingEnr) {
-          enrollmentMap.set(r.studentId, existingEnr.id)
-        } else {
-          const defaultAy = await tx.academic_years.findFirst({
-            where: { institutionId: activeTenantId },
-            orderBy: { createdAt: "desc" },
-          })
-          const defaultCourse = await tx.courses.findFirst({
-            where: { institutionId: activeTenantId },
-            orderBy: { createdAt: "desc" },
-          })
-          if (defaultAy && defaultCourse) {
-            const newEnrId = crypto.randomUUID()
-            await tx.enrollments.create({
-              data: {
-                id: newEnrId,
-                institutionId: activeTenantId,
-                studentId: r.studentId,
-                academicYearId: defaultAy.id,
-                courseId: defaultCourse.id,
-                semester: 1,
-                section: "A",
-                status: "ACTIVE",
-              },
-            })
-            enrollmentMap.set(r.studentId, newEnrId)
-          }
-        }
-      }
+    // Ensure all students have a valid enrollment ID in this institution
+    const missingEnrollment = input.records.find((r) => !enrollmentMap.has(r.studentId))
+    if (missingEnrollment) {
+      throw new TeacherAuthError(
+        `Student ${missingEnrollment.studentName || missingEnrollment.studentId} has no active enrollment record in this institution.`,
+        "BAD_REQUEST",
+        400
+      )
     }
 
-    let subjectId = input.subjectId
-    if (subjectId) {
-      const validSubj = await tx.subjects.findFirst({
-        where: { id: subjectId, institutionId: activeTenantId },
-      })
-      if (!validSubj) {
-        subjectId = undefined
-      }
-    }
-    if (!subjectId) {
-      const subj = (await tx.subjects.findFirst({
-        where: { institutionId: activeTenantId },
-        orderBy: { createdAt: "asc" },
-      })) ?? (await tx.subjects.findFirst({
-        orderBy: { createdAt: "asc" },
-      }))
-      if (subj) {
-        subjectId = subj.id
-      }
-    }
-
-    // Delete prior entries for these students on this date to ensure idempotency
+    // TSEC-07: Delete prior entries for these students on this date AND subject to ensure idempotency without deleting other periods/subjects
     await tx.attendance_records.deleteMany({
       where: {
         institutionId: activeTenantId,
-        studentId: { in: input.records.map((r) => r.studentId) },
+        studentId: { in: studentIds },
         date: sessionDate,
+        subjectId: resolvedSubjectId,
       },
     })
 
@@ -1664,8 +1871,8 @@ export async function submitAttendance(
       id: recordIdMap.get(r.studentId) ?? crypto.randomUUID(),
       institutionId: activeTenantId,
       studentId: r.studentId,
-      enrollmentId: enrollmentMap.get(r.studentId) ?? crypto.randomUUID(),
-      subjectId,
+      enrollmentId: enrollmentMap.get(r.studentId)!,
+      subjectId: resolvedSubjectId,
       date: sessionDate,
       status: r.status.toUpperCase(),
       remarks: r.remarks ?? null,
@@ -1689,6 +1896,7 @@ export async function submitAttendance(
           sectionId: input.sectionId,
           date: input.date,
           period: input.period,
+          subjectId: resolvedSubjectId,
           presentCount,
           absentCount,
           lateCount,
@@ -1704,7 +1912,7 @@ export async function submitAttendance(
   const updatedSession: AttendanceSession = {
     id: sessionId,
     institutionId: activeTenantId,
-    academicYearId: input.academicYearId || "ay-2026-27",
+    academicYearId: input.academicYearId || (await resolveCurrentAcademicYearId(activeTenantId)),
     teacherId: teacher.id,
     classId: input.classId,
     className: input.className,
@@ -1739,9 +1947,30 @@ export async function getInternalAssessments(filters?: {
   subjectId?: string
   institutionId?: string
 }): Promise<InternalAssessment[]> {
-  const activeTenantId =
-    filters?.institutionId ?? (await resolveActiveTeacher()).institutionId
-  const { teacher } = await resolveActiveTeacher().catch(() => ({ teacher: { id: "teacher_01" } }))
+  const resolved = await resolveActiveTeacher(undefined, filters?.institutionId)
+  const activeTenantId = resolved.institutionId
+  const activeTeacher = resolved.teacher
+
+  // TSEC-02 & TSEC-22: Scope assessments to teacher's assigned subjects unless HoD/Admin
+  let allowedSubjectIds: string[] | undefined = undefined
+  if (!resolved.isAdmin && resolved.activeRole !== "hod" && !resolved.availableRoles?.includes("hod")) {
+    try {
+      const slots = await prisma.timetable_slots.findMany({
+        where: {
+          institutionId: activeTenantId,
+          teacherId: activeTeacher.id,
+        },
+        select: { subjectId: true },
+      })
+      allowedSubjectIds = Array.from(new Set(slots.map((s: any) => s.subjectId).filter(Boolean) as string[]))
+    } catch (err) {
+      console.warn("[getInternalAssessments] Timetable slot check error:", err)
+    }
+
+    if (filters?.subjectId && allowedSubjectIds && !allowedSubjectIds.includes(filters.subjectId)) {
+      return []
+    }
+  }
 
   // Fetch live assessment records and approval requests with multi-tenant filtering
   let dbAssessmentRecords: any[] = []
@@ -1751,7 +1980,11 @@ export async function getInternalAssessments(filters?: {
       prisma.assessment_records.findMany({
         where: {
           institutionId: activeTenantId,
-          ...(filters?.subjectId ? { subjectId: filters.subjectId } : {}),
+          ...(filters?.subjectId
+            ? { subjectId: filters.subjectId }
+            : allowedSubjectIds
+              ? { subjectId: { in: allowedSubjectIds } }
+              : {}),
         },
         include: {
           student: true,
@@ -1791,12 +2024,19 @@ export async function getInternalAssessments(filters?: {
       groups.get(key)!.push(r)
     }
 
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
+
     const liveAssessments: InternalAssessment[] = Array.from(groups.entries()).map(
       ([, records]) => {
         const first = records[0]
         const id = `ia-${first.subjectId}-${encodeURIComponent(first.assessmentName).replace(/%/g, "_")}`
         const sub = first.subject ?? first.subjects
         const course = sub?.course ?? sub?.courses
+        const firstSt = first.student ?? first.students
+        const grade = (firstSt?.currentSemester ?? 1) === 1 ? "10" : "11"
+        const section = firstSt?.currentSection || (filters?.sectionId ? parseSectionId(filters.sectionId).section : "A")
+        const sectionId = filters?.sectionId || (firstSt?.currentSection ? `sec-${grade}${firstSt.currentSection.toLowerCase()}` : `sec-${grade}a`)
 
         const matchingApr =
           approvalMap.get(id) ||
@@ -1843,12 +2083,12 @@ export async function getInternalAssessments(filters?: {
         return {
           id,
           institutionId: activeTenantId,
-          academicYearId: "ay_active",
-          teacherId: teacher?.id || "teacher_01",
-          classId: sub?.courseId || "cls-10",
-          className: course?.name || "Class 10",
-          sectionId: filters?.sectionId || "",
-          section: "A",
+          academicYearId: activeAYId,
+          teacherId: activeTeacher?.id || "faculty",
+          classId: sub?.courseId || `cls-${grade}`,
+          className: course?.name || `Class ${grade}`,
+          sectionId,
+          section,
           subjectId: first.subjectId,
           subjectName: sub?.name || "Subject",
           title: first.assessmentName,
@@ -1856,7 +2096,7 @@ export async function getInternalAssessments(filters?: {
           maxMarks: first.maxMarks,
           passingMarks: Math.round(first.maxMarks * 0.4),
           weightagePercent: first.weightage || 20,
-          conductedDate: first.conductedDate ? new Date(first.conductedDate).toISOString().slice(0, 10) : "2026-11-10",
+          conductedDate: first.conductedDate ? new Date(first.conductedDate).toISOString().slice(0, 10) : todayStr,
           status,
           correctionNote,
           publishedToStudents: isPublishedStatus,
@@ -1882,13 +2122,25 @@ export async function getInternalAssessments(filters?: {
 export async function saveIAMarks(
   input: SaveIAMarksInput
 ): Promise<InternalAssessment> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
 
   const liveAssessments = await getInternalAssessments({ institutionId: activeTenantId })
   const assessment = liveAssessments.find((ia) => ia.id === input.assessmentId)
   if (!assessment) {
-    throw new Error(`Internal assessment "${input.assessmentId}" not found.`)
+    throw new TeacherAuthError(`Internal assessment "${input.assessmentId}" not found.`, "NOT_FOUND", 404)
+  }
+
+  // TSEC-16: Verify caller is allocated to teach the subject for this assessment
+  const isAllocated = await checkTeacherSubjectAllocation(resolved, assessment.subjectId)
+  if (!isAllocated) {
+    throw new TeacherAuthError("Forbidden: You are not assigned to teach the subject for this assessment.", "FORBIDDEN", 403)
+  }
+
+  // Prevent modifying approved/locked assessments unless HoD/Admin
+  if ((assessment.status === "approved" || (assessment.status as string) === "locked") && !resolved.isAdmin && resolved.activeRole !== "hod") {
+    throw new TeacherAuthError("Cannot modify internal assessment marks that are already approved or locked.", "FORBIDDEN", 403)
   }
 
   // Validate obtained marks against maximum marks
@@ -1916,13 +2168,13 @@ export async function saveIAMarks(
     })
     const enrollmentMap = new Map(enrollments.map((e: any) => [e.studentId, e.id]))
 
-    let subjectId = assessment.subjectId
-    if (subjectId.startsWith("sub-")) {
-      const s = await tx.subjects.findFirst({
-        where: { institutionId: activeTenantId },
-        orderBy: { createdAt: "asc" },
-      })
-      subjectId = s?.id ?? "sub_demo_math_10"
+    const subjectId = assessment.subjectId
+    const validSubj = await tx.subjects.findFirst({
+      where: { id: subjectId, institutionId: activeTenantId },
+      select: { id: true },
+    })
+    if (!validSubj) {
+      throw new TeacherAuthError(`Subject '${subjectId}' not found in this institution.`, "BAD_REQUEST", 400)
     }
 
     for (const mark of input.marks) {
@@ -2324,8 +2576,26 @@ function mapMaterialType(raw?: string | null): LearningMaterialType {
 // Assignments & Submissions
 // ---------------------------------------------------------------------------
 export async function getAssignments(sectionId?: string): Promise<Assignment[]> {
-  const { teacher, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
+  const { teacher } = resolved
+
+  // TSEC-10 & TSEC-22: Scope assignments to teacher's assigned subjects unless HoD/Admin
+  let allowedSubjectIds: string[] | undefined = undefined
+  if (!resolved.isAdmin && resolved.activeRole !== "hod" && !resolved.availableRoles?.includes("hod")) {
+    try {
+      const slots = await prisma.timetable_slots.findMany({
+        where: {
+          institutionId: activeTenantId,
+          teacherId: teacher.id,
+        },
+        select: { subjectId: true },
+      })
+      allowedSubjectIds = Array.from(new Set(slots.map((s: any) => s.subjectId).filter(Boolean) as string[]))
+    } catch (err) {
+      console.warn("[getAssignments] Timetable slot check error:", err)
+    }
+  }
 
   // Multi-tenant query for live assignments with subjects and submissions
   let dbAssignments: any[] = []
@@ -2335,6 +2605,7 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
       prisma.assignments.findMany({
         where: {
           institutionId: activeTenantId,
+          ...(allowedSubjectIds ? { subjectId: { in: allowedSubjectIds } } : {}),
         },
         include: {
           subject: {
@@ -2394,11 +2665,11 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
       sectionId: inferredSectionId,
       section: inferredSection,
       subjectId: dbAsg.subjectId,
-      subjectName: sub?.name ?? "Mathematics",
+      subjectName: sub?.name ?? "Subject",
       title: dbAsg.title,
       description: dbAsg.description,
       unit: "Unit 3",
-      dueDate: dbAsg.dueDate ? new Date(dbAsg.dueDate).toISOString().slice(0, 10) : "2026-11-30",
+      dueDate: dbAsg.dueDate ? new Date(dbAsg.dueDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
       maxMarks: Math.round(dbAsg.totalPoints || 50),
       allowLateSubmission: true,
       attachmentUrl: dbAsg.attachmentUrl ?? undefined,
@@ -2406,10 +2677,10 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
         ? dbAsg.attachmentUrl.split("/").pop()
         : undefined,
       status,
-      totalStudents: matchingStudentsCount > 0 ? matchingStudentsCount : 18,
+      totalStudents: matchingStudentsCount,
       submittedCount,
       gradedCount,
-      createdAt: dbAsg.createdAt ? new Date(dbAsg.createdAt).toISOString().slice(0, 10) : "2026-11-01",
+      createdAt: dbAsg.createdAt ? new Date(dbAsg.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
     }
   })
 
@@ -2423,8 +2694,25 @@ export async function getAssignments(sectionId?: string): Promise<Assignment[]> 
 export async function getAssignmentSubmissions(
   assignmentId: string
 ): Promise<AssignmentSubmission[]> {
-  const { institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
+
+  // TSEC-10: Verify assignment exists in this tenant and check teacher subject allocation
+  const assignment = await prisma.assignments.findFirst({
+    where: {
+      id: assignmentId,
+      institutionId: activeTenantId,
+    },
+    select: { id: true, subjectId: true },
+  })
+  if (!assignment) {
+    throw new TeacherAuthError("Assignment not found in this institution.", "NOT_FOUND", 404)
+  }
+
+  const isAllocated = await checkTeacherSubjectAllocation(resolved, assignment.subjectId)
+  if (!isAllocated) {
+    throw new TeacherAuthError("Forbidden: You are not assigned to teach the subject for this assignment.", "FORBIDDEN", 403)
+  }
 
   let dbSubmissions: any[] = []
   try {
@@ -2487,28 +2775,35 @@ export async function getAssignmentSubmissions(
 export async function createAssignment(
   input: CreateAssignmentInput
 ): Promise<Assignment> {
-  const { teacher, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
+  const { teacher } = resolved
 
-  const id = `asg-${input.sectionId}-${Date.now()}`
-  const dueDateObj = new Date(`${input.dueDate}T23:59:59.000Z`)
+  // TSEC-11: Verify teacher is allocated to section and subject
+  const isSectionAlloc = await checkTeacherSectionAllocation(resolved, input.sectionId)
+  if (!isSectionAlloc) {
+    throw new TeacherAuthError(`Forbidden: You are not assigned to class section ${input.sectionId}.`, "FORBIDDEN", 403)
+  }
 
-  // Resolve valid subjectId from database
-  let validSubjectId = input.subjectId
+  const isSubjAlloc = await checkTeacherSubjectAllocation(resolved, input.subjectId)
+  if (!isSubjAlloc) {
+    throw new TeacherAuthError(`Forbidden: You are not assigned to teach subject ${input.subjectId}.`, "FORBIDDEN", 403)
+  }
+
+  // TSEC-11: Validate that subjectId exists in active tenant (do not fall back to arbitrary subject)
   const dbSubject = await prisma.subjects.findFirst({
     where: {
-      id: validSubjectId,
+      id: input.subjectId,
       institutionId: activeTenantId,
     },
   })
   if (!dbSubject) {
-    const fallbackSubject = await prisma.subjects.findFirst({
-      where: { institutionId: activeTenantId },
-    })
-    if (fallbackSubject) {
-      validSubjectId = fallbackSubject.id
-    }
+    throw new TeacherAuthError(`Subject '${input.subjectId}' not found in this institution.`, "BAD_REQUEST", 400)
   }
+  const validSubjectId = dbSubject.id
+
+  const id = `asg-${input.sectionId}-${Date.now()}`
+  const dueDateObj = new Date(`${input.dueDate}T23:59:59.000Z`)
 
   const attachmentUrl = input.attachmentName
     ? `/uploads/assignments/${input.attachmentName}`
@@ -2586,7 +2881,7 @@ export async function createAssignment(
     attachmentName: input.attachmentName,
     attachmentUrl,
     status: input.status ?? "published",
-    totalStudents: rosterCount > 0 ? rosterCount : 18,
+    totalStudents: rosterCount,
     submittedCount: 0,
     gradedCount: 0,
     createdAt: new Date().toISOString().slice(0, 10),
@@ -2600,8 +2895,8 @@ export async function gradeAssignmentSubmission(
   obtainedMarks: number,
   feedback?: string
 ): Promise<AssignmentSubmission> {
-  const { institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
 
   // Multi-tenant update in database
   const existingSub = await prisma.assignment_submissions.findFirst({
@@ -2610,10 +2905,20 @@ export async function gradeAssignmentSubmission(
       institutionId: activeTenantId,
     },
     include: {
-      students: true,
-      assignments: true,
+      student: true,
+      assignment: true,
     },
   })
+
+  if (!existingSub) {
+    throw new TeacherAuthError("Submission not found in this institution.", "NOT_FOUND", 404)
+  }
+
+  // TSEC-12: Verify caller is authorized to teach the assignment's subject
+  const isAllocated = await checkTeacherSubjectAllocation(resolved, (existingSub as any).assignment?.subjectId)
+  if (!isAllocated) {
+    throw new TeacherAuthError("Forbidden: You are not assigned to teach the subject for this assignment.", "FORBIDDEN", 403)
+  }
 
   if (existingSub) {
     const maxPoints = (existingSub as any).assignments?.totalPoints ?? 100
@@ -3256,19 +3561,67 @@ export async function uploadCourseMaterialFile(
     folder?: string
   } | FormData
 ) {
+  // TSEC-13: Always resolve session and server-derive institutionId
+  const resolved = await resolveActiveTeacher()
+  const institutionId = resolved.institutionId
+
+  const ALLOWED_EXTENSIONS = new Set([
+    "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx",
+    "mp4", "png", "jpg", "jpeg", "txt", "zip"
+  ])
+  const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024 // 25MB
+
   const { uploadCourseMaterialFile: upload } = await import("@/lib/supabase/storage")
+
   if (typeof FormData !== "undefined" && input instanceof FormData) {
     const file = input.get("file") as File
-    const filename = (input.get("filename") as string) || file?.name || "upload"
-    const folder = (input.get("folder") as string) || "materials"
-    let institutionId = input.get("institutionId") as string
-    if (!institutionId) {
-      const resolved = await resolveActiveTeacher()
-      institutionId = resolved.institutionId
+    if (!file) {
+      throw new TeacherAuthError("No file provided in upload request.", "BAD_REQUEST", 400)
     }
+    const filename = (input.get("filename") as string) || file.name || "upload"
+    const ext = filename.split(".").pop()?.toLowerCase() || ""
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      throw new TeacherAuthError(
+        `File extension '.${ext}' is not permitted. Allowed: ${Array.from(ALLOWED_EXTENSIONS).join(", ")}`,
+        "BAD_REQUEST",
+        400
+      )
+    }
+    if (typeof file.size === "number" && file.size > MAX_FILE_SIZE_BYTES) {
+      throw new TeacherAuthError("File size exceeds the 25MB limit.", "BAD_REQUEST", 400)
+    }
+    const folder = (input.get("folder") as string) || "materials"
     return upload({ file, filename, folder, institutionId })
   }
-  return upload(input as any)
+
+  // Object input
+  const plainInput = input as {
+    file: Buffer | Uint8Array | Blob | File
+    filename: string
+    contentType?: string
+    folder?: string
+  }
+  const filename = plainInput.filename || "upload"
+  const ext = filename.split(".").pop()?.toLowerCase() || ""
+  if (!ALLOWED_EXTENSIONS.has(ext)) {
+    throw new TeacherAuthError(
+      `File extension '.${ext}' is not permitted. Allowed: ${Array.from(ALLOWED_EXTENSIONS).join(", ")}`,
+      "BAD_REQUEST",
+      400
+    )
+  }
+  const size = (plainInput.file as any)?.size ?? (plainInput.file as any)?.length ?? (plainInput.file as any)?.byteLength
+  if (typeof size === "number" && size > MAX_FILE_SIZE_BYTES) {
+    throw new TeacherAuthError("File size exceeds the 25MB limit.", "BAD_REQUEST", 400)
+  }
+
+  return upload({
+    file: plainInput.file,
+    filename,
+    contentType: plainInput.contentType,
+    institutionId,
+    folder: plainInput.folder || "materials",
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -3388,8 +3741,15 @@ export async function saveExamHallLog(
   dutyId: string,
   log: NonNullable<ExamDuty["hallAttendance"]>
 ): Promise<ExamDuty> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
+
+  const liveDuties = await getExamDuties()
+  const existing = liveDuties.find((d) => d.id === dutyId)
+  if (!existing) {
+    throw new TeacherAuthError(`Exam duty "${dutyId}" not found for this faculty in this institution.`, "NOT_FOUND", 404)
+  }
 
   await prisma.approval_requests.upsert({
     where: { id: `apr-hall-${dutyId}` },
@@ -3410,33 +3770,12 @@ export async function saveExamHallLog(
     },
   })
 
-  const liveDuties = await getExamDuties()
-  const existing = liveDuties.find((d) => d.id === dutyId)
-  if (existing) {
-    const updated: ExamDuty = {
-      ...existing,
-      status: "completed",
-      hallAttendance: log,
-    }
-    return clone(updated)
-  }
-
-  const duty: ExamDuty = {
-    id: dutyId,
-    institutionId: activeTenantId,
-    academicYearId: await resolveCurrentAcademicYearId(activeTenantId),
-    teacherId: user.id,
-    examName: "Mid-Term Examination 2026-27",
-    examDate: new Date().toISOString().slice(0, 10),
-    session: "Morning",
-    startTime: "09:30 AM",
-    endTime: "12:30 PM",
-    roomNo: "Room 402",
-    dutyRole: "Chief Invigilator",
+  const updated: ExamDuty = {
+    ...existing,
     status: "completed",
     hallAttendance: log,
   }
-  return clone(duty)
+  return clone(updated)
 }
 
 export async function getCampusDuties(): Promise<CampusDuty[]> {
@@ -3572,13 +3911,25 @@ export async function getResultEntries(): Promise<ResultEntry[]> {
 export async function saveResultMarks(
   input: SaveResultMarksInput
 ): Promise<ResultEntry> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
 
   const liveEntries = await getResultEntries()
   const entry = liveEntries.find((r) => r.id === input.resultEntryId)
   if (!entry) {
-    throw new Error(`Result entry "${input.resultEntryId}" not found.`)
+    throw new TeacherAuthError(`Result entry "${input.resultEntryId}" not found in this institution.`, "NOT_FOUND", 404)
+  }
+
+  // Verify teacher allocation to this subject
+  const isAllocated = await checkTeacherSubjectAllocation(resolved, entry.subjectId)
+  if (!isAllocated) {
+    throw new TeacherAuthError("Forbidden: You are not assigned to teach the subject for this result entry.", "FORBIDDEN", 403)
+  }
+
+  // Prevent modifying results for published entries unless HoD/Admin
+  if (entry.publicationStatus === "published" && !resolved.isAdmin && resolved.activeRole !== "hod") {
+    throw new TeacherAuthError("Cannot edit marks for an already published examination result.", "FORBIDDEN", 403)
   }
 
   // Resolve valid exam schedule in this institution
@@ -3806,20 +4157,39 @@ export async function publishResultEntry(
   publicationStatus: ResultEntry["publicationStatus"],
   entryStatus?: ApprovalStatus
 ): Promise<ResultEntry> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  requireTeacherRole(resolved, ["hod"], "publishResultEntry")
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
 
   const liveEntries = await getResultEntries()
   const current = liveEntries.find((r) => r.id === resultEntryId)
   if (!current) {
-    throw new Error(`Result entry "${resultEntryId}" not found.`)
+    throw new TeacherAuthError(`Result entry "${resultEntryId}" not found in this institution.`, "NOT_FOUND", 404)
+  }
+
+  // Resolve specific exam schedule ID
+  let examScheduleId: string | undefined = undefined
+  if (resultEntryId.startsWith("re-")) {
+    const raw = resultEntryId.slice(3)
+    const parts = raw.split("-")
+    if (parts.length >= 1) {
+      examScheduleId = parts[0]
+    }
   }
 
   if (publicationStatus === "published") {
-    await prisma.exam_schedules.updateMany({
-      where: { institutionId: activeTenantId },
-      data: { isPublished: true },
-    })
+    if (examScheduleId) {
+      await prisma.exam_schedules.updateMany({
+        where: { id: examScheduleId, institutionId: activeTenantId },
+        data: { isPublished: true },
+      })
+    } else {
+      await prisma.exam_schedules.updateMany({
+        where: { institutionId: activeTenantId, title: current.examName },
+        data: { isPublished: true },
+      })
+    }
   }
 
   await prisma.approval_requests.upsert({
@@ -4057,6 +4427,9 @@ export async function createMentoringSession(
   const student = await prisma.students.findFirst({
     where: { id: targetStudentId, institutionId: activeTenantId },
   })
+  if (!student) {
+    throw new TeacherAuthError(`Mentee student "${targetStudentId}" not found in this institution.`, "NOT_FOUND", 404)
+  }
 
   const id = `ms-${Date.now()}`
   await prisma.mentoring_records.create({
@@ -4110,6 +4483,13 @@ export async function saveConfidentialMentorNote(
     typeof menteeId === "string" && menteeId.startsWith("mentee-")
       ? menteeId.replace("mentee-", "")
       : String(menteeId ?? "")
+
+  const student = await prisma.students.findFirst({
+    where: { id: targetStudentId, institutionId: activeTenantId },
+  })
+  if (!student) {
+    throw new TeacherAuthError(`Mentee student "${targetStudentId}" not found in this institution.`, "NOT_FOUND", 404)
+  }
 
   await prisma.mentoring_records.create({
     data: {
@@ -4461,11 +4841,33 @@ export async function reviewTeacherLeaveRequest(
   substituteTeacherName?: string,
   reviewerRemarks?: string
 ): Promise<TeacherLeaveRequest> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  requireTeacherRole(resolved, ["hod"], "reviewTeacherLeaveRequest")
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
 
-  await prisma.approval_requests.updateMany({
-    where: { id: requestId, institutionId: activeTenantId },
+  // TSEC-15: Check request existence, status PENDING, and prevent self-approval
+  const existingReq = await prisma.approval_requests.findFirst({
+    where: { id: requestId, institutionId: activeTenantId, requestType: "LEAVE" },
+  })
+  if (!existingReq) {
+    throw new TeacherAuthError(`Teacher leave request "${requestId}" not found in this institution.`, "NOT_FOUND", 404)
+  }
+  if (existingReq.userId === user.id) {
+    throw new TeacherAuthError("Forbidden: You cannot review or approve your own leave request.", "FORBIDDEN", 403)
+  }
+  const currentStatus = existingReq.status.toUpperCase()
+  if (currentStatus !== "PENDING" && currentStatus !== "SUBMITTED" && currentStatus !== "IN_REVIEW") {
+    throw new TeacherAuthError(`Cannot review leave request with status '${existingReq.status}'. It has already been reviewed.`, "BAD_REQUEST", 400)
+  }
+
+  const updateResult = await prisma.approval_requests.updateMany({
+    where: {
+      id: requestId,
+      institutionId: activeTenantId,
+      requestType: "LEAVE",
+      status: { in: ["PENDING", "SUBMITTED", "IN_REVIEW"] },
+    },
     data: {
       status: decision === "approved" ? "APPROVED" : "REJECTED",
       adminRemarks: reviewerRemarks,
@@ -4473,6 +4875,10 @@ export async function reviewTeacherLeaveRequest(
       reviewedAt: new Date(),
     },
   })
+
+  if (updateResult.count === 0) {
+    throw new TeacherAuthError("Failed to update teacher leave request or request already processed.", "CONFLICT", 409)
+  }
 
   const allReqs = await getTeacherLeaveRequests()
   const found = allReqs.find((r) => r.id === requestId)
@@ -4493,8 +4899,8 @@ export async function reviewTeacherLeaveRequest(
 export async function getStudentLeaveRequests(
   status?: StudentLeaveRequest["status"]
 ): Promise<StudentLeaveRequest[]> {
-  const { institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
 
   let dbRequests: any[] = []
   try {
@@ -4509,14 +4915,29 @@ export async function getStudentLeaveRequests(
     console.warn("[getStudentLeaveRequests] DB query error:", err)
   }
 
+  // TSEC-14: If caller is Class Teacher (and not HoD/Admin), restrict leave requests to students in their homeroom section
+  let homeroomStudentIds: Set<string> | undefined = undefined
+  if (!resolved.isAdmin && resolved.activeRole !== "hod" && !resolved.availableRoles?.includes("hod")) {
+    try {
+      const myRoster = await getSectionStudents(undefined, undefined, activeTenantId)
+      homeroomStudentIds = new Set(myRoster.map((s) => s.studentId))
+    } catch (err) {
+      console.warn("[getStudentLeaveRequests] homeroom roster fetch error:", err)
+    }
+  }
+
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
   const liveLeaves: StudentLeaveRequest[] = []
   for (const r of dbRequests) {
     try {
       const data = JSON.parse(r.requestedDataJson)
+      if (homeroomStudentIds && !homeroomStudentIds.has(data.studentId)) {
+        continue
+      }
       liveLeaves.push({
         id: r.id,
         institutionId: activeTenantId,
-        academicYearId: "ay_active",
+        academicYearId: activeAYId,
         studentId: data.studentId,
         rollNo: data.rollNo,
         studentName: data.studentName,
@@ -4546,8 +4967,10 @@ export async function reviewStudentLeaveRequest(
   decision: "approved" | "rejected",
   reviewerRemarks?: string
 ): Promise<StudentLeaveRequest> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  requireTeacherRole(resolved, ["class_teacher", "hod"], "reviewStudentLeaveRequest")
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
 
   // 1. Fetch approval request from PostgreSQL
   const dbReq = await prisma.approval_requests.findFirst({
@@ -4558,6 +4981,15 @@ export async function reviewStudentLeaveRequest(
     },
   })
 
+  if (!dbReq) {
+    throw new TeacherAuthError(`Student leave request "${requestId}" not found in this institution.`, "NOT_FOUND", 404)
+  }
+
+  const reqStatus = dbReq.status.toUpperCase()
+  if (reqStatus !== "PENDING" && reqStatus !== "SUBMITTED") {
+    throw new TeacherAuthError(`Student leave request "${requestId}" has already been reviewed (status: ${dbReq.status}).`, "BAD_REQUEST", 400)
+  }
+
   let studentId = ""
   let fromDate = ""
   let toDate = ""
@@ -4567,37 +4999,47 @@ export async function reviewStudentLeaveRequest(
   let leaveType = "Medical"
   let guardianName: string | undefined = undefined
   let guardianPhone: string | undefined = undefined
+  let className = "Class 10"
+  let section = "A"
 
-  if (dbReq) {
-    try {
-      const parsed = JSON.parse(dbReq.requestedDataJson)
-      studentId = parsed.studentId
-      fromDate = parsed.fromDate
-      toDate = parsed.toDate
-      reason = parsed.reason || "Medical"
-      studentName = parsed.studentName || ""
-      rollNo = parsed.rollNo || ""
-      leaveType = parsed.leaveType || "Medical"
-      guardianName = parsed.guardianName
-      guardianPhone = parsed.guardianPhone
-    } catch (err) {
-      console.warn("[reviewStudentLeaveRequest] JSON parse error:", err)
-    }
-  } else {
-    throw new Error(`Student leave request "${requestId}" not found in this institution.`)
+  try {
+    const parsed = JSON.parse(dbReq.requestedDataJson)
+    studentId = parsed.studentId
+    fromDate = parsed.fromDate
+    toDate = parsed.toDate
+    reason = parsed.reason || "Medical"
+    studentName = parsed.studentName || ""
+    rollNo = parsed.rollNo || ""
+    leaveType = parsed.leaveType || "Medical"
+    guardianName = parsed.guardianName
+    guardianPhone = parsed.guardianPhone
+    className = parsed.className || "Class 10"
+    section = parsed.section || "A"
+  } catch (err) {
+    console.warn("[reviewStudentLeaveRequest] JSON parse error:", err)
+    throw new TeacherAuthError("Corrupted leave request payload.", "BAD_REQUEST", 400)
   }
 
   if (!studentId || !fromDate || !toDate) {
-    throw new Error(`Student leave request "${requestId}" not found or lacks required dates.`)
+    throw new TeacherAuthError(`Student leave request "${requestId}" lacks required dates or student identity.`, "BAD_REQUEST", 400)
   }
 
   // IDOR & Multi-tenant boundary check: verify student belongs to active institution
   const studentRecord = await prisma.students.findFirst({
     where: { id: studentId, institutionId: activeTenantId },
-    select: { id: true },
+    select: { id: true, currentSection: true, currentSemester: true },
   })
   if (!studentRecord) {
-    throw new Error(`Student "${studentId}" not found in this institution.`)
+    throw new TeacherAuthError(`Student "${studentId}" not found in this institution.`, "NOT_FOUND", 404)
+  }
+
+  // TSEC-14: If caller is Class Teacher (and not HoD/Admin), verify student belongs to caller's assigned homeroom section
+  if (!resolved.isAdmin && resolved.activeRole !== "hod" && !resolved.availableRoles?.includes("hod")) {
+    const studentSectionId = `sec-10${(studentRecord.currentSection || section || "a").toLowerCase()}`
+    const isSectionAlloc = await checkTeacherSectionAllocation(resolved, studentSectionId)
+    if (!isSectionAlloc) {
+      throw new TeacherAuthError("Forbidden: You are not authorized to review leave requests for this section.", "FORBIDDEN", 403)
+    }
   }
 
   // 2. Validate leave date range safely
@@ -4605,11 +5047,11 @@ export async function reviewStudentLeaveRequest(
   const endDate = new Date(toDate)
 
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-    throw new Error(`Invalid date format for leave request "${requestId}".`)
+    throw new TeacherAuthError(`Invalid date format for leave request "${requestId}".`, "BAD_REQUEST", 400)
   }
 
   if (startDate > endDate) {
-    throw new Error(`Invalid date range: fromDate (${fromDate}) cannot be after toDate (${toDate}).`)
+    throw new TeacherAuthError(`Invalid date range: fromDate (${fromDate}) cannot be after toDate (${toDate}).`, "BAD_REQUEST", 400)
   }
 
   // Bound to full day UTC: start of fromDate to end of toDate
@@ -4619,8 +5061,8 @@ export async function reviewStudentLeaveRequest(
   // 3. Atomically update approval request and attendance records in one database transaction
   await prisma.$transaction(async (tx: any) => {
     // Update approval request status
-    await tx.approval_requests.updateMany({
-      where: { id: requestId, institutionId: activeTenantId, requestType: "STUDENT_LEAVE" },
+    const updateCount = await tx.approval_requests.updateMany({
+      where: { id: requestId, institutionId: activeTenantId, requestType: "STUDENT_LEAVE", status: { in: ["PENDING", "SUBMITTED"] } },
       data: {
         status: decision === "approved" ? "APPROVED" : "REJECTED",
         adminRemarks: reviewerRemarks ?? null,
@@ -4628,6 +5070,9 @@ export async function reviewStudentLeaveRequest(
         reviewedAt: new Date(),
       },
     })
+    if (updateCount.count === 0) {
+      throw new TeacherAuthError("Leave request was already processed by another reviewer.", "CONFLICT", 409)
+    }
 
     // Update attendance ONLY if approved, ONLY for the correct student,
     // ONLY within the active institution, and ONLY strictly within the leave date range
@@ -4643,31 +5088,32 @@ export async function reviewStudentLeaveRequest(
           },
         },
         data: {
-          status: "PRESENT",
-          remarks: `On-Duty / Leave Approved: ${reason}`,
+          status: "EXCUSED",
+          remarks: `Leave Approved: ${reason}`,
         },
       })
     }
   })
 
   const daysCount = Math.max(1, Math.ceil((new Date(toDate).getTime() - new Date(fromDate).getTime()) / (1000 * 3600 * 24)) + 1)
+  const activeAYId = await resolveCurrentAcademicYearId(activeTenantId)
 
   const updated: StudentLeaveRequest = {
     id: requestId,
     institutionId: activeTenantId,
-    academicYearId: "ay_active",
+    academicYearId: activeAYId,
     studentId,
     rollNo,
     studentName,
-    className: "Class 10",
-    section: "A",
+    className: className || "Class 10",
+    section: studentRecord.currentSection || section || "A",
     leaveType: (leaveType as any) || "Medical",
     fromDate,
     toDate,
     daysCount,
     reason,
     guardianName: guardianName || "Parent / Guardian",
-    guardianPhone: guardianPhone || "+91 98765 43210",
+    guardianPhone: guardianPhone || "",
     status: decision,
     reviewedBy: user.fullName || "Class Teacher",
     reviewerRemarks,
@@ -4779,8 +5225,14 @@ export async function getAnnouncements(): Promise<Announcement[]> {
 export async function createAnnouncement(
   input: CreateAnnouncementInput
 ): Promise<Announcement> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
+
+  // TSEC-20: Role authorization on announcement audience
+  if (input.audience === "All Staff" || input.audience === "Class Teachers") {
+    requireTeacherRole(resolved, ["hod"], "createAnnouncement")
+  }
 
   const id = crypto.randomUUID()
   const audienceRole =
@@ -4806,8 +5258,7 @@ export async function createAnnouncement(
   const recipientUserIds = new Set<string>()
   recipientUserIds.add(user.id) // Teacher author recipient
 
-  if (input.audience === "All Staff" || input.audience === "Class Teachers" || input.audience === "Department") {
-    // Resolve staff/teachers in this institution
+  if (input.audience === "All Staff") {
     const staff = await prisma.user.findMany({
       where: {
         institutionId: activeTenantId,
@@ -4818,6 +5269,37 @@ export async function createAnnouncement(
     for (const s of staff) {
       recipientUserIds.add(s.id)
     }
+  } else if (input.audience === "Department") {
+    const dept = resolved.department
+    const deptTeachers = await prisma.teachers.findMany({
+      where: {
+        institutionId: activeTenantId,
+        ...(dept ? { department: { equals: dept, mode: "insensitive" } } : {}),
+      },
+      select: { userId: true },
+    })
+    for (const dt of deptTeachers) {
+      if (dt.userId) recipientUserIds.add(dt.userId)
+    }
+  } else if (input.audience === "Class Teachers") {
+    try {
+      const classTeachers = await prisma.$queryRaw<any[]>`
+        SELECT "classTeacherStaffId"
+        FROM "Section"
+        WHERE "institutionId"::text = ${activeTenantId}
+          AND "classTeacherStaffId" IS NOT NULL
+      `
+      const staffIds = Array.from(new Set(classTeachers.map((ct: any) => ct.classTeacherStaffId).filter(Boolean)))
+      if (staffIds.length > 0) {
+        const teachers = await prisma.teachers.findMany({
+          where: { id: { in: staffIds }, institutionId: activeTenantId },
+          select: { userId: true },
+        })
+        for (const t of teachers) {
+          if (t.userId) recipientUserIds.add(t.userId)
+        }
+      }
+    } catch {}
   } else {
     // Audience is "Class & Parents": resolve students and linked parents in this institution
     const dbStudents = await prisma.students.findMany({
@@ -4852,9 +5334,7 @@ export async function createAnnouncement(
         const sec = (s.currentSection || "").toLowerCase()
         return classFilters.some((cf: string) => cf.includes(sec) || sec.includes(cf) || cf.includes("10") || cf.includes("class"))
       })
-      if (eligibleStudents.length === 0) {
-        eligibleStudents = dbStudents
-      }
+      // TSEC-20: If targetClasses yields 0 matches, do NOT fall back to all students!
     }
 
     for (const st of eligibleStudents) {
@@ -4886,6 +5366,13 @@ export async function createAnnouncement(
     })
   }
 
+  const dynamicAuthorRole =
+    resolved.activeRole === "hod"
+      ? `HoD (${resolved.department || "Department"})`
+      : resolved.activeRole === "class_teacher"
+      ? `Class Teacher (${resolved.homeroomClass || "Section"})`
+      : "Teacher"
+
   const created: Announcement = {
     id,
     institutionId: activeTenantId,
@@ -4895,7 +5382,7 @@ export async function createAnnouncement(
     audience: input.audience,
     targetClasses: input.targetClasses,
     authorName: user.fullName || "Teacher",
-    authorRole: "Class Teacher (10-A)",
+    authorRole: dynamicAuthorRole,
     publishedAt: new Date().toISOString().slice(0, 10),
     isPinned: input.isPinned ?? false,
     priority: input.priority ?? "normal",
@@ -4958,10 +5445,17 @@ export async function updateInternalAssessmentStatus(
   status: ApprovalStatus,
   correctionNote?: string
 ): Promise<InternalAssessment> {
-  const { user, institutionId } = await resolveActiveTeacher()
-  const activeTenantId = institutionId
+  const resolved = await resolveActiveTeacher()
+  requireTeacherRole(resolved, ["hod"], "updateInternalAssessmentStatus")
+  const activeTenantId = resolved.institutionId
+  const { user } = resolved
 
-  await prisma.approval_requests.updateMany({
+  const ALLOWED_STATUSES: ApprovalStatus[] = ["draft", "submitted", "approved", "returned", "locked"]
+  if (!ALLOWED_STATUSES.includes(status)) {
+    throw new TeacherAuthError(`Invalid approval status: '${status}'.`, "BAD_REQUEST", 400)
+  }
+
+  const updateResult = await prisma.approval_requests.updateMany({
     where: {
       institutionId: activeTenantId,
       requestedDataJson: {
@@ -4979,7 +5473,7 @@ export async function updateInternalAssessmentStatus(
   const allAssessments = await getInternalAssessments({ institutionId: activeTenantId })
   const current = allAssessments.find((ia) => ia.id === assessmentId)
   if (!current) {
-    throw new Error(`Internal assessment "${assessmentId}" not found.`)
+    throw new TeacherAuthError(`Internal assessment "${assessmentId}" not found in this institution.`, "NOT_FOUND", 404)
   }
   const updated: InternalAssessment = {
     ...current,

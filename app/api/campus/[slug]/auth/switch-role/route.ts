@@ -35,6 +35,17 @@ export async function POST(
       )
     }
 
+    // TSEC-17: Validate route campus slug matches session tenant
+    if (
+      payload.institutionSlug &&
+      payload.institutionSlug.toLowerCase() !== slug.toLowerCase()
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Campus slug does not match active session institution." },
+        { status: 403 }
+      )
+    }
+
     // Verify against DB teacher_portal_sessions
     const oldTokenHash = hashSessionToken(token)
     const dbSessions: any[] = await db.$queryRaw`
@@ -82,17 +93,30 @@ export async function POST(
     const newTokenHash = hashSessionToken(newToken)
     const landingUrl = TEACHER_ROLE_CONFIGS[targetRole].landingPath(slug)
 
-    // Update active_role and token_hash in PostgreSQL teacher_portal_sessions table
+    // TSEC-17: Atomically update session in DB; only issue cookie if update succeeds
     try {
-      await db.$executeRaw`
+      const updateResult: any = await db.$executeRaw`
         UPDATE teacher_portal_sessions
         SET active_role = ${targetRole},
             token_hash = ${newTokenHash},
             updated_at = NOW()
         WHERE token_hash = ${oldTokenHash}
+          AND revoked_at IS NULL
+          AND expires_at > NOW()
       `
-    } catch (e) {
-      console.warn("[Switch Role] DB session update error:", e)
+
+      if (typeof updateResult === "number" && updateResult === 0) {
+        return NextResponse.json(
+          { success: false, error: "Session record could not be updated in database." },
+          { status: 500 }
+        )
+      }
+    } catch (e: any) {
+      console.error("[Switch Role] DB session update error:", e)
+      return NextResponse.json(
+        { success: false, error: "Internal database error updating active role." },
+        { status: 500 }
+      )
     }
 
     const response = NextResponse.json({

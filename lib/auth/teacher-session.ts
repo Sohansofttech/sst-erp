@@ -67,6 +67,9 @@ export type TeacherAuthErrorCode =
   | "TEACHER_RECORD_NOT_FOUND"
   | "FORBIDDEN"
   | "TENANT_MISMATCH"
+  | "BAD_REQUEST"
+  | "NOT_FOUND"
+  | "CONFLICT"
 
 export class TeacherAuthError extends Error {
   constructor(
@@ -546,8 +549,11 @@ export async function getTeacherSession(
         return null
       }
 
-      // Re-load user's roles from DB assignments & test accounts dynamically
-      const testAccount = findDeterministicAccount(user.email) || findDeterministicAccount(user.id)
+      // TSEC-19: Gate deterministic test accounts to non-production environments only
+      const isDevOrTest = process.env.NODE_ENV !== "production"
+      const testAccount = isDevOrTest
+        ? findDeterministicAccount(user.email) || findDeterministicAccount(user.id)
+        : null
       let teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
       if (!teacherObj && testAccount) {
         teacherObj = {
@@ -566,16 +572,17 @@ export async function getTeacherSession(
           teacherObj = await prisma.teachers.findFirst({
             where: { userId: user.id },
           })
+          // TSEC-18: Do not mutate DB by manufacturing staff records during read session resolution.
           if (!teacherObj) {
-            teacherObj = await prisma.teachers.create({
-              data: {
-                userId: user.id,
-                institutionId: user.institutionId || institution.id,
-                employeeId: user.id.slice(0, 10).toUpperCase(),
-                department: "General",
-                designation: user.role === "HOD" ? "Head of Department" : "Faculty Member",
-              },
-            })
+            teacherObj = {
+              id: payload.teacherId || `teacher_${user.id}`,
+              userId: user.id,
+              institutionId: user.institutionId || institution.id,
+              employeeId: user.id.slice(0, 10).toUpperCase(),
+              department: "General",
+              designation: user.role === "HOD" ? "Head of Department" : "Faculty Member",
+              createdAt: new Date(),
+            }
           }
         } catch (err) {
           console.warn("[getTeacherSession] Dynamic teacher profile resolution:", err)
