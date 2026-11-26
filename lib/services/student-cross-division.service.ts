@@ -454,8 +454,10 @@ export async function listStudentDivisionEnrollments(
         },
       },
     },
-    orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
+    orderBy: { enrolledDate: "desc" },
   });
+
+  enrollments.sort((a: any, b: any) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));
 
   const activeEnrollments = enrollments.filter((e) => e.status === "ACTIVE");
   const pastEnrollments = enrollments.filter((e) => e.status !== "ACTIVE");
