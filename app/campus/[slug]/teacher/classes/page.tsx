@@ -345,7 +345,7 @@ export default function TeacherClassesPage() {
               className={cn(
                 "w-full sm:w-auto rounded-xl",
                 onlyLowAttendance
-                  ? "bg-[#F5A000] text-white hover:bg-[#E09200]"
+                  ? "bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                   : "border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
               )}
               onClick={() => setOnlyLowAttendance((v) => !v)}

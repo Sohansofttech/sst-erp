@@ -47,7 +47,8 @@ import type { StudentRosterItem, StudentLeaveRequest } from "@/types/teacher"
 import { useTeacherRole } from "../teacher-role-context"
 
 export default function ClassTeacherDashboardPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const homeroomName = user.homeroomClass || "Assigned Homeroom"
   const [students, setStudents] = React.useState<StudentRosterItem[]>([])
   const [leaveRequests, setLeaveRequests] = React.useState<StudentLeaveRequest[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -78,7 +79,7 @@ export default function ClassTeacherDashboardPage() {
     return (
       <LoadingState
         title="Loading Homeroom Section"
-        description="Aggregating Class 10-A student metrics, attendance defaulters, and leave queue..."
+        description={`Aggregating ${homeroomName} student metrics, attendance defaulters, and leave queue...`}
       />
     )
   }
@@ -120,12 +121,12 @@ export default function ClassTeacherDashboardPage() {
 
   const avgIA = students.length > 0
     ? Number((students.reduce((acc, s) => acc + s.iaAverage, 0) / students.length).toFixed(1))
-    : 84.6
+    : null
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Homeroom Workspace — Class 10-A"
+        title={`Homeroom Workspace — ${homeroomName}`}
         subtitle="Dedicated homeroom section management: student roster, attendance shortage alerts, student leave approvals, and parent communications."
         action={
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -135,7 +136,7 @@ export default function ClassTeacherDashboardPage() {
                 Leave Approvals ({pendingLeaves.length})
               </Link>
             </Button>
-            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]">
               <Link href={`${base}/notices`}>
                 <Megaphone className="mr-1.5 size-4" />
                 Broadcast Parent Notice
@@ -153,7 +154,7 @@ export default function ClassTeacherDashboardPage() {
           icon={<Users />}
           variant="dark"
           tone="darkNavy"
-          description="Class 10 - A (Homeroom)"
+          description={`${homeroomName} (Homeroom)`}
         />
         <StatCard
           label="Average Attendance"
@@ -171,7 +172,7 @@ export default function ClassTeacherDashboardPage() {
         />
         <StatCard
           label="Section IA Mean"
-          value={`${avgIA}%`}
+          value={avgIA !== null ? `${avgIA}%` : "N/A"}
           icon={<Award />}
           tone="primary"
           description="Cross-subject aggregate"

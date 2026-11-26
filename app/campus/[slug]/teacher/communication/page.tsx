@@ -84,15 +84,13 @@ const announcementSchema = z.object({
 type AnnouncementFormValues = z.infer<typeof announcementSchema>
 
 export default function TeacherCommunicationPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
   const [announcements, setAnnouncements] = React.useState<Announcement[]>([])
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     []
   )
   const [classes, setClasses] = React.useState<ClassAllocation[]>([])
-  const [selectedClasses, setSelectedClasses] = React.useState<string[]>([
-    "Class 10 - A",
-  ])
+  const [selectedClasses, setSelectedClasses] = React.useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all")
   const [sending, setSending] = React.useState(false)
   const [loading, setLoading] = React.useState(true)
@@ -146,6 +144,11 @@ export default function TeacherCommunicationPage() {
         setAnnouncements(annRes)
         setNotifications(notifRes)
         setClasses(classRes)
+        if (classRes.length > 0) {
+          setSelectedClasses([`${classRes[0].className} - ${classRes[0].section}`])
+        } else if (user?.homeroomClass) {
+          setSelectedClasses([user.homeroomClass])
+        }
       })
       .catch((err) => {
         setError(
@@ -202,6 +205,11 @@ export default function TeacherCommunicationPage() {
         setAnnouncements(annRes)
         setNotifications(notifRes)
         setClasses(classRes)
+        if (classRes.length > 0) {
+          setSelectedClasses([`${classRes[0].className} - ${classRes[0].section}`])
+        } else if (user?.homeroomClass) {
+          setSelectedClasses([user.homeroomClass])
+        }
       })
       .catch((err) => {
         if (!active) return
@@ -545,7 +553,7 @@ export default function TeacherCommunicationPage() {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]" disabled={sending}>
+                  <Button type="submit" className="w-full rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]" disabled={sending}>
                     <Send className="size-4" />
                     {sending ? "Broadcasting..." : "Publish Announcement"}
                   </Button>

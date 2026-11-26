@@ -292,7 +292,7 @@ export default function TeacherTimetablePage() {
                       className={cn(
                         "inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-bold transition-all",
                         active
-                          ? "border-[#F5A000] bg-[#F5A000] text-white shadow-xs"
+                          ? "border-[#F5A000] bg-[#F5A000] text-[#123B5A] shadow-xs"
                           : "border-[#E5E9EF] bg-white text-[#202936] hover:bg-[#EEF1F5]"
                       )}
                     >
@@ -301,7 +301,7 @@ export default function TeacherTimetablePage() {
                         className={cn(
                           "rounded-full px-1.5 py-0.5 text-[11px]",
                           active
-                            ? "bg-white/20 text-white font-bold"
+                            ? "bg-[#123B5A]/20 text-[#123B5A] font-bold"
                             : "bg-[#EEF1F5] text-[#788391]"
                         )}
                       >
@@ -340,7 +340,7 @@ export default function TeacherTimetablePage() {
                               className={cn(
                                 "flex size-11 shrink-0 flex-col items-center justify-center rounded-xl border text-center font-bold",
                                 isActiveSlot
-                                  ? "border-[#F5A000] bg-[#F5A000] text-white"
+                                  ? "border-[#F5A000] bg-[#F5A000] text-[#123B5A]"
                                   : "border-[#E5E9EF] bg-[#EEF1F5] text-[#202936]"
                               )}
                             >
@@ -361,7 +361,7 @@ export default function TeacherTimetablePage() {
                                   {slot.className} - {slot.section}
                                 </Badge>
                                 {isActiveSlot && (
-                                  <Badge className="gap-1 rounded-full bg-[#F5A000] text-white font-bold">
+                                  <Badge className="gap-1 rounded-full bg-[#F5A000] text-[#123B5A] font-bold">
                                     <Sparkles className="size-3" />
                                     Active Slot
                                   </Badge>
@@ -471,7 +471,7 @@ export default function TeacherTimetablePage() {
                                       </Badge>
                                     )}
                                     {isActiveSlot && !slot.isSubstituted && (
-                                      <Badge className="rounded-full bg-[#F5A000] px-1.5 py-0 text-[10px] text-white font-bold">
+                                      <Badge className="rounded-full bg-[#F5A000] px-1.5 py-0 text-[10px] text-[#123B5A] font-bold">
                                         Active
                                       </Badge>
                                     )}
