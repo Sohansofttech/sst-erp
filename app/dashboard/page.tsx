@@ -647,70 +647,79 @@ export default function DashboardPage() {
               aria-labelledby={`tab-${activeTab}`}
               className="p-6"
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {enrolledCourses.map((course, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs space-y-2.5"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase inline-block mb-1">
-                          {course.code}
-                        </span>
-                        <h4 className="text-xs font-bold text-[#1E293B] truncate" title={course.name}>
-                          {course.name}
-                        </h4>
-                      </div>
-                      <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
-                        {activeTab === "attendance"
-                          ? course.attendanceLabel
-                          : activeTab === "marks"
-                          ? `${course.marks}/100 (${course.grade})`
-                          : activeTab === "coursework"
-                          ? course.pendingTasks > 0
-                            ? "1 Due"
-                            : "Submitted"
-                          : activeTab === "credits"
-                          ? `${course.credits} Credits`
-                          : course.attendanceLabel}
-                      </span>
-                    </div>
-
-                    {/* Dual-Color Segmented Progress Bar */}
-                    <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
-                      <div
-                        style={{ width: `${course.theoryPct}%` }}
-                        className="h-full bg-[#123B5A]"
-                        title={`Lecture Attendance: ${course.theoryPct}%`}
-                      />
-                      <div
-                        style={{ width: `${course.labPct}%` }}
-                        className="h-full bg-[#F5A000]"
-                        title={`Lab & Practical: ${course.labPct}%`}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-[#64748B] pt-0.5">
-                      <span className="truncate">Faculty: {course.faculty}</span>
-                      <span className="font-semibold text-[#1E293B] shrink-0">{course.credits} Credits</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Bottom Summary Strip */}
-              <div className="mt-5 pt-4 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between text-xs text-[#64748B]">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#123B5A]" />
-                  <span>Lecture Attendance (Theory)</span>
-                  <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
-                  <span>Practical Labs & Coursework</span>
+              {enrolledCourses.length === 0 ? (
+                <div className="py-12 text-center border-2 border-dashed border-[#E2E8F0] rounded-xl bg-[#F8FAFC]">
+                  <p className="text-xs font-semibold text-[#1E293B]">No enrolled courses or subject attendance records found.</p>
+                  <p className="text-[11px] text-[#64748B] mt-1">Course progress, internal marks, and attendance metrics will appear once academic subjects are assigned.</p>
                 </div>
-                <span className="font-semibold text-[#1E293B]">
-                  Semester Load: 6 Enrolled Subjects • 19 Total Credits
-                </span>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {enrolledCourses.map((course, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase inline-block mb-1">
+                              {course.code}
+                            </span>
+                            <h4 className="text-xs font-bold text-[#1E293B] truncate" title={course.name}>
+                              {course.name}
+                            </h4>
+                          </div>
+                          <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
+                            {activeTab === "attendance"
+                              ? course.attendanceLabel
+                              : activeTab === "marks"
+                              ? `${course.marks}/100 (${course.grade})`
+                              : activeTab === "coursework"
+                              ? course.pendingTasks > 0
+                                ? "1 Due"
+                                : "Submitted"
+                              : activeTab === "credits"
+                              ? `${course.credits} Credits`
+                              : course.attendanceLabel}
+                          </span>
+                        </div>
+
+                        {/* Dual-Color Segmented Progress Bar */}
+                        <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
+                          <div
+                            style={{ width: `${course.theoryPct}%` }}
+                            className="h-full bg-[#123B5A]"
+                            title={`Lecture Attendance: ${course.theoryPct}%`}
+                          />
+                          <div
+                            style={{ width: `${course.labPct}%` }}
+                            className="h-full bg-[#F5A000]"
+                            title={`Lab & Practical: ${course.labPct}%`}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-[#64748B] pt-0.5">
+                          <span className="truncate">Faculty: {course.faculty}</span>
+                          <span className="font-semibold text-[#1E293B] shrink-0">{course.credits} Credits</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bottom Summary Strip */}
+                  <div className="mt-5 pt-4 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between text-xs text-[#64748B]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#123B5A]" />
+                      <span>Lecture Attendance (Theory)</span>
+                      <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
+                      <span>Practical Labs & Coursework</span>
+                    </div>
+                    <span className="font-semibold text-[#1E293B]">
+                      Semester Load: {enrolledCourses.length} Enrolled Subject{enrolledCourses.length === 1 ? "" : "s"} • {enrolledCourses.reduce((acc, c) => acc + (c.credits || 0), 0)} Total Credits
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
