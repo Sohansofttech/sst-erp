@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { isKnownPortalRole, portalRoleAllows } from "../lib/auth/portal-roles";
+import { getPortalRedirectTarget } from "../lib/security/portal-page-guard";
 
 test("Admin portal accepts institution and departmental roles but excludes Super Admin", () => {
   assert.equal(portalRoleAllows("ADMIN", "ADMIN"), true);
@@ -26,4 +27,8 @@ test("unknown portal role values are rejected", () => {
   assert.equal(isKnownPortalRole("INSTITUTION_ADMIN"), true);
   assert.equal(portalRoleAllows("unknown", "ADMIN"), false);
   assert.equal(portalRoleAllows("toString", "ADMIN"), false);
+});
+
+test("unauthenticated Student portal access preserves the Student login role", () => {
+  assert.equal(getPortalRedirectTarget(null, "STUDENT"), "/login?role=student");
 });

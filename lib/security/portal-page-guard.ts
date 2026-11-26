@@ -15,6 +15,10 @@ export interface PortalAuthContext {
   email: string;
 }
 
+function getPortalLoginPath(requiredRole: PortalRole): string {
+  return requiredRole === "STUDENT" ? "/login?role=student" : "/login";
+}
+
 /**
  * Pure redirect-target resolver for Student and Parent portal pages.
  * Returns null if the live role matches requiredRole, or a safe redirect path otherwise.
@@ -25,7 +29,7 @@ export function getPortalRedirectTarget(
 ): string | null {
   const roleUpper = (role || "").toUpperCase();
   if (!roleUpper) {
-    return "/login";
+    return getPortalLoginPath(requiredRole);
   }
   if (roleUpper === requiredRole) {
     return null;
@@ -54,9 +58,10 @@ export async function verifyPortalPageAccess(
 ): Promise<PortalAuthContext | null> {
   await connection();
 
+  const loginPath = getPortalLoginPath(requiredRole);
   const session = await getSession();
   if (!session || !session.userId || !session.passwordSig) {
-    redirect("/login");
+    redirect(loginPath);
   }
 
   const dbUser = await db.user.findUnique({
@@ -74,12 +79,12 @@ export async function verifyPortalPageAccess(
   });
 
   if (!dbUser || !dbUser.isActive || dbUser.status !== "ACTIVE" || !dbUser.institutionId) {
-    redirect("/login");
+    redirect(loginPath);
   }
 
   const currentSig = computePasswordSignature(dbUser.passwordHash || "");
   if (session.passwordSig !== currentSig) {
-    redirect("/login");
+    redirect(loginPath);
   }
 
   const liveRole = (dbUser.role || session.role || "").toUpperCase();
