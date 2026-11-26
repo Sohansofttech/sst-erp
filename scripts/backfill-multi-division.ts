@@ -190,6 +190,12 @@ export async function runBackfill(dryRun: boolean = false): Promise<BackfillStat
     console.log(`--------------------------------------------------------------------`);
     console.log(`Processing Institution: [${inst.name}] (ID: ${inst.id})`);
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inst.id);
+    if (!isUuid) {
+      console.log(`  ℹ Skipping legacy non-UUID institution: [${inst.name}] (${inst.id})`);
+      continue;
+    }
+
     try {
       await db.$transaction(
         async (tx) => {
@@ -380,29 +386,34 @@ export async function runBackfill(dryRun: boolean = false): Promise<BackfillStat
                   const classCode = `${course.code}-S${e.semester}-${ayShort}`;
 
                   if (!dryRun) {
-                    // Upsert to handle concurrent collisions on (courseId, academicYearId, code)
-                    const canonicalClass = await tx.class.upsert({
+                    let canonicalClass = await tx.class.findFirst({
                       where: {
-                        courseId_academicYearId_code: {
-                          courseId: e.courseId,
-                          academicYearId: e.academicYearId,
-                          code: classCode,
-                        },
-                      },
-                      create: {
                         institutionId: inst.id,
-                        divisionId: divId,
                         courseId: e.courseId,
                         academicYearId: e.academicYearId,
-                        semester: e.semester,
-                        name: className,
                         code: classCode,
-                        isActive: true,
-                      },
-                      update: {
-                        divisionId: divId,
                       },
                     });
+
+                    if (!canonicalClass) {
+                      canonicalClass = await tx.class.create({
+                        data: {
+                          institutionId: inst.id,
+                          divisionId: divId,
+                          courseId: e.courseId,
+                          academicYearId: e.academicYearId,
+                          semester: e.semester,
+                          name: className,
+                          code: classCode,
+                          isActive: true,
+                        },
+                      });
+                    } else if (!canonicalClass.divisionId) {
+                      await tx.class.update({
+                        where: { id: canonicalClass.id },
+                        data: { divisionId: divId },
+                      });
+                    }
                     targetClassId = canonicalClass.id;
                   } else {
                     targetClassId = "dry-run-synthesized-class";
