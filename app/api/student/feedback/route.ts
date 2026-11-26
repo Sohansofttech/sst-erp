@@ -17,29 +17,31 @@ export async function GET(req: NextRequest) {
     const session = await requireAuth(req);
     const url = new URL(req.url);
     let requestedStudentId = url.searchParams.get("studentId") || session.studentId || session.activeChildId;
-    let resolvedInstitutionId = session.institutionId || "";
 
-    if (session.role === "STUDENT" && session.userId) {
+    if (session.role === "STUDENT" && session.userId && !requestedStudentId) {
       try {
         const studentProfile = await db.student.findFirst({
-          where: { userId: session.userId },
-          select: { id: true, institutionId: true },
+          where: { userId: session.userId, institutionId: session.institutionId },
+          select: { id: true },
         });
         if (studentProfile) {
           requestedStudentId = studentProfile.id;
           session.studentId = studentProfile.id;
-          if (!resolvedInstitutionId) {
-            resolvedInstitutionId = studentProfile.institutionId;
-          }
         }
       } catch {}
     }
 
     if (!requestedStudentId) {
-      requestedStudentId = session.studentId || "student_john_doe";
+      return NextResponse.json(
+        { success: false, error: "Valid studentId context is required." },
+        { status: 400 }
+      );
     }
 
-    const effectiveInst = resolvedInstitutionId || session.institutionId;
+    // SEC-01: Enforce explicit student or parent authorization and parent-child linkage
+    const { studentId } = await authorizeStudentOrParentAccess(session, requestedStudentId);
+
+    const effectiveInst = session.institutionId;
     if (!effectiveInst) {
       return NextResponse.json({ success: false, error: "Institution context is required." }, { status: 400 });
     }
@@ -48,12 +50,8 @@ export async function GET(req: NextRequest) {
     try {
       feedbackList = await db.feedback.findMany({
         where: {
-          institutionId: effectiveInst || undefined,
-          OR: [
-            { studentId: requestedStudentId },
-            ...(session.studentId && session.studentId !== requestedStudentId ? [{ studentId: session.studentId }] : []),
-            ...(session.userId ? [{ student: { userId: session.userId } }] : []),
-          ],
+          institutionId: effectiveInst,
+          studentId: studentId,
         },
         include: {
           student: {
@@ -75,25 +73,17 @@ export async function GET(req: NextRequest) {
       console.warn("Feedback database lookup fallback:", dbErr.message);
     }
 
-    // Merge persistent disk storage and in-memory registry so submitted and resolved feedbacks survive all restarts
+    // Merge persistent disk storage and in-memory registry strictly scoped to authorized student and institution
     const persistedList = loadAllPersistedFeedbacks();
     const memList = globalFeedbacksRegistry.get(effectiveInst) || [];
 
     const merged = [...(feedbackList || [])];
 
     const upsertItem = (item: any) => {
-      // Strict tenant isolation: verify institution
-      if (effectiveInst && item.institutionId && item.institutionId !== effectiveInst) {
+      // Strict tenant isolation and student scoping: never leak other students or generic records
+      if (!item || item.institutionId !== effectiveInst || item.studentId !== studentId) {
         return;
       }
-
-      const match =
-        !item.studentId ||
-        item.studentId === requestedStudentId ||
-        item.studentId === session.studentId ||
-        (session.userId && item.student?.userId === session.userId);
-
-      if (!match) return;
 
       const idx = merged.findIndex((x) => x.id === item.id);
       if (idx >= 0) {
@@ -118,12 +108,6 @@ export async function GET(req: NextRequest) {
       upsertItem(item);
     }
 
-    // Default seeded record fallback if both DB and registry are empty
-    if (merged.length === 0) {
-      const all = await getStudentFeedbacks(effectiveInst);
-      merged.push(...all);
-    }
-
     merged.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 
     const res = NextResponse.json({
@@ -133,9 +117,11 @@ export async function GET(req: NextRequest) {
     res.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
     return res;
   } catch (err: any) {
+    const isForbidden = err.name === "ForbiddenError" || err.status === 403;
+    const isUnauthorized = err.name === "UnauthorizedError" || err.status === 401;
     return NextResponse.json(
       { success: false, error: err.message },
-      { status: err.name === "ForbiddenError" ? 403 : 500 }
+      { status: isForbidden ? 403 : isUnauthorized ? 401 : 500 }
     );
   }
 }
