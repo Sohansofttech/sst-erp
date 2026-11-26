@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import { PERMISSIONS } from "@/lib/security/rbac";
 import { getAuditLogs, createAuditLog } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireReadReq(req, institutionId);
     const take = parseInt(req.nextUrl.searchParams.get("take") || "50", 10);
     const logs = await getAuditLogs(institutionId, take);
 
@@ -25,6 +28,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     const log = await createAuditLog({

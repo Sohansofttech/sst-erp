@@ -9,6 +9,8 @@ import {
   InstitutionThemeConfig,
 } from "@/lib/theme-utils";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 // Global in-memory multi-tenant theme registry (resilient fallback when DB is disconnected)
 const globalThemeRegistry = new Map<string, InstitutionThemeConfig>();
@@ -24,6 +26,7 @@ const isUuid = (val: string) =>
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
 
     // 1. Try complete 9-token theme persistence from PlatformSetting (PostgreSQL JSONB)
     try {
@@ -88,6 +91,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body || typeof body !== "object") {
@@ -222,5 +226,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const { institutionId } = await resolveAdminContext(req);
+  await requireWriteReq(req, institutionId);
   return POST(req);
 }

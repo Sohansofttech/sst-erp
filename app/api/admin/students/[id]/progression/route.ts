@@ -4,6 +4,8 @@ import {
   progressStudentDivision,
   CrossDivisionError,
 } from "@/lib/services/student-cross-division.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function POST(
   req: NextRequest,
@@ -11,6 +13,7 @@ export async function POST(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id: studentId } = await params;
     const body = await req.json();
 

@@ -6,10 +6,13 @@ import {
   listDivisionMemberships,
   createDivisionMembership,
 } from "@/lib/services/division-membership.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireReadReq(req, context.institutionId);
     const { searchParams } = new URL(req.url);
 
     const requestedDivId = searchParams.get("divisionId") || undefined;
@@ -46,6 +49,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireWriteReq(req, context.institutionId);
     const body = await req.json();
 
     const { userId, divisionId, roleId, status } = body;

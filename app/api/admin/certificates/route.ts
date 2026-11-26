@@ -6,12 +6,15 @@ import {
   getIssuedCertificates,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireReadReq(req, institutionId);
     const query =
       req.nextUrl.searchParams.get("query") ||
       req.nextUrl.searchParams.get("code") ||
@@ -82,6 +85,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (body.type === "TEMPLATE") {
@@ -170,6 +174,7 @@ export async function PUT(req: NextRequest) {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { id, status, remarks } = body;
 

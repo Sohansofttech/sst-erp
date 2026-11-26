@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSession, getAuthErrorStatus } from "@/lib/auth/session";
+import { assertSupportAccess, SUPPORT_READ } from "@/lib/security/support-access";
 import db from "@/lib/db";
 import {
   getInstitutionSubscriptionStatus,
@@ -40,6 +41,13 @@ export async function GET(req: NextRequest) {
     if (roleUpper === "SUPER_ADMIN") {
       const requestedInstId = req.nextUrl.searchParams.get("institutionId") || req.headers.get("x-institution-id");
       if (requestedInstId) {
+        // SAF-007: cross-institution inspection by a Super Admin requires an
+        // approved READ_SUPPORT_CONTEXT session for that institution.
+        await assertSupportAccess({
+          actorId: session.userId,
+          institutionId: requestedInstId,
+          requiredAction: SUPPORT_READ,
+        });
         institutionId = requestedInstId;
       }
     }
@@ -86,7 +94,7 @@ export async function GET(req: NextRequest) {
     console.error("[SubscriptionPortal:GET] Error:", error?.message || error);
     return NextResponse.json(
       { success: false, error: error?.message || "Internal server error." },
-      { status: 500 }
+      { status: getAuthErrorStatus(error) ?? 500 }
     );
   }
 }

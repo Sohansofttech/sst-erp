@@ -3628,6 +3628,7 @@ model SupportAccessSession {
   approvedById   String?             @db.Uuid
   reason         String
   allowedActions Json
+  requestedDurationMinutes Int      @default(60)
   status         SupportAccessStatus @default(REQUESTED)
   startsAt       DateTime?
   expiresAt      DateTime

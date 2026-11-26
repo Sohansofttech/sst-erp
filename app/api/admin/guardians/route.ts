@@ -9,10 +9,13 @@ import {
   restoreGuardian,
   getGuardianDependencies,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
     const checkDependencies = req.nextUrl.searchParams.get("dependencies") === "true";
 
@@ -38,6 +41,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body.fullName || !body.relationship || !body.phone || !body.email) {
@@ -61,6 +65,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
     const force = req.nextUrl.searchParams.get("force") === "true";
 
@@ -105,6 +110,7 @@ export async function DELETE(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { id, ...data } = body;
 
@@ -137,6 +143,7 @@ export async function PUT(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { id, action } = body;
 

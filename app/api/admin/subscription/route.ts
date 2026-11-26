@@ -4,10 +4,13 @@ import {
   getInstitutionSubscriptionStatus,
   getAvailableSubscriptionPlans,
 } from "@/lib/services/subscription.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const subscriptionStatus = await getInstitutionSubscriptionStatus(institutionId);
     const availablePlans = await getAvailableSubscriptionPlans();
 

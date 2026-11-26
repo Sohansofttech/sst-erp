@@ -3,6 +3,8 @@ import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-a
 import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
 import { InstitutionProfile, InstitutionType } from "@/types/institution";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 const globalSettingsRegistry = new Map<string, InstitutionProfile>();
 
@@ -57,6 +59,7 @@ function createDefaultInstitutionProfile(id: string, name: string, code: string 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId, institutionName } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
 
     // Resolve saved theme for this institution (database PlatformSetting -> Branding -> Registry -> Default)
     let savedTheme: any = null;
@@ -194,6 +197,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, institutionName } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body || typeof body !== "object") {
@@ -287,5 +291,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const { institutionId } = await resolveAdminContext(req);
+  await requireWriteReq(req, institutionId);
   return POST(req);
 }

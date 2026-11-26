@@ -17,6 +17,8 @@ import {
   updateDivision,
   deleteDivision,
 } from "@/lib/services/division.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(
   req: NextRequest,
@@ -24,6 +26,7 @@ export async function GET(
 ) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireReadReq(req, context.institutionId);
     const { id } = await params;
 
     const division = await getDivisionById(context.institutionId, id);
@@ -43,6 +46,7 @@ export async function PATCH(
 ) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireWriteReq(req, context.institutionId);
     const { id } = await params;
     const body = await req.json();
 
@@ -80,6 +84,7 @@ export async function DELETE(
 ) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireWriteReq(req, context.institutionId);
     const { id } = await params;
     const { searchParams } = new URL(req.url);
     const forceArchive = searchParams.get("archive") === "true";

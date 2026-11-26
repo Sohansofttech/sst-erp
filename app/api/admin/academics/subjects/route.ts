@@ -6,6 +6,8 @@ import {
   updateSubject,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 const normalizeSubjectType = (val?: string) => {
   if (!val) return "CORE_THEORY";
@@ -20,6 +22,7 @@ const normalizeSubjectType = (val?: string) => {
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const courseId = req.nextUrl.searchParams.get("courseId") || undefined;
     const subjects = await getSubjects(institutionId, courseId);
 
@@ -35,6 +38,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body.name || !body.code || !body.courseId) {
@@ -77,6 +81,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const {
       id,
@@ -135,6 +140,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

@@ -10,12 +10,15 @@ import {
   getTransportMaintenance,
   createTransportMaintenanceRecord,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.TRANSPORT_READ,
     });
+    await requireReadReq(req, institutionId);
     const [allocations, catalog, maintenance] = await Promise.all([
       getTransportAllocations(institutionId),
       getTransportCatalog(institutionId),
@@ -38,6 +41,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.TRANSPORT_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (body.type === "SAVE_ROUTE") {
@@ -110,6 +114,7 @@ export async function DELETE(req: NextRequest) {
     const { institutionId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.TRANSPORT_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

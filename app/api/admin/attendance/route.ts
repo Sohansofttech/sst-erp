@@ -12,12 +12,15 @@ import {
   calculateMonthlyAttendance,
   RawAttendanceRecord,
 } from "@/lib/services/attendance-calculator";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireReadReq(req, institutionId);
     const studentId = req.nextUrl.searchParams.get("studentId") || undefined;
     const subjectId = req.nextUrl.searchParams.get("subjectId") || undefined;
     const academicYearId = req.nextUrl.searchParams.get("academicYearId") || undefined;
@@ -75,6 +78,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     // 1. Direct Attendance Correction for a single record

@@ -8,12 +8,15 @@ import {
   processStudentImportBatch,
   resumeImportJob,
 } from "@/lib/services/student-import.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const actorUserId = userId || "system";
     const body = await req.json();
     const action = body.action as string;

@@ -19,6 +19,8 @@ import {
   getAppBaseUrl,
   getRolePortalLoginUrl,
 } from "@/lib/services/email.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 async function dispatchSetupEmailSafe(
   institutionId: string,
@@ -81,6 +83,7 @@ async function dispatchSetupEmailSafe(
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const searchParams = req.nextUrl.searchParams;
     const type = searchParams.get("type") || "status";
     const entityType = searchParams.get("entityType") as "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | "HOD" | "STAFF" | null;
@@ -447,6 +450,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { action, entityType, customPassword } = body;
 

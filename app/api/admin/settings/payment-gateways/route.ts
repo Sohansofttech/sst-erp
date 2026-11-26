@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import { PaymentGatewayService } from "@/lib/services/payment-gateway.service";
 import { PaymentGatewayProvider, GatewayEnvironment } from "@/types/payment-gateway";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 /**
  * GET /api/admin/settings/payment-gateways
@@ -10,6 +12,7 @@ import { PaymentGatewayProvider, GatewayEnvironment } from "@/types/payment-gate
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
 
     const gateways = await PaymentGatewayService.getInstitutionGateways(institutionId);
     const preferences = await PaymentGatewayService.getPaymentPreferences(institutionId);
@@ -33,6 +36,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { action } = body;
 

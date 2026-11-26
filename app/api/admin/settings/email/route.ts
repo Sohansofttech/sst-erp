@@ -6,6 +6,8 @@ import {
   testInstitutionEmailConnection,
   toMaskedInstitutionConfig,
 } from "@/lib/services/email-config.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 /**
  * Institution Admin Email Configuration API
@@ -14,6 +16,7 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const config = await getInstitutionEmailConfig(institutionId);
 
     return NextResponse.json({
@@ -28,6 +31,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action");
 
