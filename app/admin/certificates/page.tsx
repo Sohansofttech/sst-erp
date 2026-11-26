@@ -138,14 +138,55 @@ function CertificatesContent() {
     loadStudentsAndCourses();
   }, [loadCertificates, loadStudentsAndCourses]);
 
-  const profile = {
-    name: "Apex Institute of Technology",
-    code: "AIT",
+  const [profile, setProfile] = useState<{
+    name: string;
+    code: string;
+    addressLine1: string;
+    city: string;
+    state: string;
+    postalCode: string;
+  }>({
+    name: "Campus Institute",
+    code: "CAMPUS",
     addressLine1: "Knowledge Campus",
     city: "Bengaluru",
     state: "Karnataka",
     postalCode: "560001",
-  };
+  });
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("erp_institution_name");
+        const instProfile = localStorage.getItem("sst_erp_inst_admin_profile");
+        if (instProfile) {
+          const parsed = JSON.parse(instProfile);
+          setProfile((p) => ({ ...p, ...parsed, name: parsed.name || stored || p.name }));
+        } else if (stored) {
+          setProfile((p) => ({ ...p, name: stored }));
+        }
+      } catch {}
+    }
+
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data?.session?.institution) {
+          const inst = json.data.session.institution;
+          setProfile({
+            name: inst.name,
+            code: inst.code || "INST",
+            addressLine1: inst.address || "Campus Main",
+            city: inst.city || "",
+            state: inst.state || "",
+            postalCode: inst.postalCode || "",
+          });
+        } else if (json.success && json.data?.session?.institutionName) {
+          setProfile((p) => ({ ...p, name: json.data.session.institutionName }));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [certificateNumberConfig, setCertificateNumberConfig] = useState({
     prefix: "CERT",

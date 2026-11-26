@@ -39,9 +39,17 @@ export async function GET(req: NextRequest) {
       include: {
         student: {
           include: {
+            currentDivision: {
+              select: { id: true, name: true, code: true, type: true },
+            },
             enrollments: {
-              include: { course: true, academicYear: true },
-              orderBy: { enrolledDate: "desc" },
+              include: {
+                division: { select: { id: true, name: true, code: true, type: true } },
+                class: { select: { id: true, name: true, gradeLevel: true } },
+                course: true,
+                academicYear: true,
+              },
+              orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
             },
           },
         },
@@ -51,8 +59,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: links.map((link) => {
+        const activeEnrollments = link.student.enrollments.filter((e) => e.status === "ACTIVE");
         const activeEnrollment =
-          link.student.enrollments.find((e) => e.status === "ACTIVE") || link.student.enrollments[0];
+          activeEnrollments.find((e) => e.isPrimary) || activeEnrollments[0] || link.student.enrollments[0];
 
         return {
           linkId: link.id,
@@ -62,13 +71,26 @@ export async function GET(req: NextRequest) {
             id: link.student.id,
             firstName: link.student.firstName,
             lastName: link.student.lastName,
+            fullName: `${link.student.firstName} ${link.student.lastName}`.trim(),
             rollNumber: link.student.rollNumber,
             admissionNumber: link.student.admissionNumber,
             currentSemester: link.student.currentSemester,
             currentSection: link.student.currentSection,
+            currentDivisionId: link.student.currentDivisionId,
+            currentDivision: link.student.currentDivision,
             courseName: activeEnrollment?.course?.name || "",
+            className: activeEnrollment?.class?.name || "",
             academicYear: activeEnrollment?.academicYear?.name || "",
             status: link.student.status,
+            activeDivisions: activeEnrollments.map((e) => ({
+              enrollmentId: e.id,
+              divisionId: e.divisionId,
+              divisionName: e.division?.name || "Standard Division",
+              divisionCode: e.division?.code || "DIV",
+              divisionType: e.division?.type || "COLLEGE",
+              className: e.class?.name || "",
+              isPrimary: e.isPrimary,
+            })),
           },
         };
       }),

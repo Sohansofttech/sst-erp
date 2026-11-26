@@ -20,6 +20,7 @@ import {
 import { NotificationDropdown } from "@/components/shared/NotificationDropdown";
 import { ChangePasswordModal } from "../shared/ChangePasswordModal";
 import { ROLE_LABELS } from "@/lib/security/rbac";
+import { DivisionSwitcher } from "@/components/layout/DivisionSwitcher";
 
 interface AdminHeaderProps {
   onToggleSidebar: () => void;
@@ -207,6 +208,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ onToggleSidebar, userR
             </div>
           )}
         </div>
+
+        {/* Multi-Division Switcher */}
+        <DivisionSwitcher />
 
         {/* Live Notification Dropdown */}
         <NotificationDropdown />

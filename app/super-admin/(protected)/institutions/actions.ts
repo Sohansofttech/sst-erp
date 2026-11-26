@@ -5,9 +5,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { provisionInstitutionAdmin, syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
-import { assignInstitutionTrial } from "@/lib/services/subscription.service";
+import { createInitialInstitutionSubscription } from "@/lib/billing/initial-subscription";
+import { assignInstitutionTrial, FREE_TRIAL_PLAN_CODE } from "@/lib/services/subscription.service";
+import {
+  createDivision,
+  updateDivision,
+  deleteDivision,
+} from "@/lib/services/division.service";
+import { DivisionType, DivisionStatus } from "@prisma/client";
 
 const institutionInput = z.object({
+  planId: z.uuid(),
   name: z.string().trim().min(2).max(160),
   code: z.string().trim().max(40).optional(),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens for the slug.").max(80),
@@ -56,9 +64,9 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
     collegeCode = `CC-${slugPrefix}-${randNum}`;
   }
 
-  let newInstitutionId = "";
+  let newSubscriptionStatus: string | null = null;
   try {
-    await prisma.$transaction(
+    const created = await prisma.$transaction(
       async (tx) => {
         const institution = await tx.platformInstitution.create({
           data: {
@@ -77,13 +85,59 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
             website: data.website || null,
           },
         });
-        newInstitutionId = institution.id;
+        const selectedPlan = await tx.subscriptionPlan.findFirst({
+          where: { id: data.planId, isActive: true, archivedAt: null },
+          select: { id: true, code: true },
+        });
+        if (!selectedPlan) throw new Error("Select an active subscription plan.");
 
-        // Automatically assign 14-day complimentary free trial atomically with institution creation
-        await assignInstitutionTrial(tx, {
-          institutionId: institution.id,
-          createdById: auditUserId,
-          startsAt: institution.createdAt,
+        let subscriptionAssignment: { planId: string; status: string };
+        if (selectedPlan.code === FREE_TRIAL_PLAN_CODE) {
+          const trialAssignment = await assignInstitutionTrial(tx, {
+            institutionId: institution.id,
+            createdById: auditUserId,
+            startsAt: institution.createdAt,
+          });
+          subscriptionAssignment = {
+            planId: trialAssignment.subscription.planId,
+            status: trialAssignment.subscription.status,
+          };
+        } else {
+          subscriptionAssignment = await createInitialInstitutionSubscription(tx, {
+            institutionId: institution.id,
+            planId: selectedPlan.id,
+            actorId: auditUserId,
+          });
+        }
+
+        // Automatically designate newly created institution as the primary active institution in backend
+        await tx.platformSetting.upsert({
+          where: { key: "primary_institution_id" },
+          create: {
+            key: "primary_institution_id",
+            value: institution.id,
+            description: "Default active institution ID for public portal",
+            updatedById: auditUserId,
+          },
+          update: {
+            value: institution.id,
+            description: "Default active institution ID for public portal",
+            updatedById: auditUserId,
+          },
+        });
+        await tx.platformSetting.upsert({
+          where: { key: "primary_institution_name" },
+          create: {
+            key: "primary_institution_name",
+            value: institution.name,
+            description: "Default active institution name for public portal",
+            updatedById: auditUserId,
+          },
+          update: {
+            value: institution.name,
+            description: "Default active institution name for public portal",
+            updatedById: auditUserId,
+          },
         });
 
         // Preserved transactional audit logging - failure here rolls back the transaction
@@ -96,23 +150,30 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
               entity: "Institution",
               entityId: institution.id,
               result: "SUCCESS",
-              metadata: { slug: institution.slug, code: collegeCode },
+              metadata: {
+                slug: institution.slug,
+                code: collegeCode,
+                planId: subscriptionAssignment.planId,
+                subscriptionStatus: subscriptionAssignment.status,
+              },
             },
           });
         }
+        return { institutionId: institution.id, status: subscriptionAssignment.status };
       },
       { maxWait: 15000, timeout: 20000 }
     );
+    newSubscriptionStatus = created.status;
 
-    if (newInstitutionId) {
-      await syncInstitutionToAppDb(newInstitutionId);
+    if (created.institutionId) {
+      await syncInstitutionToAppDb(created.institutionId);
       const adminName = data.adminName || formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
       const adminEmail = data.adminEmail || formData.get("adminEmail")?.toString().trim() || data.email || undefined;
       const adminPhone = data.adminPhone;
       const adminPassword = data.adminPassword || "Password@123";
 
       const provisionResult = await provisionInstitutionAdmin({
-        institutionId: newInstitutionId,
+        institutionId: created.institutionId,
         adminName,
         adminEmail,
         adminPassword,
@@ -139,8 +200,18 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
   try {
     revalidatePath("/super-admin");
     revalidatePath("/super-admin/institutions");
+    revalidatePath("/subscriptions");
+    revalidatePath("/subscriptions/institutions");
+    revalidatePath("/login");
+    revalidatePath("/");
   } catch {}
-  return { error: null, success: `Institution created successfully (College Code: ${collegeCode}) and administrator provisioned.` };
+  const planNotice =
+    newSubscriptionStatus === "TRIALING"
+      ? "The 14-day free trial is active."
+      : newSubscriptionStatus === "ACTIVE"
+        ? "The selected free plan is active."
+        : "The selected paid plan remains pending verified payment.";
+  return { error: null, success: `Institution created successfully (College Code: ${collegeCode}) and administrator provisioned. ${planNotice}` };
 }
 
 export async function provisionAdminForInstitution(formData: FormData) {
@@ -228,6 +299,29 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
           data: { name: parsed.data.name, slug: parsed.data.slug },
         });
       } catch {}
+
+      // Keep platform setting name in sync if this institution is the primary active institution
+      try {
+        const currentPrimary = await tx.platformSetting.findUnique({
+          where: { key: "primary_institution_id" },
+        });
+        if (currentPrimary?.value === id.data) {
+          await tx.platformSetting.upsert({
+            where: { key: "primary_institution_name" },
+            create: {
+              key: "primary_institution_name",
+              value: parsed.data.name,
+              description: "Default active institution name for public portal",
+              updatedById: auditUserId,
+            },
+            update: {
+              value: parsed.data.name,
+              description: "Default active institution name for public portal",
+              updatedById: auditUserId,
+            },
+          });
+        }
+      } catch {}
       await tx.platformAuditLog.create({ data: { userId: auditUserId, institutionId: id.data, action: "INSTITUTION_UPDATED", entity: "Institution", entityId: id.data, result: "SUCCESS" } });
     });
   } catch (error) {
@@ -239,7 +333,72 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/institutions");
   revalidatePath(`/super-admin/institutions/${id.data}`);
+  revalidatePath("/login");
+  revalidatePath("/");
   return { error: null, success: "Institution details updated." };
+}
+
+export async function setPrimaryInstitution(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const id = z.uuid().safeParse(formData.get("id"));
+  if (!id.success) throw new Error("Invalid institution ID.");
+
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+  const institution = await prisma.platformInstitution.findUnique({
+    where: { id: id.data },
+    select: { id: true, name: true, code: true, slug: true, status: true, archivedAt: true },
+  });
+  if (!institution || institution.archivedAt) throw new Error("Institution not found or archived.");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.platformSetting.upsert({
+      where: { key: "primary_institution_id" },
+      create: {
+        key: "primary_institution_id",
+        value: institution.id,
+        description: "Default active institution ID for public portal",
+        updatedById: auditUserId,
+      },
+      update: {
+        value: institution.id,
+        description: "Default active institution ID for public portal",
+        updatedById: auditUserId,
+      },
+    });
+    await tx.platformSetting.upsert({
+      where: { key: "primary_institution_name" },
+      create: {
+        key: "primary_institution_name",
+        value: institution.name,
+        description: "Default active institution name for public portal",
+        updatedById: auditUserId,
+      },
+      update: {
+        value: institution.name,
+        description: "Default active institution name for public portal",
+        updatedById: auditUserId,
+      },
+    });
+    if (auditUserId) {
+      await tx.platformAuditLog.create({
+        data: {
+          userId: auditUserId,
+          institutionId: institution.id,
+          action: "PRIMARY_INSTITUTION_SET",
+          entity: "Institution",
+          entityId: institution.id,
+          result: "SUCCESS",
+          metadata: { name: institution.name, code: institution.code },
+        },
+      });
+    }
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/super-admin/institutions");
+  revalidatePath(`/super-admin/institutions/${institution.id}`);
+  revalidatePath("/login");
+  revalidatePath("/");
 }
 
 export async function updateInstitutionStatus(formData: FormData) {
@@ -289,4 +448,161 @@ export async function setInstitutionFeatureOverride(formData: FormData) {
   });
   revalidatePath(`/super-admin/institutions/${input.data.institutionId}`);
   revalidatePath("/super-admin/modules");
+}
+
+export async function createInstitutionDivision(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      name: z.string().trim().min(2).max(160),
+      code: z.string().trim().max(40).optional(),
+      slug: z.string().trim().toLowerCase().max(80).optional(),
+      type: z.nativeEnum(DivisionType),
+      description: z.string().trim().max(500).optional(),
+      logoUrl: z.union([z.url(), z.literal("")]).optional(),
+      brandColor: z.string().trim().max(20).optional(),
+      isDefault: z.enum(["true", "false"]).optional(),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error(input.error.issues[0]?.message || "Invalid division data.");
+  }
+
+  const { institutionId, name, code, slug, type, description, logoUrl, brandColor, isDefault } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const division = await createDivision(institutionId, {
+    name,
+    code: code || undefined,
+    slug: slug || undefined,
+    type,
+    description: description || null,
+    logoUrl: logoUrl || null,
+    academicSettings: brandColor ? { brandColor } : undefined,
+    isDefault: isDefault === "true",
+  });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DIVISION_CREATED",
+        entity: "InstitutionDivision",
+        entityId: division.id,
+        result: "SUCCESS",
+        metadata: { name: division.name, code: division.code, type: division.type },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
+}
+
+export async function updateInstitutionDivisionStatus(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      divisionId: z.uuid(),
+      status: z.nativeEnum(DivisionStatus),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error("Invalid division status update request.");
+  }
+
+  const { institutionId, divisionId, status } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const updated = await updateDivision(institutionId, divisionId, { status });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DIVISION_STATUS_CHANGED",
+        entity: "InstitutionDivision",
+        entityId: divisionId,
+        result: "SUCCESS",
+        metadata: { status: updated.status, name: updated.name },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
+}
+
+export async function setDefaultInstitutionDivision(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      divisionId: z.uuid(),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error("Invalid default division request.");
+  }
+
+  const { institutionId, divisionId } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const updated = await updateDivision(institutionId, divisionId, { isDefault: true });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DEFAULT_DIVISION_SET",
+        entity: "InstitutionDivision",
+        entityId: divisionId,
+        result: "SUCCESS",
+        metadata: { name: updated.name, code: updated.code },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
+}
+
+export async function archiveInstitutionDivision(formData: FormData) {
+  const actor = await requireSuperAdmin();
+  const input = z
+    .object({
+      institutionId: z.uuid(),
+      divisionId: z.uuid(),
+    })
+    .safeParse(Object.fromEntries(formData.entries()));
+
+  if (!input.success) {
+    throw new Error("Invalid division archive request.");
+  }
+
+  const { institutionId, divisionId } = input.data;
+  const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+
+  const result = await deleteDivision(institutionId, divisionId, { forceArchive: true });
+
+  if (auditUserId) {
+    await prisma.platformAuditLog.create({
+      data: {
+        userId: auditUserId,
+        institutionId,
+        action: "INSTITUTION_DIVISION_ARCHIVED",
+        entity: "InstitutionDivision",
+        entityId: divisionId,
+        result: "SUCCESS",
+        metadata: { resultAction: result.action },
+      },
+    });
+  }
+
+  revalidatePath(`/super-admin/institutions/${institutionId}`);
 }

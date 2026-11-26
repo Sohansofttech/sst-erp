@@ -10,13 +10,33 @@ export type UserRole =
   | "STUDENT"
   | "PARENT";
 
+export interface InstitutionDetails {
+  id: string;
+  name: string;
+  code: string | null;
+  slug: string | null;
+  logo?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
+}
+
 export interface SessionUser {
   userId: string;
   email: string;
   fullName: string;
+  name?: string; // Canonical alias for full name
   role: UserRole;
   institutionId: string;
   institutionName: string;
+  institutionCode?: string | null;
+  institutionSlug?: string | null;
+  institution?: InstitutionDetails;
   studentId?: string; // Present if role is STUDENT
   guardianId?: string; // Present if role is PARENT
   activeChildId?: string; // Currently active child for PARENT

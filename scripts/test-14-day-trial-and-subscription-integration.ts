@@ -14,6 +14,7 @@
  */
 
 import assert from "assert";
+import crypto from "crypto";
 
 // ANSI colors
 const RESET = "\x1b[0m";
@@ -494,13 +495,11 @@ async function runAllTests() {
   const mockWebhookSecret = "whsec_test_secret_key_1234567890abcdef";
 
   function computeRazorpaySignature(body: string, secret: string) {
-    const crypto = require("crypto");
     return crypto.createHmac("sha256", secret).update(body).digest("hex");
   }
 
   function verifyRazorpayWebhook(body: string, signature: string, secret: string) {
     const expected = computeRazorpaySignature(body, secret);
-    const crypto = require("crypto");
     try {
       return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
     } catch {

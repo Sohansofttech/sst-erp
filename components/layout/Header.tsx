@@ -6,6 +6,8 @@ import { NotificationDropdown } from "../shared/NotificationDropdown";
 import { Badge } from "../shared/Badge";
 import { ChangePasswordModal } from "../shared/ChangePasswordModal";
 import { clearClientSessionCache } from "@/lib/auth/client-session";
+import { StudentDivisionSwitcher } from "@/components/student/StudentDivisionSwitcher";
+import { ParentChildDivisionSwitcher } from "@/components/parent/ParentChildDivisionSwitcher";
 
 interface HeaderProps {
   portalType: "STUDENT" | "PARENT";
@@ -13,6 +15,8 @@ interface HeaderProps {
   userRole?: string;
   userEmail?: string;
   institutionName?: string;
+  institutionCode?: string | null;
+  institutionLogo?: string | null;
   academicYearName?: string;
   selectedChildId?: string;
   onSelectChild?: (childId: string) => void;
@@ -25,6 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
   userRole = "STUDENT",
   userEmail,
   institutionName = "Campus Portal",
+  institutionCode,
+  institutionLogo,
   academicYearName,
   selectedChildId,
   onSelectChild,
@@ -39,7 +45,9 @@ export const Header: React.FC<HeaderProps> = ({
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
         localStorage.removeItem("erp_institution_name");
+        localStorage.removeItem("erp_institution");
         localStorage.removeItem("erp_active_child_id");
+        localStorage.removeItem("sst_erp_inst_admin_profile");
       }
       await fetch("/api/auth/me", { method: "POST", credentials: "include" });
       window.location.href = "/login";
@@ -60,15 +68,20 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#123B5A] text-white font-bold shadow-xs shrink-0">
-            <School className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#123B5A] text-white font-bold shadow-xs shrink-0 overflow-hidden">
+            {institutionLogo ? (
+              <img src={institutionLogo} alt={institutionName} className="w-full h-full object-contain p-1" />
+            ) : (
+              <School className="w-5 h-5 text-white" />
+            )}
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm md:text-base font-bold text-[#1E293B] leading-tight truncate max-w-[200px] sm:max-w-xs md:max-w-md">
+            <h1 className="text-sm md:text-base font-bold text-[#1E293B] leading-tight truncate max-w-[200px] sm:max-w-xs md:max-w-md" title={institutionName}>
               {institutionName}
             </h1>
             <p className="text-[11px] text-[#64748B] font-medium hidden sm:block">
               {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"}
+              {institutionCode ? ` • ${institutionCode}` : ""}
               {academicYearName ? ` • AY ${academicYearName}` : ""}
             </p>
           </div>
@@ -80,6 +93,16 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right side: Academic Year, Notifications, User Profile */}
       <div className="flex items-center gap-2.5 sm:gap-3.5">
+        {/* Portal Division Switching: Parent Child & Division Selector OR Student Enrollment Selector */}
+        {portalType === "PARENT" ? (
+          <ParentChildDivisionSwitcher
+            selectedChildId={selectedChildId}
+            onSelectChild={onSelectChild}
+          />
+        ) : portalType === "STUDENT" ? (
+          <StudentDivisionSwitcher />
+        ) : null}
+
         {/* Academic Year Switcher matching Admin Header */}
         {academicYearName ? (
           <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#1E293B]">

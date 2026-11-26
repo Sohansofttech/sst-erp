@@ -6,6 +6,9 @@
 
 import assert from "assert";
 import { NextRequest } from "next/server";
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim().length < 32) {
+  process.env.JWT_SECRET = "test-jwt-secret-for-unit-tests-only-32-chars";
+}
 import db from "../lib/db";
 import { signToken, computePasswordSignature, AUTH_COOKIE_NAME } from "../lib/auth/jwt";
 import { DEPARTMENTAL_ROLES } from "../lib/security/rbac";
@@ -79,12 +82,16 @@ async function main() {
     uraFindMany: db.userRoleAssignment.findMany,
     instFindUnique: db.institution.findUnique,
     subFindFirst: db.institutionSubscription.findFirst,
+    platformUserFindMany: db.platformUser.findMany,
+    instMembershipFindFirst: db.institutionMembership.findFirst,
     queryRaw: db.$queryRaw,
   };
 
   let actorRole = "INSTITUTION_ADMIN";
 
   function installAuthMocks() {
+    (db.platformUser as any).findMany = async () => [{ id: "plat_admin_1" }];
+    (db.institutionMembership as any).findFirst = async () => ({ id: "m1" });
     (db.institution as any).findUnique = async () => ({
       id: INST_A,
       name: "Test Inst",
@@ -416,6 +423,8 @@ async function main() {
     (db.userRoleAssignment as any).findMany = orig.uraFindMany;
     (db.institution as any).findUnique = orig.instFindUnique;
     (db.institutionSubscription as any).findFirst = orig.subFindFirst;
+    (db.platformUser as any).findMany = orig.platformUserFindMany;
+    (db.institutionMembership as any).findFirst = orig.instMembershipFindFirst;
     (db as any).$queryRaw = orig.queryRaw;
   }
 

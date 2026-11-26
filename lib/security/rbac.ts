@@ -182,17 +182,18 @@ export function resolveEffectivePermissions(
 }
 
 export function hasPermission(
-  userPermissions: string[],
+  userPermissions: string[] = [],
   requiredPermission?: string,
   userRole?: string | null
 ): boolean {
-  if (isFullAdminRole(userRole) || userPermissions.includes(PERMISSIONS.ADMIN_ALL)) {
+  const perms = userPermissions || [];
+  if (isFullAdminRole(userRole) || perms.includes(PERMISSIONS.ADMIN_ALL)) {
     return true;
   }
   if (!requiredPermission) {
     return false;
   }
-  return userPermissions.includes(requiredPermission);
+  return perms.includes(requiredPermission);
 }
 
 /**

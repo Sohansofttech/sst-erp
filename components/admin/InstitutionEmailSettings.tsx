@@ -409,7 +409,7 @@ export function InstitutionEmailSettings() {
                   type="text"
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="e.g. Apex Institute Admissions & Examinations"
+                  placeholder="e.g. Admissions & Examinations Office"
                   className="text-xs h-9"
                 />
               </div>

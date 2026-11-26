@@ -69,7 +69,7 @@ export default function StudentLmsPage() {
           type: "ASSIGNMENT_SUBMISSION",
           assignmentId: selectedAssignment.id,
           textContent,
-          fileUrl: `https://apex.edu/submissions/student_${Date.now()}.pdf`,
+          fileUrl: `/uploads/submissions/student_${Date.now()}.pdf`,
         }),
       });
       const json = await res.json();

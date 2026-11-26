@@ -310,6 +310,31 @@ export async function getQueries(params: {
       if (!match) continue;
     }
 
+    // Cross-table sync fallback: if query is still PENDING or missing adminRemarks,
+    // check if the mirrored feedback entry has already been resolved by institution administration
+    let effectiveStatus = (r.status as QueryStatus) || "PENDING";
+    let effectiveAdminRemarks = r.adminRemarks || undefined;
+    let effectiveReviewedAt = r.reviewedAt?.toISOString() || undefined;
+
+    if (effectiveStatus === "PENDING" || !effectiveAdminRemarks) {
+      try {
+        const matchingFeedback = await db.feedback.findFirst({
+          where: {
+            institutionId: r.institutionId,
+            subject: r.title,
+            ...(payload.studentId ? { studentId: payload.studentId } : {}),
+            status: { not: "PENDING" },
+          },
+          select: { status: true, response: true, respondedAt: true },
+        });
+        if (matchingFeedback && matchingFeedback.status !== "PENDING") {
+          effectiveStatus = matchingFeedback.status as QueryStatus;
+          effectiveAdminRemarks = matchingFeedback.response || effectiveAdminRemarks;
+          effectiveReviewedAt = matchingFeedback.respondedAt?.toISOString() || effectiveReviewedAt;
+        }
+      } catch {}
+    }
+
     parsedItems.push({
       id: r.id,
       institutionId: r.institutionId,
@@ -321,18 +346,18 @@ export async function getQueries(params: {
       subject: r.title,
       category: payload.category || "GENERAL",
       description: payload.description || payload.message || r.title,
-      status: (r.status as QueryStatus) || "PENDING",
+      status: effectiveStatus,
       priority: payload.priority || "NORMAL",
       studentId: payload.studentId,
       studentName: payload.studentName,
-      adminRemarks: r.adminRemarks || undefined,
+      adminRemarks: effectiveAdminRemarks,
       reviewedByUserId: r.reviewedByUserId || undefined,
       reviewedByName: r.reviewedByUser?.fullName || r.reviewedByUser?.name || undefined,
       assignedToUserId: payload.assignedToId || undefined,
       assignedToName: payload.assignedToName || undefined,
       history: Array.isArray(payload.history) ? payload.history : [],
       createdAt: r.createdAt.toISOString(),
-      reviewedAt: r.reviewedAt?.toISOString() || undefined,
+      reviewedAt: effectiveReviewedAt,
     });
   }
 

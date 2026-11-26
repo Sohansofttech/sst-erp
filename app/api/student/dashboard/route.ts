@@ -39,9 +39,29 @@ export async function GET(req: NextRequest) {
     const student = await db.student.findUnique({
       where: { id: studentId },
       include: {
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            slug: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            city: true,
+            state: true,
+            country: true,
+          },
+        },
         enrollments: {
-          include: { course: true, academicYear: true },
-          orderBy: { enrolledDate: "desc" },
+          include: {
+            course: true,
+            academicYear: true,
+            class: true,
+            division: { select: { id: true, name: true, code: true, type: true } },
+          },
+          orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
         },
       },
     });
@@ -50,8 +70,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
 
-    const activeEnrollment =
-      student.enrollments.find((e) => e.status === "ACTIVE") || student.enrollments[0];
+    const requestedDivisionId =
+      url.searchParams.get("divisionId") ||
+      req.headers.get("x-division-id") ||
+      req.cookies.get("sst_active_division")?.value;
+
+    let activeEnrollment = student.enrollments.find(
+      (e) => e.status === "ACTIVE" && requestedDivisionId && e.divisionId === requestedDivisionId
+    );
+
+    if (!activeEnrollment) {
+      activeEnrollment =
+        student.enrollments.find((e) => e.status === "ACTIVE" && e.isPrimary) ||
+        student.enrollments.find((e) => e.status === "ACTIVE") ||
+        student.enrollments[0];
+    }
     const courseName = activeEnrollment?.course?.name || "";
     const academicYearName = activeEnrollment?.academicYear?.name || "";
 
@@ -169,13 +202,19 @@ export async function GET(req: NextRequest) {
           id: student.id,
           firstName: student.firstName,
           lastName: student.lastName,
+          fullName: `${student.firstName} ${student.lastName || ""}`.trim() || student.fullName,
           rollNumber: student.rollNumber,
           admissionNumber: student.admissionNumber,
           currentSemester: student.currentSemester,
           currentSection: student.currentSection,
           course: courseName,
           academicYear: academicYearName,
+          institutionId: student.institutionId,
+          currentDivisionId: activeEnrollment?.divisionId || student.currentDivisionId,
+          activeDivision: activeEnrollment?.division || null,
+          className: activeEnrollment?.class?.name || null,
         },
+        institution: student.institution,
         attendanceSummary: {
           totalClasses: attendanceCalc.countableSessions,
           totalRecords: attendanceCalc.totalRecords,

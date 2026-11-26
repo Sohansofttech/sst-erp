@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useInstitution } from "@/lib/store";
+import { useDivision, ALL_DIVISIONS_ID } from "@/lib/division-store";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ export default function DashboardPage() {
     isAcademicYearsLoading,
     getClassAttendanceSummaries,
   } = useInstitution();
+  const { activeDivisionId, activeDivision } = useDivision();
 
   const [activeChartTab, setActiveChartTab] = useState<"enrollment" | "finance" | "attendance">("enrollment");
   const [approvals, setApprovals] = useState<any[]>([]);
@@ -54,6 +56,7 @@ export default function DashboardPage() {
 
   // Backend live API metrics state
   const [dashboardData, setDashboardData] = useState<any | null>(null);
+  const [multiDivData, setMultiDivData] = useState<any | null>(null);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
 
@@ -61,7 +64,27 @@ export default function DashboardPage() {
     try {
       setLoadingDashboard(true);
       setDashboardError(null);
-      const res = await fetch("/api/admin/dashboard");
+
+      // If viewing all divisions, fetch multi-division aggregate
+      if (activeDivisionId === ALL_DIVISIONS_ID) {
+        try {
+          const mRes = await fetch("/api/admin/dashboard/multi-division");
+          const mJson = await mRes.json();
+          if (mJson.success && mJson.data) {
+            setMultiDivData(mJson.data);
+          }
+        } catch (mErr) {
+          console.warn("Could not load multi-division metrics:", mErr);
+        }
+      } else {
+        setMultiDivData(null);
+      }
+
+      // Fetch base dashboard metrics
+      const url = activeDivisionId && activeDivisionId !== ALL_DIVISIONS_ID
+        ? `/api/admin/dashboard?divisionId=${encodeURIComponent(activeDivisionId)}`
+        : "/api/admin/dashboard";
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
         setDashboardData(json.data);
@@ -94,7 +117,7 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchDashboardMetrics();
     fetchPendingApprovals();
-  }, []);
+  }, [activeDivisionId]);
 
   const handleQuickDecision = async (id: string, status: "APPROVED" | "REJECTED") => {
     try {
@@ -160,8 +183,19 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
-            Institutional Dashboard
+            {activeDivisionId === ALL_DIVISIONS_ID
+              ? "Multi-Division Executive Dashboard"
+              : activeDivision
+              ? `${activeDivision.name} Dashboard`
+              : "Institutional Dashboard"}
           </h1>
+          <p className="text-xs text-[#64748B] mt-0.5">
+            {activeDivisionId === ALL_DIVISIONS_ID
+              ? "Consolidated cross-division institutional performance & division status"
+              : activeDivision
+              ? `Operational metrics for ${activeDivision.code} • ${activeDivision.type}`
+              : "Institutional governance, academic operations, and analytics"}
+          </p>
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -194,6 +228,55 @@ export default function DashboardPage() {
         subscription={dashboardData?.subscription}
         loading={loadingDashboard}
       />
+
+      {/* 1.8 Executive Multi-Division Breakdown (Shown when 'All Divisions' selected) */}
+      {activeDivisionId === ALL_DIVISIONS_ID && multiDivData?.divisions && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[#123B5A] flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#F5A000]" />
+              Educational Divisions Breakdown ({multiDivData.divisions.length})
+            </h2>
+            <Link
+              href="/admin/divisions"
+              className="text-xs font-semibold text-[#123B5A] hover:underline flex items-center gap-1"
+            >
+              Manage Divisions <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {multiDivData.divisions.map((div: any) => (
+              <Card key={div.id} className="border-[#E2E8F0] shadow-xs hover:border-[#123B5A] transition-all">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1E293B]">{div.name}</h3>
+                      <p className="text-[11px] text-[#64748B]">{div.code} • {div.type}</p>
+                    </div>
+                    <Badge variant={div.status === "ACTIVE" ? "default" : "secondary"} className="text-[10px]">
+                      {div.status}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#F1F5F9] text-center">
+                    <div>
+                      <span className="text-[10px] text-[#64748B] block">Students</span>
+                      <span className="text-sm font-bold text-[#123B5A]">{div.studentCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#64748B] block">Classes</span>
+                      <span className="text-sm font-bold text-[#123B5A]">{div.classCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#64748B] block">Faculty</span>
+                      <span className="text-sm font-bold text-[#123B5A]">{div.staffCount}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 2. Top Executive Highlight Cards Grid (6 Cards reproducing the Reference Theme) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">

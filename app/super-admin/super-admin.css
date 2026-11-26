@@ -307,8 +307,31 @@
 .sa-form-wide,.sa-form-help { grid-column:1/-1; }
 .sa-form-help { margin:0; color:var(--sa-muted); font-size:12px; line-height:1.5; }
 .sa-subsection-title { margin-top:18px; }
+.sa-central-dashboard .sa-status-badge { display:inline-flex; align-items:center; border-radius:999px; padding:4px 8px; font-size:10px; font-weight:700; white-space:nowrap; }
+.sa-central-dashboard .sa-status-active { background:#dcfce7; color:#166534; }
+.sa-central-dashboard .sa-status-pending { background:#fef3c7; color:#92400e; }
+.sa-central-dashboard .sa-status-inactive { background:#fee2e2; color:#991b1b; }
+.sa-central-dashboard .sa-date-input { display:grid; gap:4px; color:var(--sa-muted); font-size:11px; font-weight:600; }
+.sa-central-dashboard .sa-date-input input { min-height:40px; border:1px solid #cbd5e1; border-radius:7px; background:#fff; padding:0 9px; color:var(--sa-text); font:inherit; }
+.sa-central-dashboard .sa-subscription-details { display:grid; min-width:250px; gap:7px; padding:10px 0; white-space:normal; }
+.sa-central-dashboard .sa-subscription-details ul { display:grid; gap:5px; margin:0; padding-left:18px; font-size:11px; }
+.sa-central-dashboard .sa-subscription-details a { color:var(--sa-blue); font-weight:600; }
+.sa-central-dashboard .sa-subscription-details>strong:not(:first-child) { margin-top:7px; }
+.sa-central-dashboard .sa-row-edit-form { display:grid; min-width:260px; gap:8px; padding:10px 0; white-space:normal; }
+.sa-central-dashboard .sa-row-edit-form label { display:grid; gap:4px; color:var(--sa-muted); font-size:11px; font-weight:600; }
+.sa-central-dashboard .sa-row-edit-form input,.sa-central-dashboard .sa-row-edit-form select { min-height:32px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; padding:4px 7px; color:var(--sa-text); font:inherit; font-size:12px; }
 .sa-row-action-form,.sa-feature-mapping { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
 .sa-row-action-form select,.sa-row-action-form input,.sa-feature-mapping select,.sa-feature-mapping input { min-height:30px; max-width:170px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; padding:4px 7px; color:var(--sa-text); font:inherit; font-size:11px; }
+.sa-central-dashboard .sa-row-action-form details { position:relative; }
+.sa-central-dashboard .sa-row-action-form details[open] { z-index:2; }
+.sa-central-dashboard .sa-form-disclosure .sa-form-grid { padding-top:0; }
+.sa-central-dashboard .sa-form-disclosure input,.sa-central-dashboard .sa-form-disclosure select { min-width:0; }
+.sa-central-filter-form { align-items:end; flex-wrap:wrap; }
+.sa-central-filter-form>label,.sa-central-filter-form>select { flex:1 1 175px; }
+.sa-central-filter-form .sa-button { flex:0 0 auto; }
+.sa-central-dashboard .sa-module-panel>h3 { margin-bottom:8px; font-size:17px; font-weight:650; }
+.sa-central-stats .sa-stat-value { overflow-wrap:anywhere; font-size:22px; }
+@media(max-width:760px) { .sa-central-filter-form { align-items:stretch; flex-direction:column; } .sa-central-filter-form>label,.sa-central-filter-form>select,.sa-central-filter-form .sa-button { width:100%; flex:auto; } .sa-central-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .sa-data-error { display:flex; align-items:flex-start; gap:10px; border:1px solid #fecaca; border-radius:9px; background:#fef2f2; padding:14px; color:#991b1b; }
 .sa-invoice-page { max-width:980px; margin:0 auto; }
 .sa-invoice-controls { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }

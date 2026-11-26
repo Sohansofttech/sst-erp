@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SignJWT } from "jose";
 import db from "@/lib/db";
+import { signPasswordResetToken } from "@/lib/auth/jwt";
 import { sendPasswordResetNotification, getAppBaseUrl } from "@/lib/services/email.service";
-
-const JWT_SECRET = process.env.JWT_SECRET || "erp-secret-super-secure-key-32-chars-long!";
-const key = new TextEncoder().encode(JWT_SECRET);
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,22 +18,17 @@ export async function POST(req: NextRequest) {
     const cleanEmail = email.trim().toLowerCase();
     const user = await db.user.findFirst({
       where: { email: cleanEmail, isActive: true },
-      select: { id: true, email: true, fullName: true, institutionId: true },
+      select: { id: true, email: true, fullName: true, institutionId: true, passwordHash: true },
     });
 
     let resetToken: string | null = null;
     if (user) {
-      // Create time-limited (24h) single-purpose reset token
-      resetToken = await new SignJWT({
+      resetToken = await signPasswordResetToken({
         userId: user.id,
         email: user.email,
-        institutionId: user.institutionId,
-        purpose: "pwd_reset",
-      })
-        .setProtectedHeader({ alg: "HS256" })
-        .setIssuedAt()
-        .setExpirationTime("24h")
-        .sign(key);
+        institutionId: user.institutionId || undefined,
+        passwordHash: user.passwordHash,
+      });
 
       // Log security event (Never log secret tokens in prod)
       try {
@@ -49,9 +41,7 @@ export async function POST(req: NextRequest) {
             entityId: user.id,
           },
         });
-      } catch {
-        // Non-critical audit
-      }
+      } catch {}
 
       // Dispatch branded password reset email via Option C engine
       try {
@@ -71,7 +61,7 @@ export async function POST(req: NextRequest) {
             name: user.fullName || "User",
             resetUrl,
             institutionName: inst?.name || "SST-ERP Campus",
-            expiresIn: "24 hours",
+            expiresIn: "15 minutes",
             institutionId: user.institutionId || undefined,
           }
         );
@@ -100,4 +90,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

@@ -9,7 +9,10 @@
     "lint": "eslint",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "tsx tests/run-tests.ts"
+    "test": "tsx tests/run-tests.ts",
+    "db:check:test": "dotenv -e .env.test -- tsx scripts/check-db-connection.ts",
+    "db:seed:test": "dotenv -e .env.test -- tsx prisma/seed.ts",
+    "test:local": "dotenv -e .env.test -- tsx tests/run-tests.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -36,6 +39,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-hook-form": "^7.92.0",
+    "server-only": "^0.0.1",
     "shadcn": "^4.23.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
@@ -50,6 +54,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv-cli": "^11.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "postcss": "^8.5.33",

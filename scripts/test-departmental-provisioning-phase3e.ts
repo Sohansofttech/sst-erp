@@ -6,6 +6,9 @@
 
 import assert from "assert";
 import { NextRequest } from "next/server";
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim().length < 32) {
+  process.env.JWT_SECRET = "test-jwt-secret-for-unit-tests-only-32-chars";
+}
 import db from "../lib/db";
 import { signToken, computePasswordSignature, AUTH_COOKIE_NAME } from "../lib/auth/jwt";
 import { getRolePortalLoginUrl } from "../lib/services/email.service";
@@ -85,6 +88,8 @@ async function main() {
     queryRaw: db.$queryRaw,
     instFindUnique: db.institution.findUnique,
     subFindFirst: db.institutionSubscription.findFirst,
+    platformUserFindMany: db.platformUser.findMany,
+    instMembershipFindFirst: db.institutionMembership.findFirst,
   };
 
   let lastTxRolledBack = false;
@@ -156,6 +161,9 @@ async function main() {
       endsAt: opts?.subExpired ? new Date(Date.now() - 86400000) : new Date(Date.now() + 86400000),
       plan: { name: "Pro", code: "PRO", priceMonthly: 1000, currency: "INR" },
     });
+
+    (db.platformUser as any).findMany = async () => [{ id: "plat_admin_1" }];
+    (db.institutionMembership as any).findFirst = async () => ({ id: "m1" });
 
     (db.userRoleAssignment as any).findMany = async () => [];
     (db.userRoleAssignment as any).count = async () => 0;
@@ -706,6 +714,8 @@ async function main() {
     (db as any).$queryRaw = origDb.queryRaw;
     (db.institution as any).findUnique = origDb.instFindUnique;
     (db.institutionSubscription as any).findFirst = origDb.subFindFirst;
+    (db.platformUser as any).findMany = origDb.platformUserFindMany;
+    (db.institutionMembership as any).findFirst = origDb.instMembershipFindFirst;
   }
 
   console.log(`\n=== RESULTS: ${passCount} / ${totalCount} CHECKS PASSED ===\n`);

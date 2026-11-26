@@ -34,29 +34,60 @@ export default function StudentFeedbackPage() {
   const fetchQueries = async () => {
     try {
       setLoading(true);
-      // Query dedicated student queries endpoint with fallback to feedback
-      const res = await fetch("/api/student/queries", { credentials: "include" });
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setQueryList(json.data);
-      } else {
-        // Fallback to feedback endpoint
-        const fbRes = await fetch("/api/student/feedback", { credentials: "include" });
-        const fbJson = await fbRes.json();
-        if (fbJson.success && Array.isArray(fbJson.data)) {
-          setQueryList(
-            fbJson.data.map((fb: any) => ({
-              id: fb.id,
-              subject: fb.subject,
-              category: fb.category,
-              description: fb.message,
-              status: fb.status || "PENDING",
-              adminRemarks: fb.response,
-              createdAt: fb.submittedAt || fb.createdAt,
-            }))
-          );
-        }
+      // Fetch both endpoints concurrently to ensure complete sync between feedback and approval_requests
+      const [qRes, fbRes] = await Promise.allSettled([
+        fetch("/api/student/queries", { credentials: "include" }),
+        fetch("/api/student/feedback", { credentials: "include" }),
+      ]);
+
+      const items: any[] = [];
+      if (qRes.status === "fulfilled") {
+        try {
+          const json = await qRes.value.json();
+          if (json.success && Array.isArray(json.data)) {
+            items.push(...json.data);
+          }
+        } catch {}
       }
+
+      if (fbRes.status === "fulfilled") {
+        try {
+          const fbJson = await fbRes.value.json();
+          if (fbJson.success && Array.isArray(fbJson.data)) {
+            for (const fb of fbJson.data) {
+              const existingIdx = items.findIndex(
+                (it) => it.id === fb.id || (it.subject === fb.subject && it.category === fb.category)
+              );
+              if (existingIdx >= 0) {
+                // If feedback has admin response or resolved status, merge it
+                if (fb.status !== "PENDING" || fb.response) {
+                  items[existingIdx] = {
+                    ...items[existingIdx],
+                    status: fb.status || items[existingIdx].status,
+                    adminRemarks: fb.response || items[existingIdx].adminRemarks,
+                    response: fb.response || items[existingIdx].response,
+                    respondedAt: fb.respondedAt || items[existingIdx].respondedAt,
+                  };
+                }
+              } else {
+                items.push({
+                  id: fb.id,
+                  subject: fb.subject,
+                  category: fb.category,
+                  description: fb.message,
+                  status: fb.status || "PENDING",
+                  adminRemarks: fb.response,
+                  response: fb.response,
+                  createdAt: fb.submittedAt || fb.createdAt,
+                  respondedAt: fb.respondedAt,
+                });
+              }
+            }
+          }
+        } catch {}
+      }
+
+      setQueryList(items);
     } catch (e) {
       console.error(e);
     } finally {

@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import db from "@/lib/db";
-import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "@/lib/auth/jwt";
+import {
+  signToken,
+  AUTH_COOKIE_NAME,
+  computePasswordSignature,
+  verifyOtpLoginProof,
+  verifyGoogleLoginProof,
+} from "@/lib/auth/jwt";
 import { isDefaultOrTemporaryPassword, checkPwnedPassword } from "@/lib/auth/password-security";
 import { SessionUser } from "@/types";
 import { syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
 import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
+import { assertInstitutionAdminMembership } from "@/lib/security/institution-admin";
+import { ForbiddenError } from "@/lib/auth/session";
+import { emailsMatch, normalizeEmail } from "@/lib/auth/email";
 import {
   signTeacherSession,
   hashSessionToken,
@@ -23,7 +32,42 @@ import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, loginType, institutionCode } = await req.json();
+    const {
+      email: requestEmail,
+      password,
+      loginType,
+      institutionCode,
+      otpProof,
+      googleProof,
+    } = await req.json();
+    let email = requestEmail;
+    let verifiedOtpProof: Awaited<ReturnType<typeof verifyOtpLoginProof>> = null;
+    let verifiedGoogleProof: Awaited<ReturnType<typeof verifyGoogleLoginProof>> = null;
+
+    if (loginType === "GOOGLE") {
+      if (typeof googleProof !== "string") {
+        return NextResponse.json({ success: false, error: "Verified Google login is required." }, { status: 401 });
+      }
+      verifiedGoogleProof = await verifyGoogleLoginProof(googleProof);
+      if (!verifiedGoogleProof) {
+        return NextResponse.json({ success: false, error: "Google login proof is invalid or expired." }, { status: 401 });
+      }
+      email = verifiedGoogleProof.email;
+    } else if (loginType === "OTP") {
+      if (typeof otpProof !== "string") {
+        return NextResponse.json({ success: false, error: "Verified OTP login is required." }, { status: 401 });
+      }
+      verifiedOtpProof = await verifyOtpLoginProof(otpProof);
+      if (!verifiedOtpProof) {
+        return NextResponse.json({ success: false, error: "OTP login proof is invalid or expired." }, { status: 401 });
+      }
+      email = verifiedOtpProof.email;
+    } else if (!password) {
+      return NextResponse.json(
+        { success: false, error: "Password is required." },
+        { status: 400 }
+      );
+    }
 
     if (!email) {
       return NextResponse.json(
@@ -32,18 +76,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (loginType === "OTP") {
-      return NextResponse.json(
-        { success: false, error: "OTP login is not enabled." },
-        { status: 403 }
-      );
-    }
-    if (!password) {
-      return NextResponse.json(
-        { success: false, error: "Password is required." },
-        { status: 400 }
-      );
-    }
+    const accountLookupEmail =
+      verifiedGoogleProof?.role === "SUPER_ADMIN"
+        ? normalizeEmail(verifiedGoogleProof.email)
+        : email.trim();
 
     // Find institution if code provided, or search by email domain / lookup
     let institutionId: string | undefined;
@@ -93,13 +129,14 @@ export async function POST(req: NextRequest) {
     // Lookup user using safe select to ensure compatibility with PostgreSQL users table
     const user = await db.user.findFirst({
       where: {
-        email: { equals: email.trim(), mode: "insensitive" },
+        email: { equals: accountLookupEmail, mode: "insensitive" },
         ...(institutionId ? { institutionId } : {}),
       },
       select: {
         id: true,
         email: true,
         fullName: true,
+        phone: true,
         passwordHash: true,
         role: true,
         platformRole: true,
@@ -115,16 +152,73 @@ export async function POST(req: NextRequest) {
             code: true,
             status: true,
             isActive: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            city: true,
+            state: true,
+            country: true,
           },
         },
       },
     });
 
-    if (!user || !user.isActive || user.status === "LOCKED" || (user.status as string) === "SUSPENDED" || (user.status as string) === "ARCHIVED") {
+
+    if (!user || !user.isActive || user.status !== "ACTIVE") {
+
       return NextResponse.json(
         { success: false, error: "Account is inactive, suspended, or archived." },
         { status: 401 }
       );
+    }
+    if (
+      user &&
+      verifiedGoogleProof?.role === "SUPER_ADMIN" &&
+      !emailsMatch(user.email, verifiedGoogleProof.email)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "This Google account is not authorized for the Super Admin portal." },
+        { status: 403 }
+      );
+    }
+    if (verifiedOtpProof) {
+      const storedMobile = (user.phone || "").replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
+      const actualRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
+      if (
+        user.id !== verifiedOtpProof.userId ||
+        storedMobile !== verifiedOtpProof.mobile ||
+        actualRole !== verifiedOtpProof.role
+      ) {
+        return NextResponse.json(
+          { success: false, error: "OTP verification no longer matches an active account." },
+          { status: 401 }
+        );
+      }
+    }
+    if (verifiedGoogleProof) {
+      const actualRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
+      if (actualRole !== verifiedGoogleProof.role) {
+        return NextResponse.json(
+          { success: false, error: "This Google account does not belong to the selected portal." },
+          { status: 403 }
+        );
+      }
+      if (
+        user.institution &&
+        (
+          user.institution.status === "ARCHIVED" ||
+          user.institution.status === "SUSPENDED" ||
+          (!user.institution.isActive &&
+            user.institution.status !== "ACTIVE" &&
+            user.institution.status !== "PENDING")
+        )
+      ) {
+        return NextResponse.json(
+          { success: false, error: "This institution is not currently operational." },
+          { status: 403 }
+        );
+      }
     }
 
     if (user.institutionId) {
@@ -148,7 +242,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check password if standard login
-    if (loginType !== "OTP") {
+    if (loginType !== "OTP" && loginType !== "GOOGLE") {
       const isPwValid = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
       if (!isPwValid) {
         return NextResponse.json(
@@ -170,7 +264,7 @@ export async function POST(req: NextRequest) {
         user.institutionId?.startsWith("inst_") ||
         user.id === "user_apex_admin";
 
-      if (!isLegacyInstitution && !trimmedCode) {
+      if (!isLegacyInstitution && !trimmedCode && !verifiedGoogleProof) {
         return NextResponse.json(
           { success: false, error: "College Code is required for this institution. Please enter your College Code." },
           { status: 400 }
@@ -184,7 +278,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      let currentInst = user.institution;
+      let currentInst: any = user.institution;
       if (!currentInst && user.institutionId) {
         await syncInstitutionToAppDb(user.institutionId);
         currentInst = await db.institution.findUnique({
@@ -209,30 +303,15 @@ export async function POST(req: NextRequest) {
     // Validate active administrator membership for ADMIN / INSTITUTION_ADMIN role
     if ((userRole === "ADMIN" || userRole === "INSTITUTION_ADMIN") && user.institutionId) {
       try {
-        const memberships: any = await db.$queryRaw`
-          SELECT m.id, m.status
-          FROM "InstitutionMembership" m
-          WHERE (m."userId"::text = ${user.id} OR m."userId" IN (SELECT id FROM "User" WHERE LOWER(BTRIM(email)) = LOWER(BTRIM(${user.email}))))
-            AND m."institutionId"::text = ${user.institutionId}
-            AND m.status = 'ACTIVE'
-          LIMIT 1
-        `;
-
-        if (memberships.length === 0) {
-          const totalMemberships = await db.$queryRaw<Array<{ count: bigint }>>`
-            SELECT COUNT(*)::bigint as count FROM "InstitutionMembership" WHERE "institutionId"::text = ${user.institutionId}
-          `;
-          const hasMemberships = Number(totalMemberships[0]?.count ?? 0) > 0;
-
-          if (hasMemberships) {
-            return NextResponse.json(
-              { success: false, error: "Access denied: Account does not have an active administrator membership for this institution." },
-              { status: 403 }
-            );
-          }
+        await assertInstitutionAdminMembership(
+          { email: user.email, userInstitutionId: user.institutionId },
+          institutionId || user.institutionId,
+        );
+      } catch (error) {
+        if (error instanceof ForbiddenError) {
+          return NextResponse.json({ success: false, error: error.message }, { status: 403 });
         }
-      } catch (err) {
-        console.warn("Membership validation fallback:", err);
+        throw error;
       }
     }
     let studentId: string | undefined;
@@ -372,22 +451,82 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let institutionName = resolvedInstitutionName || user.institution?.name || "";
-    if (!institutionName && user.institutionId) {
-      try {
-        const insts = await db.$queryRaw<any[]>`
-          SELECT name FROM institutions WHERE id = ${user.institutionId}
-          UNION ALL
-          SELECT name FROM "Institution" WHERE id::text = ${user.institutionId}
-          LIMIT 1
-        `;
-        if (insts.length > 0) {
-          institutionName = insts[0].name || "";
-        }
-      } catch (err) {
-        console.warn("Raw institution lookup error:", err);
+    const targetInstId = user.institutionId || institutionId;
+    let fullInst: any = user.institution;
+    if (!fullInst && targetInstId) {
+      fullInst = await db.institution.findUnique({
+        where: { id: targetInstId },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          code: true,
+          status: true,
+          isActive: true,
+          address: true,
+          phone: true,
+          email: true,
+          website: true,
+          city: true,
+          state: true,
+          country: true,
+        },
+      });
+      if (!fullInst) {
+        try {
+          const platInst = await db.platformInstitution.findUnique({
+            where: { id: targetInstId },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              code: true,
+              status: true,
+              address: true,
+              phone: true,
+              email: true,
+              website: true,
+              city: true,
+              state: true,
+              country: true,
+              postalCode: true,
+            },
+          });
+          if (platInst) {
+            fullInst = { ...platInst, isActive: platInst.status === "ACTIVE" };
+          }
+        } catch {}
       }
     }
+
+    let logoUrl: string | null = null;
+    if (fullInst?.id) {
+      try {
+        const branding = await db.institutionBranding.findUnique({
+          where: { institutionId: fullInst.id },
+          select: { logoUrl: true },
+        });
+        if (branding?.logoUrl) logoUrl = branding.logoUrl;
+      } catch {}
+    }
+
+    const institutionDetails = fullInst ? {
+      id: fullInst.id,
+      name: fullInst.name,
+      code: fullInst.code || null,
+      slug: fullInst.slug || null,
+      logo: logoUrl,
+      address: fullInst.address || null,
+      phone: fullInst.phone || null,
+      email: fullInst.email || null,
+      website: fullInst.website || null,
+      city: fullInst.city || null,
+      state: fullInst.state || null,
+      country: fullInst.country || null,
+      postalCode: fullInst.postalCode || null,
+    } : undefined;
+
+    const institutionName = fullInst?.name || resolvedInstitutionName || "";
 
     let mustChangePassword = await isTemporaryPasswordActive(user.id);
     if (!mustChangePassword && password && isDefaultOrTemporaryPassword(password)) {
@@ -403,9 +542,13 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: user.email,
       fullName: user.fullName || "",
+      name: user.fullName || "",
       role: (userRole as any) || "STUDENT",
-      institutionId: user.institutionId || "",
+      institutionId: fullInst?.id || user.institutionId || "",
       institutionName,
+      institutionCode: fullInst?.code || null,
+      institutionSlug: fullInst?.slug || null,
+      institution: institutionDetails,
       studentId,
       guardianId,
       activeChildId,
@@ -427,7 +570,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Strip internal security signatures from client response
-    const safeUser = { ...sessionUser };
+    const safeUser = {
+      ...sessionUser,
+      name: user.fullName || "",
+      fullName: user.fullName || "",
+      institution: institutionDetails,
+    };
     delete safeUser.passwordSig;
 
     const response = NextResponse.json({

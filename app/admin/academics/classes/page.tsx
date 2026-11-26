@@ -18,8 +18,46 @@ import {
   UserCheck,
 } from "lucide-react";
 import { ClassItem, SectionItem } from "@/types/institution";
+import { useDivision } from "@/lib/division-store";
+
+const SCHOOL_GRADES = [
+  { value: "Grade 1", label: "Grade 1 (Primary)" },
+  { value: "Grade 2", label: "Grade 2 (Primary)" },
+  { value: "Grade 3", label: "Grade 3 (Primary)" },
+  { value: "Grade 4", label: "Grade 4 (Primary)" },
+  { value: "Grade 5", label: "Grade 5 (Primary)" },
+  { value: "Grade 6", label: "Grade 6 (Middle School)" },
+  { value: "Grade 7", label: "Grade 7 (Middle School)" },
+  { value: "Grade 8", label: "Grade 8 (Middle School)" },
+  { value: "Grade 9", label: "Grade 9 (Secondary / High School)" },
+  { value: "Grade 10", label: "Grade 10 (Secondary / High School)" },
+];
+
+const HIGHER_SEC_GRADES = [
+  { value: "Grade 11", label: "Grade 11 / 1st Year PUC (+1)" },
+  { value: "Grade 12", label: "Grade 12 / 2nd Year PUC (+2)" },
+];
+
+const HIGHER_SEC_STREAMS = [
+  { value: "Science", label: "Science (PCMB / PCMC)" },
+  { value: "Commerce", label: "Commerce (Accountancy, Business, Economics)" },
+  { value: "Arts", label: "Arts / Humanities" },
+];
+
+const MONTESSORI_STAGES = [
+  { value: "Toddler (1.5-3 yrs)", label: "Toddler Community (1.5 - 3 yrs)" },
+  { value: "Primary (3-6 yrs)", label: "Primary / Children's House (3 - 6 yrs)" },
+  { value: "Lower Elementary (6-9 yrs)", label: "Lower Elementary (6 - 9 yrs)" },
+];
 
 export default function ClassesSectionsPage() {
+  const { activeDivision, activeDivisionId } = useDivision();
+  const divType = activeDivision?.type ?? "COLLEGE";
+  const isSchool = divType === "SCHOOL";
+  const isHigherSec = divType === "HIGHER_SECONDARY";
+  const isMontessori = divType === "MONTESSORI";
+  const isCollege = !isSchool && !isHigherSec && !isMontessori;
+
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [sections, setSections] = useState<SectionItem[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
@@ -66,7 +104,8 @@ export default function ClassesSectionsPage() {
   const [courseId, setCourseId] = useState("");
   const [academicYearId, setAcademicYearId] = useState("");
   const [stream, setStream] = useState("Core Engineering");
-  const [semester, setSemester] = useState(5);
+  const [semester, setSemester] = useState(1);
+  const [gradeLevel, setGradeLevel] = useState("");
   const [classError, setClassError] = useState("");
 
   // Section Modal State
@@ -87,20 +126,36 @@ export default function ClassesSectionsPage() {
     setClassCode("");
     setCourseId(courses[0]?.id || "");
     setAcademicYearId(activeAcademicYear?.id || academicYears[0]?.id || "");
-    setStream("Core Engineering");
-    setSemester(1);
+    if (isSchool) {
+      setGradeLevel("Grade 1");
+      setStream("");
+      setSemester(1);
+    } else if (isHigherSec) {
+      setGradeLevel("Grade 11");
+      setStream("Science");
+      setSemester(1);
+    } else if (isMontessori) {
+      setGradeLevel("Primary (3-6 yrs)");
+      setStream("");
+      setSemester(1);
+    } else {
+      setGradeLevel("");
+      setStream("Core Engineering");
+      setSemester(1);
+    }
     setClassError("");
     setIsClassModalOpen(true);
   };
 
-  const handleOpenEditClass = (cls: ClassItem) => {
+  const handleOpenEditClass = (cls: any) => {
     setEditingClass(cls);
     setClassName(cls.name);
     setClassCode(cls.code);
-    setCourseId(cls.courseId);
-    setAcademicYearId(cls.academicYearId);
-    setStream(cls.stream);
-    setSemester(cls.semester);
+    setCourseId(cls.courseId || "");
+    setAcademicYearId(cls.academicYearId || "");
+    setStream(cls.stream || "");
+    setSemester(cls.semester || 1);
+    setGradeLevel(cls.gradeLevel || "");
     setClassError("");
     setIsClassModalOpen(true);
   };
@@ -113,41 +168,34 @@ export default function ClassesSectionsPage() {
       setClassError("Class title and code are required.");
       return;
     }
-    if (!courseId) {
+    if (isCollege && !courseId) {
       setClassError("Please link an approved course.");
       return;
     }
 
     try {
       const targetAyId = academicYearId || activeAcademicYear?.id || "";
-      if (editingClass) {
-        const res = await fetch("/api/admin/academics/classes", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: editingClass.id,
-            name: className,
-            courseId,
-            academicYearId: targetAyId,
-            semester: Number(semester),
-          }),
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || "Failed to update class.");
-      } else {
-        const res = await fetch("/api/admin/academics/classes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: className,
-            courseId,
-            academicYearId: targetAyId,
-            semester: Number(semester),
-          }),
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || "Failed to create class.");
-      }
+      const payload = {
+        id: editingClass?.id,
+        name: className,
+        code: classCode,
+        courseId: isCollege ? courseId : null,
+        academicYearId: targetAyId,
+        semester: isCollege ? Number(semester) : null,
+        gradeLevel: !isCollege ? gradeLevel : null,
+        stream: isHigherSec ? stream : (isCollege ? stream : null),
+        divisionType: divType,
+        divisionId: activeDivisionId,
+      };
+
+      const res = await fetch("/api/admin/academics/classes", {
+        method: editingClass ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to save class.");
+
       await loadData();
       setIsClassModalOpen(false);
     } catch (err: any) {
@@ -331,9 +379,9 @@ export default function ClassesSectionsPage() {
                 <TableRow>
                   <TableHead>Class Code</TableHead>
                   <TableHead>Class Name</TableHead>
-                  <TableHead>Program / Course</TableHead>
+                  <TableHead>{isCollege ? "Program / Course" : (isMontessori ? "Stage / Group" : "Grade Standard")}</TableHead>
                   <TableHead>Stream / Track</TableHead>
-                  <TableHead>Semester</TableHead>
+                  <TableHead>Semester / Term</TableHead>
                   <TableHead>Academic Year</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -358,17 +406,17 @@ export default function ClassesSectionsPage() {
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-[#F5A000] font-medium">
-                          {cls.courseName || "General"}
+                          {(cls as any).gradeLevel || cls.courseName || ((cls as any).course?.name) || "General"}
                         </span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="teal" size="sm">
-                          {cls.stream}
+                          {cls.stream || (cls as any).gradeLevel || "General"}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <span className="text-xs font-semibold text-[#123B5A]">
-                          Sem {cls.semester}
+                          {cls.semester ? `Sem ${cls.semester}` : ((cls as any).gradeLevel ? "Annual" : "N/A")}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -508,8 +556,26 @@ export default function ClassesSectionsPage() {
       <Modal
         isOpen={isClassModalOpen}
         onClose={() => setIsClassModalOpen(false)}
-        title={editingClass ? `Edit Class (${editingClass.code})` : "Create Academic Class"}
-        description="Link class to course degree, stream specialization, and semester."
+        title={
+          editingClass
+            ? `Edit Class (${editingClass.code})`
+            : isSchool
+            ? "Create School Grade Class"
+            : isHigherSec
+            ? "Create Higher Secondary Class"
+            : isMontessori
+            ? "Create Montessori Stage / Group"
+            : "Create Academic Class"
+        }
+        description={
+          isSchool
+            ? "Configure standard grade level, section, and academic year."
+            : isHigherSec
+            ? "Configure junior college / intermediate grade standard, stream, and academic year."
+            : isMontessori
+            ? "Configure early childhood developmental stage, age group, and academic year."
+            : "Link class to course degree, stream specialization, and semester."
+        }
         maxWidth="lg"
         footer={
           <>
@@ -539,7 +605,15 @@ export default function ClassesSectionsPage() {
               <Input
                 label="Class Full Title"
                 required
-                placeholder="e.g. 3rd Year Computer Science (5th Sem)"
+                placeholder={
+                  isSchool
+                    ? "e.g. Grade 10 - Section A"
+                    : isHigherSec
+                    ? "e.g. Grade 11 Science - A"
+                    : isMontessori
+                    ? "e.g. Primary Children's House (3-6 yrs)"
+                    : "e.g. 3rd Year Computer Science (5th Sem)"
+                }
                 value={className}
                 onChange={(e) => setClassName(e.target.value)}
               />
@@ -548,28 +622,83 @@ export default function ClassesSectionsPage() {
             <Input
               label="Class Code"
               required
-              placeholder="e.g. CSE-Y3-S5"
+              placeholder={
+                isSchool
+                  ? "e.g. G10-A"
+                  : isHigherSec
+                  ? "e.g. HSEC-11-SCI"
+                  : isMontessori
+                  ? "e.g. MONT-PRIM-A"
+                  : "e.g. CSE-Y3-S5"
+              }
               value={classCode}
               onChange={(e) => setClassCode(e.target.value)}
             />
 
-            <Input
-              label="Stream / Track Specialization"
-              required
-              placeholder="e.g. Core, AI & ML, Cloud"
-              value={stream}
-              onChange={(e) => setStream(e.target.value)}
-            />
-
-            <div className="sm:col-span-2">
+            {/* Non-college Grade / Stage selector */}
+            {isSchool && (
               <Select
-                label="Associated Degree Course"
+                label="Standard / Grade Level"
                 required
-                value={courseId}
-                options={courseOptions}
-                onChange={(e) => setCourseId(e.target.value)}
+                value={gradeLevel}
+                options={SCHOOL_GRADES}
+                onChange={(e) => setGradeLevel(e.target.value)}
               />
-            </div>
+            )}
+
+            {isHigherSec && (
+              <>
+                <Select
+                  label="Grade Standard"
+                  required
+                  value={gradeLevel}
+                  options={HIGHER_SEC_GRADES}
+                  onChange={(e) => setGradeLevel(e.target.value)}
+                />
+                <Select
+                  label="Academic Stream"
+                  required
+                  value={stream}
+                  options={HIGHER_SEC_STREAMS}
+                  onChange={(e) => setStream(e.target.value)}
+                />
+              </>
+            )}
+
+            {isMontessori && (
+              <div className="sm:col-span-2">
+                <Select
+                  label="Developmental Stage / Age Group"
+                  required
+                  value={gradeLevel}
+                  options={MONTESSORI_STAGES}
+                  onChange={(e) => setGradeLevel(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* College fields */}
+            {isCollege && (
+              <>
+                <Input
+                  label="Stream / Track Specialization"
+                  required
+                  placeholder="e.g. Core, AI & ML, Cloud"
+                  value={stream}
+                  onChange={(e) => setStream(e.target.value)}
+                />
+
+                <div className="sm:col-span-2">
+                  <Select
+                    label="Associated Degree Course"
+                    required
+                    value={courseId}
+                    options={courseOptions}
+                    onChange={(e) => setCourseId(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
 
             <Select
               label="Academic Year"
@@ -579,13 +708,17 @@ export default function ClassesSectionsPage() {
               onChange={(e) => setAcademicYearId(e.target.value)}
             />
 
-            <Input
-              label="Semester Number"
-              type="number"
-              required
-              value={semester}
-              onChange={(e) => setSemester(Number(e.target.value))}
-            />
+            {isCollege && (
+              <Input
+                label="Semester Number"
+                type="number"
+                min={1}
+                max={10}
+                required
+                value={semester}
+                onChange={(e) => setSemester(Number(e.target.value))}
+              />
+            )}
           </div>
         </div>
       </Modal>

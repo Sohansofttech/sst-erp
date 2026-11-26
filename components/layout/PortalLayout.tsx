@@ -27,6 +27,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     fullName: string;
     role: "STUDENT" | "PARENT" | string;
     institutionName: string;
+    institutionCode?: string | null;
+    institutionLogo?: string | null;
     email?: string;
   } | null>(null);
 
@@ -38,12 +40,14 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         const storedUser = localStorage.getItem("erp_user");
         if (storedUser) {
           const parsed = JSON.parse(storedUser);
-          if (parsed.fullName) {
+          if (parsed.fullName || parsed.name) {
             setUser({
-              fullName: parsed.fullName,
+              fullName: parsed.fullName || parsed.name,
               role: parsed.role || "STUDENT",
-              institutionName: parsed.institutionName || "Campus Portal",
-              email: parsed.email || "user@campus.portal",
+              institutionName: parsed.institutionName || "",
+              institutionCode: parsed.institutionCode || parsed.institution?.code || null,
+              institutionLogo: parsed.institutionLogo || parsed.institution?.logo || null,
+              email: parsed.email || "",
             });
           }
         }
@@ -68,14 +72,20 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         const json = await fetchClientSession(token);
         if (isMounted && json.success && json.data?.session) {
           const sess = json.data.session;
-          const instName = sess.institutionName || "Campus Portal";
+          const inst = sess.institution || json.data.institution;
+          const instName = inst?.name || sess.institutionName || "";
+          const instCode = inst?.code || sess.institutionCode || null;
+          const instLogo = inst?.logo || null;
           if (typeof window !== "undefined") {
-            localStorage.setItem("erp_institution_name", instName);
+            if (instName) localStorage.setItem("erp_institution_name", instName);
+            if (inst) localStorage.setItem("erp_institution", JSON.stringify(inst));
           }
           setUser({
-            fullName: sess.fullName,
+            fullName: sess.fullName || sess.name || "Student",
             role: sess.role,
             institutionName: instName,
+            institutionCode: instCode,
+            institutionLogo: instLogo,
             email: sess.email,
           });
         }
@@ -107,6 +117,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         userFullName={user?.fullName}
         userEmail={user?.email}
         institutionName={user?.institutionName}
+        institutionCode={user?.institutionCode}
+        institutionLogo={user?.institutionLogo}
       />
 
       {/* Main Content Area with Fixed Header and Independent Main Scrolling */}
@@ -117,6 +129,8 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
           userRole={effectiveRole}
           userEmail={user?.email}
           institutionName={user?.institutionName || "Campus Portal"}
+          institutionCode={user?.institutionCode}
+          institutionLogo={user?.institutionLogo}
           selectedChildId={currentChildId}
           onSelectChild={handleSelect}
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}

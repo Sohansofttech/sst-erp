@@ -30,6 +30,8 @@ interface SidebarProps {
   userFullName?: string;
   userEmail?: string;
   institutionName?: string;
+  institutionCode?: string | null;
+  institutionLogo?: string | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -39,6 +41,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userFullName,
   userEmail,
   institutionName: propInstitutionName,
+  institutionCode,
+  institutionLogo,
 }) => {
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string>(portalType || "STUDENT");
@@ -123,7 +127,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         localStorage.removeItem("erp_token");
         localStorage.removeItem("erp_user");
         localStorage.removeItem("erp_institution_name");
+        localStorage.removeItem("erp_institution");
         localStorage.removeItem("erp_active_child_id");
+        localStorage.removeItem("sst_erp_inst_admin_profile");
         document.cookie = "erp_active_child=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       }
       await fetch("/api/auth/me", { method: "POST", credentials: "include" });
@@ -154,8 +160,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Brand / Logo Area (Fixed Top, h-16 px-5) */}
         <div className="flex items-center justify-between h-16 px-5 border-b border-[#16466C] bg-[#0D2B42] shrink-0">
           <Link href={isParent ? "/parent/dashboard" : "/dashboard"} className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-[#F5A000] flex items-center justify-center font-black text-white text-base shadow-xs shrink-0">
-              <GraduationCap className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-[#F5A000] flex items-center justify-center font-black text-white text-base shadow-xs shrink-0 overflow-hidden">
+              {institutionLogo ? (
+                <img src={institutionLogo} alt={institutionName} className="w-full h-full object-contain p-1" />
+              ) : (
+                <GraduationCap className="w-5 h-5 text-white" />
+              )}
             </div>
             <div className="min-w-0">
               <span className="text-sm font-extrabold tracking-wide text-white block leading-tight truncate" title={institutionName}>

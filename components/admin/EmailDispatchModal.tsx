@@ -49,6 +49,14 @@ interface RecipientOption {
   hasPassword?: boolean;
 }
 
+const ROLE_OPTIONS: Array<{ value: EmailTargetRole; label: string }> = [
+  { value: "ALL", label: "All Roles" },
+  { value: "STUDENT", label: "Students" },
+  { value: "TEACHER", label: "Faculty" },
+  { value: "PARENT", label: "Guardians" },
+  { value: "STAFF", label: "Staff" },
+];
+
 export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
   isOpen,
   onClose,
@@ -61,6 +69,28 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
 }) => {
   const { profile } = useInstitution();
   const institutionName = profile?.name || "Campus Administration";
+
+  const displayedRoleOptions =
+    allowedRoles && allowedRoles.length > 0
+      ? ROLE_OPTIONS.filter((option) => allowedRoles.includes(option.value))
+      : ROLE_OPTIONS;
+  const getRoleLabel = (value: string) => {
+    switch (value) {
+      case "STUDENT":
+        return "Students";
+      case "TEACHER":
+        return "Faculty";
+      case "PARENT":
+      case "GUARDIAN":
+        return "Guardians";
+      case "STAFF":
+        return "Staff";
+      case "ALL":
+        return "All Roles";
+      default:
+        return value;
+    }
+  };
 
   // Mode & Content States (Strictly independent variables)
   const [emailType, setEmailType] = useState<"DIRECT" | "ANNOUNCEMENT" | "INVITATION">(initialType);
@@ -117,12 +147,17 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
 
   // Sync roleFilter when modal opens or initialRole changes
   useEffect(() => {
-    if (initialType === "INVITATION") {
-      setRoleFilter("STUDENT");
-    } else if (initialRole) {
-      setRoleFilter(initialRole);
-    }
-  }, [initialRole, initialType, isOpen]);
+    const allowedRoleValues =
+      allowedRoles && allowedRoles.length > 0
+        ? allowedRoles
+        : ROLE_OPTIONS.map((option) => option.value);
+    const requestedRole = initialType === "INVITATION" ? "STUDENT" : initialRole || "ALL";
+    setRoleFilter(
+      allowedRoleValues.includes(requestedRole)
+        ? requestedRole
+        : allowedRoleValues[0] || "ALL"
+    );
+  }, [allowedRoles, initialRole, initialType, isOpen]);
 
   // Sync preselected recipients on mount or prop update
   useEffect(() => {
@@ -154,7 +189,7 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
       setSelectedIds((prev) =>
         prev.filter((id) => {
           const r = recipientMap.get(id);
-          return r ? r.role === "STUDENT" : false;
+          return r ? r.role.toUpperCase() === "STUDENT" : false;
         })
       );
     }
@@ -185,15 +220,6 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
       .finally(() => setLoadingDirectory(false));
   }, [isOpen, effectiveRole, searchQuery]);
 
-  // Role Options without redundant "Students Only" chips
-  const roleOptions: Array<{ value: EmailTargetRole; label: string }> = [
-    { value: "ALL", label: "All Roles" },
-    { value: "STUDENT", label: "Students" },
-    { value: "TEACHER", label: "Faculty" },
-    { value: "PARENT", label: "Guardians" },
-    { value: "STAFF", label: "Staff" },
-  ];
-
   // Handle Role Filter Change with Incompatible Selection Clearing
   const handleRoleChange = (newRole: string) => {
     setRoleFilter(newRole);
@@ -202,27 +228,11 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
         return prev.filter((id) => {
           const recipient = recipientMap.get(id);
           if (!recipient) return false;
-          const normalizedRole = recipient.role === "GUARDIAN" ? "PARENT" : recipient.role;
+          const role = recipient.role.toUpperCase();
+          const normalizedRole = role === "GUARDIAN" ? "PARENT" : role;
           return normalizedRole === newRole;
         });
       });
-    }
-  };
-
-  const getRoleLabel = (val: string) => {
-    switch (val) {
-      case "STUDENT":
-        return "Students";
-      case "TEACHER":
-        return "Faculty";
-      case "PARENT":
-        return "Guardians";
-      case "STAFF":
-        return "Staff";
-      case "ALL":
-        return "All Roles";
-      default:
-        return val;
     }
   };
 
@@ -285,7 +295,6 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
-
 
   const missingEmailRecipients = selectedRecipients.filter(
     (r) => !r.email || !r.email.trim()
@@ -637,15 +646,13 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
                   Recipients ({selectedIds.length} selected)
                 </label>
                 <div className="flex items-center gap-2">
-                  {!lockRole && (allowedRoles?.length ?? 0) > 1 && (!initialRole || initialRole === "ALL") && emailType !== "INVITATION" && (
+                  {!lockRole && displayedRoleOptions.length > 1 && (!initialRole || initialRole === "ALL") && emailType !== "INVITATION" && (
                     <select
                       value={roleFilter}
-                      onChange={(e) => {
-                        setRoleFilter(e.target.value);
-                      }}
+                      onChange={(e) => handleRoleChange(e.target.value)}
                       className="text-xs px-2.5 py-1 rounded-lg border border-[#CBD5E1] bg-white text-[#334155] cursor-pointer"
                     >
-                      {roleOptions.map((opt) => (
+                      {displayedRoleOptions.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label}
                         </option>
@@ -729,7 +736,7 @@ export const EmailDispatchModal: React.FC<EmailDispatchModalProps> = ({
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-[#0F172A] truncate">{rec.name}</span>
                           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#E2E8F0] text-[#334155]">
-                            {rec.role}
+                            {getRoleLabel(rec.role)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-[#64748B] mt-0.5">

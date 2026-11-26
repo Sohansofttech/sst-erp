@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { InstitutionProvider, useInstitution } from "@/lib/store";
+import { DivisionProvider } from "@/lib/division-store";
 import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
@@ -152,15 +153,17 @@ export const AdminLayout: React.FC<{
 
   return (
     <InstitutionProvider>
-      <AdminLayoutInner
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        userRole={userRole}
-        userPermissions={userPermissions}
-        initialUser={initialAuth ? { fullName: initialAuth.fullName, email: initialAuth.email, role: initialAuth.role } : null}
-      >
-        {children}
-      </AdminLayoutInner>
+      <DivisionProvider>
+        <AdminLayoutInner
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          userRole={userRole}
+          userPermissions={userPermissions}
+          initialUser={initialAuth ? { fullName: initialAuth.fullName, email: initialAuth.email, role: initialAuth.role } : null}
+        >
+          {children}
+        </AdminLayoutInner>
+      </DivisionProvider>
     </InstitutionProvider>
   );
 };

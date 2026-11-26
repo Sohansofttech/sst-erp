@@ -72,6 +72,7 @@ import {
 } from "./teacher-role-context"
 import { TEACHER_ROLE_CONFIGS } from "@/lib/auth/roles"
 import { getTeacherPortalKpis } from "@/lib/services/teacher.service"
+import { TeacherDivisionSwitcher } from "@/components/teacher/TeacherDivisionSwitcher"
 
 const DEFAULT_ACADEMIC_YEARS = ["2026-27", "2025-26", "2024-25"]
 
@@ -866,6 +867,9 @@ function TeacherPortalShellInner({ children }: { children: React.ReactNode }) {
 
           {/* Right section: Role Switcher + AY Selector + Notifications + Profile */}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-3">
+            {/* Teacher Educational Division Switcher */}
+            <TeacherDivisionSwitcher />
+
             {/* Role Switcher: visible on md+ (>=768px). On phones it is comfortably inside the mobile drawer */}
             <div className="hidden md:block">
               <TeacherRoleSwitch />

@@ -81,30 +81,101 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Retrieve live institution name from DB so any updates made by Admin/Super Admin immediately reflect in the portal
+    // Retrieve live institution details from DB so any updates made by Admin/Super Admin immediately reflect in the portal
     const targetInstitutionId = session.institutionId || additionalInfo.student?.institutionId;
+    let institutionDetails: any = null;
     if (targetInstitutionId) {
       try {
-        const inst = await db.institution.findUnique({
+        let inst: any = await db.institution.findUnique({
           where: { id: targetInstitutionId },
-          select: { name: true },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            slug: true,
+            address: true,
+            phone: true,
+            email: true,
+            website: true,
+            city: true,
+            state: true,
+            country: true,
+          },
         });
-        if (inst?.name) {
+        if (!inst) {
+          try {
+            const platInst = await db.platformInstitution.findUnique({
+              where: { id: targetInstitutionId },
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                slug: true,
+                address: true,
+                phone: true,
+                email: true,
+                website: true,
+                city: true,
+                state: true,
+                country: true,
+                postalCode: true,
+              },
+            });
+            if (platInst) inst = platInst;
+          } catch {}
+        }
+        if (inst) {
+          let logoUrl: string | null = null;
+          try {
+            const branding = await db.institutionBranding.findUnique({
+              where: { institutionId: inst.id },
+              select: { logoUrl: true },
+            });
+            if (branding?.logoUrl) logoUrl = branding.logoUrl;
+          } catch {}
+
+          institutionDetails = {
+            id: inst.id,
+            name: inst.name,
+            code: inst.code || null,
+            slug: inst.slug || null,
+            logo: logoUrl,
+            address: inst.address || null,
+            phone: inst.phone || null,
+            email: inst.email || null,
+            website: inst.website || null,
+            city: inst.city || null,
+            state: inst.state || null,
+            country: inst.country || null,
+            postalCode: inst.postalCode || null,
+          };
           session.institutionName = inst.name;
+          session.institutionCode = inst.code || null;
+          session.institutionSlug = inst.slug || null;
+          session.institution = institutionDetails;
         }
       } catch (err) {
-        console.warn("Live institution name fetch error:", err);
+        console.warn("Live institution details fetch error:", err);
       }
     }
 
     // Strip internal security signatures from client session output
-    const safeSession = { ...session };
+    const safeSession: any = {
+      ...session,
+      name: session.fullName,
+      fullName: session.fullName,
+      institution: institutionDetails,
+      institutionName: institutionDetails?.name || session.institutionName,
+      institutionCode: institutionDetails?.code || session.institutionCode || null,
+      institutionSlug: institutionDetails?.slug || session.institutionSlug || null,
+    };
     delete safeSession.passwordSig;
 
     return NextResponse.json({
       success: true,
       data: {
         session: safeSession,
+        institution: institutionDetails,
         ...additionalInfo,
       },
     }, {

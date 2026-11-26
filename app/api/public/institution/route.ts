@@ -1,54 +1,227 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 
-export async function GET(_req: NextRequest) {
+async function resolveLogo(instId?: string | null): Promise<string | null> {
+  if (!instId) return null;
   try {
-    // 1. Find the primary college institution (Apex Institute of Technology / APEX-TECH)
-    const primaryInst = await db.institution.findFirst({
+    const branding = await db.institutionBranding.findUnique({
+      where: { institutionId: instId },
+      select: { logoUrl: true },
+    });
+    return branding?.logoUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const code = searchParams.get("code")?.trim();
+    const email = searchParams.get("email")?.trim().toLowerCase();
+    const slug = searchParams.get("slug")?.trim().toLowerCase();
+
+    // 1. If explicit college code or slug provided, resolve that institution
+    if (code || slug) {
+      const match = await db.institution.findFirst({
+        where: {
+          OR: [
+            ...(code ? [{ code: { equals: code, mode: "insensitive" as const } }] : []),
+            ...(code ? [{ id: { equals: code, mode: "insensitive" as const } }] : []),
+            ...(slug ? [{ slug: { equals: slug, mode: "insensitive" as const } }] : []),
+            ...(code ? [{ slug: { equals: code, mode: "insensitive" as const } }] : []),
+          ],
+        },
+        select: { id: true, name: true, code: true, slug: true },
+      });
+
+      if (match?.name) {
+        return NextResponse.json({
+          success: true,
+          id: match.id,
+          name: match.name,
+          code: match.code,
+          slug: match.slug,
+          logo: await resolveLogo(match.id),
+        });
+      }
+
+      // Check platform institution as well
+      const platMatch = await db.platformInstitution.findFirst({
+        where: {
+          OR: [
+            ...(code ? [{ code: { equals: code, mode: "insensitive" as const } }] : []),
+            ...(code ? [{ id: { equals: code, mode: "insensitive" as const } }] : []),
+            ...(slug ? [{ slug: { equals: slug, mode: "insensitive" as const } }] : []),
+            ...(code ? [{ slug: { equals: code, mode: "insensitive" as const } }] : []),
+          ],
+        },
+        select: { id: true, name: true, code: true, slug: true },
+      });
+
+      if (platMatch?.name) {
+        return NextResponse.json({
+          success: true,
+          id: platMatch.id,
+          name: platMatch.name,
+          code: platMatch.code,
+          slug: platMatch.slug,
+          logo: await resolveLogo(platMatch.id),
+        });
+      }
+    }
+
+    // 2. If user email provided, resolve user's assigned institution
+    if (email) {
+      const userMatch = await db.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" as const } },
+        select: {
+          institutionId: true,
+          institution: { select: { id: true, name: true, code: true, slug: true } },
+        },
+      });
+
+      if (userMatch?.institution?.name) {
+        return NextResponse.json({
+          success: true,
+          id: userMatch.institution.id,
+          name: userMatch.institution.name,
+          code: userMatch.institution.code,
+          slug: userMatch.institution.slug,
+          logo: await resolveLogo(userMatch.institution.id),
+        });
+      }
+
+      if (userMatch?.institutionId) {
+        const platInst = await db.platformInstitution.findUnique({
+          where: { id: userMatch.institutionId },
+          select: { id: true, name: true, code: true, slug: true },
+        });
+        if (platInst?.name) {
+          return NextResponse.json({
+            success: true,
+            id: platInst.id,
+            name: platInst.name,
+            code: platInst.code,
+            slug: platInst.slug,
+            logo: await resolveLogo(platInst.id),
+          });
+        }
+      }
+    }
+
+    // 3. Check platform_settings for configured primary/active institution
+    try {
+      const settings = await db.platformSetting.findMany({
+        where: { key: { in: ["primary_institution_id", "primary_institution_name"] } },
+      });
+      const idSetting = settings.find((s) => s.key === "primary_institution_id");
+      const nameSetting = settings.find((s) => s.key === "primary_institution_name");
+
+      if (idSetting && typeof idSetting.value === "string") {
+        const inst =
+          (await db.institution.findUnique({
+            where: { id: idSetting.value },
+            select: { id: true, name: true, code: true, slug: true },
+          })) ||
+          (await db.platformInstitution.findUnique({
+            where: { id: idSetting.value },
+            select: { id: true, name: true, code: true, slug: true },
+          }));
+
+        if (inst?.name) {
+          return NextResponse.json({
+            success: true,
+            id: inst.id,
+            name: inst.name,
+            code: inst.code,
+            slug: inst.slug,
+            logo: await resolveLogo(inst.id),
+          });
+        }
+      }
+
+      if (nameSetting && typeof nameSetting.value === "string") {
+        return NextResponse.json({
+          success: true,
+          name: nameSetting.value,
+          logo: null,
+        });
+      }
+    } catch {}
+
+    // 4. Default to the latest active real institution created by administrators
+    const latestRealInst = await db.institution.findFirst({
       where: {
-        OR: [
-          { id: "inst_apex" },
-          { slug: "APEX-TECH" },
-          { slug: "apex-tech" },
-        ],
+        isActive: true,
+        id: { not: "inst_apex" },
+        slug: { notIn: ["apex-tech", "APEX-TECH"] },
+        name: { not: { startsWith: "E2E" } },
       },
-      select: { name: true },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, code: true, slug: true },
     });
 
-    if (primaryInst?.name) {
+    if (latestRealInst?.name) {
       return NextResponse.json({
         success: true,
-        name: primaryInst.name,
+        id: latestRealInst.id,
+        name: latestRealInst.name,
+        code: latestRealInst.code,
+        slug: latestRealInst.slug,
+        logo: await resolveLogo(latestRealInst.id),
       });
     }
 
-    // 2. Fallback to first non-test institution in DB
-    const anyRealInst = await db.institution.findFirst({
+    // Check latest in platformInstitution as well
+    const latestPlatInst = await db.platformInstitution.findFirst({
       where: {
-        AND: [
-          { name: { not: { contains: "E2E" } } },
-          { name: { not: { contains: "Test" } } },
-        ],
+        status: "ACTIVE",
+        id: { not: "inst_apex" },
+        slug: { notIn: ["apex-tech", "APEX-TECH"] },
+        name: { not: { startsWith: "E2E" } },
       },
-      orderBy: { createdAt: "asc" },
-      select: { name: true },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, code: true, slug: true },
     });
 
-    if (anyRealInst?.name) {
+    if (latestPlatInst?.name) {
       return NextResponse.json({
         success: true,
-        name: anyRealInst.name,
+        id: latestPlatInst.id,
+        name: latestPlatInst.name,
+        code: latestPlatInst.code,
+        slug: latestPlatInst.slug,
+        logo: await resolveLogo(latestPlatInst.id),
+      });
+    }
+
+    // 5. Fallback to any active institution
+    const anyActive = await db.institution.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, code: true, slug: true },
+    });
+
+    if (anyActive?.name) {
+      return NextResponse.json({
+        success: true,
+        id: anyActive.id,
+        name: anyActive.name,
+        code: anyActive.code,
+        slug: anyActive.slug,
+        logo: await resolveLogo(anyActive.id),
       });
     }
 
     return NextResponse.json({
       success: true,
-      name: "Apex Institute of Technology",
+      name: "Campus Portal",
     });
   } catch {
     return NextResponse.json({
       success: true,
-      name: "Apex Institute of Technology",
+      name: "Campus Portal",
     });
   }
 }
