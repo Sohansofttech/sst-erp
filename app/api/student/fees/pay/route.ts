@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
 import { authorizeStudentOrParentAccess } from "@/lib/security/authorize";
 import { verifyAndProcessPayment } from "@/lib/services/payment.service";
 
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     console.error("Payment verification failed:", err);
     return NextResponse.json(
       { success: false, error: err.message || "Backend payment verification failed." },
-      { status: 400 }
+      { status: getAuthErrorStatus(err) ?? 400 }
     );
   }
 }

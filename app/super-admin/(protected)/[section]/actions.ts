@@ -9,7 +9,7 @@ import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { SUPPORT_READ, SUPPORT_WRITE, validateDurationMinutes, assertSupportAccess } from "@/lib/security/support-access";
 import { getSubscriptionEnd } from "@/lib/billing/subscription-period";
 import { getInitialSubscriptionStatus, optionalPlanLimit } from "@/lib/billing/subscription-plan";
-
+import { updateInstitutionLifecycle } from "@/lib/services/institution-lifecycle";
 
 async function audited(actorId: string | null, action: string, entity: string, entityId: string | null, change: (tx: Prisma.TransactionClient) => Promise<unknown>) {
   await prisma.$transaction(async (tx) => {
@@ -168,7 +168,11 @@ export async function advanceOnboarding(formData: FormData) {
         if (!adminMembership) throw new Error("An active institution administrator membership is required to complete onboarding. Invitations are not configured in this environment.");
       }
     }
-    await tx.platformInstitution.update({ where: { id: institution.id }, data: { onboardingStage: input.data.stage, ...(input.data.stage === "COMPLETED" ? { status: "ACTIVE" as const } : {}) } });
+    if (input.data.stage === "COMPLETED") {
+      await updateInstitutionLifecycle(tx, institution.id, { onboardingStage: input.data.stage, status: "ACTIVE" });
+    } else {
+      await tx.platformInstitution.update({ where: { id: institution.id }, data: { onboardingStage: input.data.stage } });
+    }
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: institution.id, action: "INSTITUTION_ONBOARDING_STAGE_CHANGED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { from: institution.onboardingStage, to: input.data.stage } } });
   });
   revalidatePath("/super-admin/onboarding");
@@ -499,11 +503,11 @@ export async function reviewDeletionRequest(formData: FormData) {
       await tx.institutionDeletionRequest.update({ where: { id: request.id }, data: { status: approved ? "APPROVED" : "REJECTED", approvedById: actor.id, approvedAt: new Date(), scheduledFor: approved ? new Date(Date.now() + 30 * 86400000) : null, retentionUntil: approved ? new Date(Date.now() + 120 * 86400000) : null } });
     } else if (input.data.decision === "archive") {
       if (request.status !== "APPROVED" || !request.scheduledFor || request.scheduledFor > new Date()) throw new Error("This approved request is not yet eligible for archival.");
-      await tx.platformInstitution.update({ where: { id: request.institutionId }, data: { status: "ARCHIVED", archivedAt: new Date() } });
+      await updateInstitutionLifecycle(tx, request.institutionId, { status: "ARCHIVED", archivedAt: new Date() });
       await tx.institutionDeletionRequest.update({ where: { id: request.id }, data: { status: "ARCHIVED", completedAt: new Date() } });
     } else {
       if (request.status !== "ARCHIVED" || !request.retentionUntil || request.retentionUntil <= new Date()) throw new Error("The recovery retention period has ended or this request is not archived.");
-      await tx.platformInstitution.update({ where: { id: request.institutionId }, data: { status: "PENDING", archivedAt: null } });
+      await updateInstitutionLifecycle(tx, request.institutionId, { status: "PENDING", archivedAt: null });
       await tx.institutionDeletionRequest.update({ where: { id: request.id }, data: { status: "RECOVERED" } });
     }
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: request.institutionId, action: `DELETION_${input.data.decision.toUpperCase()}`, entity: "InstitutionDeletionRequest", entityId: request.id, result: "SUCCESS", metadata: { priorStatus: request.status } } });

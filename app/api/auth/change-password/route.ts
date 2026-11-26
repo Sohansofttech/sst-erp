@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
 import { signToken, AUTH_COOKIE_NAME, computePasswordSignature } from "@/lib/auth/jwt";
 import { SessionUser } from "@/types";
 import {
@@ -168,10 +168,17 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
-    if (error.name === "UnauthorizedError") {
+    const authStatus = getAuthErrorStatus(error);
+    if (authStatus === 401) {
       return NextResponse.json(
         { success: false, error: "Authentication required to change password." },
         { status: 401 }
+      );
+    }
+    if (authStatus === 403) {
+      return NextResponse.json(
+        { success: false, error: error.message || "Access denied." },
+        { status: 403 }
       );
     }
     return NextResponse.json(

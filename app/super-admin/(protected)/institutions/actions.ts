@@ -6,7 +6,7 @@ import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { assertSupportAccess, SUPPORT_WRITE } from "@/lib/security/support-access";
 import { provisionInstitutionAdmin, syncInstitutionToAppDb, compensateFailedProvisioning } from "@/lib/services/institution-provisioning.service";
-
+import { updateInstitutionLifecycle } from "@/lib/services/institution-lifecycle";
 import { createInitialInstitutionSubscription } from "@/lib/billing/initial-subscription";
 import { assignInstitutionTrial, FREE_TRIAL_PLAN_CODE } from "@/lib/services/subscription.service";
 import {
@@ -170,7 +170,7 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
       const adminName = data.adminName || formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
       const adminEmail = data.adminEmail || formData.get("adminEmail")?.toString().trim() || data.email || undefined;
       const adminPhone = data.adminPhone;
-      const adminPassword = data.adminPassword || "Password@123";
+      const adminPassword = data.adminPassword || formData.get("adminPassword")?.toString().trim() || undefined;
 
       const provisionResult = await provisionInstitutionAdmin({
         institutionId: created.institutionId,
@@ -187,7 +187,7 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
         // mirror) so a failed provisioning never leaves a half-created institution.
         const cleanup = await compensateFailedProvisioning(created.institutionId);
         if (cleanup.errors.length > 0 || !cleanup.platformRemoved) {
-          // Cleanup was incomplete - surface it loudly and retain the id for recovery.
+          // Cleanup was incomplete — surface it loudly and retain the id for recovery.
           console.error(
             "[SuperAdmin:createInstitution] Cleanup after provisioning failure was incomplete. Institution id kept for manual recovery:",
             created.institutionId,
@@ -430,7 +430,7 @@ export async function updateInstitutionStatus(formData: FormData) {
 
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
   await prisma.$transaction(async (tx) => {
-    await tx.platformInstitution.update({ where: { id: institution.id }, data: { status: parsed.data.status } });
+    await updateInstitutionLifecycle(tx, institution.id, { status: parsed.data.status });
     await tx.platformAuditLog.create({ data: { userId: auditUserId, institutionId: institution.id, action: parsed.data.status === "ACTIVE" ? "INSTITUTION_ACTIVATED" : "INSTITUTION_SUSPENDED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status, status: parsed.data.status } } });
   });
   revalidatePath("/super-admin");
@@ -447,7 +447,7 @@ export async function archiveInstitution(formData: FormData) {
 
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
   await prisma.$transaction(async (tx) => {
-    await tx.platformInstitution.update({ where: { id: institution.id }, data: { status: "ARCHIVED", archivedAt: new Date() } });
+    await updateInstitutionLifecycle(tx, institution.id, { status: "ARCHIVED", archivedAt: new Date() });
     await tx.platformAuditLog.create({ data: { userId: auditUserId, institutionId: institution.id, action: "INSTITUTION_ARCHIVED", entity: "Institution", entityId: institution.id, result: "SUCCESS", metadata: { previousStatus: institution.status } } });
   });
   revalidatePath("/super-admin");

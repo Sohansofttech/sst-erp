@@ -13,6 +13,7 @@ import {
   hashPassword,
 } from "@/lib/auth/password-security";
 import { SessionUser } from "@/types";
+import { isInstitutionOperational } from "@/lib/services/institution-lifecycle";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 
@@ -65,6 +66,17 @@ export async function GET(req: NextRequest) {
     if (user.status === "LOCKED" || (user.status as string) === "SUSPENDED" || (user.status as string) === "ARCHIVED") {
       return NextResponse.json(
         { success: false, error: "This account has been suspended or archived. Password setup is not permitted." },
+        { status: 403 }
+      );
+    }
+
+    if (
+      user.institutionId &&
+      user.role?.toUpperCase() !== "SUPER_ADMIN" &&
+      !(await isInstitutionOperational(user.institutionId))
+    ) {
+      return NextResponse.json(
+        { success: false, error: "This institution is not currently operational." },
         { status: 403 }
       );
     }
@@ -197,6 +209,17 @@ export async function POST(req: NextRequest) {
     if (user.status === "LOCKED" || (user.status as string) === "SUSPENDED" || (user.status as string) === "ARCHIVED") {
       return NextResponse.json(
         { success: false, error: "This account has been suspended or archived. Password setup is not permitted." },
+        { status: 403 }
+      );
+    }
+
+    if (
+      user.institutionId &&
+      user.role?.toUpperCase() !== "SUPER_ADMIN" &&
+      !(await isInstitutionOperational(user.institutionId))
+    ) {
+      return NextResponse.json(
+        { success: false, error: "This institution is not currently operational." },
         { status: 403 }
       );
     }

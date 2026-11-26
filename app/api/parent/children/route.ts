@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -96,6 +96,6 @@ export async function GET(req: NextRequest) {
       }),
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: getAuthErrorStatus(err) ?? 500 });
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSession, getAuthErrorStatus } from "@/lib/auth/session";
 import db from "@/lib/db";
 import { AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
 import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
@@ -189,9 +189,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    const authStatus = getAuthErrorStatus(err);
     return NextResponse.json(
       { success: false, error: err.message || "Failed to get session" },
-      { status: 500 }
+      { status: authStatus ?? 500 }
     );
   }
 }

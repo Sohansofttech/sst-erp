@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
 import { authorizeStudentOrParentAccess } from "@/lib/security/authorize";
 import { PaymentGatewayService } from "@/lib/services/payment-gateway.service";
 import { RazorpayAdapter } from "@/lib/services/payments/razorpay.adapter";
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     console.error("Order creation failed:", err);
     return NextResponse.json(
       { success: false, error: err.message || "Failed to create payment order" },
-      { status: 500 }
+      { status: getAuthErrorStatus(err) ?? 500 }
     );
   }
 }

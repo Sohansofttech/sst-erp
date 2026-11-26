@@ -17,6 +17,7 @@ import {
   findDeterministicAccount,
 } from "./roles"
 import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context"
+import { isInstitutionOperational } from "@/lib/services/institution-lifecycle"
 
 type institutions = Institution
 type academic_years = AcademicYear
@@ -96,7 +97,9 @@ export async function signTeacherSession(payload: TeacherSessionPayload): Promis
 export async function verifyTeacherSession(token: string): Promise<TeacherSessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getAuthJwtKey())
-    return payload as unknown as TeacherSessionPayload
+    const session = payload as unknown as TeacherSessionPayload
+    if (!session.institutionId || !(await isInstitutionOperational(session.institutionId))) return null
+    return session
   } catch {
     return null
   }
@@ -429,6 +432,10 @@ export async function getTeacherSession(
 ): Promise<TeacherSession | null> {
   const institution = await resolveInstitution(slug)
   if (!institution) {
+    return null
+  }
+
+  if (!(await isInstitutionOperational(institution.id))) {
     return null
   }
 
