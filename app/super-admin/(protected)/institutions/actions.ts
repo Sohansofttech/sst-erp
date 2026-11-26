@@ -110,35 +110,33 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
           });
         }
 
-        // Automatically designate newly created institution as the primary active institution in backend
-        await tx.platformSetting.upsert({
+        // Initialize primary institution settings on first creation only.
+        // If a primary is already configured (by a previous creation or an explicit
+        // setPrimaryInstitution call), do not overwrite it — that would silently
+        // reset a Super Admin's deliberate choice every time a new institution is added.
+        const existingPrimaryId = await tx.platformSetting.findUnique({
           where: { key: "primary_institution_id" },
-          create: {
-            key: "primary_institution_id",
-            value: institution.id,
-            description: "Default active institution ID for public portal",
-            updatedById: auditUserId,
-          },
-          update: {
-            value: institution.id,
-            description: "Default active institution ID for public portal",
-            updatedById: auditUserId,
-          },
+          select: { key: true },
         });
-        await tx.platformSetting.upsert({
-          where: { key: "primary_institution_name" },
-          create: {
-            key: "primary_institution_name",
-            value: institution.name,
-            description: "Default active institution name for public portal",
-            updatedById: auditUserId,
-          },
-          update: {
-            value: institution.name,
-            description: "Default active institution name for public portal",
-            updatedById: auditUserId,
-          },
-        });
+        if (!existingPrimaryId) {
+          await tx.platformSetting.createMany({
+            data: [
+              {
+                key: "primary_institution_id",
+                value: institution.id,
+                description: "Default active institution ID for public portal",
+                updatedById: auditUserId,
+              },
+              {
+                key: "primary_institution_name",
+                value: institution.name,
+                description: "Default active institution name for public portal",
+                updatedById: auditUserId,
+              },
+            ],
+            skipDuplicates: true,
+          });
+        }
 
         // Preserved transactional audit logging - failure here rolls back the transaction
         if (auditUserId) {
