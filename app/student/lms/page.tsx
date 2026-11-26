@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { Card } from "@/components/shared/Card";
 import { Badge } from "@/components/shared/Badge";
@@ -74,13 +75,16 @@ export default function StudentLmsPage() {
       });
       const json = await res.json();
       if (json.success) {
-        alert("Assignment submitted successfully!");
+        toast.success("Assignment submitted successfully!");
         setSelectedAssignment(null);
         setTextContent("");
         fetchLms();
+      } else {
+        toast.error(json.error || "Failed to submit assignment.");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Network error while submitting assignment.");
     } finally {
       setSubmitting(false);
     }

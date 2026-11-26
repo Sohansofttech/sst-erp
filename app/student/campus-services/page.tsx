@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { PortalLayout } from "@/components/layout/PortalLayout";
 import { Card } from "@/components/shared/Card";
 import { Badge } from "@/components/shared/Badge";
@@ -89,15 +90,17 @@ export default function CampusServicesPage() {
       });
       const json = await res.json();
       if (json.success) {
+        toast.success("Facility booking request submitted successfully!");
         setIsBookModalOpen(false);
         setResourceName("");
         setPurpose("");
         fetchData();
       } else {
-        alert(json.error);
+        toast.error(json.error || "Failed to submit booking.");
       }
     } catch (err) {
       console.error(err);
+      toast.error("An unexpected error occurred while booking.");
     } finally {
       setSubmittingBooking(false);
     }
@@ -112,11 +115,14 @@ export default function CampusServicesPage() {
       });
       const json = await res.json();
       if (json.success) {
-        alert("Elective selection submitted for academic coordinator approval!");
+        toast.success("Elective selection submitted for academic coordinator approval!");
         fetchData();
+      } else {
+        toast.error(json.error || "Failed to submit elective selection.");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Network error while selecting elective.");
     }
   };
 

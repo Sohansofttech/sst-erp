@@ -12,27 +12,51 @@ export default function ParentResultsPage() {
   const [selectedChildId, setSelectedChildId] = useState("");
   const [examData, setExamData] = useState<any>(null);
   const [iaData, setIaData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_active_child_id");
+      if (stored) setSelectedChildId(stored);
+    }
+    const handleChildChanged = (e: any) => {
+      if (e.detail?.childId) {
+        setSelectedChildId(e.detail.childId);
+      }
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => window.removeEventListener("activeChildChanged", handleChildChanged);
+  }, []);
 
   const fetchResults = async (childId: string) => {
     try {
       setLoading(true);
+      setError(null);
       const [exRes, iaRes] = await Promise.all([
-        fetch(`/api/student/examinations?studentId=${childId}`).then((r) => r.json()),
-        fetch(`/api/student/internal-assessments?studentId=${childId}`).then((r) => r.json()),
+        fetch(`/api/student/examinations?studentId=${encodeURIComponent(childId)}`).then((r) => r.json()),
+        fetch(`/api/student/internal-assessments?studentId=${encodeURIComponent(childId)}`).then((r) => r.json()),
       ]);
 
       if (exRes.success) setExamData(exRes.data);
       if (iaRes.success) setIaData(iaRes.data);
-    } catch (e) {
+      if (!exRes.success && !iaRes.success) {
+        setError(exRes.error || iaRes.error || "Failed to load academic records.");
+      }
+    } catch (e: any) {
       console.error(e);
+      setError("Network error loading examination results.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (selectedChildId) fetchResults(selectedChildId);
+    if (selectedChildId) {
+      fetchResults(selectedChildId);
+    } else {
+      setLoading(false);
+    }
   }, [selectedChildId]);
 
   const { results, cgpa, schedules, supplementaryExams } = examData || {};
@@ -45,7 +69,32 @@ export default function ParentResultsPage() {
       selectedChildId={selectedChildId}
       onSelectChild={(id) => setSelectedChildId(id)}
     >
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      {!selectedChildId ? (
+        <Card className="p-8 text-center bg-white border border-[#CBD5E1] shadow-xs">
+          <Award className="w-10 h-10 text-[#F5A000] mx-auto mb-3" />
+          <h2 className="text-base font-bold text-[#1E293B]">No Linked Child Selected</h2>
+          <p className="text-xs text-[#64748B] mt-1 max-w-md mx-auto">
+            Please choose a linked child from the selector above to review their grade sheet, CGPA, and internal marks.
+          </p>
+        </Card>
+      ) : loading ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-xs font-semibold text-[#64748B]">Loading academic results...</p>
+        </div>
+      ) : error ? (
+        <Card className="p-6 text-center border-red-200 bg-red-50">
+          <p className="text-sm font-bold text-red-800">{error}</p>
+          <button
+            onClick={() => fetchResults(selectedChildId)}
+            className="mt-3 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 cursor-pointer"
+          >
+            Retry
+          </button>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white border border-[#E2E8F0] p-6 rounded-2xl shadow-sm flex flex-col justify-center">
           <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider">
             Cumulative Grade Point (CGPA)
@@ -119,6 +168,8 @@ export default function ParentResultsPage() {
           </div>
         </Card>
       </div>
+      </>
+      )}
     </PortalLayout>
   );
 }

@@ -12,27 +12,52 @@ export default function ParentAttendancePage() {
   const [selectedChildId, setSelectedChildId] = useState("");
   const [data, setData] = useState<any>(null);
   const [inOutLogs, setInOutLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_active_child_id");
+      if (stored) setSelectedChildId(stored);
+    }
+    const handleChildChanged = (e: any) => {
+      if (e.detail?.childId) {
+        setSelectedChildId(e.detail.childId);
+      }
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => window.removeEventListener("activeChildChanged", handleChildChanged);
+  }, []);
 
   const fetchAttendance = async (childId: string) => {
     try {
       setLoading(true);
+      setError(null);
       const [attRes, inOutRes] = await Promise.all([
-        fetch(`/api/student/attendance?studentId=${childId}`).then((r) => r.json()),
-        fetch(`/api/student/in-out?studentId=${childId}`).then((r) => r.json()),
+        fetch(`/api/student/attendance?studentId=${encodeURIComponent(childId)}`).then((r) => r.json()),
+        fetch(`/api/student/in-out?studentId=${encodeURIComponent(childId)}`).then((r) => r.json()),
       ]);
 
-      if (attRes.success) setData(attRes.data);
+      if (attRes.success) {
+        setData(attRes.data);
+      } else {
+        setError(attRes.error || "Failed to load attendance records.");
+      }
       if (inOutRes.success) setInOutLogs(inOutRes.data);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setError("Unable to connect to attendance service. Please check your connection and retry.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (selectedChildId) fetchAttendance(selectedChildId);
+    if (selectedChildId) {
+      fetchAttendance(selectedChildId);
+    } else {
+      setLoading(false);
+    }
   }, [selectedChildId]);
 
   const { summary, subjectWise, monthlyAttendance, absenceHistory } = data || {};
@@ -44,6 +69,32 @@ export default function ParentAttendancePage() {
       selectedChildId={selectedChildId}
       onSelectChild={(id) => setSelectedChildId(id)}
     >
+      {!selectedChildId ? (
+        <Card className="p-8 text-center bg-white border border-[#CBD5E1] shadow-xs">
+          <Clock className="w-10 h-10 text-[#F5A000] mx-auto mb-3" />
+          <h2 className="text-base font-bold text-[#1E293B]">No Linked Child Selected</h2>
+          <p className="text-xs text-[#64748B] mt-1 max-w-md mx-auto">
+            Please select one of your linked children from the selector in the top header to inspect their daily attendance, lecture records, and campus movement logs.
+          </p>
+        </Card>
+      ) : loading ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-xs font-semibold text-[#64748B]">Loading child attendance data...</p>
+        </div>
+      ) : error ? (
+        <Card className="p-6 text-center border-red-200 bg-red-50">
+          <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+          <p className="text-sm font-bold text-red-800">{error}</p>
+          <button
+            onClick={() => fetchAttendance(selectedChildId)}
+            className="mt-3 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 cursor-pointer"
+          >
+            Retry
+          </button>
+        </Card>
+      ) : (
+        <>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
           title="Overall Attendance"
@@ -223,6 +274,8 @@ export default function ParentAttendancePage() {
           />
         </Card>
       </div>
+      </>
+      )}
     </PortalLayout>
   );
 }
