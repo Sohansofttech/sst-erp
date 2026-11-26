@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { assertSupportAccess, SUPPORT_WRITE } from "@/lib/security/support-access";
-import { provisionInstitutionAdmin, syncInstitutionToAppDb } from "@/lib/services/institution-provisioning.service";
+import { provisionInstitutionAdmin, syncInstitutionToAppDb, compensateFailedProvisioning } from "@/lib/services/institution-provisioning.service";
 
 import { createInitialInstitutionSubscription } from "@/lib/billing/initial-subscription";
 import { assignInstitutionTrial, FREE_TRIAL_PLAN_CODE } from "@/lib/services/subscription.service";
@@ -183,8 +183,26 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
 
       if (!provisionResult.success) {
         console.error("[SuperAdmin:createInstitution] Administrator provisioning failed:", provisionResult.error);
+        // Compensate: remove ONLY the institution we just created (and its app-db
+        // mirror) so a failed provisioning never leaves a half-created institution.
+        const cleanup = await compensateFailedProvisioning(created.institutionId);
+        if (cleanup.errors.length > 0 || !cleanup.platformRemoved) {
+          // Cleanup was incomplete - surface it loudly and retain the id for recovery.
+          console.error(
+            "[SuperAdmin:createInstitution] Cleanup after provisioning failure was incomplete. Institution id kept for manual recovery:",
+            created.institutionId,
+            cleanup.errors
+          );
+          return {
+            error:
+              `Institution creation failed and could not be fully rolled back. ` +
+              `Institution id ${created.institutionId} requires manual cleanup. ` +
+              `Provisioning error: ${provisionResult.error || "Unknown error"}`,
+            success: null,
+          };
+        }
         return {
-          error: `Institution created, but administrator provisioning failed: ${provisionResult.error || "Unknown error"}`,
+          error: `Institution creation was rolled back because administrator provisioning failed: ${provisionResult.error || "Unknown error"}`,
           success: null,
         };
       }

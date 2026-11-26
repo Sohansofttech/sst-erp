@@ -100,8 +100,8 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     if (!adminEmail) return { success: false, error: "A primary administrator email is required." };
     const adminName = (input.adminName || `${institution.name} Administrator`).trim();
     const adminPhone = input.adminPhone?.trim() || null;
-    const adminPassword = input.adminPassword || input.password || "Password@123";
-    const passwordHash = await bcrypt.hash(adminPassword, 10);
+    const adminPassword = input.adminPassword || input.password || null;
+    const passwordHash = adminPassword ? await bcrypt.hash(adminPassword, 10) : null;
 
     if (!await syncInstitutionToAppDb(institution.id)) {
       return { success: false, error: "Institution could not be synchronized into the application database." };
@@ -182,7 +182,7 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
             name: existingAppUser.name ?? adminName,
             fullName: existingAppUser.fullName ?? adminName,
             phone: existingAppUser.phone ?? adminPhone,
-            passwordHash: passwordHash,
+            passwordHash: adminPassword ? passwordHash : existingAppUser.passwordHash,
             role: "ADMIN",
             status: "ACTIVE",
             isActive: true,
@@ -332,6 +332,45 @@ export async function provisionInstitutionAdmin(input: ProvisionAdminInput): Pro
     } catch {}
     return { success: false, error: error instanceof Error ? error.message : "Failed to provision institution administrator." };
   }
+}
+
+/**
+ * Scoped compensation for a failed administrator-provisioning operation.
+ *
+ * Removes ONLY the exact newly created institution and its app-database mirror so
+ * a partial failure never leaves an unusable, half-provisioned institution behind.
+ * It never touches any other institution, administrator, membership, or unrelated
+ * record. Each step is independent and reports its own outcome so the caller can
+ * surface incomplete cleanup instead of hiding it.
+ *
+ * Returns a structured result; it does not throw, so callers can report precisely
+ * what was and was not cleaned up.
+ */
+export async function compensateFailedProvisioning(
+  institutionId: string
+): Promise<{ appRowRemoved: boolean; platformRemoved: boolean; errors: string[] }> {
+  const errors: string[] = [];
+  let appRowRemoved = false;
+  let platformRemoved = false;
+
+  // 1. Remove the app-database institution mirror (scoped to the exact id).
+  try {
+    await db.$executeRaw`DELETE FROM institutions WHERE id = ${institutionId}`;
+    appRowRemoved = true;
+  } catch (err: any) {
+    errors.push(`app-db institution cleanup failed: ${err?.message || "unknown error"}`);
+  }
+
+  // 2. Remove the platform institution and its dependent records (scoped id).
+  //    Cascades defined on the schema remove memberships/roles/subscriptions.
+  try {
+    await prisma.platformInstitution.delete({ where: { id: institutionId } });
+    platformRemoved = true;
+  } catch (err: any) {
+    errors.push(`platform institution cleanup failed: ${err?.message || "unknown error"}`);
+  }
+
+  return { appRowRemoved, platformRemoved, errors };
 }
 
 export async function syncAllPlatformInstitutions(): Promise<{ synced: number; provisioned: number }> {
