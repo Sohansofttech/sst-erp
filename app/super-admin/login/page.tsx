@@ -1,6 +1,21 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
-export default async function SuperAdminLoginPage({
+export default function SuperAdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    [key: string]: string | string[] | undefined;
+  }>;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <SuperAdminLoginRedirect searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function SuperAdminLoginRedirect({
   searchParams,
 }: {
   searchParams: Promise<{
@@ -22,4 +37,5 @@ export default async function SuperAdminLoginPage({
   }
 
   redirect(`/login?${query.toString()}`);
+  return null;
 }
