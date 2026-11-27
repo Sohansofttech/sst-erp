@@ -1,12 +1,12 @@
 .sc-shell {
-  --sc-ink: #172b46;
+  --sc-ink: #123B5A;
   --sc-muted: #64748b;
-  --sc-line: #e6eaf0;
+  --sc-line: #e2e8f0;
   --sc-surface: #fff;
-  --sc-canvas: #f5f7fa;
-  --sc-orange: #e88327;
-  --sc-orange-soft: #fff4e8;
-  --sc-blue: #153b66;
+  --sc-canvas: #f8fafc;
+  --sc-orange: #F5A000;
+  --sc-orange-soft: #fffbeb;
+  --sc-blue: #123B5A;
   min-height: 100vh;
   color: var(--sc-ink);
   background: var(--sc-canvas);
