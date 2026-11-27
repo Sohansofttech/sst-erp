@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
 import { getLibraryBooks, getIssuedBooks } from "@/lib/services/library.service";
 
 export async function GET(req: NextRequest) {
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || "Failed to query library." },
-      { status: error.name === "UnauthorizedError" ? 401 : 500 }
+      { status: getAuthErrorStatus(error) ?? 500 }
     );
   }
 }

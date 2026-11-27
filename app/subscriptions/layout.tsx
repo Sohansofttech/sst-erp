@@ -10,7 +10,13 @@ export const instant = false;
 export default async function SubscriptionsLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const session = await getSession();
+  let session;
+  try {
+    session = await getSession();
+  } catch (error) {
+    if (error instanceof ForbiddenError) redirect("/login?error=institution_inactive");
+    throw error;
+  }
 
   if (session?.role === "ADMIN") {
     try {

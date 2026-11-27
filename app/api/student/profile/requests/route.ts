@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
 import { submitRequest } from "@/lib/services/approval.service";
 import db from "@/lib/db";
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       data: requests,
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: getAuthErrorStatus(err) ?? 500 });
   }
 }
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message || "Failed to submit profile correction request" },
-      { status: 500 }
+      { status: getAuthErrorStatus(err) ?? 500 }
     );
   }
 }

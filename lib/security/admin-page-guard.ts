@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import db from "@/lib/db";
-import { getSession } from "@/lib/auth/session";
+import { ForbiddenError, getSession } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import {
   PERMISSIONS,
@@ -100,7 +100,13 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
     return null;
   }
 
-  const session = await getSession();
+  let session;
+  try {
+    session = await getSession();
+  } catch (error) {
+    if (error instanceof ForbiddenError) redirect("/admin/login?error=institution_inactive");
+    throw error;
+  }
   if (!session || !session.userId) {
     redirect(`/admin/login?from=${encodeURIComponent(pathname)}`);
   }
