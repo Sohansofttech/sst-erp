@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SST-ERP – Super Admin Portal UI/UX Audit Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm 14mm 15mm 14mm;
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-size: 8pt;
+        color: #64748B;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+    }
+    
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1E293B;
+      background: #FFFFFF;
+      font-size: 9pt;
+      line-height: 1.45;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .header-banner {
+      background: linear-gradient(135deg, #0A192F 0%, #123B5A 60%, #1E4E79 100%);
+      color: #FFFFFF;
+      padding: 22px 26px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border-left: 6px solid #F5A000;
+    }
+    .header-banner h1 {
+      margin: 0 0 4px 0;
+      font-size: 18pt;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #FFFFFF;
+    }
+    .header-banner .subtitle {
+      font-size: 10pt;
+      color: #F8FAFC;
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .meta-item {
+      font-size: 8pt;
+    }
+    .meta-item .label {
+      color: #CBD5E1;
+      text-transform: uppercase;
+      font-size: 7pt;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .meta-item .value {
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+    
+    h2 {
+      font-size: 12.5pt;
+      font-weight: 800;
+      color: #0F172A;
+      margin: 18px 0 8px 0;
+      padding-bottom: 4px;
+      border-bottom: 2px solid #E2E8F0;
+      page-break-after: avoid;
+    }
+    
+    h3 {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #1E293B;
+      margin: 14px 0 6px 0;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin: 0 0 8px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px 0;
+      font-size: 8.5pt;
+      page-break-inside: auto;
+    }
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+    th, td {
+      padding: 6px 10px;
+      text-align: left;
+      border-bottom: 1px solid #E2E8F0;
+      vertical-align: top;
+    }
+    th {
+      background: #F1F5F9;
+      color: #0F172A;
+      font-weight: 700;
+      border-top: 1px solid #CBD5E1;
+      border-bottom: 2px solid #94A3B8;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .badge-high {
+      background: #FEE2E2;
+      color: #991B1B;
+      border: 1px solid #F87171;
+    }
+    .badge-medium {
+      background: #FEF3C7;
+      color: #92400E;
+      border: 1px solid #FBBF24;
+    }
+    .badge-success {
+      background: #DCFCE7;
+      color: #166534;
+      border: 1px solid #86EFAC;
+    }
+
+    .finding-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-left: 4px solid #1E4E79;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      page-break-inside: avoid;
+    }
+    .finding-card.high-severity {
+      border-left-color: #DC2626;
+      background: #FFFBFB;
+    }
+    .finding-card.medium-severity {
+      border-left-color: #D97706;
+      background: #FFFDF9;
+    }
+    .finding-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .finding-title {
+      font-size: 10pt;
+      font-weight: 800;
+      color: #0F172A;
+    }
+    .file-tag {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 7.5pt;
+      background: #F1F5F9;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #334155;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+    
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 8pt;
+      background: #F1F5F9;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: #0F172A;
+    }
+
+    ul, ol {
+      margin: 4px 0 8px 18px;
+      padding: 0;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-banner">
+    <h1>SST-ERP – Super Admin Portal UI/UX Audit Report</h1>
+    <div class="subtitle">Multi-Institution ERP &amp; LMS · Source-Code Level Interface &amp; Usability Audit</div>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="label">Document Ref</div>
+        <div class="value">SUPER_ADMIN_UI_UX_AUDIT</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Audit Scope</div>
+        <div class="value">Super Admin Portal (21 Pages)</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Branch / Commit</div>
+        <div class="value">main (Production Baseline)</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Total Findings</div>
+        <div class="value">7 (3 High, 4 Medium)</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>1. Executive Summary</h2>
+  <p>A source-code-level UI/UX audit was conducted on the SST-ERP Super Admin Portal to identify usability issues, inconsistencies, missing interface behaviours, and areas requiring improvement.</p>
+  <ul>
+    <li><strong>Pages Audited</strong>: 21 Super Admin pages and dynamic section modules.</li>
+    <li><strong>Workflows Verified</strong>: Authentication callback, login redirects, and 8 shared subscription destinations.</li>
+    <li><strong>Files Evaluated</strong>: 47 relevant files inventoried; 27 files examined in source-level detail.</li>
+    <li><strong>Total Findings</strong>: <strong>7 confirmed issues</strong> (3 High severity, 4 Medium severity).</li>
+  </ul>
+
+  <h2>2. Audit Scope</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Area</th>
+        <th style="width: 75%;">Audit Coverage</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Navigation</strong></td>
+        <td>Sidebar, collapsible navigation, menu structure, and sub-navigation links.</td>
+      </tr>
+      <tr>
+        <td><strong>Dashboard</strong></td>
+        <td>Analytics presentation, chart scaling, SVG coordinate math, and metric cards.</td>
+      </tr>
+      <tr>
+        <td><strong>Institutions</strong></td>
+        <td>Institution listing, registration disclosure forms, and input validation.</td>
+      </tr>
+      <tr>
+        <td><strong>Institution Details</strong></td>
+        <td>Institution status controls, division management, and destructive action safeguards.</td>
+      </tr>
+      <tr>
+        <td><strong>Subscription</strong></td>
+        <td>Navigation alignment between Super Admin billing and shared <code>/subscriptions/*</code> routes.</td>
+      </tr>
+      <tr>
+        <td><strong>Authentication</strong></td>
+        <td>Login callback redirection, query parameter retention, and error feedback.</td>
+      </tr>
+      <tr>
+        <td><strong>UI Consistency</strong></td>
+        <td>Layout styling, typography, component reuse, and stylesheet boundaries.</td>
+      </tr>
+      <tr>
+        <td><strong>User Experience</strong></td>
+        <td>Loading states, empty state messages, form submission feedback, and error visibility.</td>
+      </tr>
+      <tr>
+        <td><strong>Responsive Design</strong></td>
+        <td>Desktop, tablet, and mobile breakpoints across complex analytical grids.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Source-Confirmed Findings &amp; Required Corrections</h2>
+
+  <div class="finding-card high-severity">
+    <div class="finding-header">
+      <span class="finding-title">SUI-001: Broken Subscription Sub-Navigation in Super Admin Shell</span>
+      <span class="badge badge-high">High Severity</span>
+    </div>
+    <div class="file-tag">components/super-admin/super-admin-shell.tsx (Lines 25–34, 62–71)</div>
+    <p><strong>Problem Description:</strong> When accessing <code>/subscriptions</code>, the sidebar displays a secondary <code>Subscription management</code> navigation menu. However, every item points to dead in-page hash anchors (e.g. <code>/subscriptions#billing-overview</code>, <code>/subscriptions#plan-management</code>, etc.) instead of the actual Next.js App Router sub-routes (<code>/subscriptions/plans</code>, <code>/subscriptions/institutions</code>, <code>/subscriptions/payments</code>, <code>/subscriptions/invoices</code>, <code>/subscriptions/renewals</code>, <code>/subscriptions/reports</code>). Because <code>/subscriptions/page.tsx</code> does not render all sections on one scrollable page, clicking any of these links fails to navigate.</p>
+    <p><strong>Required Correction:</strong> Update <code>subscriptionNavigation</code> in <code>super-admin-shell.tsx</code> to link directly to the real routes (<code>/subscriptions/plans</code>, <code>/subscriptions/institutions</code>, <code>/subscriptions/payments</code>, etc.) and configure active item highlighting.</p>
+  </div>
+
+  <div class="finding-card high-severity">
+    <div class="finding-header">
+      <span class="finding-title">SUI-002: Auth Callback Drops Error Context and Restricts Valid Sub-Paths</span>
+      <span class="badge badge-high">High Severity</span>
+    </div>
+    <div class="file-tag">app/super-admin/auth/callback/route.ts (Lines 7–14) &amp; app/super-admin/login/page.tsx (Lines 1–5)</div>
+    <p><strong>Problem Description:</strong> When authentication exchange fails, <code>callback/route.ts</code> redirects to <code>/super-admin/login?error=auth_callback</code>. However, <code>login/page.tsx</code> performs an unconditional redirect to <code>/login?role=super-admin</code>, stripping the <code>error</code> query parameter entirely. The user lands on the generic login page with no error indication. Additionally, destination validation logic strictly requires <code>next.startsWith("/super-admin/")</code>, discarding valid destinations like <code>/super-admin</code> (without trailing slash) and <code>/subscriptions</code>.</p>
+    <p><strong>Required Correction:</strong> Forward query search parameters (including <code>error</code>) in <code>app/super-admin/login/page.tsx</code> to <code>/login</code>, and expand the destination whitelist to include <code>/super-admin</code> and <code>/subscriptions*</code>.</p>
+  </div>
+
+  <div class="finding-card high-severity">
+    <div class="finding-header">
+      <span class="finding-title">SUI-003: Institution Creation Form Discards Feedback &amp; Hardcodes Default Password</span>
+      <span class="badge badge-high">High Severity</span>
+    </div>
+    <div class="file-tag">components/super-admin/create-institution-form.tsx (Lines 26–28, 64–67)</div>
+    <p><strong>Problem Description:</strong> The institution creation form is wrapped in a native HTML <code>&lt;details className="sa-card sa-form-disclosure"&gt;</code> element. When submitted, server-side validation errors (<code>state.error</code>) or success notices (<code>state.success</code>) cause re-renders that can leave the disclosure closed, hiding critical feedback from the administrator. Furthermore, line 64 hardcodes a static default password (<code>defaultValue="Password@123"</code>) without an eye toggle, password generator, or complexity validation.</p>
+    <p><strong>Required Correction:</strong> Control the <code>&lt;details&gt;</code> open state via React state and force it open on error/success. Remove the hardcoded default password, add a password visibility toggle, and clear form fields upon successful creation.</p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <div class="finding-card medium-severity">
+    <div class="finding-header">
+      <span class="finding-title">SUI-004: Dashboard Analytics Line Chart Scaling and Viewport Responsiveness Issues</span>
+      <span class="badge badge-medium">Medium Severity</span>
+    </div>
+    <div class="file-tag">components/super-admin/dashboard-analytics.tsx (Lines 15–22, 42–50)</div>
+    <p><strong>Problem Description:</strong> In <code>LineChart</code>, values are pre-divided by <code>max</code> before being passed to <code>chartPoints</code>, which then computes <code>Math.max(1, ...values)</code> again, resulting in redundant coordinate math and potential distortion when series are toggled. Additionally, fixed SVG dimensions (<code>viewBox="0 0 760 250"</code>) and percentage tooltip positioning cause label overlap and horizontal tooltip clipping on mobile and tablet viewports.</p>
+    <p><strong>Required Correction:</strong> Refactor <code>chartPoints</code> to handle absolute series values directly, add responsive CSS to skip intermediate labels on mobile, and implement boundary-safe tooltip positioning.</p>
+  </div>
+
+  <div class="finding-card medium-severity">
+    <div class="finding-header">
+      <span class="finding-title">SUI-005: Institution Details Actions Lack Confirmation Dialogs and Destructive Safeguards</span>
+      <span class="badge badge-medium">Medium Severity</span>
+    </div>
+    <div class="file-tag">app/super-admin/(protected)/institutions/[id]/page.tsx (Lines 70–84, 136–163)</div>
+    <p><strong>Problem Description:</strong> High-impact mutations—including <em>Suspend/Activate institution</em>, <em>Archive institution</em>, and <em>Archive division</em>—are executed via direct HTML form submit buttons without modal confirmation dialogs or pending-state spinners. A single accidental click can immediately archive an active institution or division, severing access for all associated users.</p>
+    <p><strong>Required Correction:</strong> Introduce modal confirmation dialogs for destructive actions (requiring name confirmation for archival) and add <code>useFormStatus</code> loading indicators on all buttons.</p>
+  </div>
+
+  <div class="finding-card medium-severity">
+    <div class="finding-header">
+      <span class="finding-title">SUI-006: Dynamic Module Generic Table Lacks Cell Truncation &amp; Has Mojibake Encoding</span>
+      <span class="badge badge-medium">Medium Severity</span>
+    </div>
+    <div class="file-tag">app/super-admin/(protected)/[section]/page.tsx (Lines 140–155, 179–181)</div>
+    <p><strong>Problem Description:</strong> In modules like <code>audit-logs</code> (Request IDs), <code>settings</code> (JSON payloads), and <code>domains</code> (DNS TXT challenge tokens), long unstructured strings cause horizontal table overflow and disrupt layouts. Furthermore, lines 144 and 150 contain corrupted character sequences (<code>â€”</code>) in source code, rendering visual artifacts instead of clean em-dashes (<code>—</code>).</p>
+    <p><strong>Required Correction:</strong> Replace corrupted <code>â€”</code> sequences with clean UTF-8 em-dashes (<code>—</code>) and apply <code>.sa-cell-truncate</code> CSS utility classes with copy-to-clipboard actions for long identifiers.</p>
+  </div>
+
+  <div class="finding-card medium-severity">
+    <div class="finding-header">
+      <span class="finding-title">SUI-007: Inconsistent Styling &amp; Disjointed Design Paradigms Across Portal Boundaries</span>
+      <span class="badge badge-medium">Medium Severity</span>
+    </div>
+    <div class="file-tag">app/super-admin/super-admin.css &amp; app/subscriptions/subscriptions.css</div>
+    <p><strong>Problem Description:</strong> The Super Admin Portal uses custom CSS variables (<code>--sa-teal</code>, <code>--sa-navy</code>, <code>--sa-gold</code>) that diverge from the shared institutional portal design system (Tailwind CSS palette and Radix UI). When moving from <code>/super-admin</code> to <code>/subscriptions</code>, button corner radiuses, typography weights, table borders, and card elevations shift noticeably.</p>
+    <p><strong>Required Correction:</strong> Harmonize color tokens, button radiuses, input heights, and elevation shadows between <code>super-admin.css</code> and <code>subscriptions.css</code> to match the SST-ERP corporate design language.</p>
+  </div>
+
+  <h2>4. Implementation and Verification Requirements</h2>
+  <ul>
+    <li>All identified <strong>High-severity issues (SUI-001, SUI-002, SUI-003)</strong> must be addressed first.</li>
+    <li><strong>Medium-severity issues (SUI-004, SUI-005, SUI-006, SUI-007)</strong> are resolved subsequently.</li>
+    <li>Existing Super Admin authentication and authorization (<code>requireSuperAdmin</code>) remain intact.</li>
+    <li>Changes must not break shared subscription pages or APIs (<code>/api/subscriptions/*</code>).</li>
+    <li>Navigation and page layouts must remain responsive and accessible across all device breakpoints.</li>
+  </ul>
+
+  <h2>5. Testing Matrix</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Test Area</th>
+        <th>Expected Result</th>
+        <th>Severity</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Subscription Sidebar</strong></td>
+        <td>Clicking sub-items navigates to <code>/subscriptions/*</code> with active highlighting.</td>
+        <td><span class="badge badge-high">High</span></td>
+      </tr>
+      <tr>
+        <td><strong>Auth Callback Flow</strong></td>
+        <td>Callback failure forwards <code>error</code> parameter to <code>/login</code> and renders banner.</td>
+        <td><span class="badge badge-high">High</span></td>
+      </tr>
+      <tr>
+        <td><strong>Institution Creation</strong></td>
+        <td>Disclosure stays open on error; displays feedback; no static default password.</td>
+        <td><span class="badge badge-high">High</span></td>
+      </tr>
+      <tr>
+        <td><strong>Dashboard Analytics</strong></td>
+        <td>Line chart coordinates scale accurately; no SVG clipping on mobile screens.</td>
+        <td><span class="badge badge-medium">Medium</span></td>
+      </tr>
+      <tr>
+        <td><strong>Destructive Actions</strong></td>
+        <td>Archiving/suspending prompts a confirmation modal with pending spinners.</td>
+        <td><span class="badge badge-medium">Medium</span></td>
+      </tr>
+      <tr>
+        <td><strong>Module Tables</strong></td>
+        <td>Cells truncate long tokens; em-dashes render cleanly without Mojibake.</td>
+        <td><span class="badge badge-medium">Medium</span></td>
+      </tr>
+      <tr>
+        <td><strong>Design Harmonization</strong></td>
+        <td>Unified visual styling between Super Admin and Subscriptions.</td>
+        <td><span class="badge badge-medium">Medium</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 24px; padding-top: 10px; border-top: 1px solid #CBD5E1; font-size: 8pt; color: #64748B; text-align: center;">
+    SST-ERP Multi-Institution ERP &amp; LMS · Super Admin Portal UI/UX Audit Report · Local Documentation Baseline
+  </div>
+
+</body>
+</html>

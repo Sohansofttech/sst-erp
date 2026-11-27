@@ -23,14 +23,14 @@ const navigationIcons: Record<string, LucideIcon> = {
 };
 
 const subscriptionNavigation: { label: string; href: string; icon: LucideIcon }[] = [
-  { label: "Overview", href: "/subscriptions#billing-overview", icon: LayoutDashboard },
-  { label: "Subscription Plans", href: "/subscriptions#plan-management", icon: CreditCard },
-  { label: "Institutions", href: "/subscriptions#institution-subscriptions", icon: Building2 },
-  { label: "Payments & Transactions", href: "/subscriptions#payments-transactions", icon: CreditCard },
-  { label: "Invoices & Receipts", href: "/subscriptions#invoices-receipts", icon: ClipboardList },
-  { label: "Renewals & Upgrades", href: "/subscriptions#renewals-upgrades", icon: Activity },
-  { label: "Revenue & Reports", href: "/subscriptions#revenue-reports", icon: Activity },
-  { label: "Settings", href: "/super-admin/settings", icon: Settings2 },
+  { label: "Overview", href: "/subscriptions", icon: LayoutDashboard },
+  { label: "Subscription Plans", href: "/subscriptions/plans", icon: CreditCard },
+  { label: "Institutions", href: "/subscriptions/institutions", icon: Building2 },
+  { label: "Payments & Transactions", href: "/subscriptions/payments", icon: CreditCard },
+  { label: "Invoices & Receipts", href: "/subscriptions/invoices", icon: ClipboardList },
+  { label: "Renewals & Upgrades", href: "/subscriptions/renewals", icon: Activity },
+  { label: "Revenue & Reports", href: "/subscriptions/reports", icon: Activity },
+  { label: "Settings", href: "/subscriptions/settings", icon: Settings2 },
 ];
 
 export function SuperAdminShell({ children, userEmail, developmentMode = false }: { children: React.ReactNode; userEmail: string; developmentMode?: boolean }) {
@@ -59,14 +59,27 @@ export function SuperAdminShell({ children, userEmail, developmentMode = false }
               </Link>
             );
           })}
-          {pathname === "/subscriptions" && (
+          {pathname.startsWith("/subscriptions") && (
             <>
               <div className="sa-nav-label">Subscription management</div>
-              {subscriptionNavigation.map(({ label, href, icon: Icon }) => (
-                <Link key={label} href={href} className="sa-nav-item" onClick={() => setMenuOpen(false)} title={sidebarCollapsed ? label : undefined}>
-                  <Icon size={17} strokeWidth={1.8} /><span className="sa-nav-text">{label}</span>
-                </Link>
-              ))}
+              {subscriptionNavigation.map(({ label, href, icon: Icon }) => {
+                const isSubActive = href === "/subscriptions"
+                  ? pathname === "/subscriptions"
+                  : (pathname === href || pathname.startsWith(`${href}/`));
+                return (
+                  <Link
+                    key={label}
+                    href={href}
+                    aria-current={isSubActive ? "page" : undefined}
+                    className={`sa-nav-item ${isSubActive ? "sa-nav-item-active" : ""}`}
+                    onClick={() => setMenuOpen(false)}
+                    title={sidebarCollapsed ? label : undefined}
+                  >
+                    <Icon size={17} strokeWidth={1.8} />
+                    <span className="sa-nav-text">{label}</span>
+                  </Link>
+                );
+              })}
             </>
           )}
         </nav>
