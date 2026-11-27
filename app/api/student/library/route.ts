@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth/session";
+import { authorizeStudentOrParentAccess } from "@/lib/security/authorize";
 import { getLibraryBooks, getIssuedBooks } from "@/lib/services/library.service";
+import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,9 +10,54 @@ export async function GET(req: NextRequest) {
     const view = req.nextUrl.searchParams.get("view") || "catalog";
 
     if (view === "my-books") {
-      // Student viewing own issued books and borrowing history
+      let targetUserId = session.userId;
+
+      if ((session.role as string) === "PARENT" || (session.role as string) === "GUARDIAN") {
+        const requestedStudentId =
+          req.nextUrl.searchParams.get("studentId") ||
+          req.nextUrl.searchParams.get("childId") ||
+          session.activeChildId;
+
+        if (!requestedStudentId) {
+          return NextResponse.json(
+            { success: false, error: "Target childId or studentId is required for parent library query." },
+            { status: 400 }
+          );
+        }
+
+        // FIND-04: Authorize parent-child linkage and institution boundaries
+        const { studentId } = await authorizeStudentOrParentAccess(session, requestedStudentId);
+
+        // Resolve student's user ID for library loan tracking
+        const student = await db.student.findUnique({
+          where: { id: studentId },
+          select: { userId: true, id: true },
+        });
+
+        if (!student) {
+          return NextResponse.json({ success: false, error: "Student not found." }, { status: 404 });
+        }
+
+        targetUserId = student.userId || student.id;
+      } else if (session.role === "STUDENT") {
+        // Enforce student identity
+        if (session.studentId) {
+          const student = await db.student.findUnique({
+            where: { id: session.studentId },
+            select: { userId: true },
+          });
+          targetUserId = student?.userId || session.userId;
+        }
+      } else if (!["ADMIN", "SUPER_ADMIN", "TEACHER", "INSTITUTION_ADMIN"].includes((session.role || "").toUpperCase())) {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized role for library borrowing history." },
+          { status: 403 }
+        );
+      }
+
+      // Query issued books by the verified borrower's ID
       const issues = await getIssuedBooks(session.institutionId, {
-        borrowerUserId: session.userId,
+        borrowerUserId: targetUserId,
       });
 
       const now = new Date();
@@ -65,9 +112,11 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error: any) {
+    const isForbidden = error.name === "ForbiddenError" || error.status === 403;
+    const isUnauthorized = error.name === "UnauthorizedError" || error.status === 401;
     return NextResponse.json(
       { success: false, error: error.message || "Failed to query library." },
-      { status: getAuthErrorStatus(error) ?? 500 }
+      { status: isForbidden ? 403 : isUnauthorized ? 401 : 500 }
     );
   }
 }

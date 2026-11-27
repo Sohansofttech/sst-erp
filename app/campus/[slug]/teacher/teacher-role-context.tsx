@@ -25,6 +25,7 @@ export interface TeacherRoleContextValue {
   switchRole: (targetRole: TeacherRole) => Promise<void>
   isSwitching: boolean
   academicYear: string
+  academicYears: string[]
   setAcademicYear: (year: string) => void
   slug: string
   institutionName: string
@@ -39,15 +40,13 @@ export function TeacherRoleProvider({
   institutionName,
   initialRole = "teacher",
   availableRoles = ["teacher", "class_teacher", "hod"],
-  initialAcademicYear = "2026-27",
+  initialAcademicYear,
+  academicYears = ["2026-27", "2025-26", "2024-25"],
   user = {
-    name: "Dr. Ananya Sharma",
-    email: "ananya.sharma@vidyaniketan.edu.in",
-    role: "Senior PGT — Mathematics",
-    initials: "AS",
-    employeeId: "VNPS-TCH-042",
-    department: "Mathematics",
-    homeroomClass: "Class 10-A",
+    name: "Faculty Member",
+    email: "",
+    role: "Faculty",
+    initials: "FM",
   },
   children,
 }: {
@@ -56,13 +55,16 @@ export function TeacherRoleProvider({
   initialRole?: TeacherRole
   availableRoles?: TeacherRole[]
   initialAcademicYear?: string
+  academicYears?: string[]
   user?: TeacherRoleContextUser
   children: React.ReactNode
 }) {
   const router = useRouter()
   const [role, setRoleState] = React.useState<TeacherRole>(initialRole)
   const [isSwitching, setIsSwitching] = React.useState(false)
-  const [academicYear, setAcademicYear] = React.useState(initialAcademicYear)
+  const [academicYear, setAcademicYear] = React.useState(
+    initialAcademicYear || academicYears[0] || "2026-27"
+  )
 
   // Sync if initialRole changes on server
   React.useEffect(() => {
@@ -132,6 +134,7 @@ export function TeacherRoleProvider({
       switchRole,
       isSwitching,
       academicYear,
+      academicYears,
       setAcademicYear,
       slug,
       institutionName,
@@ -144,6 +147,7 @@ export function TeacherRoleProvider({
       switchRole,
       isSwitching,
       academicYear,
+      academicYears,
       slug,
       institutionName,
       user,

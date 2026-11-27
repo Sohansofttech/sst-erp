@@ -1,5 +1,6 @@
 import db from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { planCompatibilityWhere } from "@/lib/institution-type-config";
 
 const prisma = db;
 
@@ -338,14 +339,24 @@ export async function getInstitutionSubscriptionStatus(
 
 /**
  * Retrieves all available paid subscription plans for upgrade selection.
- * Excludes archived, inactive, and internal free trial plans.
+ * Excludes archived, inactive, and internal free trial plans. When an institution is given,
+ * only plans compatible with that institution's stored type are returned.
  */
-export async function getAvailableSubscriptionPlans() {
+export async function getAvailableSubscriptionPlans(institutionId?: string) {
+  let compatibility: ReturnType<typeof planCompatibilityWhere> | undefined;
+  if (institutionId && UUID_REGEX.test(institutionId)) {
+    const institution = await prisma.platformInstitution.findUnique({
+      where: { id: institutionId },
+      select: { type: true },
+    });
+    if (institution) compatibility = planCompatibilityWhere(institution.type);
+  }
   const plans = await prisma.subscriptionPlan.findMany({
     where: {
       isActive: true,
       archivedAt: null,
       code: { not: FREE_TRIAL_PLAN_CODE },
+      ...(compatibility ?? {}),
     },
     orderBy: {
       price: "asc",
@@ -359,7 +370,7 @@ export async function getAvailableSubscriptionPlans() {
       customCycleDays: true,
       price: true,
       currency: true,
-      maxUsers: true,
+      studentLimit: true,
       storageLimitMb: true,
       features: {
         where: { enabled: true },
@@ -375,7 +386,6 @@ export async function getAvailableSubscriptionPlans() {
       },
     },
   });
-
   return plans.map((p) => ({
     ...p,
     price: Number(p.price),
@@ -421,7 +431,7 @@ export async function getSubscriptionPlanById(planId: string) {
     customCycleDays: plan.customCycleDays,
     price: Number(plan.price),
     currency: plan.currency,
-    maxUsers: plan.maxUsers,
+    studentLimit: plan.studentLimit,
     storageLimitMb: plan.storageLimitMb ? Number(plan.storageLimitMb) : null,
     features: plan.features.map((f) => ({
       code: f.feature.code,

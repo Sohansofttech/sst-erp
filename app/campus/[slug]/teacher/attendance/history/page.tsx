@@ -87,7 +87,7 @@ const STATUS_TOGGLES: Array<{
   {
     value: "late",
     label: "Late",
-    activeClass: "border-amber-500 bg-[#F5A000] text-white font-bold",
+    activeClass: "border-amber-500 bg-[#F5A000] text-[#123B5A] font-bold",
   },
   {
     value: "on_duty",
@@ -98,10 +98,9 @@ const STATUS_TOGGLES: Array<{
 
 function isSessionEditable(
   session: AttendanceSession,
-  academicYear: string
+  _academicYear?: string
 ): boolean {
   return (
-    academicYear === "2026-27" &&
     session.status !== "locked" &&
     session.editWindowOpen
   )
@@ -528,8 +527,8 @@ export default function TeacherAttendanceHistoryPage() {
                     <Lock className="mt-0.5 size-4 shrink-0" />
                     <div>
                       <span className="font-semibold">Session Locked:</span>{" "}
-                      {academicYear !== "2026-27"
-                        ? `Academic year ${academicYear} is closed.`
+                      {activeSession.status === "locked"
+                        ? "This attendance session has been officially locked by institutional administration."
                         : "The edit window for this attendance session has closed."}
                     </div>
                   </div>

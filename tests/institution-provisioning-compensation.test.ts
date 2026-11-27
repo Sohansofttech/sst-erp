@@ -26,9 +26,27 @@ function mockDb(impl: { executeRaw?: any; delete?: any }) {
     ...(original.platformInstitution ?? {}),
     delete: impl.delete ?? (async () => ({})),
   };
+  // The service resolves the platform client through the lazy SUPER_ADMIN role
+  // proxy (lib/super-admin/prisma). Install a mock role client so the platform
+  // delete is intercepted without a real database connection.
+  const g = global as any;
+  const hadRoleClient = Object.prototype.hasOwnProperty.call(g.rolePrismaClients ?? {}, "SUPER_ADMIN");
+  const prevRoleClient = g.rolePrismaClients?.SUPER_ADMIN;
+  const hadEnv = Object.prototype.hasOwnProperty.call(process.env, "SUPER_ADMIN_DATABASE_URL");
+  const prevEnv = process.env.SUPER_ADMIN_DATABASE_URL;
+  if (!g.rolePrismaClients) g.rolePrismaClients = {};
+  // getRoleDb() validates the role env var before consulting the client cache.
+  process.env.SUPER_ADMIN_DATABASE_URL = process.env.SUPER_ADMIN_DATABASE_URL || "postgresql://mock:mock@localhost:5432/mock";
+  g.rolePrismaClients.SUPER_ADMIN = {
+    platformInstitution: { delete: impl.delete ?? (async () => ({})) },
+  };
   return () => {
     (db as any).$executeRaw = original.$executeRaw;
     (db as any).platformInstitution = original.platformInstitution;
+    if (hadRoleClient) g.rolePrismaClients.SUPER_ADMIN = prevRoleClient;
+    else delete g.rolePrismaClients.SUPER_ADMIN;
+    if (hadEnv) process.env.SUPER_ADMIN_DATABASE_URL = prevEnv;
+    else delete process.env.SUPER_ADMIN_DATABASE_URL;
   };
 }
 

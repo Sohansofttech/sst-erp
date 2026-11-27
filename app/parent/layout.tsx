@@ -1,15 +1,19 @@
-import { Suspense } from "react";
-import { requireTenantPageSession } from "@/lib/security/tenant-page-guard";
+﻿import { Suspense } from "react";
+import { verifyPortalPageAccess } from "@/lib/security/portal-page-guard";
 
-async function ParentSessionGuard({ children }: { children: React.ReactNode }) {
-  await requireTenantPageSession(["PARENT", "GUARDIAN"]);
-  return children;
+async function ParentAccessGuard({ children }: { children: React.ReactNode }) {
+  await verifyPortalPageAccess("PARENT");
+  return <>{children}</>;
 }
 
-export default function ParentLayout({ children }: { children: React.ReactNode }) {
+export default function ParentPortalLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#EEF2F6]" />}>
-      <ParentSessionGuard>{children}</ParentSessionGuard>
+    <Suspense fallback={<div className="min-h-screen bg-[#EEF1F5]" />}>
+      <ParentAccessGuard>{children}</ParentAccessGuard>
     </Suspense>
   );
 }

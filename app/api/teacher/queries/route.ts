@@ -1,9 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/lib/auth/session";
 import { submitQuery, getQueries, respondToQuery, QueryStatus } from "@/lib/services/query-management.service";
 import db from "@/lib/db";
 
+const postQuerySchema = z.object({
+  category: z.string().trim().min(2, "Category must be at least 2 characters").max(50, "Category too long"),
+  subject: z.string().trim().min(3, "Subject must be at least 3 characters").max(200, "Subject too long"),
+  description: z.string().trim().min(10, "Description must be at least 10 characters").max(2000, "Description too long"),
+  priority: z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]).optional().default("NORMAL"),
+});
+
+const putQuerySchema = z.object({
+  id: z.string().trim().min(1, "Query ID is required"),
+  status: z.enum(["IN_PROGRESS", "RESOLVED"], {
+    error: "Faculty members may only update status to IN_PROGRESS or RESOLVED.",
+  }),
+  remarks: z.string().trim().min(3, "Remarks must be at least 3 characters").max(1000, "Remarks too long"),
+});
+
+function handleApiError(err: any, correlationId: string) {
+  console.error(`[Teacher Queries API] [${correlationId}] error:`, err);
+  if (err instanceof z.ZodError) {
+    return NextResponse.json(
+      { success: false, error: err.issues[0]?.message || "Invalid input payload.", correlationId },
+      { status: 400 }
+    );
+  }
+  const isForbidden = err?.name === "ForbiddenError" || err?.status === 403;
+  return NextResponse.json(
+    {
+      success: false,
+      error: isForbidden ? err.message : "An unexpected server error occurred while processing the faculty query.",
+      correlationId,
+    },
+    { status: isForbidden ? 403 : 500 }
+  );
+}
+
 export async function GET(req: NextRequest) {
+  const correlationId = crypto.randomUUID();
   try {
     const session = await requireAuth(req);
 
@@ -25,14 +61,12 @@ export async function GET(req: NextRequest) {
       data: queries,
     });
   } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err.message },
-      { status: err.name === "ForbiddenError" ? 403 : 500 }
-    );
+    return handleApiError(err, correlationId);
   }
 }
 
 export async function POST(req: NextRequest) {
+  const correlationId = crypto.randomUUID();
   try {
     const session = await requireAuth(req);
 
@@ -40,24 +74,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Only faculty members may submit faculty queries." }, { status: 403 });
     }
 
-    const body = await req.json();
-    const { category, subject, description, priority } = body;
-
-    if (!category || !subject || !description) {
-      return NextResponse.json(
-        { success: false, error: "Category, subject, and description are required." },
-        { status: 400 }
-      );
-    }
+    const rawBody = await req.json().catch(() => ({}));
+    const validated = postQuerySchema.parse(rawBody);
 
     const query = await submitQuery({
       institutionId: session.institutionId,
       userId: session.userId,
       role: "FACULTY",
-      category,
-      subject,
-      description,
-      priority: priority || "NORMAL",
+      category: validated.category,
+      subject: validated.subject,
+      description: validated.description,
+      priority: validated.priority,
     });
 
     return NextResponse.json({
@@ -66,14 +93,12 @@ export async function POST(req: NextRequest) {
       data: query,
     });
   } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err.message },
-      { status: err.name === "ForbiddenError" ? 403 : 500 }
-    );
+    return handleApiError(err, correlationId);
   }
 }
 
 export async function PUT(req: NextRequest) {
+  const correlationId = crypto.randomUUID();
   try {
     const session = await requireAuth(req);
 
@@ -84,15 +109,8 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const { id, status, remarks } = body;
-
-    if (!id || !status || !remarks) {
-      return NextResponse.json(
-        { success: false, error: "Query ID, decision status, and remarks are required." },
-        { status: 400 }
-      );
-    }
+    const rawBody = await req.json().catch(() => ({}));
+    const { id, status, remarks } = putQuerySchema.parse(rawBody);
 
     // Verify target grievance belongs to institution and is assigned to this teacher
     const existing = await db.approvalRequest.findFirst({
@@ -120,14 +138,6 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // Permitted status transitions for faculty: IN_PROGRESS or RESOLVED
-    if (status !== "IN_PROGRESS" && status !== "RESOLVED") {
-      return NextResponse.json(
-        { success: false, error: "Faculty members may only update status to IN_PROGRESS or RESOLVED." },
-        { status: 400 }
-      );
-    }
-
     const updated = await respondToQuery({
       institutionId: session.institutionId,
       adminUserId: session.userId,
@@ -142,9 +152,6 @@ export async function PUT(req: NextRequest) {
       data: updated,
     });
   } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err.message },
-      { status: err.name === "ForbiddenError" ? 403 : 500 }
-    );
+    return handleApiError(err, correlationId);
   }
 }

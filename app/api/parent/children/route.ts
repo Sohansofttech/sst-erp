@@ -1,29 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
+import { requireRole, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    // SEC-02: Enforce strict PARENT/GUARDIAN role check. Reject student sessions from accessing sibling/child records.
+    const session = await requireRole(req, ["PARENT", "GUARDIAN"]);
 
     let guardianAccountId = session.guardianId;
 
-    if (!guardianAccountId && session.role === "STUDENT" && session.studentId) {
-      const link = await db.guardianLink.findFirst({
+    // Resolve guardian account strictly associated with the authenticated parent user
+    if (!guardianAccountId && session.userId) {
+      const guardianAccount = await db.guardianAccount.findFirst({
         where: {
-          studentId: session.studentId,
+          userId: session.userId,
           institutionId: session.institutionId,
-          isVerified: true,
         },
+        select: { id: true },
       });
-      if (link) {
-        guardianAccountId = link.guardianAccountId;
+      if (guardianAccount) {
+        guardianAccountId = guardianAccount.id;
       }
     }
 
     if (!guardianAccountId) {
       return NextResponse.json(
-        { success: false, error: "No guardian account linked to session." },
+        { success: false, error: "No verified guardian account associated with authenticated parent." },
         { status: 403 }
       );
     }
@@ -38,18 +40,31 @@ export async function GET(req: NextRequest) {
       },
       include: {
         student: {
-          include: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            rollNumber: true,
+            admissionNumber: true,
+            currentSemester: true,
+            currentSection: true,
+            currentDivisionId: true,
+            status: true,
             currentDivision: {
               select: { id: true, name: true, code: true, type: true },
             },
             enrollments: {
-              include: {
+              select: {
+                id: true,
+                status: true,
+                isPrimary: true,
+                divisionId: true,
                 division: { select: { id: true, name: true, code: true, type: true } },
                 class: { select: { id: true, name: true, gradeLevel: true } },
-                course: true,
-                academicYear: true,
+                course: { select: { name: true } },
+                academicYear: { select: { name: true } },
               },
-              orderBy: [{ isPrimary: "desc" }, { enrolledDate: "desc" }],
+              orderBy: { enrolledDate: "desc" },
             },
           },
         },
@@ -96,6 +111,7 @@ export async function GET(req: NextRequest) {
       }),
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: getAuthErrorStatus(err) ?? 500 });
+    const status = err instanceof UnauthorizedError ? 401 : err instanceof ForbiddenError ? 403 : 500;
+    return NextResponse.json({ success: false, error: err.message }, { status });
   }
 }

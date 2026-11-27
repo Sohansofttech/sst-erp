@@ -8,7 +8,7 @@ import { fetchClientSession } from "@/lib/auth/client-session";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  portalType?: "STUDENT" | "PARENT";
+  portalType?: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN";
   pageTitle?: string;
   selectedChildId?: string;
   onSelectChild?: (childId: string) => void;
@@ -25,7 +25,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   const [internalChildId, setInternalChildId] = useState<string>("");
   const [user, setUser] = useState<{
     fullName: string;
-    role: "STUDENT" | "PARENT" | string;
+    role: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN" | string;
     institutionName: string;
     institutionCode?: string | null;
     institutionLogo?: string | null;
@@ -36,22 +36,6 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("erp_active_child_id");
       if (stored) setInternalChildId(stored);
-      try {
-        const storedUser = localStorage.getItem("erp_user");
-        if (storedUser) {
-          const parsed = JSON.parse(storedUser);
-          if (parsed.fullName || parsed.name) {
-            setUser({
-              fullName: parsed.fullName || parsed.name,
-              role: parsed.role || "STUDENT",
-              institutionName: parsed.institutionName || "",
-              institutionCode: parsed.institutionCode || parsed.institution?.code || null,
-              institutionLogo: parsed.institutionLogo || parsed.institution?.logo || null,
-              email: parsed.email || "",
-            });
-          }
-        }
-      } catch {}
     }
     const handleChildChanged = (e: any) => {
       if (e.detail?.childId) {
@@ -99,49 +83,64 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     };
   }, []);
 
-  const effectiveRole = user?.role === "PARENT" ? "PARENT" : "STUDENT";
+  const effectiveRole = portalType === "INSTITUTION_ADMIN"
+    ? "INSTITUTION_ADMIN"
+    : portalType === "SUPER_ADMIN"
+      ? "SUPER_ADMIN"
+      : user?.role === "PARENT" || (!user && portalType === "PARENT")
+        ? "PARENT"
+        : "STUDENT";
   const currentChildId = selectedChildId || internalChildId;
   const handleSelect = (id: string) => {
     setInternalChildId(id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("erp_active_child_id", id);
+      document.cookie = `erp_active_child=${id}; path=/; max-age=86400`;
+      window.dispatchEvent(new CustomEvent("activeChildChanged", { detail: { childId: id } }));
+    }
     if (onSelectChild) onSelectChild(id);
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#EEF1F5]">
-      {/* Shared Responsive Sidebar */}
-      <Sidebar
-        portalType={effectiveRole}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        selectedChildId={currentChildId}
-        userFullName={user?.fullName}
-        userEmail={user?.email}
-        institutionName={user?.institutionName}
-        institutionCode={user?.institutionCode}
-        institutionLogo={user?.institutionLogo}
-      />
-
-      {/* Main Content Area with Fixed Header and Independent Main Scrolling */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <Header
+    <div className="flex min-h-screen lg:h-screen lg:overflow-hidden bg-[#EEF1F5]">
+      {/* Shared Responsive Sidebar - Hidden in Print */}
+      <div className="print:hidden">
+        <Sidebar
           portalType={effectiveRole}
-          userFullName={user?.fullName || "User"}
-          userRole={effectiveRole}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          selectedChildId={currentChildId}
+          userFullName={user?.fullName}
           userEmail={user?.email}
-          institutionName={user?.institutionName || "Campus Portal"}
+          institutionName={user?.institutionName}
           institutionCode={user?.institutionCode}
           institutionLogo={user?.institutionLogo}
-          selectedChildId={currentChildId}
-          onSelectChild={handleSelect}
-          onMenuToggle={() => setSidebarOpen((prev) => !prev)}
         />
+      </div>
 
-        <MustChangePasswordBanner />
+      {/* Main Content Area with Fixed Header and Independent Main Scrolling */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen lg:h-screen lg:overflow-hidden print:h-auto print:overflow-visible">
+        <div className="print:hidden">
+          <Header
+            portalType={effectiveRole}
+            userFullName={user?.fullName || "User"}
+            userRole={effectiveRole}
+            userEmail={user?.email}
+            institutionName={user?.institutionName || "Campus Portal"}
+            institutionCode={user?.institutionCode}
+            institutionLogo={user?.institutionLogo}
+            selectedChildId={currentChildId}
+            onSelectChild={handleSelect}
+            onMenuToggle={() => setSidebarOpen((prev) => !prev)}
+          />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <div className="max-w-7xl w-full mx-auto space-y-6">
+          <MustChangePasswordBanner />
+        </div>
+
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 print:p-0 print:overflow-visible">
+          <div className="max-w-7xl w-full mx-auto space-y-6 print:max-w-none print:space-y-4">
             {pageTitle && (
-              <div>
+              <div className="print:hidden">
                 <h1 className="text-xl sm:text-2xl font-bold text-[#1E293B]">
                   {pageTitle}
                 </h1>

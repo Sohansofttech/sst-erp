@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
 import {
   getIAAssessments,
   createIAAssessment,
   saveIAAssessmentMarks,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
-import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -217,7 +216,7 @@ export async function DELETE(req: NextRequest) {
         where: { institutionId, requestType: "INTERNAL_ASSESSMENT", title: { contains: targetName } },
       });
     } else if (record) {
-      await db.assessmentRecord.delete({ where: { id: record.id } });
+      await db.assessmentRecord.deleteMany({ where: { id: record.id, institutionId } });
     }
 
     return NextResponse.json({ success: true, message: "Internal assessment deleted." });

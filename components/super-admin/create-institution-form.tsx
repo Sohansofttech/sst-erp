@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { ChevronDown, Plus } from "lucide-react";
+import Link from "next/link";
 import { InlineBrandSpinner } from "@/components/shared/BrandLoadingScreen";
 import { createInstitution, type InstitutionFormState } from "@/app/super-admin/(protected)/institutions/actions";
 
@@ -12,6 +14,7 @@ type AvailablePlan = {
   price: number;
   currency: string;
   studentLimit: number | null;
+  institutionTypes: Array<"COLLEGE" | "SCHOOL" | "ACADEMY">;
 };
 
 export function CreateInstitutionForm({
@@ -22,14 +25,19 @@ export function CreateInstitutionForm({
   plansUnavailable: boolean;
 }) {
   const [state, action, pending] = useActionState(createInstitution, initial);
+  const [institutionType, setInstitutionType] = useState("COLLEGE");
   return (
-    <details className="sa-card sa-form-disclosure">
-      <summary>Create institution</summary>
-      <form className="sa-form-grid" action={action}>
+    <details className="sa-form-disclosure">
+      <summary className="sa-button sa-button-primary sa-create-institution-trigger">
+        <Plus size={16} aria-hidden="true" />
+        Create institution
+        <ChevronDown size={16} aria-hidden="true" />
+      </summary>
+      <form className="sa-card sa-form-card sa-form-grid sa-create-institution-form" action={action}>
         <label>Subscription plan
           <select name="planId" required defaultValue="" disabled={plansUnavailable || plans.length === 0}>
             <option value="" disabled>Select an active plan</option>
-            {plans.map((plan) => (
+            {plans.filter((plan) => plan.institutionTypes.length === 0 || plan.institutionTypes.includes(institutionType as "COLLEGE" | "SCHOOL" | "ACADEMY")).map((plan) => (
               <option value={plan.id} key={plan.id}>
                 {plan.name} · {plan.currency} {plan.price} · {plan.studentLimit === null ? "Unlimited students" : `Up to ${plan.studentLimit} students`}
               </option>
@@ -41,16 +49,19 @@ export function CreateInstitutionForm({
           : plans.length === 0
             ? <p className="sa-form-help">Create an active subscription plan before registering an institution.</p>
             : <p className="sa-form-help">Free plans activate immediately. Paid plans remain PAST_DUE until Razorpay confirms payment; student registration requires an active plan.</p>}
-        <label>Name<input name="name" required minLength={2} maxLength={160} /></label>
-        <label>College Code / Institution Code<input name="code" placeholder="e.g. CC101 (Auto-generated if empty)" maxLength={40} /></label>
-        <label>Slug<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxLength={80} /></label>
-        <label>Type
-          <select name="type" defaultValue="COLLEGE">
+        <label>Institution type
+          <select name="type" value={institutionType} onChange={(event) => setInstitutionType(event.target.value)}>
             <option value="COLLEGE">College</option>
-            <option value="SCHOOL">School</option>
-            <option value="OTHER">Other</option>
+            <option value="SCHOOL">School / Montessori</option>
+            <option value="ACADEMY">Academy</option>
           </select>
         </label>
+        <label>{institutionType === "SCHOOL" ? "School name" : institutionType === "ACADEMY" ? "Academy name" : "College name"}<input name="name" required minLength={2} maxLength={160} /></label>
+        <label>{institutionType === "SCHOOL" ? "School code" : institutionType === "ACADEMY" ? "Academy code" : "College code"}<input name="code" placeholder={institutionType === "COLLEGE" ? "e.g. CC101 (Auto-generated if empty)" : "e.g. INST101 (Auto-generated if empty)"} maxLength={40} /></label>
+        {institutionType === "COLLEGE" && <label>University / affiliation<input name="category" maxLength={160} placeholder="Affiliated university or board" /></label>}
+        {institutionType === "SCHOOL" && <label>School category<select name="category"><option value="School">School</option><option value="Montessori">Montessori</option><option value="School / Montessori">School / Montessori</option></select></label>}
+        {institutionType === "ACADEMY" && <label>Academy / course category<input name="category" maxLength={160} placeholder="e.g. Competitive Exams, Professional Training" /></label>}
+        <label>Slug<input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxLength={80} /></label>
         <label>Contact email<input name="email" type="email" /></label>
         <label>Phone<input name="phone" maxLength={40} /></label>
         <label>Street address<input name="address" maxLength={300} /></label>
@@ -65,7 +76,8 @@ export function CreateInstitutionForm({
         <label>Administrator phone<input name="adminPhone" maxLength={40} /></label>
         {state.error && <p className="sa-form-message sa-form-error" role="alert">{state.error}</p>}
         {state.success && <p className="sa-form-message sa-form-success" role="status">{state.success}</p>}
-        <button className="sa-button sa-button-primary" disabled={pending || plansUnavailable || plans.length === 0}>
+        {state.institutionId && <Link className="sa-small-link" href={`/super-admin/institutions/${state.institutionId}`}>Open institution details</Link>}
+        <button className="sa-button sa-button-primary" disabled={pending || !!state.institutionId || plansUnavailable || plans.length === 0}>
           {pending ? <><InlineBrandSpinner size={14} /> Saving…</> : "Create institution"}
         </button>
       </form>

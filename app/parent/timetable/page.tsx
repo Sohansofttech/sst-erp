@@ -9,26 +9,51 @@ import { Calendar, Clock, MapPin, User } from "lucide-react";
 export default function ParentTimetablePage() {
   const [selectedChildId, setSelectedChildId] = useState("");
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState("MONDAY");
 
   const days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("erp_active_child_id");
+      if (stored) setSelectedChildId(stored);
+    }
+    const handleChildChanged = (e: any) => {
+      if (e.detail?.childId) {
+        setSelectedChildId(e.detail.childId);
+      }
+    };
+    window.addEventListener("activeChildChanged", handleChildChanged);
+    return () => window.removeEventListener("activeChildChanged", handleChildChanged);
+  }, []);
+
   const fetchTimetable = async (childId: string) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/student/timetable?studentId=${childId}`);
+      setError(null);
+      const res = await fetch(`/api/student/timetable?studentId=${encodeURIComponent(childId)}`);
       const json = await res.json();
-      if (json.success) setData(json.data);
-    } catch (e) {
+      if (json.success) {
+        setData(json.data);
+      } else {
+        setError(json.error || "Failed to load timetable.");
+      }
+    } catch (e: any) {
       console.error(e);
+      setError("Network error fetching timetable.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (selectedChildId) fetchTimetable(selectedChildId);
+    if (selectedChildId) {
+      fetchTimetable(selectedChildId);
+    } else {
+      setLoading(false);
+    }
   }, [selectedChildId]);
 
   const { semester, section, weeklySchedule } = data || {};
@@ -41,11 +66,36 @@ export default function ParentTimetablePage() {
       selectedChildId={selectedChildId}
       onSelectChild={(id) => setSelectedChildId(id)}
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <Badge variant="brand">Semester {semester}</Badge>
-          <Badge variant="neutral">Section {section}</Badge>
+      {!selectedChildId ? (
+        <Card className="p-8 text-center bg-white border border-[#CBD5E1] shadow-xs">
+          <Calendar className="w-10 h-10 text-[#F5A000] mx-auto mb-3" />
+          <h2 className="text-base font-bold text-[#1E293B]">No Linked Child Selected</h2>
+          <p className="text-xs text-[#64748B] mt-1 max-w-md mx-auto">
+            Please select your child from the header dropdown to view their registered section timetable and daily lecture slots.
+          </p>
+        </Card>
+      ) : loading ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-8 h-8 border-3 border-[#123B5A] border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-xs font-semibold text-[#64748B]">Loading class schedule...</p>
         </div>
+      ) : error ? (
+        <Card className="p-6 text-center border-red-200 bg-red-50">
+          <p className="text-sm font-bold text-red-800">{error}</p>
+          <button
+            onClick={() => fetchTimetable(selectedChildId)}
+            className="mt-3 px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 cursor-pointer"
+          >
+            Retry
+          </button>
+        </Card>
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <Badge variant="brand">Semester {semester ?? "—"}</Badge>
+              <Badge variant="neutral">Section {section ?? "—"}</Badge>
+            </div>
 
         {/* Day selection */}
         <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -98,6 +148,8 @@ export default function ParentTimetablePage() {
           </div>
         )}
       </Card>
+      </>
+      )}
     </PortalLayout>
   );
 }

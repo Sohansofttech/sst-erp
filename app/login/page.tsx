@@ -112,7 +112,7 @@ function LoginForm() {
     return portalRoleByQuery[roleParam] || "ADMIN";
   });
   const [email, setEmail] = useState("");
-  const [institutionCode, setInstitutionCode] = useState("");
+  const [institutionCode, setInstitutionCode] = useState(() => (searchParams.get("institutionCode") || "").slice(0, 80));
   const [showCollegeCode, setShowCollegeCode] = useState(false);
   const emailInputRef = React.useRef<HTMLInputElement>(null);
   const collegeCodeInputRef = React.useRef<HTMLInputElement>(null);
@@ -241,6 +241,7 @@ function LoginForm() {
           email: submittedEmail,
           password: submittedPassword,
           institutionCode: submittedCollegeCode || undefined,
+          portalRole: selectedRole,
         }),
       });
 

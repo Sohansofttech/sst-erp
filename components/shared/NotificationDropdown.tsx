@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import { Badge } from "./Badge";
+import Link from "next/link";
 
 interface NotificationItem {
   id: string;
@@ -11,6 +12,7 @@ interface NotificationItem {
   category: string;
   isRead: boolean;
   createdAt: string;
+  actionUrl?: string | null;
 }
 
 interface NotificationDropdownProps {
@@ -118,6 +120,9 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           "relative p-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#F1F5F9] rounded-lg transition-colors focus:outline-none cursor-pointer"
         }
         aria-label="Notifications"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        aria-controls="notification-dropdown-panel"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
@@ -128,7 +133,12 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E2E8F0] z-50 overflow-hidden animate-in fade-in-50 duration-150">
+        <div
+          id="notification-dropdown-panel"
+          role="region"
+          aria-label="Notifications List"
+          className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white shadow-xl border border-[#E2E8F0] z-50 overflow-hidden animate-in fade-in-50 duration-150"
+        >
           <div className="px-4 py-3 border-b border-[#E2E8F0] bg-[#EEF1F5] flex items-center justify-between">
             <div>
               <h4 className="text-[14px] font-semibold text-[#1E293B]">
@@ -177,6 +187,15 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                       <p className="text-xs text-[#788391] leading-relaxed break-words">
                         {item.message}
                       </p>
+                      {item.actionUrl && (
+                        <Link
+                          className="mt-2 inline-block text-xs font-semibold text-[#123B5A] underline"
+                          href={item.actionUrl}
+                          onClick={() => { void markRead(item.id); setIsOpen(false); }}
+                        >
+                          Review subscription details
+                        </Link>
+                      )}
                       <span className="text-[11px] text-[#94A3B8] mt-1.5 block">
                         {new Date(item.createdAt).toLocaleDateString(undefined, {
                           month: "short",

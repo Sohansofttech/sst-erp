@@ -40,7 +40,8 @@ import type { DepartmentFacultyLoad } from "@/types/teacher"
 import { useTeacherRole } from "../../teacher-role-context"
 
 export default function HodFacultyLoadPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const deptName = user?.department || "Department"
   const [facultyLoad, setFacultyLoad] = React.useState<DepartmentFacultyLoad[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -66,7 +67,7 @@ export default function HodFacultyLoadPage() {
     return (
       <LoadingState
         title="Loading Faculty Workload"
-        description="Aggregating Department of Mathematics lecture allocations and syllabus coverage..."
+        description={`Aggregating ${deptName} lecture allocations and syllabus coverage...`}
       />
     )
   }
@@ -90,7 +91,7 @@ export default function HodFacultyLoadPage() {
     <div className="space-y-6">
       <PageHeader
         title="Course Allocation & Faculty Workload"
-        subtitle="Department of Mathematics faculty roster: lecture load balancing, weekly teaching hours, curriculum syllabus completion, and course section coverage."
+        subtitle={`${deptName} faculty roster: lecture load balancing, weekly teaching hours, curriculum syllabus completion, and course section coverage.`}
         action={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
@@ -99,7 +100,7 @@ export default function HodFacultyLoadPage() {
                 Dept Dashboard
               </Link>
             </Button>
-            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]">
               <Link href={`/campus/${slug}/teacher/timetable`}>
                 <Calendar className="mr-1.5 size-4" />
                 Department Timetable
@@ -117,14 +118,14 @@ export default function HodFacultyLoadPage() {
           icon={<Users />}
           tone="darkNavy"
           variant="dark"
-          description="Department of Mathematics"
+          description={deptName}
         />
         <StatCard
           label="Total Weekly Hours"
           value={totalWeeklyHours}
           icon={<Clock />}
           tone="primary"
-          description="Cumulative across 5 faculty"
+          description={`Cumulative across ${facultyLoad.length} faculty`}
         />
         <StatCard
           label="Average Syllabus Progress"
@@ -138,7 +139,7 @@ export default function HodFacultyLoadPage() {
       <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
         <CardHeader className="border-b border-[#E5E9EF] pb-4">
           <CardTitle className="text-lg font-bold text-[#202936]">
-            Mathematics Department Faculty Workload ({facultyLoad.length})
+            {deptName} Faculty Workload ({facultyLoad.length})
           </CardTitle>
           <CardDescription className="text-xs text-[#788391]">
             Standard full-time teaching workload baseline is 18–21 lecture periods per academic week.

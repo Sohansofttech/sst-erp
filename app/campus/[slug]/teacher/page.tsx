@@ -82,7 +82,7 @@ const ATTENDANCE_STATUS_OPTIONS: Array<{
   ]
 
 export default function TeacherDashboardPage() {
-  const { role, academicYear, slug } = useTeacherRole()
+  const { role, academicYear, slug, user } = useTeacherRole()
 
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -176,12 +176,9 @@ export default function TeacherDashboardPage() {
     setLoadingRoster(true)
     try {
       const students = await getSectionStudents(slot.sectionId)
-      const initial: Record<string, AttendanceStatus> = {}
-      for (const s of students) {
-        initial[s.studentId] = "present"
-      }
       setSlotRoster(students)
-      setSlotStatuses(initial)
+      // New attendance requires explicit teacher decision for every student
+      setSlotStatuses({})
     } catch {
       toast.error("Could not load section roster.")
       setAttendanceSlot(null)
@@ -192,17 +189,24 @@ export default function TeacherDashboardPage() {
 
   const handleSaveSlotAttendance = async () => {
     if (!attendanceSlot || !dashboard) return
+    const unmarked = slotRoster.filter((s) => !slotStatuses[s.studentId])
+    if (unmarked.length > 0) {
+      toast.error(`Please mark attendance for all students before submitting (${unmarked.length} unmarked).`)
+      return
+    }
+
     setSubmittingAttendance(true)
+    const todayDate = new Date().toISOString().split("T")[0]
     try {
       await submitAttendance({
         institutionId: dashboard.profile.institutionId,
-        academicYearId: "ay-2026-27",
+        academicYearId: academicYear,
         classId: attendanceSlot.classId,
         className: attendanceSlot.className,
         sectionId: attendanceSlot.sectionId,
         section: attendanceSlot.section,
         subjectName: attendanceSlot.subject,
-        date: "2026-11-12",
+        date: todayDate,
         period: attendanceSlot.period,
         status: "submitted",
         records: slotRoster.map((student) => ({
@@ -313,14 +317,14 @@ export default function TeacherDashboardPage() {
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white backdrop-blur-xs">
                 Academic Year {academicYear}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#F5A000] px-3 py-1 text-xs font-bold text-white shadow-xs">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#F5A000] px-3 py-1 text-xs font-bold text-[#123B5A] shadow-xs">
                 {role === "hod" ? (
                   <>
                     <ShieldCheck className="size-3" /> HoD Oversight
                   </>
                 ) : role === "class_teacher" ? (
                   <>
-                    <UserCheck className="size-3" /> Class Teacher (10-A)
+                    <UserCheck className="size-3" /> Class Teacher ({user.homeroomClass || "Assigned Homeroom"})
                   </>
                 ) : (
                   <>
@@ -335,7 +339,7 @@ export default function TeacherDashboardPage() {
                 Welcome back, {dashboard.profile.fullName}!
               </h1>
               <p className="mt-1 text-[13.5px] font-medium text-white/80 sm:text-[14.5px]">
-                Employee ID: {dashboard.profile.employeeCode ?? "EMP-1042"} · {dashboard.profile.designation} · {dashboard.profile.departmentName}
+                Employee ID: {dashboard.profile.employeeCode || "Faculty"} · {dashboard.profile.designation} · {dashboard.profile.departmentName}
               </p>
             </div>
           </div>
@@ -353,7 +357,7 @@ export default function TeacherDashboardPage() {
             </Button>
             <Button
               asChild
-              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200] shadow-sm"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200] shadow-sm"
             >
               <Link href={`${base}/attendance`}>
                 <ClipboardCheck className="size-4" />
@@ -428,13 +432,13 @@ export default function TeacherDashboardPage() {
               <div>
                 <p className="text-[14px] font-bold text-[#202936]">
                   {role === "hod"
-                    ? "HoD Oversight Active — Department of Mathematics"
-                    : "Class Teacher Mode Active — Class 10 - Section A"}
+                    ? `HoD Oversight Active — ${user.department || "Department"}`
+                    : `Class Teacher Mode Active — ${user.homeroomClass || "Assigned Homeroom"}`}
                 </p>
                 <p className="text-[13px] text-[#788391]">
                   {role === "hod"
                     ? `${pendingLogbooks.length} teacher log book entries and ${pendingAssessments.length} internal assessment draft(s) are queued for departmental oversight.`
-                    : "You have direct approval authority for Class 10-A student leave requests and low-attendance parent outreach."}
+                    : `You have direct approval authority for ${user.homeroomClass || "homeroom"} student leave requests and low-attendance parent outreach.`}
                 </p>
               </div>
             </div>
@@ -545,7 +549,7 @@ export default function TeacherDashboardPage() {
                             <Button
                               type="button"
                               size="sm"
-                              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                               onClick={() => void openMarkAttendance(slot)}
                             >
                               Mark Attendance
@@ -870,14 +874,47 @@ export default function TeacherDashboardPage() {
           {loadingRoster ? (
             <LoadingState compact title="Loading section roster..." />
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2 border-b border-[#E5E9EF] pb-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl border-[#E5E9EF] text-xs font-semibold"
+                  onClick={() => {
+                    const next: Record<string, AttendanceStatus> = {}
+                    for (const s of slotRoster) {
+                      next[s.studentId] = "present"
+                    }
+                    setSlotStatuses(next)
+                    toast.success(`Marked all ${slotRoster.length} students Present`)
+                  }}
+                >
+                  <CheckCircle2 className="size-3.5 mr-1.5 text-emerald-600" />
+                  Mark All Present
+                </Button>
+                <div>
+                  {slotRoster.filter((s) => !slotStatuses[s.studentId]).length > 0 ? (
+                    <Badge variant="outline" className="border-amber-400 bg-amber-50 text-[11px] font-bold text-amber-900">
+                      {slotRoster.filter((s) => !slotStatuses[s.studentId]).length} Unmarked
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-[11px] font-bold text-emerald-800">
+                      All Reviewed
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
               {slotRoster.map((student) => {
-                const currentStatus =
-                  slotStatuses[student.studentId] ?? "present"
+                const currentStatus = slotStatuses[student.studentId]
                 return (
                   <div
                     key={student.studentId}
-                    className="flex flex-col justify-between gap-2 rounded-xl border border-[#E5E9EF] bg-white px-3 py-2 sm:flex-row sm:items-center shadow-xs"
+                    className={cn(
+                      "flex flex-col justify-between gap-2 rounded-xl border border-[#E5E9EF] px-3 py-2 sm:flex-row sm:items-center shadow-xs transition-colors",
+                      !currentStatus ? "bg-amber-50/25" : "bg-white"
+                    )}
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="font-mono text-xs font-bold text-[#788391]">
@@ -886,6 +923,11 @@ export default function TeacherDashboardPage() {
                       <span className="text-[13.5px] font-bold text-[#202936]">
                         {student.fullName}
                       </span>
+                      {!currentStatus && (
+                        <Badge variant="outline" className="border-amber-400 bg-amber-50 text-[10px] font-bold text-amber-900">
+                          Not Marked
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 w-full sm:w-auto">
@@ -909,7 +951,7 @@ export default function TeacherDashboardPage() {
                                   : opt.value === "absent"
                                     ? "border-rose-600 bg-rose-600 text-white"
                                     : opt.value === "late"
-                                      ? "border-amber-500 bg-[#F5A000] text-white"
+                                      ? "border-amber-500 bg-[#F5A000] text-[#123B5A] font-bold"
                                       : "border-[#123B5A] bg-[#123B5A] text-white"
                                 : "border-[#E5E9EF] bg-[#EEF1F5] text-[#788391] hover:bg-slate-200"
                             )}
@@ -936,8 +978,8 @@ export default function TeacherDashboardPage() {
             </Button>
             <Button
               type="button"
-              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
-              disabled={loadingRoster || submittingAttendance}
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
+              disabled={loadingRoster || submittingAttendance || slotRoster.length === 0 || slotRoster.some((s) => !slotStatuses[s.studentId])}
               onClick={() => void handleSaveSlotAttendance()}
             >
               {submittingAttendance ? "Submitting..." : "Submit Attendance"}

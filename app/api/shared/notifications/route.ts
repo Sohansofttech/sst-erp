@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
         title: n.notification?.title || "",
         message: n.notification?.message || "",
         category: n.notification?.category || "SYSTEM",
+        actionUrl: n.notification?.category === "SYSTEM" && n.notification?.title === "New Subscription Plan Assigned"
+          ? "/admin/subscriptions"
+          : null,
         isRead: n.isRead,
         createdAt: n.notification?.createdAt,
       })),

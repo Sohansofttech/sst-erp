@@ -45,7 +45,7 @@ const modelMapping: Record<string, string> = {
   audit_logs: "auditLog",
 }
 
-function wrapWithMapping(client: any): any {
+export function wrapWithMapping(client: any): any {
   return new Proxy(client, {
     get(target, prop, receiver) {
       if (prop === "$transaction") {

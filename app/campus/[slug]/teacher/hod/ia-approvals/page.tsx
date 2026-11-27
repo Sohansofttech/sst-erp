@@ -56,7 +56,8 @@ import type { ApprovalStatus } from "@/types/common"
 import { useTeacherRole } from "../../teacher-role-context"
 
 export default function HodIaApprovalsPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const deptName = user?.department || "Department"
   const [assessments, setAssessments] = React.useState<InternalAssessment[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -121,7 +122,7 @@ export default function HodIaApprovalsPage() {
     return (
       <LoadingState
         title="Loading Assessment Approval Queue"
-        description="Fetching submitted IA marks sheets across Mathematics sections..."
+        description={`Fetching submitted IA marks sheets across ${deptName} sections...`}
       />
     )
   }
@@ -145,7 +146,7 @@ export default function HodIaApprovalsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="IA Approval & Lock Queue — Department of Mathematics"
+        title={`IA Approval & Lock Queue — ${deptName}`}
         subtitle="Departmental leadership review: approve verified internal assessment scores, return sheets for moderation corrections, or permanently lock marks for report card compilation."
         action={
           <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
@@ -185,7 +186,7 @@ export default function HodIaApprovalsPage() {
       <Card className="rounded-2xl border-[#E5E9EF] bg-white shadow-xs">
         <CardHeader className="border-b border-[#E5E9EF] pb-4">
           <CardTitle className="text-lg font-bold text-[#202936]">
-            Department Marks Sheets ({assessments.length})
+            {deptName} Marks Sheets ({assessments.length})
           </CardTitle>
           <CardDescription className="text-xs text-[#788391]">
             Once locked, internal assessment scores can only be modified through academic director authorization.
@@ -222,7 +223,7 @@ export default function HodIaApprovalsPage() {
                       <TableRow key={ia.id} className="hover:bg-[#EEF1F5]/50">
                         <TableCell className="sticky left-0 z-10 bg-white">
                           <p className="font-bold text-[#202936]">{ia.title}</p>
-                          <p className="text-xs text-[#788391]">{ia.subjectName || "Mathematics"}</p>
+                          <p className="text-xs text-[#788391]">{ia.subjectName || deptName}</p>
                         </TableCell>
                       <TableCell className="font-semibold text-xs text-[#123B5A]">
                         {ia.className} - {ia.section}

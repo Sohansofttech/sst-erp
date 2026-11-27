@@ -55,7 +55,8 @@ import type { StudentRosterItem } from "@/types/teacher"
 import { useTeacherRole } from "../../teacher-role-context"
 
 export default function AttendanceDefaultersPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const homeroomName = user.homeroomClass || "Assigned Homeroom"
   const [students, setStudents] = React.useState<StudentRosterItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -87,7 +88,7 @@ export default function AttendanceDefaultersPage() {
     setNoticeTarget(student)
     setNoticeSubject(`Urgent Attendance Advisory — ${student.fullName} (${student.rollNo})`)
     setNoticeMessage(
-      `Dear Parent/Guardian of ${student.fullName} (Roll ${student.rollNo}, Class 10-A),\n\nYour ward's attendance currently stands at ${student.attendancePercent}% which is below the mandatory 75% CBSE requirement. Kindly attend PTI hours with the Class Teacher to formulate an attendance recovery schedule.`
+      `Dear Parent/Guardian of ${student.fullName} (Roll ${student.rollNo}, ${homeroomName}),\n\nYour ward's attendance currently stands at ${student.attendancePercent}% which is below the mandatory 75% CBSE requirement. Kindly attend PTI hours with the Class Teacher to formulate an attendance recovery schedule.`
     )
   }
 
@@ -99,7 +100,7 @@ export default function AttendanceDefaultersPage() {
         title: noticeSubject,
         content: noticeMessage,
         audience: "Class & Parents",
-        targetClasses: ["Class 10 - A"],
+        targetClasses: [homeroomName],
         priority: "urgent",
         isPinned: true,
       })
@@ -116,7 +117,7 @@ export default function AttendanceDefaultersPage() {
     return (
       <LoadingState
         title="Loading Attendance Defaulters"
-        description="Scanning Class 10-A attendance thresholds (<75% critical, 75-82% borderline)..."
+        description={`Scanning ${homeroomName} attendance thresholds (<75% critical, 75-82% borderline)...`}
       />
     )
   }
@@ -142,7 +143,7 @@ export default function AttendanceDefaultersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Attendance Defaulters & Shortage Watch"
-        subtitle="Mandatory attendance monitoring for Class 10-A: students below 75% require immediate parent intimation and exam eligibility counseling."
+        subtitle={`Mandatory attendance monitoring for ${homeroomName}: students below 75% require immediate parent intimation and exam eligibility counseling.`}
         action={
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
@@ -199,7 +200,7 @@ export default function AttendanceDefaultersPage() {
             <div className="p-6">
               <EmptyState
                 title="Zero attendance defaulters"
-                description="All 18 students in Class 10-A currently maintain attendance above 82%."
+                description={`All students in ${homeroomName} currently maintain attendance above 82%.`}
               />
             </div>
           ) : (
@@ -267,7 +268,7 @@ export default function AttendanceDefaultersPage() {
                         <Button
                           size="sm"
                           onClick={() => openNoticeDialog(s)}
-                          className="h-8 rounded-lg bg-[#F5A000] px-2.5 text-xs font-bold text-white hover:bg-[#E09200]"
+                          className="h-8 rounded-lg bg-[#F5A000] px-2.5 text-xs font-bold text-[#123B5A] hover:bg-[#E09200]"
                         >
                           <Megaphone className="mr-1 size-3.5" />
                           Intimate Parent
@@ -324,7 +325,7 @@ export default function AttendanceDefaultersPage() {
             <Button
               disabled={sendingNotice}
               onClick={handleSendNotice}
-              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]"
             >
               {sendingNotice ? "Sending..." : "Send Advisory"}
             </Button>

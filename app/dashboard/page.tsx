@@ -40,6 +40,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
 
   // First-login password change state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -191,6 +192,7 @@ export default function DashboardPage() {
   const fetchDashboardData = useCallback(async (childId?: string) => {
     try {
       setLoadingData(true);
+      setDashboardError(null);
       const token = typeof window !== "undefined" ? localStorage.getItem("erp_token") : null;
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -209,9 +211,12 @@ export default function DashboardPage() {
       const json = await res.json();
       if (json.success) {
         setData(json.data);
+      } else {
+        setDashboardError(json.error || "Failed to load dashboard metrics.");
       }
     } catch (err) {
       console.error("Dashboard data load error:", err);
+      setDashboardError("Unable to connect to dashboard service. Please check your network and retry.");
     } finally {
       setLoadingData(false);
     }
@@ -263,113 +268,58 @@ export default function DashboardPage() {
     cgpa,
   } = data || {};
 
-  // Student Enrolled Courses with dynamic subject-wise attendance
-  // MUST be called unconditionally before any early returns to satisfy React Rules of Hooks
+  // Dynamically derive enrolled courses from real API data (subjectWiseAttendance, todaySchedule, recentResults)
   const enrolledCourses = React.useMemo(() => {
-    const baseCourses = [
-      {
-        code: "CS301",
-        name: "Database Management Systems",
-        faculty: "Prof. Rajesh Sharma",
-        credits: 4,
-        marks: 93,
-        grade: "A+",
-        theoryPct: 75,
-        labPct: 15,
-        pendingTasks: 0,
-        status: "On Track",
-      },
-      {
-        code: "CS302",
-        name: "Operating Systems",
-        faculty: "Prof. Rajesh Sharma",
-        credits: 4,
-        marks: 86,
-        grade: "A",
-        theoryPct: 72,
-        labPct: 16,
-        pendingTasks: 1,
-        status: "On Track",
-      },
-      {
-        code: "CS303",
-        name: "Computer Networks",
-        faculty: "Prof. Rajesh Sharma",
-        credits: 4,
-        marks: 90,
-        grade: "A",
-        theoryPct: 74,
-        labPct: 14,
-        pendingTasks: 0,
-        status: "On Track",
-      },
-      {
-        code: "CS304",
-        name: "Software Engineering & Architecture",
-        faculty: "Prof. Rajesh Sharma",
-        credits: 3,
-        marks: 88,
-        grade: "A+",
-        theoryPct: 78,
-        labPct: 12,
-        pendingTasks: 1,
-        status: "On Track",
-      },
-      {
-        code: "CS305",
-        name: "Web Technologies & Cloud Lab",
-        faculty: "Prof. Sunita Verma",
-        credits: 2,
-        marks: 95,
-        grade: "O",
-        theoryPct: 82,
-        labPct: 12,
-        pendingTasks: 0,
-        status: "Exemplary",
-      },
-      {
-        code: "CS306",
-        name: "Professional Ethics & Values",
-        faculty: "Dr. Arvind Swamy",
-        credits: 2,
-        marks: 85,
-        grade: "A",
-        theoryPct: 70,
-        labPct: 15,
-        pendingTasks: 0,
-        status: "On Track",
-      },
-    ];
-
     const subjectList: any[] = Array.isArray(subjectWiseAttendance) ? subjectWiseAttendance : [];
+    if (subjectList.length === 0) return [];
 
-    return baseCourses.map((c) => {
-      const matched = subjectList.find(
-        (s: any) =>
-          s &&
-          ((s.subjectCode && s.subjectCode.toLowerCase() === c.code.toLowerCase()) ||
-            (s.subjectName && s.subjectName.toLowerCase() === c.name.toLowerCase()))
-      );
+    return subjectList.map((s: any) => {
+      const scheduleMatch = Array.isArray(todaySchedule)
+        ? todaySchedule.find(
+            (ts: any) =>
+              ts &&
+              ((ts.subjectCode && s.subjectCode && ts.subjectCode.toLowerCase() === s.subjectCode.toLowerCase()) ||
+                (ts.subjectName && s.subjectName && ts.subjectName.toLowerCase() === s.subjectName.toLowerCase()))
+          )
+        : null;
 
-      const actualAttendance = matched && matched.percentage !== null && matched.percentage !== undefined ? matched.percentage : null;
+      const resultMatch = Array.isArray(recentResults)
+        ? recentResults.find(
+            (r: any) =>
+              r &&
+              ((r.subjectCode && s.subjectCode && r.subjectCode.toLowerCase() === s.subjectCode.toLowerCase()) ||
+                (r.subjectName && s.subjectName && r.subjectName.toLowerCase() === s.subjectName.toLowerCase()))
+          )
+        : null;
 
+      const pct = typeof s.percentage === "number" ? Math.round(s.percentage) : 0;
       return {
-        ...c,
-        attendance: actualAttendance,
-        attendanceLabel:
-          actualAttendance !== null
-            ? `${actualAttendance}% Attended`
-            : "No sessions",
+        code: s.subjectCode || "SUB",
+        name: s.subjectName || "Subject",
+        faculty: scheduleMatch?.teacherName || "Assigned Faculty",
+        credits: s.credits || 3,
+        marks: resultMatch?.totalMarks ?? Math.round((pct / 100) * 100),
+        grade: resultMatch?.grade || (pct >= 85 ? "A+" : pct >= 75 ? "A" : pct >= 60 ? "B" : pct >= 40 ? "C" : "F"),
+        theoryPct: pct,
+        labPct: 0,
+        pendingTasks: 0,
+        status: pct >= 75 ? "On Track" : "Shortage Warning",
+        attendance: pct,
+        attendanceLabel: `${pct}% Attended`,
       };
     });
-  }, [subjectWiseAttendance]);
+  }, [subjectWiseAttendance, todaySchedule, recentResults]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center">
         <div className="text-center">
           <div className="w-9 h-9 border-3 border-[#0F2942] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-xs font-semibold text-[#64748B]">Loading Student Portal...</p>
+          <p className="text-xs font-semibold text-[#64748B]">
+            {session?.role === "PARENT" || session?.role === "GUARDIAN"
+              ? "Loading Parent Portal..."
+              : "Loading Student Portal..."}
+          </p>
         </div>
       </div>
     );
@@ -399,7 +349,7 @@ export default function DashboardPage() {
 
   return (
     <PortalLayout
-      portalType="STUDENT"
+      portalType={isParent ? "PARENT" : "STUDENT"}
       selectedChildId={selectedChildId}
       onSelectChild={(id) => {
         setSelectedChildId(id);
@@ -432,16 +382,35 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* API Failure / Error Banner with Retry */}
+      {dashboardError && (
+        <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between text-xs text-rose-800 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="font-bold text-rose-900">Dashboard Metrics Unavailable</p>
+              <p className="text-rose-700 mt-0.5">{dashboardError}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => fetchDashboardData(selectedChildId)}
+            className="px-3.5 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-semibold hover:bg-rose-700 transition-colors cursor-pointer shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Top Header Bar matching the Reference Image */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-2xl sm:text-[28px] font-extrabold text-[#1E293B] tracking-tight">
-              Student Dashboard
+              {isParent ? "Parent Dashboard" : "Student Dashboard"}
             </h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Session {student?.academicYear || "2025-2026"}
+              Session {student?.academicYear || (session as any)?.academicYear || "Active Session"}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-[#64748B]">
@@ -474,14 +443,14 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
-          <Link href="/student/profile">
+          <Link href={isParent ? "/parent/requests" : "/student/profile"}>
             <Button
               variant="primary"
               size="sm"
               className="bg-[#F5A000] hover:bg-[#DE9100] text-white shadow-xs font-semibold px-4 py-2 rounded-md text-xs flex items-center gap-2 cursor-pointer"
               icon={<ArrowRight className="w-4 h-4" />}
             >
-              View Student Profile
+              {isParent ? "Submit Request" : "View Student Profile"}
             </Button>
           </Link>
         </div>
@@ -639,7 +608,11 @@ export default function DashboardPage() {
               </div>
 
               {/* Interactive Tab Switcher */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+              <div
+                role="tablist"
+                aria-label="Course and Academic Information"
+                className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0"
+              >
                 {[
                   { id: "overview", label: "Overview" },
                   { id: "attendance", label: "Attendance Health" },
@@ -649,6 +622,11 @@ export default function DashboardPage() {
                 ].map((tab) => (
                   <button
                     key={tab.id}
+                    id={`tab-${tab.id}`}
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    aria-controls={`tabpanel-${tab.id}`}
+                    tabIndex={activeTab === tab.id ? 0 : -1}
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all shrink-0 cursor-pointer ${
                       activeTab === tab.id
@@ -663,71 +641,85 @@ export default function DashboardPage() {
             </div>
 
             {/* Tab Contents: Course Progress Grid (p-6) */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {enrolledCourses.map((course, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs space-y-2.5"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase inline-block mb-1">
-                          {course.code}
-                        </span>
-                        <h4 className="text-xs font-bold text-[#1E293B] truncate" title={course.name}>
-                          {course.name}
-                        </h4>
-                      </div>
-                      <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
-                        {activeTab === "attendance"
-                          ? course.attendanceLabel
-                          : activeTab === "marks"
-                          ? `${course.marks}/100 (${course.grade})`
-                          : activeTab === "coursework"
-                          ? course.pendingTasks > 0
-                            ? "1 Due"
-                            : "Submitted"
-                          : activeTab === "credits"
-                          ? `${course.credits} Credits`
-                          : course.attendanceLabel}
-                      </span>
-                    </div>
-
-                    {/* Dual-Color Segmented Progress Bar */}
-                    <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
-                      <div
-                        style={{ width: `${course.theoryPct}%` }}
-                        className="h-full bg-[#123B5A]"
-                        title={`Lecture Attendance: ${course.theoryPct}%`}
-                      />
-                      <div
-                        style={{ width: `${course.labPct}%` }}
-                        className="h-full bg-[#F5A000]"
-                        title={`Lab & Practical: ${course.labPct}%`}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-[#64748B] pt-0.5">
-                      <span className="truncate">Faculty: {course.faculty}</span>
-                      <span className="font-semibold text-[#1E293B] shrink-0">{course.credits} Credits</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Bottom Summary Strip */}
-              <div className="mt-5 pt-4 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between text-xs text-[#64748B]">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#123B5A]" />
-                  <span>Lecture Attendance (Theory)</span>
-                  <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
-                  <span>Practical Labs & Coursework</span>
+            <div
+              id={`tabpanel-${activeTab}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${activeTab}`}
+              className="p-6"
+            >
+              {enrolledCourses.length === 0 ? (
+                <div className="py-12 text-center border-2 border-dashed border-[#E2E8F0] rounded-xl bg-[#F8FAFC]">
+                  <p className="text-xs font-semibold text-[#1E293B]">No enrolled courses or subject attendance records found.</p>
+                  <p className="text-[11px] text-[#64748B] mt-1">Course progress, internal marks, and attendance metrics will appear once academic subjects are assigned.</p>
                 </div>
-                <span className="font-semibold text-[#1E293B]">
-                  Semester Load: 6 Enrolled Subjects • 19 Total Credits
-                </span>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {enrolledCourses.map((course, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/30 transition-all shadow-xs space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#D97706] uppercase inline-block mb-1">
+                              {course.code}
+                            </span>
+                            <h4 className="text-xs font-bold text-[#1E293B] truncate" title={course.name}>
+                              {course.name}
+                            </h4>
+                          </div>
+                          <span className="text-[11px] font-bold text-[#123B5A] shrink-0 bg-[#EEF1F5] px-2 py-0.5 rounded-md">
+                            {activeTab === "attendance"
+                              ? course.attendanceLabel
+                              : activeTab === "marks"
+                              ? `${course.marks}/100 (${course.grade})`
+                              : activeTab === "coursework"
+                              ? course.pendingTasks > 0
+                                ? "1 Due"
+                                : "Submitted"
+                              : activeTab === "credits"
+                              ? `${course.credits} Credits`
+                              : course.attendanceLabel}
+                          </span>
+                        </div>
+
+                        {/* Dual-Color Segmented Progress Bar */}
+                        <div className="w-full h-2 rounded-full bg-[#EEF1F5] overflow-hidden flex">
+                          <div
+                            style={{ width: `${course.theoryPct}%` }}
+                            className="h-full bg-[#123B5A]"
+                            title={`Lecture Attendance: ${course.theoryPct}%`}
+                          />
+                          <div
+                            style={{ width: `${course.labPct}%` }}
+                            className="h-full bg-[#F5A000]"
+                            title={`Lab & Practical: ${course.labPct}%`}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-[#64748B] pt-0.5">
+                          <span className="truncate">Faculty: {course.faculty}</span>
+                          <span className="font-semibold text-[#1E293B] shrink-0">{course.credits} Credits</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bottom Summary Strip */}
+                  <div className="mt-5 pt-4 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between text-xs text-[#64748B]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#123B5A]" />
+                      <span>Lecture Attendance (Theory)</span>
+                      <span className="w-2 h-2 rounded-full bg-[#F5A000] ml-2" />
+                      <span>Practical Labs & Coursework</span>
+                    </div>
+                    <span className="font-semibold text-[#1E293B]">
+                      Semester Load: {enrolledCourses.length} Enrolled Subject{enrolledCourses.length === 1 ? "" : "s"} • {enrolledCourses.reduce((acc, c) => acc + (c.credits || 0), 0)} Total Credits
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -1009,7 +1001,7 @@ export default function DashboardPage() {
               <Card title="Quick Services" subtitle="Frequent academic actions">
                 <div className="grid grid-cols-2 gap-2.5">
                   <Link
-                    href="/student/attendance"
+                    href={isParent ? "/parent/attendance" : "/student/attendance"}
                     className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
@@ -1019,7 +1011,7 @@ export default function DashboardPage() {
                     <span className="text-[10px] text-[#64748B] block">View Logs</span>
                   </Link>
                   <Link
-                    href="/student/fees"
+                    href={isParent ? "/parent/fees" : "/student/fees"}
                     className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-amber-50 text-[#D97706] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
@@ -1029,7 +1021,7 @@ export default function DashboardPage() {
                     <span className="text-[10px] text-[#64748B] block">Online Receipts</span>
                   </Link>
                   <Link
-                    href="/student/timetable"
+                    href={isParent ? "/parent/timetable" : "/student/timetable"}
                     className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#123B5A] flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
@@ -1039,14 +1031,18 @@ export default function DashboardPage() {
                     <span className="text-[10px] text-[#64748B] block">Weekly Schedule</span>
                   </Link>
                   <Link
-                    href="/student/examinations"
+                    href={isParent ? "/parent/results" : "/student/examinations"}
                     className="p-3 rounded-xl border border-[#E2E8F0] bg-white hover:border-[#123B5A]/40 hover:shadow-xs text-center block transition-all group"
                   >
                     <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-1.5 group-hover:scale-105 transition-transform">
                       <Award className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-semibold text-[#1E293B] block">Hall Tickets</span>
-                    <span className="text-[10px] text-[#64748B] block">Exam Results</span>
+                    <span className="text-xs font-semibold text-[#1E293B] block">
+                      {isParent ? "Exam Results" : "Hall Tickets"}
+                    </span>
+                    <span className="text-[10px] text-[#64748B] block">
+                      {isParent ? "Grades & CGPA" : "Exam Results"}
+                    </span>
                   </Link>
                 </div>
               </Card>

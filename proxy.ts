@@ -1,7 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import { jwtVerify } from "jose"
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access"
 import { AUTH_COOKIE_NAME, verifyToken } from "@/lib/auth/jwt"
 import { isAdminPortalRole } from "@/lib/security/rbac"
 import { getAuthJwtKey } from "@/lib/auth/jwt-secret"
@@ -214,10 +213,6 @@ export async function proxy(request: NextRequest) {
   // ---------------------------------------------------------------------------
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set("x-pathname", pathname)
-
-  if (isDevelopmentBypassEnabled()) {
-    return NextResponse.next({ request: { headers: requestHeaders } })
-  }
 
   // The admin layout enforces live database permissions after the session check.
   if (pathname.startsWith("/admin") && pathname !== "/admin/login" && !pathname.startsWith("/admin/login/")) {

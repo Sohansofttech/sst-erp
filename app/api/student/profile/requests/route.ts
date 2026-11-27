@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, getAuthErrorStatus } from "@/lib/auth/session";
+import { requireRole, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import { submitRequest } from "@/lib/services/approval.service";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireRole(req, ["STUDENT", "PARENT"]);
 
     const requests = await db.approvalRequest.findMany({
       where: {
@@ -21,20 +21,14 @@ export async function GET(req: NextRequest) {
       data: requests,
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: getAuthErrorStatus(err) ?? 500 });
+    const status = err instanceof UnauthorizedError ? 401 : err instanceof ForbiddenError ? 403 : 500;
+    return NextResponse.json({ success: false, error: err.message }, { status });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
-
-    if (session.role !== "STUDENT" && session.role !== "PARENT") {
-      return NextResponse.json(
-        { success: false, error: "Only students or parents may submit profile correction requests." },
-        { status: 403 }
-      );
-    }
+    const session = await requireRole(req, ["STUDENT", "PARENT"]);
 
     const body = await req.json();
     const { title, details } = body;
@@ -60,9 +54,10 @@ export async function POST(req: NextRequest) {
       data: request,
     });
   } catch (err: any) {
+    const status = err instanceof UnauthorizedError ? 401 : err instanceof ForbiddenError ? 403 : 500;
     return NextResponse.json(
       { success: false, error: err.message || "Failed to submit profile correction request" },
-      { status: getAuthErrorStatus(err) ?? 500 }
+      { status }
     );
   }
 }

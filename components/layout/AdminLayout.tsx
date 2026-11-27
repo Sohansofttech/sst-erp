@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { InstitutionProvider, useInstitution } from "@/lib/store";
 import { DivisionProvider } from "@/lib/division-store";
-import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-utils";
+import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
@@ -15,6 +15,7 @@ import {
   isAdminPortalRole,
   isDepartmentalRole,
 } from "@/lib/security/rbac";
+import { isAdminPathAllowed, isGatedAdminPath } from "@/lib/institution-type-config";
 
 const AdminLayoutInner: React.FC<{
   sidebarOpen: boolean;
@@ -24,8 +25,17 @@ const AdminLayoutInner: React.FC<{
   initialUser?: { fullName: string; email: string; role: string } | null;
   children: React.ReactNode;
 }> = ({ sidebarOpen, setSidebarOpen, userRole, userPermissions, initialUser, children }) => {
-  const { theme } = useInstitution();
+  const { theme, institutionKind } = useInstitution();
   const activeTheme = theme || DEFAULT_INSTITUTION_THEME;
+  const pathname = usePathname();
+  const router = useRouter();
+  // Modules that do not apply to this institution type are blocked by URL as well as hidden in navigation.
+  const gatedPath = isGatedAdminPath(pathname);
+  const pathAllowed = isAdminPathAllowed(institutionKind, pathname);
+
+  useEffect(() => {
+    if (gatedPath && institutionKind !== null && !pathAllowed) router.replace("/admin");
+  }, [gatedPath, institutionKind, pathAllowed, router]);
 
   return (
     <div
@@ -76,7 +86,15 @@ const AdminLayoutInner: React.FC<{
         >
           <div className="max-w-7xl w-full mx-auto">
             <Suspense fallback={<div className="p-6 text-sm text-[#64748B]">Loading...</div>}>
-              {children}
+              {gatedPath && !pathAllowed ? (
+                <div className="p-6 text-sm text-[#64748B]" role="status">
+                  {institutionKind === null
+                    ? "Checking which modules are available for your institution..."
+                    : "This module is not available for your institution type. Redirecting..."}
+                </div>
+              ) : (
+                children
+              )}
             </Suspense>
           </div>
         </main>
@@ -92,6 +110,7 @@ export const AdminLayout: React.FC<{
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | undefined>(initialAuth?.role);
   const [userPermissions, setUserPermissions] = useState<string[]>(initialAuth?.permissions || []);
+  const [sessionVerified, setSessionVerified] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === "/admin/login";
@@ -100,6 +119,8 @@ export const AdminLayout: React.FC<{
     if (isLoginPage) {
       return;
     }
+
+    let active = true;
 
     // Guard: Verify authenticated role on admin portal routes
     fetch("/api/auth/me", { credentials: "include" })
@@ -112,6 +133,7 @@ export const AdminLayout: React.FC<{
       })
       .then((json) => {
         if (!json) return;
+        if (!active) return;
         if (!json.success || !json.data?.session) {
           router.replace("/admin/login");
           return;
@@ -126,17 +148,26 @@ export const AdminLayout: React.FC<{
         if (role === "STUDENT" || role === "PARENT") {
           router.replace("/dashboard");
         } else if (role === "TEACHER") {
-          const slug = (json.data.session.institutionSlug || json.data.session.institutionCode || json.data.session.institutionId || "vidyaniketan").toLowerCase();
-          router.replace(`/campus/${slug}/teacher`);
+          const institutionRoute = json.data.session.institutionSlug || json.data.session.institutionCode || json.data.session.institutionId;
+          router.replace(institutionRoute ? `/campus/${encodeURIComponent(institutionRoute)}/teacher` : "/login?role=teacher");
+        } else if (role === "SUPER_ADMIN") {
+          router.replace("/super-admin");
         } else if (!isAdminPortalRole(role)) {
-          router.replace("/login");
-        } else if (isDepartmentalRole(role) && !canAccessAdminPage(role, perms, pathname)) {
-          router.replace(getRoleLandingRoute(role));
+          router.replace("/admin/login");
+        } else {
+          if (isDepartmentalRole(role) && !canAccessAdminPage(role, perms, pathname)) {
+            router.replace(getRoleLandingRoute(role));
+          } else {
+            setSessionVerified(true);
+          }
         }
       })
       .catch(() => {
-        router.replace("/login");
+        if (active) router.replace("/admin/login");
       });
+    return () => {
+      active = false;
+    };
   }, [isLoginPage, pathname, router]);
 
   if (isLoginPage) {
@@ -148,6 +179,14 @@ export const AdminLayout: React.FC<{
           </Suspense>
         </div>
       </InstitutionProvider>
+    );
+  }
+
+  if (!sessionVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#EEF1F5] text-sm text-[#64748B]">
+        Verifying Institution Admin access…
+      </div>
     );
   }
 

@@ -54,7 +54,8 @@ import type { StudentLeaveRequest } from "@/types/teacher"
 import { useTeacherRole } from "../../teacher-role-context"
 
 export default function StudentLeaveApprovalsPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const homeroomName = user?.homeroomClass || "Assigned Homeroom"
   const [leaveRequests, setLeaveRequests] = React.useState<StudentLeaveRequest[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -115,7 +116,7 @@ export default function StudentLeaveApprovalsPage() {
     return (
       <LoadingState
         title="Loading Leave Applications"
-        description="Fetching Class 10-A student leave and On-Duty requests..."
+        description={`Fetching ${homeroomName} student leave and On-Duty requests...`}
       />
     )
   }
@@ -138,7 +139,7 @@ export default function StudentLeaveApprovalsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Student Leave & On-Duty (OD) Approvals"
-        subtitle="Review parent-submitted medical and official co-curricular absence applications for Class 10-A. Approving updates attendance records atomically in one DB transaction."
+        subtitle={`Review parent-submitted medical and official co-curricular absence applications for ${homeroomName}. Approving updates attendance records atomically in one DB transaction.`}
         action={
           <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/class-teacher`}>
@@ -188,7 +189,7 @@ export default function StudentLeaveApprovalsPage() {
             <div className="p-6">
               <EmptyState
                 title="No student leave requests"
-                description="All leave applications for Class 10-A have been reviewed."
+                description={`All leave applications for ${homeroomName} have been reviewed.`}
               />
             </div>
           ) : (

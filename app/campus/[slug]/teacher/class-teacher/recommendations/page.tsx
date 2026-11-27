@@ -62,7 +62,8 @@ function defaultRecommendation(student: StudentRosterItem): RecommendationType {
 }
 
 export default function SectionRecommendationsPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const homeroomName = user?.homeroomClass || "Assigned Homeroom"
   const [students, setStudents] = React.useState<StudentRosterItem[]>([])
   const [recommendations, setRecommendations] = React.useState<Record<string, RecommendationType>>({})
   const [loading, setLoading] = React.useState(true)
@@ -107,7 +108,7 @@ export default function SectionRecommendationsPage() {
     return (
       <LoadingState
         title="Loading Section Analytics"
-        description="Compiling Class 10-A cross-subject IA means and attendance recommendations..."
+        description={`Compiling ${homeroomName} cross-subject IA means and attendance recommendations...`}
       />
     )
   }
@@ -130,7 +131,7 @@ export default function SectionRecommendationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Section Summary & Status Recommendations"
-        subtitle="Homeroom Class 10-A holistic evaluation: assign term recommendations, remedial clinic tags, and parent conference requests based on attendance and IA metrics."
+        subtitle={`${homeroomName} holistic evaluation: assign term recommendations, remedial clinic tags, and parent conference requests based on attendance and IA metrics.`}
         action={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
@@ -142,7 +143,7 @@ export default function SectionRecommendationsPage() {
             <Button
               onClick={handleSaveAll}
               disabled={saving}
-              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]"
             >
               <Save className="mr-1.5 size-4" />
               {saving ? "Saving..." : "Save Recommendations"}
@@ -158,7 +159,7 @@ export default function SectionRecommendationsPage() {
           icon={<Users />}
           tone="darkNavy"
           variant="dark"
-          description="Class 10 - A (Homeroom)"
+          description={`${homeroomName} (Homeroom)`}
         />
         <StatCard
           label="Good Standing"

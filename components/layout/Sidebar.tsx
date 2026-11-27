@@ -16,6 +16,12 @@ import {
   CreditCard,
   BookOpen,
   Building2,
+  CalendarDays,
+  CircleDollarSign,
+  FileText,
+
+  Package,
+  Settings,
   Users2,
   MessageSquare,
   X,
@@ -23,7 +29,7 @@ import {
 } from "lucide-react";
 
 interface SidebarProps {
-  portalType?: "STUDENT" | "PARENT";
+  portalType?: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN";
   isOpen: boolean;
   onClose: () => void;
   selectedChildId?: string;
@@ -95,9 +101,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [portalType]);
 
   const isParent = userRole === "PARENT" || portalType === "PARENT";
+  const isInstitutionAdmin = portalType === "INSTITUTION_ADMIN" || userRole === "ADMIN" || userRole === "INSTITUTION_ADMIN";
 
-  // Unified Student Portal Navigation for both Students and Parents
-  const navItems = [
+  // Role-Aware Navigation: Separated Parent-Specific vs Student-Specific routes
+  const studentNavItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "Student Profile", href: "/student/profile", icon: User },
     { label: "Academic History", href: "/student/academic-history", icon: GraduationCap },
@@ -111,6 +118,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: "Mentoring & Log Book", href: "/student/mentoring", icon: Users2 },
     { label: "Feedback & Inquiries", href: "/student/feedback", icon: MessageSquare },
   ];
+
+  const parentNavItems = [
+    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Child Attendance", href: "/parent/attendance", icon: CheckCircle2 },
+    { label: "Timetable & Schedule", href: "/parent/timetable", icon: Calendar },
+    { label: "Exam Results", href: "/parent/results", icon: Award },
+    { label: "Fees & Invoices", href: "/parent/fees", icon: CreditCard },
+    { label: "Faculty Mentoring", href: "/parent/mentoring", icon: Users2 },
+    { label: "Requests & Inquiries", href: "/parent/requests", icon: MessageSquare },
+  ];
+
+  // Navigation items for Subscription Center (Super Admin)
+  const subscriptionNavItems = [
+    { label: "Overview", href: "/subscriptions", icon: LayoutDashboard },
+    { label: "Subscription Plans", href: "/subscriptions/plans", icon: Package },
+    { label: "Institution Subscriptions", href: "/subscriptions/institutions", icon: Building2 },
+    { label: "Payments & Transactions", href: "/subscriptions/payments", icon: CreditCard },
+    { label: "Invoices & Receipts", href: "/subscriptions/invoices", icon: FileText },
+    { label: "Renewals & Upgrades", href: "/subscriptions/renewals", icon: CalendarDays },
+    { label: "Revenue & Reports", href: "/subscriptions/reports", icon: CircleDollarSign },
+    { label: "Settings", href: "/subscriptions/settings", icon: Settings },
+  ];
+
+  const navItems = pathname.startsWith("/subscriptions")
+    ? subscriptionNavItems
+    : isParent
+      ? parentNavItems
+      : studentNavItems;
 
   // Examinations & Results is strictly restricted to Student accounts (hidden from Parents)
   const displayNavItems = navItems.filter((item) => {
@@ -172,13 +207,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {institutionName}
               </span>
               <span className="text-[10px] uppercase font-bold text-[#8EA4C2] tracking-wider block">
-                {isParent ? "Parent Portal" : "Student Portal"}
+                {isInstitutionAdmin ? "Institution Admin" : isParent ? "Parent Portal" : "Student Portal"}
               </span>
             </div>
           </Link>
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[10px] font-semibold bg-[#F5A000]/30 text-white border border-[#F5A000]/60 px-1.5 py-0.5 rounded">
-              {isParent ? "Parent" : "Student"}
+              {isInstitutionAdmin ? "Institution Admin" : isParent ? "Parent" : "Student"}
             </span>
             <button
               onClick={onClose}
@@ -216,7 +251,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation Items (px-3 py-3 space-y-1, px-3 py-2 rounded-lg text-xs font-semibold) */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
           <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#8EA4C2]">
-            {isParent ? "Parent Navigation" : "Academic Navigation"}
+            {isInstitutionAdmin ? "Institution Administration" : isParent ? "Parent Navigation" : "Academic Navigation"}
           </div>
 
           {displayNavItems.map((item) => {
@@ -230,6 +265,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 onClick={() => {
                   if (typeof window !== "undefined" && window.innerWidth < 1024) onClose();
                 }}

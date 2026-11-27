@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { connection, NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { getEmailDeliveryLogs } from "@/lib/services/email-config.service";
 import { EmailDeliveryStatus, EmailPurpose } from "@/types/email-infrastructure";
 import { assertSupportAccess, SUPPORT_READ } from "@/lib/security/support-access";
 
 export async function GET(req: NextRequest) {
+  await connection();
   try {
     const actor = await requireSuperAdmin();
     const { searchParams } = new URL(req.url);

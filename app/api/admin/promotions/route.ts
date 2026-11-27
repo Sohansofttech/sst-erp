@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
 import {
   getPromotionBatches,
   getPromotionPolicies,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
-import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -134,7 +133,23 @@ export async function PUT(req: NextRequest) {
     }
 
     if (action === "EXECUTE" || status === "EXECUTED" || status === "Executed") {
-      const ids: string[] = Array.isArray(studentIds) ? studentIds : [];
+      const ids: string[] = Array.from(
+        new Set((Array.isArray(studentIds) ? studentIds : []).map((s: any) => String(s).trim()).filter(Boolean))
+      );
+
+      if (ids.length > 0) {
+        const ownedStudents = await db.student.findMany({
+          where: { institutionId, id: { in: ids } },
+          select: { id: true },
+        });
+        if (ownedStudents.length !== ids.length) {
+          return NextResponse.json(
+            { success: false, error: "Forbidden: One or more student IDs do not belong to your institution." },
+            { status: 403 }
+          );
+        }
+      }
+
       let promotedCount = 0;
 
       await db.$transaction(async (tx) => {
@@ -153,8 +168,8 @@ export async function PUT(req: NextRequest) {
           const targetSem = currentSem + 1;
 
           if (currentEnrollment) {
-            await tx.enrollment.update({
-              where: { id: currentEnrollment.id },
+            await tx.enrollment.updateMany({
+              where: { id: currentEnrollment.id, institutionId },
               data: {
                 status: "PROMOTED",
                 completedDate: new Date(),
@@ -188,12 +203,15 @@ export async function PUT(req: NextRequest) {
           promotedCount++;
         }
 
-        await tx.promotionBatch.update({
-          where: { id: targetBatchId },
+        const batchUpdated = await tx.promotionBatch.updateMany({
+          where: { id: targetBatchId, institutionId },
           data: {
             status: "EXECUTED",
           },
         });
+        if (batchUpdated.count === 0) {
+          throw new Error("Promotion batch not found or access denied.");
+        }
       });
 
       return NextResponse.json({

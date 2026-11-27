@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
 import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getAttendanceRecords,
@@ -12,8 +13,6 @@ import {
   calculateMonthlyAttendance,
   RawAttendanceRecord,
 } from "@/lib/services/attendance-calculator";
-import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
-
 
 export async function GET(req: NextRequest) {
   try {
@@ -95,12 +94,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const updated = await db.attendanceRecord.update({
-        where: { id: body.recordId },
+      const updateResult = await db.attendanceRecord.updateMany({
+        where: { id: body.recordId, institutionId },
         data: {
           status: body.status,
           remarks: body.remarks || body.reason || existing.remarks,
         },
+      });
+      if (updateResult.count === 0) {
+        return NextResponse.json(
+          { success: false, error: "Attendance record not found in this institution." },
+          { status: 404 }
+        );
+      }
+      const updated = await db.attendanceRecord.findFirst({
+        where: { id: body.recordId, institutionId },
       });
 
       // Institutional Audit Log entry for attendance correction

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, getAuthErrorStatus } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { assertSupportAccess, SUPPORT_READ } from "@/lib/security/support-access";
 import db from "@/lib/db";
 import {
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     const currentSubscription = await getInstitutionSubscriptionStatus(resolvedInstId);
 
     // 2. All Available Active Plans
-    const availablePlans = await getAvailableSubscriptionPlans();
+    const availablePlans = await getAvailableSubscriptionPlans(resolvedInstId);
 
     // 3. Optional Selected Plan Resolution by planId
     const planIdParam = req.nextUrl.searchParams.get("planId")?.trim();
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     console.error("[SubscriptionPortal:GET] Error:", error?.message || error);
     return NextResponse.json(
       { success: false, error: error?.message || "Internal server error." },
-      { status: getAuthErrorStatus(error) ?? 500 }
+      { status: 500 }
     );
   }
 }
