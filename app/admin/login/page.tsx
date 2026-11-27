@@ -43,6 +43,11 @@ function LoginContent() {
 
   // Form states for Institution Admin
   const [institutionCode, setInstitutionCode] = useState("");
+  const [tenantName, setTenantName] = useState("");
+  const [tenantCode, setTenantCode] = useState("");
+  const [tenantType, setTenantType] = useState("");
+  const [tenantLoading, setTenantLoading] = useState(true);
+  const [tenantError, setTenantError] = useState("");
   const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -64,6 +69,37 @@ function LoginContent() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
   const [forgotError, setForgotError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/public/institution", { cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.success && data.tenantScoped) {
+          const code = String(data.code || data.slug || "").trim();
+          setTenantName(String(data.name || ""));
+          setTenantCode(code);
+          setTenantType(String(data.type || ""));
+          setInstitutionCode(code);
+          setTenantError("");
+          localStorage.removeItem("erp_institution_name");
+          localStorage.removeItem("erp_user");
+        } else if (!res.ok) {
+          setTenantError(String(data.error || "This institution domain is not available."));
+          setInstitutionCode("");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTenantError("Could not verify this institution domain.");
+      })
+      .finally(() => {
+        if (!cancelled) setTenantLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const validateForm = () => {
     const errors: {
@@ -97,6 +133,15 @@ function LoginContent() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
+
+    if (tenantError) {
+      setAuthError(tenantError);
+      return;
+    }
+    if (tenantName && !institutionCode.trim()) {
+      setAuthError("This institution domain could not be resolved. Please return to Institution Management.");
+      return;
+    }
 
     if (!validateForm()) {
       return;
@@ -215,7 +260,7 @@ function LoginContent() {
 
               <div>
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight">
-                  SST ERP Institution Portal
+                  {tenantName || "SST ERP Institution Portal"}
                 </h1>
                 <p className="text-xs sm:text-sm text-[#8EA4C2] mt-2 leading-relaxed">
                   Centralized governance, academic lifecycle setup, department orchestration, and role-based institutional administration.
@@ -260,10 +305,10 @@ function LoginContent() {
             <div className="pt-8 border-t border-white/10 mt-6">
               <div className="flex items-center gap-2 text-xs text-[#CBD5E1]">
                 <ShieldCheck className="w-4 h-4 text-[#F5A000]" />
-                <span>Tenant Scoped: <strong className="text-white">{profile.name}</strong></span>
+                <span>Tenant Scoped: <strong className="text-white">{tenantName || profile.name}</strong></span>
               </div>
               <p className="text-[10px] text-[#8EA4C2] mt-1 font-mono">
-                Code: {profile.code} • {profile.type}
+                Code: {tenantCode || profile.code} • {tenantType || profile.type}
               </p>
             </div>
           </div>
@@ -294,6 +339,15 @@ function LoginContent() {
                   icon={<AlertCircle className="w-5 h-5 text-[#DC2626]" />}
                 >
                   {authError}
+                </Alert>
+              )}
+              {tenantError && (
+                <Alert
+                  variant="error"
+                  title="Institution Domain Unavailable"
+                  icon={<AlertCircle className="w-5 h-5 text-[#DC2626]" />}
+                >
+                  {tenantError}
                 </Alert>
               )}
 

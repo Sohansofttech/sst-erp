@@ -223,21 +223,80 @@ export async function removeDomain(formData: FormData) {
   revalidatePath("/super-admin/domains");
 }
 
-export async function verifyDomain(formData: FormData) {
-  const actor = await requireSuperAdmin();
-  const id = z.uuid().safeParse(formData.get("id"));
-  if (!id.success) throw new Error("Invalid domain.");
-  const domain = await prisma.institutionDomain.findUnique({ where: { id: id.data }, select: { id: true, domain: true, verificationToken: true, status: true, institutionId: true } });
-  if (!domain || domain.status === "REMOVED") throw new Error("Domain not found or already removed.");
-  let records: string[][];
-  try { records = await resolveTxt(`_sst-erp-verification.${domain.domain}`); }
-  catch { throw new Error("DNS TXT record was not found. Add the exact challenge shown and try again after DNS has propagated."); }
-  if (!records.flat().includes(domain.verificationToken)) throw new Error("The DNS TXT record does not match this domain's verification token.");
-  await prisma.$transaction(async (tx) => {
-    await tx.institutionDomain.update({ where: { id: domain.id }, data: { status: "VERIFIED", verifiedAt: new Date() } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: domain.institutionId, action: "INSTITUTION_DOMAIN_VERIFIED", entity: "InstitutionDomain", entityId: domain.id, result: "SUCCESS" } });
-  });
-  revalidatePath("/super-admin/domains");
+export type DomainActionState = {
+  ok: boolean;
+  message: string;
+};
+
+export async function verifyDomain(
+  previousStateOrFormData: DomainActionState | FormData,
+  maybeFormData?: FormData
+): Promise<DomainActionState> {
+  try {
+    const formData = maybeFormData ?? (previousStateOrFormData as FormData);
+    const actor = await requireSuperAdmin();
+    const id = z.uuid().safeParse(formData.get("id"));
+    if (!id.success) return { ok: false, message: "Invalid domain." };
+
+    const domain = await prisma.institutionDomain.findUnique({
+      where: { id: id.data },
+      select: { id: true, domain: true, verificationToken: true, status: true, institutionId: true },
+    });
+    if (!domain || domain.status === "REMOVED") {
+      return { ok: false, message: "Domain not found or already removed." };
+    }
+
+    if (domain.status !== "PENDING_VERIFICATION") {
+      return { ok: false, message: "This domain is not pending verification." };
+    }
+
+    let records: string[][];
+    try {
+      records = await resolveTxt(`_sst-erp-verification.${domain.domain}`);
+    } catch (error: unknown) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      if (code === "ENOTFOUND" || code === "ENODATA") {
+        return {
+          ok: false,
+          message: "The DNS TXT record was not found. Add the exact challenge, allow DNS propagation, then try again.",
+        };
+      }
+      return { ok: false, message: "DNS verification could not be completed. Check the TXT record and try again." };
+    }
+
+    if (!records.flat().includes(domain.verificationToken)) {
+      return { ok: false, message: "The DNS TXT record does not match this domain's verification token." };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.institutionDomain.update({
+        where: { id: domain.id, status: "PENDING_VERIFICATION" },
+        data: { status: "VERIFIED", verifiedAt: new Date() },
+      });
+      await tx.platformAuditLog.create({
+        data: {
+          userId: actor.id,
+          institutionId: domain.institutionId,
+          action: "INSTITUTION_DOMAIN_VERIFIED",
+          entity: "InstitutionDomain",
+          entityId: domain.id,
+          result: "SUCCESS",
+        },
+      });
+    });
+    revalidatePath("/super-admin/domains");
+    revalidatePath(`/super-admin/institutions/${domain.institutionId}`);
+    return { ok: true, message: "DNS TXT verification succeeded. The domain is now verified and ready to activate." };
+  } catch (error) {
+    console.error("[SuperAdmin] Domain verification failed", error);
+    return { ok: false, message: "Domain verification could not be completed. No status change was made." };
+  }
+}
+
+// Compatibility wrapper for existing plain forms. The stateful UI uses
+// verifyDomain directly through useActionState.
+export async function verifyDomainForm(formData: FormData): Promise<void> {
+  await verifyDomain(formData);
 }
 
 export async function activateDomain(formData: FormData) {

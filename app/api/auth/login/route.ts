@@ -32,6 +32,8 @@ import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context";
 import { isInstitutionOperational } from "@/lib/services/institution-lifecycle";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
+import { getRequestHostname, isMainErpHostname } from "@/lib/tenant-hostname";
+import { resolveInstitutionDomain } from "@/lib/institution-domain";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,11 +41,12 @@ export async function POST(req: NextRequest) {
       email: requestEmail,
       password,
       loginType,
-      institutionCode,
+      institutionCode: requestedInstitutionCode,
       portalRole: requestedPortalRole,
       otpProof,
       googleProof,
     } = await req.json();
+    let institutionCode: unknown = requestedInstitutionCode;
     let email = requestEmail;
     let verifiedOtpProof: Awaited<ReturnType<typeof verifyOtpLoginProof>> = null;
     let verifiedGoogleProof: Awaited<ReturnType<typeof verifyGoogleLoginProof>> = null;
@@ -80,10 +83,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const accountLookupEmail =
+    let accountLookupEmail =
       verifiedGoogleProof?.role === "SUPER_ADMIN"
         ? normalizeEmail(verifiedGoogleProof.email)
         : email.trim();
+
+    const hostname = getRequestHostname(req.headers);
+    if (hostname && !isMainErpHostname(hostname)) {
+      const tenant = await resolveInstitutionDomain(hostname);
+      if (tenant.status !== "ACTIVE") {
+        return NextResponse.json(
+          { success: false, error: "This institution domain is not active." },
+          { status: 403 }
+        );
+      }
+
+      if (typeof institutionCode === "string" && institutionCode.trim()) {
+        const requestedCode = institutionCode.trim();
+        const matchesPinnedInstitution =
+          (tenant.institutionCode &&
+            requestedCode.toLowerCase() === tenant.institutionCode.toLowerCase()) ||
+          requestedCode.toLowerCase() === tenant.institutionSlug.toLowerCase();
+        if (!matchesPinnedInstitution) {
+          return NextResponse.json(
+            { success: false, error: "The supplied institution does not match this portal domain." },
+            { status: 403 }
+          );
+        }
+      }
+
+      // The hostname is resolved and verified by the server. It becomes the
+      // authoritative institution code for this login request.
+      institutionCode = tenant.institutionCode || tenant.institutionSlug;
+    }
 
     // Find institution if code provided, or search by email domain / lookup
     let institutionId: string | undefined;
