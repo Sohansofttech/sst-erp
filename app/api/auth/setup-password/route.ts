@@ -16,6 +16,7 @@ import { SessionUser } from "@/types";
 import { isInstitutionOperational } from "@/lib/services/institution-lifecycle";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
+import { assertUserRegistrationCapacity, UserCapacityError } from "@/lib/billing/user-capacity";
 
 export async function GET(req: NextRequest) {
   try {
@@ -282,16 +283,42 @@ export async function POST(req: NextRequest) {
     const updatedSig = computePasswordSignature(newHash);
     const now = new Date();
 
-    // Activate user upon successful password setup
-    await db.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash: newHash,
-        lastLoginAt: now,
-        isActive: true,
-        status: "ACTIVE",
-      },
-    });
+    // Activate user upon successful password setup — atomic with capacity check.
+    // Re-read the user inside the transaction; if not already ACTIVE and it belongs
+    // to an institution, enforce the registration capacity before activating so a
+    // race between the capacity check and activation cannot occur.
+    try {
+      await db.$transaction(async (tx) => {
+        const fresh = await tx.user.findUnique({
+          where: { id: user.id },
+          select: { id: true, status: true, isActive: true, institutionId: true },
+        });
+        if (!fresh) {
+          throw new UserCapacityError("User account not found.", 404);
+        }
+        const alreadyActive = fresh.status === "ACTIVE" && fresh.isActive === true;
+        if (!alreadyActive && fresh.institutionId) {
+          await assertUserRegistrationCapacity(tx, fresh.institutionId);
+        }
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            passwordHash: newHash,
+            lastLoginAt: now,
+            isActive: true,
+            status: "ACTIVE",
+          },
+        });
+      });
+    } catch (capErr: any) {
+      if (capErr instanceof UserCapacityError) {
+        return NextResponse.json(
+          { success: false, error: capErr.message },
+          { status: capErr.statusCode }
+        );
+      }
+      throw capErr;
+    }
 
     // Synchronize membership activation across platform tables
     if (user.institutionId) {
