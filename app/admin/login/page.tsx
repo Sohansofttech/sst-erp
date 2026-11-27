@@ -112,6 +112,7 @@ function LoginContent() {
           email: usernameOrEmail.trim().toLowerCase(),
           password,
           institutionCode: institutionCode.trim() || undefined,
+          portalRole: "ADMIN",
         }),
       });
 
@@ -128,7 +129,6 @@ function LoginContent() {
       const allowedAdminRoles = [
         "ADMIN",
         "INSTITUTION_ADMIN",
-        "SUPER_ADMIN",
         "ADMISSIONS_OFFICER",
         "ACCOUNTANT",
         "HOSTEL_WARDEN",

@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     const currentSubscription = await getInstitutionSubscriptionStatus(resolvedInstId);
 
     // 2. All Available Active Plans
-    const availablePlans = await getAvailableSubscriptionPlans();
+    const availablePlans = await getAvailableSubscriptionPlans(resolvedInstId);
 
     // 3. Optional Selected Plan Resolution by planId
     const planIdParam = req.nextUrl.searchParams.get("planId")?.trim();

@@ -99,7 +99,7 @@ const STATUS_PILLS: Array<{
   {
     value: "late",
     label: "Late",
-    activeClass: "border-amber-500 bg-[#F5A000] text-white shadow-xs",
+    activeClass: "border-amber-500 bg-[#F5A000] text-[#123B5A] font-bold shadow-xs",
     hoverClass: "hover:border-[#F5A000] hover:text-amber-800",
   },
   {
@@ -120,6 +120,14 @@ const PERIOD_OPTIONS = [
   { period: 7, label: "Period 7 (14:00 – 14:45)" },
 ]
 
+function getTodayIsoDate(): string {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 function getInitials(name: string): string {
   return name
     .split(" ")
@@ -134,17 +142,23 @@ function buildDefaultStatuses(
   matchingSession?: AttendanceSession
 ): Record<string, AttendanceStatus> {
   const next: Record<string, AttendanceStatus> = {}
-  const recordMap = new Map(
-    matchingSession?.records.map((r) => [r.studentId, r.status]) ?? []
-  )
-  for (const s of students) {
-    next[s.studentId] = recordMap.get(s.studentId) ?? "present"
+  if (matchingSession?.records && matchingSession.records.length > 0) {
+    const recordMap = new Map(
+      matchingSession.records.map((r) => [r.studentId, r.status])
+    )
+    for (const s of students) {
+      const saved = recordMap.get(s.studentId)
+      if (saved) {
+        next[s.studentId] = saved
+      }
+    }
   }
+  // New sessions start as unmarked (explicit teacher review required)
   return next
 }
 
 export default function TeacherAttendancePage() {
-  const { academicYear, slug } = useTeacherRole()
+  const { academicYear, academicYears, slug } = useTeacherRole()
 
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -155,12 +169,11 @@ export default function TeacherAttendancePage() {
   const [timetable, setTimetable] = React.useState<TimetableSlot[]>([])
   const [sessions, setSessions] = React.useState<AttendanceSession[]>([])
 
-  // Filter bar state
-  const [selectedSectionId, setSelectedSectionId] = React.useState("sec-10b")
-  const [selectedSubjectId, setSelectedSubjectId] =
-    React.useState("sub-math-10")
-  const [selectedDate, setSelectedDate] = React.useState("2026-11-12")
-  const [selectedPeriod, setSelectedPeriod] = React.useState("2")
+  // Dynamic filter bar state
+  const [selectedSectionId, setSelectedSectionId] = React.useState("")
+  const [selectedSubjectId, setSelectedSubjectId] = React.useState("")
+  const [selectedDate, setSelectedDate] = React.useState(getTodayIsoDate)
+  const [selectedPeriod, setSelectedPeriod] = React.useState("1")
 
   // Student roster & marking state
   const [students, setStudents] = React.useState<StudentRosterItem[]>([])
@@ -176,33 +189,48 @@ export default function TeacherAttendancePage() {
   const [submitting, setSubmitting] = React.useState(false)
 
   const fetchInitialData = React.useCallback(async () => {
-    const [classes, subjects, tt, allSessions, initialRoster] =
+    const [classes, subjects, tt, allSessions] =
       await Promise.all([
         getClassAllocations(),
         getSubjectAllocations(),
         getTimetable(),
         getAttendanceSessions(),
-        getSectionStudents("sec-10b"),
       ])
-    return { classes, subjects, tt, allSessions, initialRoster }
+    const initialSectionId = classes[0]?.sectionId || ""
+    const initialRoster = initialSectionId
+      ? await getSectionStudents(initialSectionId)
+      : []
+    return { classes, subjects, tt, allSessions, initialRoster, initialSectionId }
   }, [])
 
   const retryInitial = React.useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const { classes, subjects, tt, allSessions, initialRoster } =
+      const { classes, subjects, tt, allSessions, initialRoster, initialSectionId } =
         await fetchInitialData()
       setClassAllocs(classes)
       setSubjectAllocs(subjects)
       setTimetable(tt)
       setSessions(allSessions)
       setStudents(initialRoster)
+
+      const defaultSec = initialSectionId || classes[0]?.sectionId || ""
+      const defaultSub =
+        subjects.find((s) => s.sectionId === defaultSec)?.subjectId ||
+        subjects[0]?.subjectId ||
+        ""
+      setSelectedSectionId(defaultSec)
+      setSelectedSubjectId(defaultSub)
+
+      const todayDate = getTodayIsoDate()
+      setSelectedDate(todayDate)
+
       const matching = allSessions.find(
         (s) =>
-          s.sectionId === "sec-10b" &&
-          s.date === "2026-11-12" &&
-          (s.period ?? 1) === 2
+          s.sectionId === defaultSec &&
+          s.date === todayDate &&
+          (s.period ?? 1) === 1
       )
       setStatuses(buildDefaultStatuses(initialRoster, matching))
     } catch (err) {
@@ -219,18 +247,30 @@ export default function TeacherAttendancePage() {
   React.useEffect(() => {
     let active = true
     fetchInitialData()
-      .then(({ classes, subjects, tt, allSessions, initialRoster }) => {
+      .then(({ classes, subjects, tt, allSessions, initialRoster, initialSectionId }) => {
         if (!active) return
         setClassAllocs(classes)
         setSubjectAllocs(subjects)
         setTimetable(tt)
         setSessions(allSessions)
         setStudents(initialRoster)
+
+        const defaultSec = initialSectionId || classes[0]?.sectionId || ""
+        const defaultSub =
+          subjects.find((s) => s.sectionId === defaultSec)?.subjectId ||
+          subjects[0]?.subjectId ||
+          ""
+        setSelectedSectionId(defaultSec)
+        setSelectedSubjectId(defaultSub)
+
+        const todayDate = getTodayIsoDate()
+        setSelectedDate(todayDate)
+
         const matching = allSessions.find(
           (s) =>
-            s.sectionId === "sec-10b" &&
-            s.date === "2026-11-12" &&
-            (s.period ?? 1) === 2
+            s.sectionId === defaultSec &&
+            s.date === todayDate &&
+            (s.period ?? 1) === 1
         )
         setStatuses(buildDefaultStatuses(initialRoster, matching))
         setError(null)
@@ -300,7 +340,8 @@ export default function TeacherAttendancePage() {
     setStatuses(buildDefaultStatuses(students, match))
   }
 
-  const isAcademicYearClosed = academicYear !== "2026-27"
+  const activeAcademicYear = academicYears?.[0] || "2026-27"
+  const isAcademicYearClosed = academicYear !== activeAcademicYear
   const isSessionLocked = Boolean(
     matchingSession &&
       (matchingSession.status === "locked" || !matchingSession.editWindowOpen)
@@ -323,6 +364,22 @@ export default function TeacherAttendancePage() {
     toast.success(`Marked all ${students.length} students Present`)
   }
 
+  const unmarkedStudents = students.filter((s) => !statuses[s.studentId])
+  const unmarkedCount = unmarkedStudents.length
+  const totalCount = students.length
+  const presentCount = students.filter(
+    (s) => statuses[s.studentId] === "present"
+  ).length
+  const absentStudents = students.filter(
+    (s) => statuses[s.studentId] === "absent"
+  )
+  const lateCount = students.filter(
+    (s) => statuses[s.studentId] === "late"
+  ).length
+  const onDutyCount = students.filter(
+    (s) => statuses[s.studentId] === "on_duty"
+  ).length
+
   const performSave = async (targetStatus: "draft" | "submitted") => {
     const activeClass = classAllocs.find(
       (c) => c.sectionId === selectedSectionId
@@ -332,6 +389,11 @@ export default function TeacherAttendancePage() {
         s.sectionId === selectedSectionId && s.subjectId === selectedSubjectId
     )
     if (!activeClass) return
+
+    if (targetStatus === "submitted" && unmarkedCount > 0) {
+      toast.error(`Please mark attendance for all students before submission (${unmarkedCount} unmarked).`)
+      return
+    }
 
     if (
       targetStatus === "submitted" &&
@@ -347,13 +409,13 @@ export default function TeacherAttendancePage() {
       const saved = await submitAttendance({
         sessionId: matchingSession?.id,
         institutionId: activeClass.institutionId,
-        academicYearId: "ay-2026-27",
+        academicYearId: academicYear,
         classId: activeClass.classId,
         className: activeClass.className,
         sectionId: activeClass.sectionId,
         section: activeClass.section,
         subjectId: activeSubject?.subjectId,
-        subjectName: activeSubject?.subjectName ?? "Mathematics",
+        subjectName: activeSubject?.subjectName ?? "General Subject",
         date: selectedDate,
         period: Number(selectedPeriod),
         status: targetStatus,
@@ -428,20 +490,6 @@ export default function TeacherAttendancePage() {
       student.rollNo.toLowerCase().includes(q)
     )
   })
-
-  const totalCount = students.length
-  const presentCount = students.filter(
-    (s) => (statuses[s.studentId] ?? "present") === "present"
-  ).length
-  const absentStudents = students.filter(
-    (s) => statuses[s.studentId] === "absent"
-  )
-  const lateCount = students.filter(
-    (s) => statuses[s.studentId] === "late"
-  ).length
-  const onDutyCount = students.filter(
-    (s) => statuses[s.studentId] === "on_duty"
-  ).length
 
   const activeClass = classAllocs.find((c) => c.sectionId === selectedSectionId)
   const activeSubject = subjectAllocs.find(
@@ -574,7 +622,7 @@ export default function TeacherAttendancePage() {
               Academic Year {academicYear} is Closed (Read-Only)
             </p>
             <p className="mt-0.5 text-red-800/90">
-              Attendance registers for past academic years are permanently locked. Switch back to AY 2026-27 in the header to mark or edit attendance.
+              Attendance registers for past academic years are permanently locked. Switch back to active AY {activeAcademicYear} in the header to mark or edit attendance.
             </p>
           </div>
         </div>
@@ -635,7 +683,7 @@ export default function TeacherAttendancePage() {
               type="button"
               variant="outline"
               className="w-full sm:w-auto"
-              disabled={isReadOnly || loadingStudents}
+              disabled={isReadOnly || loadingStudents || students.length === 0}
               onClick={handleMarkAllPresent}
             >
               <CheckCheck className="size-4 text-success" />
@@ -659,6 +707,17 @@ export default function TeacherAttendancePage() {
           >
             <Badge variant="secondary" className="px-2.5 py-1 text-xs rounded-full bg-[#EEF1F5] text-[#202936]">
               Total: {totalCount}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={cn(
+                "rounded-full px-2.5 py-1 text-xs font-bold",
+                unmarkedCount > 0
+                  ? "border-amber-400 bg-amber-50 text-amber-900"
+                  : "border-slate-200 bg-slate-50 text-slate-700"
+              )}
+            >
+              Unmarked: {unmarkedCount}
             </Badge>
             <Badge
               variant="outline"
@@ -700,7 +759,7 @@ export default function TeacherAttendancePage() {
                 · {activeSubject?.subjectName ?? "Subject"}
             </CardTitle>
             <CardDescription>
-              {selectedDate} · Period {selectedPeriod} · Toggle status pills for rapid attendance marking.
+              {selectedDate} · Period {selectedPeriod} · Each student must be explicitly marked. Use &apos;Mark All Present&apos; to expedite, then adjust exceptions.
             </CardDescription>
           </div>
           {!isReadOnly && (
@@ -720,8 +779,14 @@ export default function TeacherAttendancePage() {
               <Button
                 type="button"
                 className="w-full sm:w-auto"
-                disabled={submitting || loadingStudents || students.length === 0}
-                onClick={() => setConfirmOpen(true)}
+                disabled={submitting || loadingStudents || students.length === 0 || unmarkedCount > 0}
+                onClick={() => {
+                  if (unmarkedCount > 0) {
+                    toast.error(`Please review and mark all students before submission (${unmarkedCount} unmarked).`)
+                    return
+                  }
+                  setConfirmOpen(true)
+                }}
               >
                 <Send className="size-4" />
                 {isAlreadySubmittedEditable
@@ -756,9 +821,12 @@ export default function TeacherAttendancePage() {
                 </TableHeader>
                 <TableBody>
                   {filteredStudents.map((student) => {
-                    const current = statuses[student.studentId] ?? "present"
+                    const current = statuses[student.studentId]
                     return (
-                      <TableRow key={student.studentId}>
+                      <TableRow
+                        key={student.studentId}
+                        className={cn(!current && "bg-amber-50/20")}
+                      >
                         <TableCell className="font-mono text-[13px] font-semibold sticky left-0 bg-white z-10 shadow-xs">
                           {student.rollNo}
                         </TableCell>
@@ -770,9 +838,19 @@ export default function TeacherAttendancePage() {
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="text-[13.5px] font-semibold text-foreground">
-                                {student.fullName}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[13.5px] font-semibold text-foreground">
+                                  {student.fullName}
+                                </p>
+                                {!current && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-400 bg-amber-50 text-[10px] font-bold text-amber-900"
+                                  >
+                                    Not Marked
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="font-mono text-[11.5px] text-muted-foreground">
                                 {student.admissionNo}
                               </p>
@@ -854,12 +932,35 @@ export default function TeacherAttendancePage() {
             </DialogTitle>
             <DialogDescription>
               {activeClass?.className} - Section {activeClass?.section} ·{" "}
-              {activeSubject?.subjectName} · {selectedDate} (Period{" "}
+              {activeSubject?.subjectName ?? "General Subject"} · {selectedDate} (Period{" "}
               {selectedPeriod})
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="rounded-xl border bg-muted/30 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Academic Year:</span>
+                <span className="font-semibold text-foreground">AY {academicYear}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Record Context:</span>
+                <span className="font-semibold text-foreground">
+                  {matchingSession
+                    ? matchingSession.status === "submitted"
+                      ? "Updating Submitted Session"
+                      : "Updating Saved Draft"
+                    : "New Unsaved Session"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Reviewed Students:</span>
+                <span className="font-semibold text-emerald-700">
+                  {totalCount - unmarkedCount} of {totalCount} Marked (100%)
+                </span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-4 gap-2 rounded-xl border bg-muted/40 p-3 text-center text-xs">
               <div>
                 <p className="text-muted-foreground">Present</p>

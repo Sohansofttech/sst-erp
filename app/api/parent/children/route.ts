@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth/session";
+import { requireRole, UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
-
-    // SEC-02: Enforce strict PARENT role check. Reject student sessions from accessing sibling/child records.
-    if ((session.role as string) !== "PARENT" && (session.role as string) !== "GUARDIAN") {
-      return NextResponse.json(
-        { success: false, error: "Access denied: Only parent/guardian accounts are permitted to access the children directory." },
-        { status: 403 }
-      );
-    }
+    // SEC-02: Enforce strict PARENT/GUARDIAN role check. Reject student sessions from accessing sibling/child records.
+    const session = await requireRole(req, ["PARENT", "GUARDIAN"]);
 
     let guardianAccountId = session.guardianId;
 
@@ -47,16 +40,29 @@ export async function GET(req: NextRequest) {
       },
       include: {
         student: {
-          include: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            rollNumber: true,
+            admissionNumber: true,
+            currentSemester: true,
+            currentSection: true,
+            currentDivisionId: true,
+            status: true,
             currentDivision: {
               select: { id: true, name: true, code: true, type: true },
             },
             enrollments: {
-              include: {
+              select: {
+                id: true,
+                status: true,
+                isPrimary: true,
+                divisionId: true,
                 division: { select: { id: true, name: true, code: true, type: true } },
                 class: { select: { id: true, name: true, gradeLevel: true } },
-                course: true,
-                academicYear: true,
+                course: { select: { name: true } },
+                academicYear: { select: { name: true } },
               },
               orderBy: { enrolledDate: "desc" },
             },
@@ -105,11 +111,7 @@ export async function GET(req: NextRequest) {
       }),
     });
   } catch (err: any) {
-    const isForbidden = err.name === "ForbiddenError" || err.status === 403;
-    const isUnauthorized = err.name === "UnauthorizedError" || err.status === 401;
-    return NextResponse.json(
-      { success: false, error: err.message },
-      { status: isForbidden ? 403 : isUnauthorized ? 401 : 500 }
-    );
+    const status = err instanceof UnauthorizedError ? 401 : err instanceof ForbiddenError ? 403 : 500;
+    return NextResponse.json({ success: false, error: err.message }, { status });
   }
 }

@@ -66,6 +66,7 @@ import { useTeacherRole } from "../../teacher-role-context"
 
 export default function HodFacultyLeaveApprovalsPage() {
   const { slug, user } = useTeacherRole()
+  const deptName = user?.department || "Department"
   const [facultyLeaves, setFacultyLeaves] = React.useState<TeacherLeaveRequest[]>([])
   const [facultyLoad, setFacultyLoad] = React.useState<DepartmentFacultyLoad[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -146,7 +147,7 @@ export default function HodFacultyLeaveApprovalsPage() {
     return (
       <LoadingState
         title="Loading Faculty Leaves"
-        description="Fetching Department of Mathematics faculty leave applications and substitution requests..."
+        description={`Fetching ${deptName} faculty leave applications and substitution requests...`}
       />
     )
   }
@@ -169,7 +170,7 @@ export default function HodFacultyLeaveApprovalsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Faculty Leave & Timetable Substitutions"
-        subtitle="Department of Mathematics faculty leave queue: approve absences and allocate qualified department substitute teachers to prevent untaught periods. (HoD self-applications are routed directly to the Principal)."
+        subtitle={`${deptName} faculty leave queue: approve absences and allocate qualified department substitute teachers to prevent untaught periods. (HoD self-applications are routed directly to the Principal).`}
         action={
           <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/hod`}>

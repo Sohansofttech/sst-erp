@@ -8,7 +8,7 @@ import { fetchClientSession } from "@/lib/auth/client-session";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  portalType?: "STUDENT" | "PARENT";
+  portalType?: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN";
   pageTitle?: string;
   selectedChildId?: string;
   onSelectChild?: (childId: string) => void;
@@ -25,7 +25,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   const [internalChildId, setInternalChildId] = useState<string>("");
   const [user, setUser] = useState<{
     fullName: string;
-    role: "STUDENT" | "PARENT" | string;
+    role: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN" | string;
     institutionName: string;
     institutionCode?: string | null;
     institutionLogo?: string | null;
@@ -36,22 +36,6 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("erp_active_child_id");
       if (stored) setInternalChildId(stored);
-      try {
-        const storedUser = localStorage.getItem("erp_user");
-        if (storedUser) {
-          const parsed = JSON.parse(storedUser);
-          if (parsed.fullName || parsed.name) {
-            setUser({
-              fullName: parsed.fullName || parsed.name,
-              role: parsed.role || "STUDENT",
-              institutionName: parsed.institutionName || "",
-              institutionCode: parsed.institutionCode || parsed.institution?.code || null,
-              institutionLogo: parsed.institutionLogo || parsed.institution?.logo || null,
-              email: parsed.email || "",
-            });
-          }
-        }
-      } catch {}
     }
     const handleChildChanged = (e: any) => {
       if (e.detail?.childId) {
@@ -99,7 +83,13 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     };
   }, []);
 
-  const effectiveRole = portalType === "PARENT" || user?.role === "PARENT" ? "PARENT" : "STUDENT";
+  const effectiveRole = portalType === "INSTITUTION_ADMIN"
+    ? "INSTITUTION_ADMIN"
+    : portalType === "SUPER_ADMIN"
+      ? "SUPER_ADMIN"
+      : user?.role === "PARENT" || (!user && portalType === "PARENT")
+        ? "PARENT"
+        : "STUDENT";
   const currentChildId = selectedChildId || internalChildId;
   const handleSelect = (id: string) => {
     setInternalChildId(id);

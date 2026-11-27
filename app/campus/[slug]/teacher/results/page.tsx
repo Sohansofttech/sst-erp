@@ -764,7 +764,7 @@ export default function TeacherResultsPage() {
                 <Button
                   disabled={isLocked || saving}
                   onClick={handlePublish}
-                  className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                  className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                 >
                   <Globe className="size-4 mr-1.5" />
                   Publish Results

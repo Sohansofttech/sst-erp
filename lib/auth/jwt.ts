@@ -26,7 +26,12 @@ export async function signToken(payload: SessionUser): Promise<string> {
 
 export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), {
+      algorithms: ["HS256"],
+    });
+    if (payload.purpose !== undefined) {
+      return null;
+    }
     return payload as unknown as SessionUser;
   } catch {
     return null;
@@ -66,7 +71,9 @@ export async function verifyPasswordSetupToken(token: string): Promise<{
   exp?: number;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), {
+      algorithms: ["HS256"],
+    });
     if (payload.purpose !== "password_setup") return null;
     return {
       userId: payload.userId as string,
@@ -108,7 +115,9 @@ export async function verifyPasswordResetToken(token: string): Promise<{
   exp?: number;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), {
+      algorithms: ["HS256"],
+    });
     if (
       payload.purpose !== "password_reset" ||
       typeof payload.userId !== "string" ||
@@ -149,7 +158,9 @@ export async function verifyOtpLoginProof(token: string): Promise<{
   role: string;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), {
+      algorithms: ["HS256"],
+    });
     if (
       payload.purpose !== "otp_login" ||
       typeof payload.userId !== "string" ||
@@ -192,7 +203,9 @@ export async function verifyGoogleLoginProof(token: string): Promise<{
   role: GoogleLoginRole;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, getAuthJwtKey());
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), {
+      algorithms: ["HS256"],
+    });
     const roles: GoogleLoginRole[] = ["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"];
     if (
       payload.purpose !== "google_login" ||

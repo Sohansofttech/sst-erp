@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import { Badge } from "./Badge";
+import Link from "next/link";
 
 interface NotificationItem {
   id: string;
@@ -11,6 +12,7 @@ interface NotificationItem {
   category: string;
   isRead: boolean;
   createdAt: string;
+  actionUrl?: string | null;
 }
 
 interface NotificationDropdownProps {
@@ -185,6 +187,15 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                       <p className="text-xs text-[#788391] leading-relaxed break-words">
                         {item.message}
                       </p>
+                      {item.actionUrl && (
+                        <Link
+                          className="mt-2 inline-block text-xs font-semibold text-[#123B5A] underline"
+                          href={item.actionUrl}
+                          onClick={() => { void markRead(item.id); setIsOpen(false); }}
+                        >
+                          Review subscription details
+                        </Link>
+                      )}
                       <span className="text-[11px] text-[#94A3B8] mt-1.5 block">
                         {new Date(item.createdAt).toLocaleDateString(undefined, {
                           month: "short",

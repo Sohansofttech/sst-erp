@@ -399,7 +399,7 @@ export default function TeacherLMSPage() {
           title="No study materials found"
           description="Upload PDF notes or attach video/reference links for your students."
           action={
-            <Button type="button" className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]" onClick={() => setDialogOpen(true)}>
+            <Button type="button" className="rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]" onClick={() => setDialogOpen(true)}>
               <Plus className="size-4" />
               Add Study Material
             </Button>

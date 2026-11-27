@@ -6,8 +6,9 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
-import { getSubscriptionEnd } from "@/lib/billing/subscription-period";
 import { getInitialSubscriptionStatus, optionalPlanLimit } from "@/lib/billing/subscription-plan";
+import { manageInstitutionSubscription } from "@/app/subscriptions/actions";
+import { describeInstitutionType, isPlanCompatible } from "@/lib/institution-type-config";
 
 async function audited(actorId: string | null, action: string, entity: string, entityId: string | null, change: (tx: Prisma.TransactionClient) => Promise<unknown>) {
   await prisma.$transaction(async (tx) => {
@@ -19,13 +20,14 @@ async function audited(actorId: string | null, action: string, entity: string, e
 
 export async function createPlan(formData: FormData) {
   const actor = await requireSuperAdmin();
+  const institutionTypes = formData.getAll("institutionTypes").map(String).filter((value): value is "COLLEGE" | "SCHOOL" | "ACADEMY" => ["COLLEGE", "SCHOOL", "ACADEMY"].includes(value));
   const optionalInteger = z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(100000000).optional());
-  const input = z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/), name: z.string().trim().min(2).max(120), description: z.string().trim().max(500).optional(), price: z.coerce.number().min(0).max(100000000), currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/), billingCycle: z.enum(["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]), customCycleDays: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(3650).optional()), maxUsers: optionalInteger, studentLimit: optionalPlanLimit, storageLimitMb: optionalInteger }).safeParse(Object.fromEntries(formData.entries()));
+  const input = z.object({ code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/), name: z.string().trim().min(2).max(120), description: z.string().trim().max(500).optional(), price: z.coerce.number().min(0).max(100000000), currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/), billingCycle: z.enum(["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]), customCycleDays: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(3650).optional()), studentLimit: optionalPlanLimit, storageLimitMb: optionalInteger }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error(input.error.issues[0]?.message ?? "Invalid plan fields.");
   const data = input.data;
   if (data.billingCycle === "CUSTOM" && !data.customCycleDays) throw new Error("Custom billing cycles need a cycle length in days.");
   const plan = await prisma.$transaction(async (tx) => {
-    const created = await tx.subscriptionPlan.create({ data: { ...data, description: data.description || null, customCycleDays: data.billingCycle === "CUSTOM" ? data.customCycleDays : null, maxUsers: data.maxUsers || null, studentLimit: data.studentLimit ?? null, storageLimitMb: data.storageLimitMb ? BigInt(data.storageLimitMb) : null, createdById: actor.id } });
+    const created = await tx.subscriptionPlan.create({ data: { ...data, institutionTypes, description: data.description || null, customCycleDays: data.billingCycle === "CUSTOM" ? data.customCycleDays : null, studentLimit: data.studentLimit ?? null, storageLimitMb: data.storageLimitMb ? BigInt(data.storageLimitMb) : null, createdById: actor.id } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_CREATED", entity: "SubscriptionPlan", entityId: created.id, result: "SUCCESS" } });
     return created;
   });
@@ -36,17 +38,18 @@ export async function createPlan(formData: FormData) {
 
 export async function updatePlan(formData: FormData) {
   const actor = await requireSuperAdmin();
+  const institutionTypes = formData.getAll("institutionTypes").map(String).filter((value): value is "COLLEGE" | "SCHOOL" | "ACADEMY" => ["COLLEGE", "SCHOOL", "ACADEMY"].includes(value));
   const optionalInteger = z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(100000000).optional());
-  const input = z.object({ id: z.uuid(), code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/), name: z.string().trim().min(2).max(120), description: z.string().trim().max(500).optional(), price: z.coerce.number().min(0).max(100000000), currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/), billingCycle: z.enum(["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]), customCycleDays: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(3650).optional()), maxUsers: optionalInteger, studentLimit: optionalPlanLimit, storageLimitMb: optionalInteger }).safeParse(Object.fromEntries(formData.entries()));
+  const input = z.object({ id: z.uuid(), code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,40}$/), name: z.string().trim().min(2).max(120), description: z.string().trim().max(500).optional(), price: z.coerce.number().min(0).max(100000000), currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/), billingCycle: z.enum(["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]), customCycleDays: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.coerce.number().int().min(1).max(3650).optional()), studentLimit: optionalPlanLimit, storageLimitMb: optionalInteger }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error(input.error.issues[0]?.message ?? "Invalid plan details.");
   const prior = await prisma.subscriptionPlan.findUnique({ where: { id: input.data.id }, include: { _count: { select: { subscriptions: true } } } });
   if (!prior || prior.archivedAt) throw new Error("Plan not found or archived.");
   if (input.data.billingCycle === "CUSTOM" && !input.data.customCycleDays) throw new Error("Custom plans need a cycle length in days.");
   const priorStorageLimit = prior.storageLimitMb === null ? null : Number(prior.storageLimitMb);
-  const financialChanged = Number(prior.price) !== input.data.price || prior.currency !== input.data.currency || prior.billingCycle !== input.data.billingCycle || prior.customCycleDays !== (input.data.customCycleDays ?? null) || prior.maxUsers !== (input.data.maxUsers ?? null) || prior.studentLimit !== (input.data.studentLimit ?? null) || priorStorageLimit !== (input.data.storageLimitMb ?? null);
+  const financialChanged = Number(prior.price) !== input.data.price || prior.currency !== input.data.currency || prior.billingCycle !== input.data.billingCycle || prior.customCycleDays !== (input.data.customCycleDays ?? null) || prior.studentLimit !== (input.data.studentLimit ?? null) || priorStorageLimit !== (input.data.storageLimitMb ?? null);
   if (prior._count.subscriptions > 0 && financialChanged) throw new Error("This plan already has subscriptions. To preserve existing subscription terms, create a new plan for future customers and update only its name or description.");
   await prisma.$transaction(async (tx) => {
-    await tx.subscriptionPlan.update({ where: { id: prior.id }, data: { code: input.data.code, name: input.data.name, description: input.data.description || null, price: input.data.price, currency: input.data.currency, billingCycle: input.data.billingCycle, customCycleDays: input.data.billingCycle === "CUSTOM" ? input.data.customCycleDays : null, maxUsers: input.data.maxUsers ?? null, studentLimit: input.data.studentLimit ?? null, storageLimitMb: input.data.storageLimitMb ? BigInt(input.data.storageLimitMb) : null } });
+    await tx.subscriptionPlan.update({ where: { id: prior.id }, data: { code: input.data.code, name: input.data.name, institutionTypes, description: input.data.description || null, price: input.data.price, currency: input.data.currency, billingCycle: input.data.billingCycle, customCycleDays: input.data.billingCycle === "CUSTOM" ? input.data.customCycleDays : null, studentLimit: input.data.studentLimit ?? null, storageLimitMb: input.data.storageLimitMb ? BigInt(input.data.storageLimitMb) : null } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_UPDATED", entity: "SubscriptionPlan", entityId: prior.id, result: "SUCCESS" } });
   });
   revalidatePath("/super-admin/subscription-plans");
@@ -58,6 +61,9 @@ export async function archivePlan(formData: FormData) {
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) throw new Error("Invalid plan.");
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SubscriptionPlan" WHERE id = ${id.data}::uuid FOR UPDATE`;
+    const active = await tx.institutionSubscription.findFirst({ where: { planId: id.data, status: { in: ["ACTIVE", "TRIALING"] }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, select: { id: true } });
+    if (active) throw new Error("Plans with active subscriptions cannot be archived.");
     const plan = await tx.subscriptionPlan.update({ where: { id: id.data, archivedAt: null }, data: { isActive: false, archivedAt: new Date() } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_ARCHIVED", entity: "SubscriptionPlan", entityId: plan.id, result: "SUCCESS" } });
   });
@@ -70,6 +76,11 @@ export async function setPlanActive(formData: FormData) {
   const input = z.object({ id: z.uuid(), active: z.enum(["true", "false"]) }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("Invalid plan status change.");
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "SubscriptionPlan" WHERE id = ${input.data.id}::uuid FOR UPDATE`;
+    if (input.data.active === "false") {
+      const active = await tx.institutionSubscription.findFirst({ where: { planId: input.data.id, status: { in: ["ACTIVE", "TRIALING"] }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, select: { id: true } });
+      if (active) throw new Error("Plans with active subscriptions cannot be disabled.");
+    }
     await tx.subscriptionPlan.update({ where: { id: input.data.id, archivedAt: null }, data: { isActive: input.data.active === "true" } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, action: "SUBSCRIPTION_PLAN_STATUS_CHANGED", entity: "SubscriptionPlan", entityId: input.data.id, result: "SUCCESS", metadata: { active: input.data.active === "true" } } });
   });
@@ -86,12 +97,38 @@ export async function createInstitutionSubscription(formData: FormData) {
   if (Number.isNaN(startsAt.getTime()) || (endsAt && Number.isNaN(endsAt.getTime()))) throw new Error("Enter valid subscription dates.");
   if (endsAt && endsAt <= startsAt) throw new Error("Subscription expiry must be after its start date.");
   await prisma.$transaction(async (tx) => {
+    const institutions = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM "Institution" WHERE id = ${input.data.institutionId}::uuid AND "archivedAt" IS NULL FOR UPDATE
+    `;
+    if (!institutions.length) throw new Error("The institution does not exist or is archived.");
+    await tx.$queryRaw`SELECT id FROM "SubscriptionPlan" WHERE id = ${input.data.planId}::uuid FOR UPDATE`;
     const plan = await tx.subscriptionPlan.findFirst({
       where: { id: input.data.planId, isActive: true, archivedAt: null },
-      select: { id: true, price: true },
+      select: { id: true, price: true, institutionTypes: true },
     });
     if (!plan) throw new Error("The selected plan is not active.");
+    const targetInstitution = await tx.platformInstitution.findUnique({ where: { id: input.data.institutionId }, select: { type: true } });
+    if (!isPlanCompatible(plan.institutionTypes, targetInstitution?.type)) {
+      throw new Error(`The selected plan is not available for ${describeInstitutionType(targetInstitution?.type)} institutions.`);
+    }
     const status = getInitialSubscriptionStatus(Number(plan.price));
+    const pending = await tx.institutionSubscription.findFirst({
+      where: { institutionId: input.data.institutionId, status: "PAST_DUE", OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }] },
+      select: { id: true },
+    });
+    if (pending) throw new Error("This institution already has a pending subscription.");
+    if (status === "ACTIVE") {
+      const overlap = await tx.institutionSubscription.findFirst({
+        where: {
+          institutionId: input.data.institutionId,
+          status: { in: ["ACTIVE", "TRIALING"] },
+          ...(endsAt ? { startsAt: { lt: endsAt } } : {}),
+          OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }],
+        },
+        select: { id: true },
+      });
+      if (overlap) throw new Error("The selected period overlaps an existing subscription.");
+    }
     const subscription = await tx.institutionSubscription.create({ data: { institutionId: input.data.institutionId, planId: input.data.planId, createdById: actor.id, startsAt, endsAt, status } });
     await tx.subscriptionEvent.create({ data: { subscriptionId: subscription.id, actorId: actor.id, action: status === "ACTIVE" ? "ASSIGNED" : "ASSIGNED_PENDING_PAYMENT", details: { planId: input.data.planId, status } } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUBSCRIPTION_ASSIGNED", entity: "InstitutionSubscription", entityId: subscription.id, result: "SUCCESS", metadata: { status } } });
@@ -237,23 +274,22 @@ export async function setSubscriptionStatus(formData: FormData) {
   const actor = await requireSuperAdmin();
   const input = z.object({ id: z.uuid(), status: z.enum(["ACTIVE", "CANCELED", "SUSPENDED", "EXPIRED"]) }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("Invalid subscription change.");
+  if (input.data.status !== "EXPIRED") {
+    const subscription = await prisma.institutionSubscription.findUnique({ where: { id: input.data.id }, select: { institutionId: true } });
+    if (!subscription) throw new Error("Subscription not found.");
+    const action = input.data.status === "ACTIVE" ? "activate" : input.data.status === "SUSPENDED" ? "suspend" : "cancel";
+    const result = await manageInstitutionSubscription({ institutionId: subscription.institutionId, subscriptionId: input.data.id, action });
+    if (!result.success) throw new Error(result.message);
+    revalidatePath("/super-admin/billing");
+    return;
+  }
   await prisma.$transaction(async (tx) => {
-    const existing = await tx.institutionSubscription.findUnique({ where: { id: input.data.id }, include: { plan: { select: { price: true } } } });
+    const lookup = await tx.institutionSubscription.findUnique({ where: { id: input.data.id }, select: { institutionId: true } });
+    if (!lookup) throw new Error("Subscription not found.");
+    await tx.$queryRaw`SELECT id FROM "Institution" WHERE id = ${lookup.institutionId}::uuid FOR UPDATE`;
+    const existing = await tx.institutionSubscription.findUnique({ where: { id: input.data.id } });
     if (!existing) throw new Error("Subscription not found.");
-    if (input.data.status === "ACTIVE" && existing.status !== "ACTIVE" && Number(existing.plan.price) > 0) {
-      const verifiedInvoice = await tx.invoice.findFirst({
-        where: {
-          subscriptionId: existing.id,
-          status: "PAID",
-          payments: { some: { status: "SUCCEEDED" } },
-        },
-        select: { id: true },
-      });
-      if (!verifiedInvoice) {
-        throw new Error("Paid subscriptions can be activated only after verified payment.");
-      }
-    }
-    await tx.institutionSubscription.update({ where: { id: input.data.id }, data: { status: input.data.status, cancelledAt: input.data.status === "CANCELED" ? new Date() : null } });
+    await tx.institutionSubscription.update({ where: { id: input.data.id }, data: { status: input.data.status, cancelledAt: null } });
     await tx.subscriptionEvent.create({ data: { subscriptionId: input.data.id, actorId: actor.id, action: `STATUS_${input.data.status}`, details: { status: input.data.status } } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: existing.institutionId, action: "SUBSCRIPTION_STATUS_CHANGED", entity: "InstitutionSubscription", entityId: input.data.id, result: "SUCCESS", metadata: { previousStatus: existing.status, status: input.data.status } } });
   });
@@ -264,20 +300,13 @@ export async function setSubscriptionStatus(formData: FormData) {
 }
 
 export async function renewSubscription(formData: FormData) {
-  const actor = await requireSuperAdmin();
+  await requireSuperAdmin();
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) throw new Error("Invalid subscription.");
-  await prisma.$transaction(async (tx) => {
-    const current = await tx.institutionSubscription.findUnique({ where: { id: id.data }, include: { plan: { select: { billingCycle: true, customCycleDays: true, price: true } } } });
-    if (!current) throw new Error("This subscription cannot be renewed because it no longer exists.");
-    if (Number(current.plan.price) > 0) throw new Error("Paid subscriptions must be renewed through the Institution Admin checkout.");
-    const now = new Date();
-    const cycleStart = current.endsAt && current.endsAt > now ? current.endsAt : now;
-    const nextEnd = getSubscriptionEnd(cycleStart, current.plan);
-    await tx.institutionSubscription.update({ where: { id: current.id }, data: { status: "ACTIVE", startsAt: current.startsAt, endsAt: nextEnd, renewsAt: nextEnd, cancelledAt: null } });
-    await tx.subscriptionEvent.create({ data: { subscriptionId: current.id, actorId: actor.id, action: "RENEWED", details: { previousEnd: current.endsAt?.toISOString() ?? null, nextEnd: nextEnd.toISOString() } } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: current.institutionId, action: "SUBSCRIPTION_RENEWED", entity: "InstitutionSubscription", entityId: current.id, result: "SUCCESS", metadata: { endsAt: nextEnd.toISOString() } } });
-  });
+  const current = await prisma.institutionSubscription.findUnique({ where: { id: id.data }, select: { institutionId: true } });
+  if (!current) throw new Error("This subscription cannot be renewed because it no longer exists.");
+  const result = await manageInstitutionSubscription({ institutionId: current.institutionId, subscriptionId: id.data, action: "renew" });
+  if (!result.success) throw new Error(result.message);
   revalidatePath("/super-admin/billing");
   revalidatePath("/super-admin");
   revalidatePath("/subscriptions");

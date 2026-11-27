@@ -56,7 +56,8 @@ import type { StudentRosterItem } from "@/types/teacher"
 import { useTeacherRole } from "../../teacher-role-context"
 
 export default function SectionStudentsPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const homeroomName = user.homeroomClass || "Assigned Homeroom"
   const [students, setStudents] = React.useState<StudentRosterItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -89,7 +90,7 @@ export default function SectionStudentsPage() {
     setNoticeTarget(student)
     setNoticeSubject(`Academic & Attendance Advisory — ${student.fullName} (${student.rollNo})`)
     setNoticeMessage(
-      `Dear Parent/Guardian of ${student.fullName} (Roll ${student.rollNo}, Class 10-A),\n\nCurrent attendance stands at ${student.attendancePercent}% with an Internal Assessment average of ${student.iaAverage}%. Please review the academic portal.`
+      `Dear Parent/Guardian of ${student.fullName} (Roll ${student.rollNo}, ${homeroomName}),\n\nCurrent attendance stands at ${student.attendancePercent}% with an Internal Assessment average of ${student.iaAverage}%. Please review the academic portal.`
     )
   }
 
@@ -101,7 +102,7 @@ export default function SectionStudentsPage() {
         title: noticeSubject,
         content: noticeMessage,
         audience: "Class & Parents",
-        targetClasses: ["Class 10 - A"],
+        targetClasses: [homeroomName],
         priority:
           noticeTarget.attendancePercent !== null && noticeTarget.attendancePercent < 75
             ? "urgent"
@@ -121,7 +122,7 @@ export default function SectionStudentsPage() {
     return (
       <LoadingState
         title="Loading Section Roster"
-        description="Fetching Class 10-A student roster and academic metrics..."
+        description={`Fetching ${homeroomName} student roster and academic metrics...`}
       />
     )
   }
@@ -149,12 +150,12 @@ export default function SectionStudentsPage() {
 
   const avgIA = students.length > 0
     ? Number((students.reduce((acc, s) => acc + s.iaAverage, 0) / students.length).toFixed(1))
-    : 84.6
+    : null
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Section Students — Class 10-A"
+        title={`Section Students — ${homeroomName}`}
         subtitle="Complete homeroom student roster with roll numbers, attendance standing, internal assessment means, and parent contact protection."
         action={
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -164,7 +165,7 @@ export default function SectionStudentsPage() {
                 Section Dashboard
               </Link>
             </Button>
-            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]">
               <Link href={`/campus/${slug}/teacher/class-teacher/notices`}>
                 <Megaphone className="mr-1.5 size-4" />
                 Broadcast Parent Notice
@@ -181,7 +182,7 @@ export default function SectionStudentsPage() {
           icon={<Users />}
           variant="dark"
           tone="darkNavy"
-          description="Class 10 - A (Homeroom)"
+          description={`${homeroomName} (Homeroom)`}
         />
         <StatCard
           label="Section Attendance"
@@ -213,7 +214,7 @@ export default function SectionStudentsPage() {
               Student Roster ({students.length})
             </CardTitle>
             <CardDescription className="text-xs text-[#788391]">
-              Strictly scoped to assigned homeroom section Class 10-A.
+              Strictly scoped to assigned homeroom section {homeroomName}.
             </CardDescription>
           </div>
           <div className="relative w-full max-w-xs">
@@ -355,7 +356,7 @@ export default function SectionStudentsPage() {
             <Button
               disabled={sendingNotice}
               onClick={handleSendNotice}
-              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
+              className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]"
             >
               {sendingNotice ? "Sending..." : "Dispatch Notice"}
             </Button>

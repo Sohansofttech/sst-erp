@@ -1,15 +1,16 @@
 import "server-only";
 
+import { connection } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getSession } from "@/lib/auth/session";
 import { requireInstitutionAdminSession } from "@/lib/security/admin-auth";
-import { prisma } from "@/lib/prisma";
+import { db as prisma } from "@/lib/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import {
   currentInstitutionSubscription,
   institutionPaymentWhere,
   institutionSubscriptionStatus,
   institutionSubscriptionWhere,
-  summarizePayments,
 } from "@/lib/subscriptions/portal-metrics";
 
 export type SubscriptionPortalScope =
@@ -18,10 +19,21 @@ export type SubscriptionPortalScope =
 
 export type PortalInstitutionRecord = {
   id: string;
+  billingLinked: boolean;
+  reconciliationAvailable: boolean;
+  /** Stored institution type (COLLEGE, SCHOOL, ACADEMY or legacy OTHER); used to offer only compatible plans. */
+  institutionType: string;
+  subscriptionId: string | null;
   institution: string;
   code: string;
   administrator: string;
   plan: string;
+  pendingPlan: string | null;
+  amount: number | null;
+  currency: string | null;
+  billingCycle: string | null;
+  customCycleDays: number | null;
+  storageLimitMb: number | null;
   studentLimit: number | null;
   studentLimitAvailable: boolean;
   students: number | null;
@@ -93,7 +105,15 @@ type SubscriptionRow = {
   endsAt: Date | null;
   renewsAt: Date | null;
   createdAt: Date;
-  plan: { name: string; studentLimit?: number | null };
+  plan: {
+    name: string;
+    price?: unknown;
+    currency?: string;
+    billingCycle?: string;
+    customCycleDays?: number | null;
+    storageLimitMb?: bigint | null;
+    studentLimit?: number | null;
+  };
   institution: { name: string };
 };
 
@@ -164,6 +184,7 @@ async function getSchemaCapabilities() {
 }
 
 export async function getSubscriptionPortalScope(): Promise<SubscriptionPortalScope> {
+  await connection();
   const session = await getSession();
   if (session?.role === "ADMIN") {
     const verifiedSession = await requireInstitutionAdminSession();
@@ -191,7 +212,7 @@ function transactionFromRow(row: PaymentRow, orderIdAvailable: boolean): PortalT
   };
 }
 
-async function queryPayments(scope: SubscriptionPortalScope) {
+async function queryPayments(scope: SubscriptionPortalScope, take?: number) {
   const capabilities = await getSchemaCapabilities();
   const select = {
     id: true,
@@ -219,7 +240,8 @@ async function queryPayments(scope: SubscriptionPortalScope) {
     "payment",
     prisma.payment.findMany({
       where: institutionPaymentWhere(scope),
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...(take === undefined ? {} : { take }),
       select,
     }) as Promise<PaymentRow[]>,
   );
@@ -237,6 +259,8 @@ export async function getPortalPaymentList(scope: SubscriptionPortalScope): Prom
 
 export async function getPortalInstitutionList(scope: SubscriptionPortalScope): Promise<PortalInstitutionListData> {
   const institutionId = scope.role === "INSTITUTION_ADMIN" ? scope.institutionId : undefined;
+  await connection();
+  const now = new Date();
   const capabilities = await getSchemaCapabilities();
   const subscriptionSelect = {
     id: true,
@@ -248,17 +272,19 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
     createdAt: true,
     plan: {
       select: capabilities.studentLimitAvailable
-        ? { name: true, studentLimit: true }
-        : { name: true },
+        ? { name: true, price: true, currency: true, billingCycle: true, customCycleDays: true, storageLimitMb: true, studentLimit: true }
+        : { name: true, price: true, currency: true, billingCycle: true, customCycleDays: true, storageLimitMb: true },
     },
     institution: { select: { name: true } },
   };
 
-  const [institutionsResult, subscriptionsResult, countsResult, paymentsResult] = await Promise.all([
+  const [institutionsResult, legacyInstitutionsResult, legacyIdentityResult, subscriptionsResult, countsResult] = await Promise.all([
     capture<Array<{
       id: string;
       name: string;
       code: string | null;
+      slug: string;
+      type: string;
       status: string;
       archivedAt: Date | null;
       primaryAdminUserId: string | null;
@@ -271,19 +297,53 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
           id: true,
           name: true,
           code: true,
+          slug: true,
+          type: true,
           status: true,
           archivedAt: true,
           primaryAdminUserId: true,
         },
       }),
     ),
+    scope.role === "SUPER_ADMIN"
+      ? capture<Array<{ id: string; name: string; code: string | null; slug: string | null; type: string | null }>>(
+          "unlinked ERP institution",
+          prisma.$queryRaw`
+            SELECT e.id::text AS id, e.name, e.code, e.slug, e.type::text AS type
+            FROM institutions e
+            WHERE NOT EXISTS (SELECT 1 FROM "Institution" p WHERE p.id::text = e.id::text)
+            ORDER BY e.name
+          `,
+        )
+      : Promise.resolve({ value: [] as Array<{ id: string; name: string; code: string | null; slug: string | null; type: string | null }>, error: null }),
+    capture<Array<{ id: string }>>(
+      "ERP institution identity",
+      institutionId
+        ? prisma.$queryRaw`SELECT id::text AS id FROM institutions WHERE id = ${institutionId}::uuid`
+        : prisma.$queryRaw`SELECT id::text AS id FROM institutions`,
+    ),
     capture<SubscriptionRow[]>(
       "subscription",
-      prisma.institutionSubscription.findMany({
-        where: institutionSubscriptionWhere(scope),
-        orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }],
-        select: subscriptionSelect,
-      }) as Promise<SubscriptionRow[]>,
+      (async () => {
+        const ids = await prisma.$queryRaw<Array<{ id: string }>>`
+          WITH ranked AS (
+            SELECT s.id, s.status,
+              row_number() OVER (PARTITION BY s."institutionId" ORDER BY
+                CASE WHEN s."startsAt" <= ${now} AND (s."endsAt" IS NULL OR s."endsAt" > ${now}) AND s.status IN ('ACTIVE', 'TRIALING') THEN 0
+                     WHEN s."startsAt" <= ${now} AND (s."endsAt" IS NULL OR s."endsAt" > ${now}) AND s.status NOT IN ('EXPIRED', 'CANCELED') THEN 1 ELSE 2 END,
+                s."startsAt" DESC, s."createdAt" DESC, s.id DESC) AS current_rank,
+              row_number() OVER (PARTITION BY s."institutionId", s.status ORDER BY s."startsAt" DESC, s."createdAt" DESC, s.id DESC) AS status_rank
+            FROM "InstitutionSubscription" s
+            ${institutionId ? Prisma.sql`WHERE s."institutionId" = ${institutionId}::uuid` : Prisma.empty}
+          )
+          SELECT id FROM ranked WHERE current_rank = 1 OR (status = 'PAST_DUE' AND status_rank <= 2)
+        `;
+        return prisma.institutionSubscription.findMany({
+          where: { id: { in: ids.map((item) => item.id) } },
+          orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+          select: subscriptionSelect,
+        }) as Promise<SubscriptionRow[]>;
+      })(),
     ),
     capture<Array<{ institutionId: string; count: number }>>(
       "student count",
@@ -296,25 +356,10 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
             groups.map((group) => ({ institutionId: group.institutionId, count: group._count._all })),
           ),
     ),
-    capture<Array<{
-      status: string;
-      createdAt: Date;
-      invoice: { institutionId: string; subscriptionId: string | null };
-    }>>(
-      "institution payment status",
-      prisma.payment.findMany({
-        where: institutionPaymentWhere(scope),
-        orderBy: { createdAt: "desc" },
-        select: {
-          status: true,
-          createdAt: true,
-          invoice: { select: { institutionId: true, subscriptionId: true } },
-        },
-      }),
-    ),
   ]);
 
   const institutions = institutionsResult.value ?? [];
+  const legacyInstitutionIds = new Set((legacyIdentityResult.value ?? []).map((entry) => entry.id));
   const adminIds = institutions
     .map((institution: { primaryAdminUserId: string | null }) => institution.primaryAdminUserId)
     .filter((id: string | null): id is string => Boolean(id));
@@ -363,21 +408,43 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
     entries.push(subscription);
     subscriptionsByInstitution.set(subscription.institutionId, entries);
   }
+  const selectedSubscriptions = institutions.map((institution) => ({
+    institutionId: institution.id,
+    subscriptionId: currentInstitutionSubscription(subscriptionsByInstitution.get(institution.id) ?? [], now)?.id ?? null,
+  }));
+  const paymentsResult = await capture<Array<{ institutionId: string; status: string; subscriptionId: string | null }>>(
+    "institution payment status",
+    selectedSubscriptions.length
+      ? prisma.$queryRaw`
+          WITH selected("institutionId", "subscriptionId") AS (VALUES ${Prisma.join(selectedSubscriptions.map((item) =>
+            Prisma.sql`(${item.institutionId}::uuid, ${item.subscriptionId}::uuid)`))})
+          SELECT s."institutionId"::text AS "institutionId", p.status::text AS status, s."subscriptionId"::text AS "subscriptionId"
+          FROM selected s
+          JOIN LATERAL (
+            SELECT pay.status FROM "Payment" pay JOIN "Invoice" i ON i.id = pay."invoiceId"
+            WHERE i."institutionId" = s."institutionId"
+              AND (s."subscriptionId" IS NULL OR i."subscriptionId" = s."subscriptionId")
+            ORDER BY pay."createdAt" DESC, pay.id DESC LIMIT 1
+          ) p ON true
+        `
+      : Promise.resolve([]),
+  );
   const studentCounts = new Map(
     (countsResult.value ?? []).map((entry: { institutionId: string; count: number }) => [entry.institutionId, entry.count]),
   );
   const paymentsByInstitution = new Map<string, Array<{ status: string; subscriptionId: string | null }>>();
   for (const payment of paymentsResult.value ?? []) {
-    const entries = paymentsByInstitution.get(payment.invoice.institutionId) ?? [];
-    entries.push({ status: payment.status, subscriptionId: payment.invoice.subscriptionId });
-    paymentsByInstitution.set(payment.invoice.institutionId, entries);
+    const entries = paymentsByInstitution.get(payment.institutionId) ?? [];
+    entries.push({ status: payment.status, subscriptionId: payment.subscriptionId });
+    paymentsByInstitution.set(payment.institutionId, entries);
   }
 
-  const now = new Date();
   const records = institutions.map((institution: {
     id: string;
     name: string;
     code: string | null;
+    slug: string;
+    type: string;
     status: string;
     archivedAt: Date | null;
     primaryAdminUserId: string | null;
@@ -397,14 +464,24 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
 
     return {
       id: institution.id,
+      billingLinked: legacyInstitutionIds.has(institution.id),
+      reconciliationAvailable: false,
+      institutionType: institution.type,
+      subscriptionId: subscription?.id ?? null,
       institution: institution.name,
-      code: institution.code ?? "—",
+      code: institution.code ?? institution.slug,
       administrator: institution.primaryAdminUserId
         ? administrators.get(institution.primaryAdminUserId) ?? membershipAdministrators.get(institution.id) ?? "Unavailable"
         : membershipAdministrators.get(institution.id) ?? "Not assigned",
       plan: subscriptionsResult.error
         ? "Unavailable"
         : subscription?.plan.name ?? "No subscription assigned",
+      pendingPlan: history.find((item) => item.status === "PAST_DUE" && item.id !== subscription?.id)?.plan.name ?? null,
+      amount: subscription?.plan.price != null ? Number(subscription.plan.price) : null,
+      currency: subscription?.plan.currency ?? null,
+      billingCycle: subscription?.plan.billingCycle ?? null,
+      customCycleDays: subscription?.plan.customCycleDays ?? null,
+      storageLimitMb: subscription?.plan.storageLimitMb != null ? Number(subscription.plan.storageLimitMb) : null,
       studentLimit,
       studentLimitAvailable: capabilities.studentLimitAvailable,
       students: registeredStudents,
@@ -420,9 +497,37 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
       archived: Boolean(institution.archivedAt),
     };
   });
+  records.push(...(legacyInstitutionsResult.value ?? []).map((institution): PortalInstitutionRecord => ({
+    id: institution.id,
+    billingLinked: false,
+    reconciliationAvailable: true,
+    institutionType: institution.type ?? "COLLEGE",
+    subscriptionId: null,
+    institution: institution.name,
+    code: institution.code ?? institution.slug ?? institution.id,
+    administrator: "Not linked to platform",
+    plan: "Not linked to billing",
+    pendingPlan: null,
+    amount: null,
+    currency: null,
+    billingCycle: null,
+    customCycleDays: null,
+    storageLimitMb: null,
+    studentLimit: null,
+    studentLimitAvailable: capabilities.studentLimitAvailable,
+    students: countsResult.error ? null : studentCounts.get(institution.id) ?? 0,
+    remainingCapacity: null,
+    startsAt: null,
+    expiresAt: null,
+    subscriptionStatus: "NOT_LINKED",
+    paymentStatus: "NOT_LINKED",
+    archived: false,
+  })));
 
   const errors = [
     institutionsResult.error,
+    legacyInstitutionsResult.error,
+    legacyIdentityResult.error,
     subscriptionsResult.error,
     countsResult.error,
     paymentsResult.error,
@@ -432,7 +537,7 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
 
   return {
     records,
-    error: institutionsResult.error,
+    error: institutionsResult.error ?? legacyInstitutionsResult.error,
     warnings: errors,
     subscriptionDataAvailable: !subscriptionsResult.error,
     studentCountsAvailable: !countsResult.error,
@@ -443,164 +548,74 @@ export async function getPortalInstitutionList(scope: SubscriptionPortalScope): 
 
 export async function getPortalOverview(scope: SubscriptionPortalScope): Promise<PortalOverviewData> {
   const institutionId = scope.role === "INSTITUTION_ADMIN" ? scope.institutionId : undefined;
+  await connection();
   const now = new Date();
-  const trendStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
   const renewalEnd = new Date(now);
   renewalEnd.setDate(renewalEnd.getDate() + 30);
-  const [institutionData, paymentData, subscriptionsResult] = await Promise.all([
-    getPortalInstitutionList(scope),
-    queryPayments(scope),
-    capture<SubscriptionRow[]>(
-      "subscription overview",
-      prisma.institutionSubscription.findMany({
-        where: institutionSubscriptionWhere(scope),
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          institutionId: true,
-          status: true,
-          startsAt: true,
-          endsAt: true,
-          renewsAt: true,
-          createdAt: true,
-          institution: { select: { name: true } },
-          plan: { select: { name: true } },
-        },
-      }) as Promise<SubscriptionRow[]>,
-    ),
-  ]);
-
-  const institutionCountResult = await capture<number>(
-    "institution count",
-    prisma.platformInstitution.count({ where: institutionId ? { id: institutionId } : undefined }),
-  );
-  const subscriptions = subscriptionsResult.value ?? [];
-  const payments = paymentData.value ?? [];
-  const paymentSummary = summarizePayments(payments.map((payment) => ({
-    status: payment.status,
-    amount: Number(payment.amount),
-    currency: payment.currency,
-  })));
-  const revenueByMonth = new Map<string, Map<string, number>>();
-  const growthByMonth = new Map<string, number>();
-  for (const payment of payments) {
-    if (payment.status !== "SUCCEEDED" || !payment.paidAt) continue;
-    const amount = Math.round(Number(payment.amount) * 100);
-    const paidDate = payment.paidAt;
-    if (paidDate < trendStart) continue;
-    const monthKey = `${paidDate.getFullYear()}-${String(paidDate.getMonth() + 1).padStart(2, "0")}`;
-    const values = revenueByMonth.get(monthKey) ?? new Map<string, number>();
-    values.set(payment.currency, (values.get(payment.currency) ?? 0) + amount);
-    revenueByMonth.set(monthKey, values);
-  }
-  for (const subscription of subscriptions) {
-    if (subscription.createdAt < trendStart) continue;
-    const monthKey = `${subscription.createdAt.getFullYear()}-${String(subscription.createdAt.getMonth() + 1).padStart(2, "0")}`;
-    growthByMonth.set(monthKey, (growthByMonth.get(monthKey) ?? 0) + 1);
-  }
+  const subscriptionScope = institutionSubscriptionWhere(scope);
+  const paymentScope = institutionPaymentWhere(scope);
+  const current = { status: "ACTIVE" as const, startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
   const months = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    return {
-      key,
-      label: date.toLocaleDateString("en-IN", { month: "short" }),
-    };
+    const start = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - 4 + index, 1);
+    return { start, end, label: start.toLocaleDateString("en-IN", { month: "short" }) };
   });
-  const dateIsCurrent = (subscription: SubscriptionRow) =>
-    subscription.startsAt <= now && (!subscription.endsAt || subscription.endsAt > now);
-  const activeSubscriptions = subscriptions.filter((item) => item.status === "ACTIVE" && dateIsCurrent(item)).length;
-  const pendingSubscriptions = subscriptions.filter((item) => item.status === "PAST_DUE").length;
-  const expiredSubscriptions = subscriptions.filter((item) =>
-    item.status === "EXPIRED" || Boolean(item.status === "ACTIVE" && item.endsAt && item.endsAt <= now),
-  ).length;
-  const upcoming = subscriptions
-    .filter((item) => {
-      const renewalDate = item.renewsAt ?? item.endsAt;
-      return item.status === "ACTIVE"
-        && dateIsCurrent(item)
-        && renewalDate !== null
-        && renewalDate >= now
-        && renewalDate <= renewalEnd;
-    })
-    .sort((a, b) => {
-      const aDate = a.renewsAt ?? a.endsAt;
-      const bDate = b.renewsAt ?? b.endsAt;
-      return (aDate?.getTime() ?? 0) - (bDate?.getTime() ?? 0);
-    });
-  const expiring = subscriptions
-    .filter((item) =>
-      item.status === "ACTIVE"
-      && dateIsCurrent(item)
-      && item.endsAt !== null
-      && item.endsAt >= now
-      && item.endsAt <= renewalEnd,
-    )
-    .sort((a, b) => (a.endsAt?.getTime() ?? 0) - (b.endsAt?.getTime() ?? 0));
-  const recentSubscriptions = subscriptions.slice(0, 5);
-  const institutionsAvailable = institutionData.error === null && institutionCountResult.error === null;
-  const subscriptionDataAvailable = subscriptionsResult.error === null;
-  const paymentDataAvailable = paymentData.error === null;
-
+  const select = {
+    id: true, institutionId: true, status: true, startsAt: true, endsAt: true, renewsAt: true, createdAt: true,
+    institution: { select: { name: true } }, plan: { select: { name: true } },
+  };
+  const [institutionData, institutionCount, recentPayments, paymentStats, subscriptionStats] = await Promise.all([
+    institutionId ? getPortalInstitutionList(scope) : Promise.resolve(null),
+    capture("institution overview", scope.role === "SUPER_ADMIN"
+      ? Promise.all([
+          prisma.platformInstitution.count(),
+          prisma.$queryRaw<Array<{ count: bigint }>>`SELECT count(*) AS count FROM institutions e WHERE NOT EXISTS (SELECT 1 FROM "Institution" p WHERE p.id::text = e.id::text)`,
+        ]).then(([count, legacy]) => count + Number(legacy[0].count))
+      : prisma.platformInstitution.count({ where: { id: institutionId } })),
+    queryPayments(scope, 5),
+    capture("payment overview", Promise.all([
+      prisma.payment.groupBy({ by: ["status"], where: paymentScope, _count: { _all: true } }),
+      prisma.payment.groupBy({ by: ["currency"], where: { ...paymentScope, status: "SUCCEEDED" }, _sum: { amount: true } }),
+      Promise.all(months.map(({ start, end }) => prisma.payment.groupBy({
+        by: ["currency"], where: { ...paymentScope, status: "SUCCEEDED", paidAt: { gte: start, lt: end } }, _sum: { amount: true },
+      }))),
+    ])),
+    capture("subscription overview", Promise.all([
+      prisma.institutionSubscription.count({ where: { ...subscriptionScope, ...current } }),
+      prisma.institutionSubscription.count({ where: { ...subscriptionScope, status: "PAST_DUE" } }),
+      prisma.institutionSubscription.count({ where: { ...subscriptionScope, OR: [{ status: "EXPIRED" }, { status: "ACTIVE", endsAt: { lte: now } }] } }),
+      Promise.all(months.map(({ start, end }) => prisma.institutionSubscription.count({ where: { ...subscriptionScope, createdAt: { gte: start, lt: end } } }))),
+      prisma.institutionSubscription.findMany({ where: { ...subscriptionScope, ...current, OR: [
+        { renewsAt: { gte: now, lte: renewalEnd } },
+        { renewsAt: null, endsAt: { gte: now, lte: renewalEnd, gt: now } },
+      ], AND: [{ OR: current.OR }] }, select }),
+      prisma.institutionSubscription.findMany({ where: { ...subscriptionScope, ...current, endsAt: { gt: now, lte: renewalEnd } }, orderBy: { endsAt: "asc" }, select }),
+      prisma.institutionSubscription.findMany({ where: subscriptionScope, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 5, select }),
+    ])),
+  ]);
+  const stats = subscriptionStats.value;
+  const payment = paymentStats.value;
+  const counts = new Map((payment?.[0] ?? []).map((item) => [item.status as string, item._count._all]));
+  const upcoming = (stats?.[4] ?? []).sort((a, b) => (a.renewsAt ?? a.endsAt)!.getTime() - (b.renewsAt ?? b.endsAt)!.getTime());
+  const transactionAvailable = !recentPayments.error;
   return {
-    institutionCount: institutionsAvailable ? institutionCountResult.value : null,
-    activeSubscriptions: subscriptionDataAvailable ? activeSubscriptions : null,
-    pendingSubscriptions: subscriptionDataAvailable ? pendingSubscriptions : null,
-    expiredSubscriptions: subscriptionDataAvailable ? expiredSubscriptions : null,
-    successfulPayments: paymentDataAvailable ? paymentSummary.counts.get("SUCCEEDED") ?? 0 : null,
-    pendingPayments: paymentDataAvailable ? paymentSummary.counts.get("PENDING") ?? 0 : null,
-    failedPayments: paymentDataAvailable ? paymentSummary.counts.get("FAILED") ?? 0 : null,
-    totalPayments: paymentDataAvailable ? payments.length : null,
-    revenueByCurrency: paymentDataAvailable
-      ? paymentSummary.revenueByCurrency
-      : [],
-    revenueAvailable: paymentDataAvailable,
-    subscriptionGrowth: subscriptionDataAvailable
-      ? months.map(({ key, label }) => ({ label, value: growthByMonth.get(key) ?? 0 }))
-      : [],
-    monthlyRevenue: paymentDataAvailable
-      ? months.map(({ key, label }) => ({
-          label,
-          values: Array.from(revenueByMonth.get(key) ?? [], ([currency, amount]) => ({
-            currency,
-            amount: amount / 100,
-          })),
-        }))
-      : [],
-    upcomingRenewals: subscriptionDataAvailable
-      ? upcoming.map((item) => ({
-          institution: item.institution.name,
-          plan: item.plan.name,
-          date: asDate(item.renewsAt ?? item.endsAt) ?? "Unavailable",
-          status: item.status,
-        }))
-      : [],
-    expiringSubscriptions: subscriptionDataAvailable
-      ? expiring.map((item) => ({
-          institution: item.institution.name,
-          plan: item.plan.name,
-          date: asDate(item.endsAt) ?? "Unavailable",
-          status: item.status,
-        }))
-      : [],
-    recentActivity: subscriptionDataAvailable
-      ? recentSubscriptions.map((item) => ({
-          id: item.id,
-          institution: item.institution.name,
-          plan: item.plan.name,
-          status: item.status,
-          date: asDate(item.createdAt) ?? "Unavailable",
-        }))
-      : [],
-    recentTransactions: paymentDataAvailable
-      ? payments.slice(0, 5).map((row) => transactionFromRow(row, paymentData.orderIdAvailable))
-      : [],
-    institution: institutionId ? institutionData.records[0] ?? null : null,
-    errors: [
-      institutionData.error,
-      ...institutionData.warnings,
-      institutionCountResult.error,
-      subscriptionsResult.error,
-      paymentData.error,
-    ].filter((error): error is string => Boolean(error)),
+    institutionCount: institutionCount.value,
+    activeSubscriptions: stats?.[0] ?? null,
+    pendingSubscriptions: stats?.[1] ?? null,
+    expiredSubscriptions: stats?.[2] ?? null,
+    successfulPayments: payment ? counts.get("SUCCEEDED") ?? 0 : null,
+    pendingPayments: payment ? counts.get("PENDING") ?? 0 : null,
+    failedPayments: payment ? counts.get("FAILED") ?? 0 : null,
+    totalPayments: payment ? [...counts.values()].reduce((sum, count) => sum + count, 0) : null,
+    revenueByCurrency: payment?.[1].map((item) => ({ currency: item.currency, amount: Number(item._sum.amount ?? 0) })) ?? [],
+    revenueAvailable: Boolean(payment),
+    subscriptionGrowth: stats ? months.map(({ label }, index) => ({ label, value: stats[3][index] })) : [],
+    monthlyRevenue: payment ? months.map(({ label }, index) => ({ label, values: payment[2][index].map((item) => ({ currency: item.currency, amount: Number(item._sum.amount ?? 0) })) })) : [],
+    upcomingRenewals: upcoming.map((item) => ({ institution: item.institution.name, plan: item.plan.name, date: asDate(item.renewsAt ?? item.endsAt) ?? "Unavailable", status: item.status })),
+    expiringSubscriptions: (stats?.[5] ?? []).map((item) => ({ institution: item.institution.name, plan: item.plan.name, date: asDate(item.endsAt) ?? "Unavailable", status: item.status })),
+    recentActivity: (stats?.[6] ?? []).map((item) => ({ id: item.id, institution: item.institution.name, plan: item.plan.name, status: item.status, date: asDate(item.createdAt) ?? "Unavailable" })),
+    recentTransactions: transactionAvailable ? (recentPayments.value ?? []).map((row) => transactionFromRow(row, recentPayments.orderIdAvailable)) : [],
+    institution: institutionData?.records[0] ?? null,
+    errors: [institutionCount.error, ...(institutionData?.warnings ?? []), subscriptionStats.error, paymentStats.error, recentPayments.error].filter((error): error is string => Boolean(error)),
   };
 }

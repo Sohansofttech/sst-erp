@@ -13,13 +13,14 @@ import {
   deleteDivision,
 } from "@/lib/services/division.service";
 import { DivisionType, DivisionStatus } from "@prisma/client";
+import { describeInstitutionType, isPlanCompatible, schoolCategories } from "@/lib/institution-type-config";
 
-const institutionInput = z.object({
-  planId: z.uuid(),
+const institutionFields = z.object({
   name: z.string().trim().min(2).max(160),
   code: z.string().trim().max(40).optional(),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens for the slug.").max(80),
-  type: z.enum(["SCHOOL", "COLLEGE", "OTHER"]),
+  type: z.enum(["SCHOOL", "COLLEGE", "ACADEMY", "OTHER"]),
+  category: z.string().trim().max(160).optional(),
   email: z.union([z.email(), z.literal("")]).optional(),
   phone: z.string().trim().max(40).optional(),
   address: z.string().trim().max(300).optional(),
@@ -34,7 +35,10 @@ const institutionInput = z.object({
   adminPhone: z.string().trim().max(40).optional(),
 });
 
-export type InstitutionFormState = { error: string | null; success: string | null };
+// Creating an institution also assigns its first subscription plan; editing does not.
+const institutionInput = institutionFields.extend({ planId: z.uuid() });
+
+export type InstitutionFormState = { error: string | null; success: string | null; institutionId?: string };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -42,11 +46,24 @@ function readInput(formData: FormData) {
   return institutionInput.safeParse(Object.fromEntries(formData.entries()));
 }
 
+function readEditInput(formData: FormData) {
+  return institutionFields.safeParse(Object.fromEntries(formData.entries()));
+}
+
+function categoryError(type: string, category: string | undefined) {
+  if (type === "SCHOOL" && category && !(schoolCategories as readonly string[]).includes(category)) {
+    return "Choose School, Montessori, or School / Montessori as the school category.";
+  }
+  return null;
+}
+
 export async function createInstitution(_previous: InstitutionFormState, formData: FormData): Promise<InstitutionFormState> {
   const actor = await requireSuperAdmin();
   const parsed = readInput(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the institution details.", success: null };
   const data = parsed.data;
+  const invalidCategory = categoryError(data.type, data.category);
+  if (invalidCategory) return { error: invalidCategory, success: null };
   if (!data.adminName || !data.adminEmail) {
     return { error: "Administrator name and email are required.", success: null };
   }
@@ -65,6 +82,7 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
   }
 
   let newSubscriptionStatus: string | null = null;
+  let createdInstitutionId: string | undefined;
   try {
     const created = await prisma.$transaction(
       async (tx) => {
@@ -74,6 +92,7 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
             code: collegeCode,
             slug: data.slug,
             type: data.type,
+            category: data.category || null,
             status: "ACTIVE",
             email: data.email || null,
             phone: data.phone || null,
@@ -87,9 +106,12 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
         });
         const selectedPlan = await tx.subscriptionPlan.findFirst({
           where: { id: data.planId, isActive: true, archivedAt: null },
-          select: { id: true, code: true },
+          select: { id: true, code: true, institutionTypes: true },
         });
         if (!selectedPlan) throw new Error("Select an active subscription plan.");
+        if (!isPlanCompatible(selectedPlan.institutionTypes, data.type)) {
+          throw new Error(`The selected subscription plan is not available for ${describeInstitutionType(data.type)} institutions.`);
+        }
 
         let subscriptionAssignment: { planId: string; status: string };
         if (selectedPlan.code === FREE_TRIAL_PLAN_CODE) {
@@ -164,19 +186,21 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
       { maxWait: 15000, timeout: 20000 }
     );
     newSubscriptionStatus = created.status;
+    createdInstitutionId = created.institutionId;
+    revalidatePath("/super-admin");
+    revalidatePath("/super-admin/institutions");
+    revalidatePath("/subscriptions");
+    revalidatePath("/subscriptions/institutions");
 
     if (created.institutionId) {
-      await syncInstitutionToAppDb(created.institutionId);
       const adminName = data.adminName || formData.get("adminName")?.toString().trim() || `${data.name} Administrator`;
       const adminEmail = data.adminEmail || formData.get("adminEmail")?.toString().trim() || data.email || undefined;
       const adminPhone = data.adminPhone;
-      const adminPassword = data.adminPassword || "Password@123";
-
       const provisionResult = await provisionInstitutionAdmin({
         institutionId: created.institutionId,
         adminName,
         adminEmail,
-        adminPassword,
+        adminPassword: data.adminPassword || undefined,
         adminPhone,
         actorUserId: auditUserId ?? undefined,
       });
@@ -184,18 +208,22 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
       if (!provisionResult.success) {
         console.error("[SuperAdmin:createInstitution] Administrator provisioning failed:", provisionResult.error);
         return {
-          error: `Institution created, but administrator provisioning failed: ${provisionResult.error || "Unknown error"}`,
+          error: `Institution and subscription saved, but provisioning is incomplete: ${provisionResult.error || "Unknown error"}. Open the institution to retry; do not create it again.`,
           success: null,
+          institutionId: created.institutionId,
         };
       }
     }
   } catch (error) {
     console.error("[SuperAdmin:createInstitution] Error creating institution:", error);
+    if (createdInstitutionId) {
+      return { error: "Institution and subscription saved, but provisioning is incomplete. Open the institution to retry; do not create it again.", success: null, institutionId: createdInstitutionId };
+    }
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
-      return { error: "That institution code or slug is already in use.", success: null };
+      return { error: "That institution code or slug is already in use. Find the existing institution in the list and retry provisioning there if needed.", success: null };
     }
     const message = error instanceof Error ? error.message : "The institution could not be saved. Check database connection and try again.";
-    return { error: message, success: null };
+    return { error: `${message} If the result is uncertain, check the institution list before trying again.`, success: null };
   }
   try {
     revalidatePath("/super-admin");
@@ -211,19 +239,24 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
       : newSubscriptionStatus === "ACTIVE"
         ? "The selected free plan is active."
         : "The selected paid plan remains pending verified payment.";
-  return { error: null, success: `Institution created successfully (College Code: ${collegeCode}) and administrator provisioned. ${planNotice}` };
+  return { error: null, success: `Institution created (College Code: ${collegeCode}); administrator account created and invitation accepted by the email provider. ${planNotice}`, institutionId: createdInstitutionId };
 }
 
-export async function provisionAdminForInstitution(formData: FormData) {
+export async function provisionAdminForInstitution(_previous: InstitutionFormState, formData: FormData): Promise<InstitutionFormState> {
   const actor = await requireSuperAdmin();
   const id = z.uuid().safeParse(formData.get("institutionId"));
-  if (!id.success) throw new Error("Invalid institution ID.");
+  if (!id.success) return { error: "Invalid institution ID.", success: null };
 
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+  if (!actor.developmentMode && !auditUserId) {
+    return { error: "A valid Super Admin UUID is required for platform audit attribution.", success: null };
+  }
   const adminName = formData.get("adminName")?.toString().trim() || undefined;
   const adminEmail = formData.get("adminEmail")?.toString().trim() || undefined;
   const adminPhone = formData.get("adminPhone")?.toString().trim() || undefined;
   const adminPassword = formData.get("adminPassword")?.toString().trim() || undefined;
+  if (!adminEmail || !z.email().safeParse(adminEmail).success) return { error: "A valid administrator email is required.", success: null };
+  if (adminPassword && adminPassword.length < 6) return { error: "The initial password must contain at least 6 characters.", success: null };
 
   const result = await provisionInstitutionAdmin({
     institutionId: id.data,
@@ -235,13 +268,11 @@ export async function provisionAdminForInstitution(formData: FormData) {
     resend: true,
   });
 
-  if (!result.success) {
-    throw new Error(result.error || "Failed to provision administrator.");
-  }
-
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/institutions");
   revalidatePath(`/super-admin/institutions/${id.data}`);
+  if (!result.success) return { error: result.error || "Failed to provision administrator.", success: null };
+  return { error: null, success: "Administrator account ready and invitation accepted by the email provider." };
 }
 
 export async function revokeInstitutionInvitation(formData: FormData) {
@@ -276,9 +307,11 @@ export async function revokeInstitutionInvitation(formData: FormData) {
 export async function editInstitution(_previous: InstitutionFormState, formData: FormData): Promise<InstitutionFormState> {
   const actor = await requireSuperAdmin();
   const id = z.uuid().safeParse(formData.get("id"));
-  const parsed = readInput(formData);
+  const parsed = readEditInput(formData);
   if (!id.success) return { error: "Invalid institution.", success: null };
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the institution details.", success: null };
+  const invalidCategory = categoryError(parsed.data.type, parsed.data.category);
+  if (invalidCategory) return { error: invalidCategory, success: null };
 
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
   if (!actor.developmentMode && !auditUserId) {
@@ -287,16 +320,30 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
 
   try {
     await prisma.$transaction(async (tx) => {
+      // A type change must not leave the institution on a plan that is not available for its new type.
+      const open = await tx.institutionSubscription.findMany({
+        where: {
+          institutionId: id.data,
+          status: { in: ["ACTIVE", "TRIALING", "PAST_DUE", "SUSPENDED"] },
+          OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
+        },
+        select: { plan: { select: { name: true, institutionTypes: true } } },
+      });
+      const incompatible = open.find((subscription) => !isPlanCompatible(subscription.plan.institutionTypes, parsed.data.type));
+      if (incompatible) {
+        throw new Error(`The current plan "${incompatible.plan.name}" is not available for ${describeInstitutionType(parsed.data.type)} institutions. Cancel it or move the institution to a plan that supports both types before changing the type.`);
+      }
       await tx.platformInstitution.update({ where: { id: id.data, archivedAt: null }, data: {
         name: parsed.data.name, code: parsed.data.code || null, slug: parsed.data.slug,
         type: parsed.data.type, email: parsed.data.email || null, phone: parsed.data.phone || null,
+        category: parsed.data.category || null,
         address: parsed.data.address || null, city: parsed.data.city || null, state: parsed.data.state || null,
         postalCode: parsed.data.postalCode || null, country: parsed.data.country, website: parsed.data.website || null,
       } });
       try {
         await tx.institution.updateMany({
           where: { OR: [{ id: id.data }, { slug: parsed.data.slug }] },
-          data: { name: parsed.data.name, slug: parsed.data.slug },
+          data: { name: parsed.data.name, slug: parsed.data.slug, type: parsed.data.type, category: parsed.data.category || null },
         });
       } catch {}
 
@@ -330,11 +377,14 @@ export async function editInstitution(_previous: InstitutionFormState, formData:
     const message = error instanceof Error ? error.message : "The institution could not be updated. Check the database and try again.";
     return { error: message, success: null };
   }
+  // Keep the tenant (institutions) record in step so the portal reads the new type immediately.
+  await syncInstitutionToAppDb(id.data);
   revalidatePath("/super-admin");
   revalidatePath("/super-admin/institutions");
   revalidatePath(`/super-admin/institutions/${id.data}`);
   revalidatePath("/login");
   revalidatePath("/");
+  revalidatePath("/subscriptions", "layout");
   return { error: null, success: "Institution details updated." };
 }
 

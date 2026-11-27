@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: "Subscription and billing workspace for SST-ERP.",
 };
 
+export const instant = false;
+
 export default async function SubscriptionsOverviewPage() {
   const scope = await getSubscriptionPortalScope();
   const overviewData = await getPortalOverview(scope);

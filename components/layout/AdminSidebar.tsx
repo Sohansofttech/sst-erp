@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useInstitution } from "@/lib/store";
 import { useDivision, ALL_DIVISIONS_ID } from "@/lib/division-store";
 import { cn } from "@/lib/utils";
+import { getTerminology, isFeatureEnabled } from "@/lib/institution-type-config";
 import {
   getRoleLandingRoute,
   hasPermission,
@@ -93,7 +94,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   userPermissions = [],
 }) => {
   const pathname = usePathname();
-  const { profile, activeAcademicYear, isAcademicYearsLoading } = useInstitution();
+  const { profile, activeAcademicYear, isAcademicYearsLoading, institutionKind } = useInstitution();
   const isRoleResolved = Boolean(userRole && userRole.trim().length > 0);
   const isDeptStaff = isRoleResolved && isDepartmentalRole(userRole);
   const homeHref = !isRoleResolved ? "/admin" : isDeptStaff ? getRoleLandingRoute(userRole) : "/admin";
@@ -104,7 +105,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     : "Admin";
   const { activeDivision, activeDivisionId } = useDivision();
   const divType = activeDivisionId === ALL_DIVISIONS_ID ? "ALL" : (activeDivision?.type ?? "COLLEGE");
-  const visibleAcademicItems = getVisibleAcademicNavItems(divType);
   const [academicsOpen, setAcademicsOpen] = useState(
     pathname.startsWith("/admin/academics") || pathname === "/admin"
   );
@@ -124,11 +124,21 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   }, [profile?.name]);
 
   const isAcademicsActive = pathname.startsWith("/admin/academics");
+  const terms = getTerminology(institutionKind);
+  const showDepartments = isFeatureEnabled(institutionKind, "departments");
+  const showInternalAssessment = isFeatureEnabled(institutionKind, "internalAssessment");
+  const showPromotions = isFeatureEnabled(institutionKind, "promotions");
+  const showHostel = isFeatureEnabled(institutionKind, "hostel");
+  const visibleAcademicItems = getVisibleAcademicNavItems(divType).filter(
+    (item) => item.href !== "/admin/academics/departments" || showDepartments
+  );
 
   const campusServiceLinks = [
     { href: "/admin/roles-permissions", label: "Roles & Permissions", icon: ShieldAlert },
     { href: "/subscriptions", label: "Central Subscriptions & Billing", icon: CreditCard },
     { href: "/admin/subscriptions", label: "Subscriptions & Billing", icon: CreditCard },
+    ...(showHostel ? [{ href: "/admin/hostel", label: "Hostel", icon: Home }] : []),
+    { href: "/admin/transport", label: "Transport", icon: Bus },
     { href: "/admin/events", label: "Events & Resources", icon: CalendarDays },
     { href: "/admin/gate-management", label: "Gate Management", icon: Shield },
     { href: "/admin/communication", label: "Communication", icon: MessageSquare },
@@ -516,7 +526,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             )}
           >
             <Users className="w-4 h-4 shrink-0 text-white" />
-            <span>Students</span>
+            <span>{terms.learners}</span>
           </Link>
 
           {/* 3. Guardians */}
@@ -546,7 +556,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             )}
           >
             <Briefcase className="w-4 h-4 shrink-0 text-white" />
-            <span>Faculty & Staff</span>
+            <span>{terms.staffNav}</span>
           </Link>
 
           {/* 5. Accountant */}
@@ -650,7 +660,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             <span>Examinations</span>
           </Link>
 
-          {/* 12. Internal Assessment (IA) */}
+          {/* 12. Internal Assessment (IA) - College only */}
+          {showInternalAssessment && (
           <Link
             href="/admin/ia"
             onClick={onClose}
@@ -664,6 +675,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             <Award className="w-4 h-4 shrink-0 text-white" />
             <span>Internal Assessment</span>
           </Link>
+          )}
 
           {/* 13. Results */}
           <Link
@@ -681,6 +693,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           </Link>
 
           {/* 14. Promotions */}
+          {showPromotions && (
           <Link
             href="/admin/promotions"
             onClick={onClose}
@@ -692,8 +705,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             )}
           >
             <TrendingUp className="w-4 h-4 shrink-0 text-white" />
-            <span>Student Promotions</span>
+            <span>{institutionKind === "SCHOOL" ? "Class Promotions" : "Student Promotions"}</span>
           </Link>
+          )}
 
           {/* 15. Certificates */}
           <Link

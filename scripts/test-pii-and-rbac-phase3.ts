@@ -77,6 +77,7 @@ async function main() {
     attFindMany: db.attendanceRecord.findMany,
     attFindFirst: db.attendanceRecord.findFirst,
     attUpdate: db.attendanceRecord.update,
+    attUpdateMany: db.attendanceRecord.updateMany,
     auditCreate: db.auditLog.create,
     userFindUnique: db.user.findUnique,
     uraFindMany: db.userRoleAssignment.findMany,
@@ -307,6 +308,7 @@ async function main() {
         student: { fullName: "Aarav Sharma", firstName: "Aarav" },
       });
       (db.attendanceRecord as any).update = async () => ({ id: "att-1", status: "PRESENT" });
+      (db.attendanceRecord as any).updateMany = async () => ({ count: 1 });
       (db.auditLog as any).create = async () => ({});
       (db.certificateTemplate as any).findMany = async () => [];
       (db.issuedCertificate as any).findMany = async () => [];
@@ -359,7 +361,7 @@ async function main() {
       // Institution Admin succeeds on all handlers
       let attFindFirstArgs: any = null;
       (db.attendanceRecord as any).findFirst = async (args: any) => {
-        attFindFirstArgs = args;
+        if (args?.include) attFindFirstArgs = args;
         return {
           id: "att-1",
           studentId: "stu-1",
@@ -418,6 +420,7 @@ async function main() {
     (db.attendanceRecord as any).findMany = orig.attFindMany;
     (db.attendanceRecord as any).findFirst = orig.attFindFirst;
     (db.attendanceRecord as any).update = orig.attUpdate;
+    (db.attendanceRecord as any).updateMany = orig.attUpdateMany;
     (db.auditLog as any).create = orig.auditCreate;
     (db.user as any).findUnique = orig.userFindUnique;
     (db.userRoleAssignment as any).findMany = orig.uraFindMany;

@@ -13,7 +13,6 @@ import {
   isFullAdminRole,
 } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -93,10 +92,6 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
   const hdrs = await headers();
   const pathname = hdrs.get("x-pathname") || "/admin";
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login/")) {
-    return null;
-  }
-
-  if (isDevelopmentBypassEnabled()) {
     return null;
   }
 

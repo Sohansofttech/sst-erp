@@ -67,6 +67,9 @@ export type TeacherAuthErrorCode =
   | "TEACHER_RECORD_NOT_FOUND"
   | "FORBIDDEN"
   | "TENANT_MISMATCH"
+  | "BAD_REQUEST"
+  | "NOT_FOUND"
+  | "CONFLICT"
 
 export class TeacherAuthError extends Error {
   constructor(
@@ -95,7 +98,19 @@ export async function signTeacherSession(payload: TeacherSessionPayload): Promis
  */
 export async function verifyTeacherSession(token: string): Promise<TeacherSessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getAuthJwtKey())
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), {
+      algorithms: ["HS256"],
+    })
+    if (
+      payload.purpose !== undefined ||
+      typeof payload.userId !== "string" ||
+      typeof payload.teacherId !== "string" ||
+      typeof payload.institutionId !== "string" ||
+      typeof payload.institutionSlug !== "string" ||
+      typeof payload.activeRole !== "string"
+    ) {
+      return null
+    }
     return payload as unknown as TeacherSessionPayload
   } catch {
     return null
@@ -256,25 +271,22 @@ export function mapDbTeacherToProfile(
     id: teacher.id,
     institutionId: teacher.institutionId,
     employeeCode: teacher.employeeId,
-    fullName: user.fullName || user.name || "Faculty Member",
+    fullName: user.fullName || (user as any).name || "Faculty Member",
     email: user.email,
-    phone: user.phone ?? "+91 98450 00000",
+    phone: user.phone || "",
     photoUrl: user.avatarUrl ?? undefined,
     designation: teacher.designation,
     departmentId: deptCode,
-    departmentName: `Department of ${teacher.department}`,
-    qualification: "Ph.D. / M.Sc., B.Ed.",
-    specialization: `${teacher.department} & Curriculum Lead`,
-    experienceYears: 10,
-    joiningDate: teacher.createdAt.toISOString().split("T")[0],
+    departmentName: teacher.department ? `Department of ${teacher.department}` : "General Department",
+    qualification: (teacher as any).qualification || "Not provided",
+    specialization: (teacher as any).specialization || "",
+    experienceYears: (teacher as any).experienceYears ?? 0,
+    joiningDate: teacher.createdAt ? new Date(teacher.createdAt).toISOString().split("T")[0] : "",
     isClassTeacher: options?.isClassTeacher ?? false,
     classTeacherOf: options?.classTeacherOf,
-    subjectsHandled: options?.subjectsHandled ?? [
-      `${teacher.department} (10-A)`,
-      `${teacher.department} (10-B)`,
-    ],
-    officeRoom: "Academic Block Staff Room",
-    bio: `${teacher.designation} in ${teacher.department}. Coordinates subject curriculum, assessments, and student mentoring.`,
+    subjectsHandled: options?.subjectsHandled ?? [],
+    officeRoom: (teacher as any).officeRoom || "",
+    bio: (teacher as any).bio || "",
     status: user.isActive ? "active" : "inactive",
   }
 }
@@ -549,8 +561,11 @@ export async function getTeacherSession(
         return null
       }
 
-      // Re-load user's roles from DB assignments & test accounts dynamically
-      const testAccount = findDeterministicAccount(user.email) || findDeterministicAccount(user.id)
+      // TSEC-19: Gate deterministic test accounts to non-production environments only
+      const isDevOrTest = process.env.NODE_ENV !== "production"
+      const testAccount = isDevOrTest
+        ? findDeterministicAccount(user.email) || findDeterministicAccount(user.id)
+        : null
       let teacherObj = (user as any)?.teacherProfile || (user as any)?.teachers
       if (!teacherObj && testAccount) {
         teacherObj = {
@@ -569,16 +584,17 @@ export async function getTeacherSession(
           teacherObj = await prisma.teachers.findFirst({
             where: { userId: user.id },
           })
+          // TSEC-18: Do not mutate DB by manufacturing staff records during read session resolution.
           if (!teacherObj) {
-            teacherObj = await prisma.teachers.create({
-              data: {
-                userId: user.id,
-                institutionId: user.institutionId || institution.id,
-                employeeId: user.id.slice(0, 10).toUpperCase(),
-                department: "General",
-                designation: user.role === "HOD" ? "Head of Department" : "Faculty Member",
-              },
-            })
+            teacherObj = {
+              id: payload.teacherId || `teacher_${user.id}`,
+              userId: user.id,
+              institutionId: user.institutionId || institution.id,
+              employeeId: user.id.slice(0, 10).toUpperCase(),
+              department: "General",
+              designation: user.role === "HOD" ? "Head of Department" : "Faculty Member",
+              createdAt: new Date(),
+            }
           }
         } catch (err) {
           console.warn("[getTeacherSession] Dynamic teacher profile resolution:", err)

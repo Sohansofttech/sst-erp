@@ -3,10 +3,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { PrintButton } from "@/components/super-admin/print-button";
+import { connection } from "next/server";
 
 export const instant = false;
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
+  await connection();
   await requireSuperAdmin();
   const { id } = await params;
   const invoice = await prisma.invoice.findUnique({ where: { id }, include: { institution: true, payments: { orderBy: { createdAt: "desc" } } } });

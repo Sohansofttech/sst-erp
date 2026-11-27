@@ -240,9 +240,12 @@ export async function deleteDivisionMembership(
     throw new ForbiddenError("Division membership not found in this institution.");
   }
 
-  await db.divisionMembership.delete({
-    where: { id: membershipId },
+  const deleted = await db.divisionMembership.deleteMany({
+    where: { id: membershipId, institutionId },
   });
+  if (deleted.count === 0) {
+    throw new ForbiddenError("Division membership not found in this institution.");
+  }
 
   return { success: true, deletedId: membershipId };
 }

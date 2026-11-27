@@ -57,6 +57,7 @@ import { useTeacherRole } from "../teacher-role-context"
 
 export default function HodDashboardPage() {
   const { slug, user } = useTeacherRole()
+  const deptName = user?.department || "Department"
   const [facultyLoad, setFacultyLoad] = React.useState<DepartmentFacultyLoad[]>([])
   const [assessments, setAssessments] = React.useState<InternalAssessment[]>([])
   const [facultyLeaves, setFacultyLeaves] = React.useState<TeacherLeaveRequest[]>([])
@@ -88,7 +89,7 @@ export default function HodDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user.employeeId, user.name])
 
   React.useEffect(() => {
     loadData()
@@ -98,7 +99,7 @@ export default function HodDashboardPage() {
     return (
       <LoadingState
         title="Loading Department Leadership"
-        description="Aggregating Department of Mathematics faculty load, IA queues, and substitution rosters..."
+        description={`Aggregating ${deptName} faculty load, IA queues, and substitution rosters...`}
       />
     )
   }
@@ -142,7 +143,7 @@ export default function HodDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Department of Mathematics — HoD Leadership"
+        title={`${deptName} — HoD Leadership`}
         subtitle="Departmental leadership workspace: internal assessment approvals & locking, faculty workload balancing, and faculty leave substitution allocations."
         action={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -152,7 +153,7 @@ export default function HodDashboardPage() {
                 IA Approval Queue ({pendingIA.length})
               </Link>
             </Button>
-            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]">
+            <Button asChild className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]">
               <Link href={`${base}/leave-approvals`}>
                 <BookOpen className="mr-1.5 size-4" />
                 Faculty Leave ({pendingLeaves.length})
@@ -170,14 +171,14 @@ export default function HodDashboardPage() {
           icon={<Users />}
           variant="dark"
           tone="darkNavy"
-          description="Department of Mathematics"
+          description={deptName}
         />
         <StatCard
           label="Total Weekly Hours"
           value={totalWeeklyHours}
           icon={<Clock />}
           tone="primary"
-          description="93 departmental periods"
+          description={`${totalWeeklyHours} weekly periods`}
         />
         <StatCard
           label="IA Approval Queue"
@@ -274,7 +275,7 @@ export default function HodDashboardPage() {
                 Faculty Workload & Coverage
               </CardTitle>
               <CardDescription className="text-xs text-[#788391]">
-                Weekly lecture hours allocated across Mathematics department faculty.
+                Weekly lecture hours allocated across {deptName} faculty.
               </CardDescription>
             </div>
             <Button asChild variant="ghost" size="sm" className="text-xs font-bold text-[#F5A000] hover:bg-amber-50">
@@ -331,7 +332,7 @@ export default function HodDashboardPage() {
             </div>
             <div>
               <p className="font-bold text-sm text-[#202936]">Faculty Load</p>
-              <p className="text-xs text-[#788391]">5 faculty · 93 hours</p>
+              <p className="text-xs text-[#788391]">{facultyLoad.length} faculty · {totalWeeklyHours} hours</p>
             </div>
           </div>
           <Button asChild variant="outline" className="mt-4 w-full rounded-xl border-[#E5E9EF] text-xs font-bold text-[#123B5A] hover:bg-[#EEF1F5]">

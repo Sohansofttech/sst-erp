@@ -62,12 +62,20 @@ async function TeacherLayoutResolver({
     homeroomClass: teacherSession.profile.classTeacherOf,
   }
 
+  const academicYearsList = teacherSession.academicYears?.length
+    ? teacherSession.academicYears.map((ay) => ay.name)
+    : ["2026-27", "2025-26", "2024-25"]
+  const initialAcademicYear =
+    teacherSession.currentAcademicYear?.name || academicYearsList[0] || "2026-27"
+
   return (
     <TeacherPortalShell
       slug={slug}
       institutionName={institutionName}
       initialRole={activeRole}
       availableRoles={availableRoles}
+      academicYears={academicYearsList}
+      initialAcademicYear={initialAcademicYear}
       user={userContext}
     >
       {children}

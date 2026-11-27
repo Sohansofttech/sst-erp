@@ -143,8 +143,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Role not found or access denied." }, { status: 404 });
     }
 
-    if (existing.isSystem) {
-      return NextResponse.json({ success: false, error: "System roles cannot be modified." }, { status: 403 });
+    if (existing.isSystem || RESERVED_PRIVILEGED_ROLE_CODES.has((existing.code || "").toUpperCase())) {
+      return NextResponse.json({ success: false, error: "System or reserved roles cannot be modified." }, { status: 403 });
     }
 
     let uniquePermissionIds: string[] = [];
@@ -178,7 +178,7 @@ export async function PUT(req: NextRequest) {
 
     const updated = await db.$transaction(async (tx) => {
       const role = await tx.role.update({
-        where: { id },
+        where: { id_institutionId: { id, institutionId } },
         data: {
           ...(name ? { name } : {}),
           ...(description !== undefined ? { description } : {}),
@@ -246,8 +246,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Role not found or access denied." }, { status: 404 });
     }
 
-    if (existing.isSystem) {
-      return NextResponse.json({ success: false, error: "System roles cannot be deleted." }, { status: 403 });
+    if (existing.isSystem || RESERVED_PRIVILEGED_ROLE_CODES.has((existing.code || "").toUpperCase())) {
+      return NextResponse.json({ success: false, error: "System or reserved roles cannot be deleted." }, { status: 403 });
     }
 
     const assignmentCount = await db.userRoleAssignment.count({
@@ -262,7 +262,7 @@ export async function DELETE(req: NextRequest) {
 
     await db.$transaction(async (tx) => {
       await tx.rolePermission.deleteMany({ where: { roleId: id } });
-      await tx.role.delete({ where: { id } });
+      await tx.role.delete({ where: { id_institutionId: { id, institutionId } } });
       await recordAuditLog(tx, {
         institutionId,
         actorUserId: adminUserId || null,

@@ -2,7 +2,10 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { SessionUser } from "@/types";
 import { AUTH_COOKIE_NAME, verifyToken, computePasswordSignature } from "./jwt";
+import { UnauthorizedError, ForbiddenError } from "./errors";
 import db from "@/lib/db";
+
+export { UnauthorizedError, ForbiddenError };
 
 export async function getSession(req?: NextRequest): Promise<SessionUser | null> {
   let token: string | undefined;
@@ -52,20 +55,6 @@ export async function getSession(req?: NextRequest): Promise<SessionUser | null>
     }
   }
   return session;
-}
-
-export class UnauthorizedError extends Error {
-  constructor(message = "Authentication required") {
-    super(message);
-    this.name = "UnauthorizedError";
-  }
-}
-
-export class ForbiddenError extends Error {
-  constructor(message = "Access denied: insufficient permissions or tenant violation") {
-    super(message);
-    this.name = "ForbiddenError";
-  }
 }
 
 export async function requireAuth(req?: NextRequest): Promise<SessionUser> {
@@ -121,7 +110,7 @@ export async function requireRole(
 ): Promise<SessionUser> {
   const session = await requireAuth(req);
   if (!allowedRoles.includes(session.role)) {
-    throw new ForbiddenError(`Access restricted to roles: ${allowedRoles.join(", ")}`);
+    throw new ForbiddenError(`Access denied: restricted to roles: ${allowedRoles.join(", ")}`);
   }
   return session;
 }

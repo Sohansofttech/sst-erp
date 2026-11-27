@@ -702,6 +702,81 @@ async function main() {
         (db.user as any).update = origUserUpdate;
       }
     });
+
+    await check("19. PUT / DELETE /api/admin/roles scope mutations by id_institutionId and reject cross-institution access (404)", async () => {
+      installMocks();
+      const origTx = db.$transaction;
+      let capturedUpdateWhere: any = null;
+      let capturedDeleteWhere: any = null;
+      (db as any).$transaction = async (fn: any) => {
+        return origTx(async (tx: any) => {
+          tx.role.update = async ({ where, data }: any) => {
+            capturedUpdateWhere = where;
+            return { id: ROLE_UUID_1, ...data };
+          };
+          tx.role.delete = async ({ where }: any) => {
+            capturedDeleteWhere = where;
+            return { id: ROLE_UUID_1 };
+          };
+          return fn(tx);
+        });
+      };
+
+      try {
+        // Same-institution PUT & DELETE pass composite id_institutionId
+        const putOk = await makeReq("http://localhost/api/admin/roles", "PUT", {
+          id: ROLE_UUID_1,
+          name: "Renamed Role",
+        }, "INSTITUTION_ADMIN");
+        assert.strictEqual((await rolesPut(putOk)).status, 200);
+        assert.deepStrictEqual(capturedUpdateWhere, {
+          id_institutionId: { id: ROLE_UUID_1, institutionId: INST_A },
+        });
+
+        const delOk = await makeReq(`http://localhost/api/admin/roles?id=${ROLE_UUID_1}`, "DELETE", undefined, "INSTITUTION_ADMIN");
+        assert.strictEqual((await rolesDelete(delOk)).status, 200);
+        assert.deepStrictEqual(capturedDeleteWhere, {
+          id_institutionId: { id: ROLE_UUID_1, institutionId: INST_A },
+        });
+
+        // Cross-institution PUT & DELETE (ROLE_UUID_OTHER belongs to another institution -> findFirst returns null -> 404)
+        const putCross = await makeReq("http://localhost/api/admin/roles", "PUT", {
+          id: ROLE_UUID_OTHER,
+          name: "Cross Tenant Hijack",
+        }, "INSTITUTION_ADMIN");
+        assert.strictEqual((await rolesPut(putCross)).status, 404);
+
+        const delCross = await makeReq(`http://localhost/api/admin/roles?id=${ROLE_UUID_OTHER}`, "DELETE", undefined, "INSTITUTION_ADMIN");
+        assert.strictEqual((await rolesDelete(delCross)).status, 404);
+      } finally {
+        (db as any).$transaction = origTx;
+      }
+    });
+
+    await check("20. PUT and DELETE /api/admin/roles reject reserved role codes even if isSystem is false", async () => {
+      installMocks();
+      const origRoleFindFirst = db.role.findFirst;
+      (db.role as any).findFirst = async () => ({
+        id: ROLE_UUID_1,
+        institutionId: INST_A,
+        code: "INSTITUTION_ADMIN",
+        name: "Institution Admin",
+        isSystem: false,
+      });
+      try {
+        const putRes = await rolesPut(
+          await makeReq("http://localhost/api/admin/roles", "PUT", { id: ROLE_UUID_1, name: "Tampered" }, "INSTITUTION_ADMIN")
+        );
+        assert.strictEqual(putRes.status, 403);
+
+        const delRes = await rolesDelete(
+          await makeReq(`http://localhost/api/admin/roles?id=${ROLE_UUID_1}`, "DELETE", undefined, "INSTITUTION_ADMIN")
+        );
+        assert.strictEqual(delRes.status, 403);
+      } finally {
+        (db.role as any).findFirst = origRoleFindFirst;
+      }
+    });
   } finally {
     (db.user as any).findUnique = origDb.userFindUnique;
     (db.user as any).findFirst = origDb.userFindFirst;

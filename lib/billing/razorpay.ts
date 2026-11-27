@@ -109,7 +109,7 @@ export async function createRazorpayOrder(input: {
   const order = await providerJson<{ id?: unknown; amount?: unknown; currency?: unknown }>(response);
   if (
     typeof order.id !== "string" ||
-    !order.id.startsWith("order_") ||
+    !/^order_[A-Za-z0-9]+$/.test(order.id) ||
     Number(order.amount) !== input.amount ||
     order.currency !== input.currency
   ) {

@@ -9,7 +9,6 @@ The portal uses:
 - `DATABASE_URL` for PostgreSQL/Prisma.
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for the shared Supabase Auth project.
 - `NEXT_PUBLIC_SITE_URL` as the public base URL for Supabase password recovery redirects (`http://localhost:3000` in local development).
-- `SUPER_ADMIN_DEV_AUTH_BYPASS` is an optional local-development-only authentication bypass. It defaults to `false` in `.env.example` and is honored only when `NODE_ENV=development` and its value is exactly `true`. It is always ignored in production.
 
 Configure `/admin/auth/callback` as an allowed redirect URL in Supabase Auth. Configure Supabase password sign-in and email delivery before expecting reset emails. SMTP/email delivery has not been verified by this code change.
 
@@ -36,12 +35,8 @@ Existing portals must coordinate on the shared model names and feature entitleme
 
 ## Local Development and Authentication
 
-For normal local authentication, keep `SUPER_ADMIN_DEV_AUTH_BYPASS=false`, run `npm run dev`, and visit `http://localhost:3000/super-admin/login`.
+Run `npm run dev` and visit `http://localhost:3000/super-admin/login`.
 
 `/super-admin` requires a real Supabase-authenticated user whose database profile is active and assigned `SUPER_ADMIN`.
 
-For isolated local UI development only, set `SUPER_ADMIN_DEV_AUTH_BYPASS=true` before starting `npm run dev`.
-
-This skips Super Admin authentication for local development requests. Do not expose that development server to untrusted users.
-
-The setting cannot enable bypass in production, even if configured there.
+Super Admin authentication is always required, including during local development.

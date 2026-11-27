@@ -75,12 +75,27 @@ import type {
 } from "@/types/teacher"
 import { useTeacherRole } from "../teacher-role-context"
 
+const getDefaultDueDate = () => {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return d.toISOString().split("T")[0]
+}
+
 const createAssignmentSchema = z.object({
   subjectAllocationId: z.string().min(1, "Select class & subject"),
   title: z.string().min(3, "Title must be at least 3 characters"),
   unit: z.string().optional(),
   description: z.string().min(10, "Provide clear instructions (min 10 chars)"),
-  dueDate: z.string().min(1, "Due date is required"),
+  dueDate: z
+    .string()
+    .min(1, "Due date is required")
+    .refine(
+      (val) => {
+        const today = new Date().toISOString().split("T")[0]
+        return val >= today
+      },
+      { message: "Due date cannot be in the past for new assignments" }
+    ),
   maxMarks: z
     .number({ error: "Enter valid maximum marks" })
     .min(1, "Minimum 1 mark")
@@ -139,7 +154,7 @@ export default function TeacherAssignmentsPage() {
       title: "",
       unit: "",
       description: "",
-      dueDate: "2026-11-22",
+      dueDate: getDefaultDueDate(),
       maxMarks: 20,
       allowLateSubmission: true,
     },
@@ -242,7 +257,7 @@ export default function TeacherAssignmentsPage() {
         title: "",
         unit: "",
         description: "",
-        dueDate: "2026-11-22",
+        dueDate: getDefaultDueDate(),
         maxMarks: 20,
         allowLateSubmission: true,
       })

@@ -31,7 +31,8 @@ import type { DepartmentFacultyLoad } from "@/types/teacher"
 import { useTeacherRole } from "../../teacher-role-context"
 
 export default function HodAnalyticsPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const deptName = user?.department || "Department"
   const [facultyLoad, setFacultyLoad] = React.useState<DepartmentFacultyLoad[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -87,7 +88,7 @@ export default function HodAnalyticsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Department Attendance & Result Analytics"
-        subtitle="Department of Mathematics aggregate academic performance: student attendance distribution, course syllabus coverage against term milestones, and faculty teaching load."
+        subtitle={`${deptName} aggregate academic performance: student attendance distribution, course syllabus coverage against term milestones, and faculty teaching load.`}
         action={
           <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/hod`}>

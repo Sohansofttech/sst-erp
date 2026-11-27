@@ -22,7 +22,7 @@ import {
   LockKeyhole,
   Pencil,
   Plus,
-  PackageOpen,
+  Package,
   Search,
   ShieldCheck,
   Sparkles,
@@ -51,6 +51,8 @@ import type {
   PortalTransaction,
 } from "@/lib/subscriptions/portal-data";
 import { useSubscriptionPortalRole } from "@/components/subscriptions/SubscriptionPortalShell";
+import { InstitutionActions, InstitutionAssignment, LegacyReconciliationAction } from "@/components/subscriptions/Management";
+import type { PlanCatalogue } from "@/lib/subscriptions/management-types";
 
 export type SubscriptionSectionKey =
   | "overview"
@@ -389,12 +391,12 @@ function LiveTransactionDetails({ transaction, onClose }: { transaction: PortalT
 }
 
 function LiveInstitutionDetails({ institution, onClose }: { institution: PortalInstitutionRecord; onClose: () => void }) {
-  const studentLimit = institution.subscriptionStatus === "NO_SUBSCRIPTION"
+  const studentLimit = !institution.billingLinked || institution.subscriptionStatus === "NO_SUBSCRIPTION"
     ? "—"
     : institution.studentLimitAvailable
       ? institution.studentLimit === null ? "Unlimited" : institution.studentLimit.toLocaleString("en-IN")
       : "Unavailable in current schema";
-  const remaining = institution.subscriptionStatus === "NO_SUBSCRIPTION"
+  const remaining = !institution.billingLinked || institution.subscriptionStatus === "NO_SUBSCRIPTION"
     ? "—"
     : !institution.studentLimitAvailable || institution.students === null
       ? "Unavailable"
@@ -412,7 +414,10 @@ function LiveInstitutionDetails({ institution, onClose }: { institution: PortalI
         <dl className="sc-detail-grid">
           <div><dt>Institution administrator</dt><dd>{institution.administrator}</dd></div>
           <div><dt>Assigned plan</dt><dd>{institution.plan}</dd></div>
+          <div><dt>Price</dt><dd>{institution.amount !== null && institution.currency ? formatMoney(institution.amount, institution.currency) : "—"}</dd></div>
+          <div><dt>Billing cycle</dt><dd>{institution.billingCycle === "CUSTOM" ? `${institution.customCycleDays ?? "Custom"} days` : institution.billingCycle?.toLowerCase() ?? "—"}</dd></div>
           <div><dt>Student Limit</dt><dd>{studentLimit}</dd></div>
+          <div><dt>Storage limit</dt><dd>{institution.storageLimitMb === null ? "Unlimited" : `${institution.storageLimitMb.toLocaleString("en-IN")} MB`}</dd></div>
           <div><dt>Registered students</dt><dd>{institution.students?.toLocaleString("en-IN") ?? "Unavailable"}</dd></div>
           <div><dt>Remaining capacity</dt><dd>{remaining}</dd></div>
           <div><dt>Subscription status</dt><dd><StatusBadge status={institution.subscriptionStatus} /></dd></div>
@@ -430,9 +435,11 @@ function LiveInstitutionDetails({ institution, onClose }: { institution: PortalI
 function LiveOverviewSection({
   isInstitutionAdmin,
   data,
+  reports = false,
 }: {
   isInstitutionAdmin: boolean;
   data: PortalOverviewData;
+  reports?: boolean;
 }) {
   const [selectedTransaction, setSelectedTransaction] = useState<PortalTransaction | null>(null);
   const currencies = Array.from(new Set(data.monthlyRevenue.flatMap((month) => month.values.map((value) => value.currency))));
@@ -469,7 +476,7 @@ function LiveOverviewSection({
         <PageHeading eyebrow="Institution workspace" title="My subscription" description="Subscription and student usage for your institution only." action={<RefreshDataButton />} />
         {data.errors.length > 0 && <DataErrorNotice message={data.errors.join(" ")} />}
         <div className="sc-stat-grid">
-          <StatCard icon={PackageOpen} label="Current plan" value={institution.plan} note="Existing subscription record" />
+          <StatCard icon={Package} label="Current plan" value={institution.plan} note="Existing subscription record" />
           <StatCard icon={BadgeCheck} label="Subscription status" value={displayStatus(institution.subscriptionStatus)} note="Existing subscription record" tone="green" />
           <StatCard icon={GraduationCap} label="Registered students" value={institution.students?.toLocaleString("en-IN") ?? "Unavailable"} note="Institution-specific student records" tone="blue" />
           <StatCard icon={Users} label="Student Limit" value={studentLimit} note={institution.studentLimitAvailable ? "From assigned plan" : "Unavailable in current schema"} tone="violet" />
@@ -523,7 +530,7 @@ function LiveOverviewSection({
 
   return (
     <div className="sc-page">
-      <PageHeading eyebrow="Platform billing" title="Subscription overview" description="Live subscription, institution and verified payment records from the ERP database." action={<RefreshDataButton />} />
+      <PageHeading eyebrow={reports ? "Analytics workspace" : "Platform billing"} title={reports ? "Revenue & reports" : "Subscription overview"} description="Live subscription, institution and verified payment records from the ERP database." action={<RefreshDataButton />} />
       {data.errors.length > 0 && <DataErrorNotice message={data.errors.join(" ")} />}
       <div className="sc-stat-grid">{stats.map((stat) => <StatCard key={stat.label} {...stat} note={stat.label === "Verified revenue" ? "SUCCEEDED payments only" : "Existing ERP records"} />)}</div>
       <div className="sc-dashboard-grid">
@@ -606,9 +613,13 @@ function LiveRevenueChart({ data }: { data: Array<{ label: string; value: number
 function LiveInstitutionsSection({
   isInstitutionAdmin,
   data,
+  catalogue,
+  initialPlanId,
 }: {
   isInstitutionAdmin: boolean;
   data: PortalInstitutionListData;
+  catalogue?: PlanCatalogue;
+  initialPlanId?: string;
 }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -641,15 +652,16 @@ function LiveInstitutionsSection({
         eyebrow={isInstitutionAdmin ? "Institution workspace" : "Platform portfolio"}
         title={isInstitutionAdmin ? "Student usage & subscription" : "Institution subscriptions"}
         description={isInstitutionAdmin ? "Subscription and student capacity for your institution only." : "Institution records and subscription assignments from the ERP database."}
-        action={<RefreshDataButton />}
+        action={<div className="sc-plan-actions">{!isInstitutionAdmin && catalogue && <InstitutionAssignment catalogue={catalogue} initialPlanId={initialPlanId} institutions={data.records.filter((item) => item.billingLinked && !item.archived)} />}<RefreshDataButton /></div>}
       />
       {data.error && <DataErrorNotice message={data.error} />}
       {data.warnings.length > 0 && <DataErrorNotice message={`${data.warnings.join(" ")} Some fields are marked unavailable rather than estimated.`} />}
+      {data.records.some((item) => !item.billingLinked) && <p className="sc-data-notice">Some ERP institutions are not linked to the platform billing table. They are listed for review but cannot receive a plan until their records are reconciled.</p>}
       {!data.studentLimitAvailable && data.records.length > 0 && <p className="sc-data-notice">Student Limit is unavailable in the current database schema. No capacity values are estimated.</p>}
       <div className="sc-stat-grid">
         <StatCard icon={Building2} label={isInstitutionAdmin ? "My institution" : "Institutions"} value={data.error ? "Unavailable" : data.records.length.toLocaleString("en-IN")} note="Institution records" tone="blue" />
         <StatCard icon={BadgeCheck} label="Active subscriptions" value={data.subscriptionDataAvailable ? activeCount.toLocaleString("en-IN") : "Unavailable"} note="Existing subscription records" tone="green" />
-        <StatCard icon={PackageOpen} label="Without subscription" value={data.subscriptionDataAvailable ? noSubscriptionCount.toLocaleString("en-IN") : "Unavailable"} note="Institutions remain listed" tone="violet" />
+        <StatCard icon={Package} label="Without subscription" value={data.subscriptionDataAvailable ? noSubscriptionCount.toLocaleString("en-IN") : "Unavailable"} note="Institutions remain listed" tone="violet" />
         <StatCard icon={GraduationCap} label="Student counts" value={data.studentCountsAvailable ? "Available" : "Unavailable"} note="Counted by institution ID" tone="orange" />
       </div>
       <section className="sc-card">
@@ -657,7 +669,7 @@ function LiveInstitutionsSection({
         <div className="sc-toolbar">
           <label className="sc-search"><Search aria-hidden="true" size={15} /><input className="sc-input" onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search institution, code, administrator or plan..." value={search} /></label>
           <select aria-label="Filter by subscription status" className="sc-select" onChange={(event) => { setStatus(event.target.value); setPage(1); }} value={status}>
-            <option value="all">All statuses</option><option value="ACTIVE">Active</option><option value="PAST_DUE">Past due</option><option value="EXPIRED">Expired</option><option value="NO_SUBSCRIPTION">No subscription</option><option value="archived">Archived</option>
+            <option value="all">All statuses</option><option value="ACTIVE">Active</option><option value="PAST_DUE">Past due</option><option value="EXPIRED">Expired</option><option value="NO_SUBSCRIPTION">No subscription</option><option value="NOT_LINKED">Not linked</option><option value="archived">Archived</option>
           </select>
           <select aria-label="Sort institutions" className="sc-select" onChange={(event) => setSort(event.target.value)} value={sort}>
             <option value="institution">Sort: institution</option><option value="usage">Sort: highest usage</option>
@@ -666,14 +678,14 @@ function LiveInstitutionsSection({
         {pageRows.length ? (
           <div className="sc-table-wrap">
             <table className="sc-table">
-              <thead><tr><th>Institution</th><th>Administrator</th><th>Plan</th><th>Student Limit</th><th>Registered</th><th>Remaining</th><th>Start date</th><th>Expiry date</th><th>Status</th><th>Payment</th><th>Details</th></tr></thead>
+              <thead><tr><th>Institution</th><th>Administrator</th><th>Plan</th><th>Amount</th><th>Student Limit</th><th>Registered</th><th>Remaining</th><th>Start date</th><th>Expiry date</th><th>Status</th><th>Payment</th><th>Details / actions</th></tr></thead>
               <tbody>{pageRows.map((item) => {
-                const limit = item.subscriptionStatus === "NO_SUBSCRIPTION"
+                const limit = !item.billingLinked || item.subscriptionStatus === "NO_SUBSCRIPTION"
                   ? "—"
                   : item.studentLimitAvailable
                     ? item.studentLimit === null ? "Unlimited" : item.studentLimit.toLocaleString("en-IN")
                     : "Unavailable";
-                const remaining = item.subscriptionStatus === "NO_SUBSCRIPTION"
+                const remaining = !item.billingLinked || item.subscriptionStatus === "NO_SUBSCRIPTION"
                   ? "—"
                   : !item.studentLimitAvailable || item.students === null
                     ? "Unavailable"
@@ -683,7 +695,8 @@ function LiveInstitutionsSection({
                 return <tr key={item.id}>{[
                   <td key="institution"><strong>{item.institution}</strong><small>{item.code}{item.archived ? " · archived" : ""}</small></td>,
                   <td key="administrator">{item.administrator}</td>,
-                  <td key="plan">{item.plan}</td>,
+                  <td key="plan">{item.plan}{item.pendingPlan && <small>Pending: {item.pendingPlan}</small>}</td>,
+                  <td key="amount">{item.amount !== null && item.currency ? formatMoney(item.amount, item.currency) : "—"}</td>,
                   <td key="limit">{limit}</td>,
                   <td key="students">{item.students?.toLocaleString("en-IN") ?? "Unavailable"}</td>,
                   <td key="remaining">{remaining}</td>,
@@ -691,7 +704,7 @@ function LiveInstitutionsSection({
                   <td key="expires">{displayDate(item.expiresAt)}</td>,
                   <td key="status"><StatusBadge status={item.subscriptionStatus} /></td>,
                   <td key="payment"><StatusBadge status={item.paymentStatus} /></td>,
-                  <td key="details"><button aria-label={`View ${item.institution} details`} className="sc-button sc-button-quiet" onClick={() => setSelected(item)} type="button"><Eye size={14} /> View</button></td>,
+                  <td key="details"><button aria-label={`View ${item.institution} details`} className="sc-button sc-button-quiet" onClick={() => setSelected(item)} type="button"><Eye size={14} /> View</button>{!isInstitutionAdmin && item.reconciliationAvailable && <LegacyReconciliationAction institution={item} />}{!isInstitutionAdmin && item.billingLinked && catalogue && data.subscriptionDataAvailable && <InstitutionActions institution={item} catalogue={catalogue} />}</td>,
                 ]}</tr>;
               })}</tbody>
             </table>
@@ -777,7 +790,7 @@ function OverviewSection({ isInstitutionAdmin }: { isInstitutionAdmin: boolean }
           description="A preview of your institution plan, student capacity and renewal details."
         />
         <div className="sc-stat-grid">
-          <StatCard icon={PackageOpen} label="Current plan" value="Standard" note="sample plan" />
+          <StatCard icon={Package} label="Current plan" value="Standard" note="sample plan" />
           <StatCard icon={GraduationCap} label="Registered students" value={SAMPLE_INSTITUTION_ADMIN.registeredStudents.toLocaleString("en-IN")} note="illustrative sample" tone="blue" />
           <StatCard icon={Users} label="Student limit" value={SAMPLE_INSTITUTION_ADMIN.studentLimit.toLocaleString("en-IN")} note="illustrative sample" tone="violet" />
           <StatCard icon={CalendarDays} label="Remaining capacity" value={remaining.toLocaleString("en-IN")} note="illustrative sample" tone="green" />
@@ -1059,7 +1072,7 @@ function PlansSection({ isInstitutionAdmin }: { isInstitutionAdmin: boolean }) {
           ))}
         </div>
       ) : (
-        <div className="sc-card"><EmptyState icon={PackageOpen} title="No plans match" message="Adjust the search or status filter to view the sample plan catalogue." /></div>
+        <div className="sc-card"><EmptyState icon={Package} title="No plans match" message="Adjust the search or status filter to view the sample plan catalogue." /></div>
       )}
 
       {!isInstitutionAdmin && editing && (
@@ -1507,11 +1520,15 @@ export function SubscriptionSection({
   overviewData,
   institutionData,
   paymentData,
+  catalogue,
+  initialPlanId,
 }: {
   section: SubscriptionSectionKey;
   overviewData?: PortalOverviewData;
   institutionData?: PortalInstitutionListData;
   paymentData?: PortalPaymentListData;
+  catalogue?: PlanCatalogue;
+  initialPlanId?: string;
 }) {
   const role = useSubscriptionPortalRole();
   const isInstitutionAdmin = role === "INSTITUTION_ADMIN";
@@ -1525,7 +1542,7 @@ export function SubscriptionSection({
       return <PlansSection isInstitutionAdmin={isInstitutionAdmin} />;
     case "institutions":
       return institutionData
-        ? <LiveInstitutionsSection data={institutionData} isInstitutionAdmin={isInstitutionAdmin} />
+        ? <LiveInstitutionsSection data={institutionData} isInstitutionAdmin={isInstitutionAdmin} catalogue={catalogue} initialPlanId={initialPlanId} />
         : <InstitutionsSection isInstitutionAdmin={isInstitutionAdmin} />;
     case "payments":
       return paymentData
@@ -1536,7 +1553,9 @@ export function SubscriptionSection({
     case "renewals":
       return <RenewalsSection isInstitutionAdmin={isInstitutionAdmin} />;
     case "reports":
-      return <ReportsSection isInstitutionAdmin={isInstitutionAdmin} />;
+      return overviewData
+        ? <LiveOverviewSection data={overviewData} isInstitutionAdmin={isInstitutionAdmin} reports />
+        : <ReportsSection isInstitutionAdmin={isInstitutionAdmin} />;
     case "settings":
       return <SettingsSection isInstitutionAdmin={isInstitutionAdmin} />;
     default:

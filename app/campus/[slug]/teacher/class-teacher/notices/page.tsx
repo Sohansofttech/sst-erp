@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { createAnnouncement } from "@/lib/services/teacher.service"
+import { createAnnouncement, getAnnouncements, getSectionStudents } from "@/lib/services/teacher.service"
 import { useTeacherRole } from "../../teacher-role-context"
 
 interface SentNotice {
@@ -45,34 +45,68 @@ interface SentNotice {
   priority: "normal" | "important" | "urgent"
   sentAt: string
   recipientCount: number
+  isSample?: boolean
 }
 
-const INITIAL_SENT_NOTICES: SentNotice[] = [
-  {
-    id: "sn-01",
-    title: "Class 10-A Monthly Attendance & Progress Report Released",
-    content: "Dear Parents of Class 10-A, please review your ward's Term 1 attendance and upcoming Pre-Board schedule on the parent portal.",
-    priority: "important",
-    sentAt: "2026-11-12 14:30",
-    recipientCount: 18,
-  },
-  {
-    id: "sn-02",
-    title: "Mathematics Olympiad Orientation for Class 10-A",
-    content: "Special preparation sessions scheduled on Saturday morning for interested students.",
-    priority: "normal",
-    sentAt: "2026-11-05 10:15",
-    recipientCount: 18,
-  },
-]
-
 export default function ParentNoticesPage() {
-  const { slug } = useTeacherRole()
+  const { slug, user } = useTeacherRole()
+  const homeroomName = user?.homeroomClass || "Assigned Homeroom"
   const [title, setTitle] = React.useState("")
   const [priority, setPriority] = React.useState<"normal" | "important" | "urgent">("important")
   const [content, setContent] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
-  const [sentHistory, setSentHistory] = React.useState<SentNotice[]>(INITIAL_SENT_NOTICES)
+  const [recipientCount, setRecipientCount] = React.useState<number | null>(null)
+  const [sentHistory, setSentHistory] = React.useState<SentNotice[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    let isMounted = true
+    async function loadInitialData() {
+      try {
+        const [roster, announcements] = await Promise.all([
+          getSectionStudents().catch(() => []),
+          getAnnouncements().catch(() => []),
+        ])
+
+        if (!isMounted) return
+
+        const count = roster.length
+        setRecipientCount(count)
+
+        if (announcements.length > 0) {
+          const mapped: SentNotice[] = announcements.slice(0, 5).map((a) => ({
+            id: a.id,
+            title: a.title,
+            content: a.content,
+            priority: a.priority,
+            sentAt: a.publishedAt ? a.publishedAt.replace("T", " ").slice(0, 16) : new Date().toISOString().slice(0, 10),
+            recipientCount: count,
+          }))
+          setSentHistory(mapped)
+        } else {
+          setSentHistory([
+            {
+              id: "sample-sn-01",
+              title: `[Sample Content] Monthly Attendance & Progress Report Released`,
+              content: `Sample preview for ${homeroomName} parents: Please review Term attendance and upcoming schedule on the parent portal.`,
+              priority: "important",
+              sentAt: new Date().toISOString().replace("T", " ").slice(0, 10),
+              recipientCount: count,
+              isSample: true,
+            },
+          ])
+        }
+      } catch (err) {
+        console.warn("Failed to load initial notice data:", err)
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+    loadInitialData()
+    return () => {
+      isMounted = false
+    }
+  }, [homeroomName])
 
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,24 +121,29 @@ export default function ParentNoticesPage() {
         title: title.trim(),
         content: content.trim(),
         audience: "Class & Parents",
-        targetClasses: ["Class 10 - A"],
+        targetClasses: [homeroomName],
         priority,
         isPinned: priority === "urgent",
       })
 
+      const count = recipientCount ?? 0
       const newNotice: SentNotice = {
         id: `sn-${Date.now()}`,
         title: title.trim(),
         content: content.trim(),
         priority,
         sentAt: new Date().toISOString().replace("T", " ").slice(0, 16),
-        recipientCount: 18,
+        recipientCount: count,
       }
 
-      setSentHistory((prev) => [newNotice, ...prev])
+      setSentHistory((prev) => [newNotice, ...prev.filter((p) => !p.isSample)])
       setTitle("")
       setContent("")
-      toast.success("Notice broadcasted to all 18 Class 10-A registered parents successfully!")
+      toast.success(
+        count > 0
+          ? `Notice queued and dispatched to ${count} registered parent accounts of ${homeroomName}.`
+          : `Notice broadcast queued for ${homeroomName}.`
+      )
     } catch (err: any) {
       toast.error(err?.message || "Failed to broadcast notice.")
     } finally {
@@ -116,7 +155,7 @@ export default function ParentNoticesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Parent Notices Broadcast"
-        subtitle="Send direct institutional notices to all parents of Class 10-A. Messages are delivered to the verified Parent Portal with contact privacy protection."
+        subtitle={`Send direct institutional notices to all verified parents of ${homeroomName}. Messages are delivered to the Parent Portal with contact privacy protection.`}
         action={
           <Button asChild variant="outline" className="w-full sm:w-auto rounded-xl border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]">
             <Link href={`/campus/${slug}/teacher/class-teacher`}>
@@ -136,7 +175,7 @@ export default function ParentNoticesPage() {
                 Compose Parent Notice
               </CardTitle>
               <CardDescription className="text-xs text-[#788391]">
-                Target audience: All 18 registered student parents of Class 10 - A (Homeroom).
+                Target audience: {recipientCount !== null ? `${recipientCount} registered student parents` : "Registered student parents"} of {homeroomName} (Homeroom).
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-5">
@@ -189,10 +228,12 @@ export default function ParentNoticesPage() {
                   <Button
                     type="submit"
                     disabled={isSending}
-                    className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-white hover:bg-[#E09200]"
+                    className="w-full sm:w-auto rounded-xl bg-[#F5A000] font-bold text-[#123B5A] hover:bg-[#E09200]"
                   >
                     <Send className="mr-1.5 size-4" />
-                    {isSending ? "Broadcasting..." : "Broadcast to 18 Parents"}
+                    {isSending
+                      ? "Broadcasting..."
+                      : `Broadcast to ${recipientCount !== null ? `${recipientCount} Parents` : "Parents"}`}
                   </Button>
                 </div>
               </form>
@@ -211,7 +252,7 @@ export default function ParentNoticesPage() {
                 </CardTitle>
               </div>
               <CardDescription className="text-xs text-[#788391]">
-                Recent broadcasts sent to Class 10-A.
+                Recent broadcasts sent to {homeroomName}.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 space-y-3">

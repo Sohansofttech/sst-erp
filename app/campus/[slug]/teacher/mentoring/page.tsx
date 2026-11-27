@@ -64,6 +64,7 @@ import {
   saveConfidentialMentorNote,
 } from "@/lib/services/teacher.service"
 import type { Mentee, MentoringSession } from "@/types/teacher"
+import { useTeacherRole } from "../teacher-role-context"
 
 const meetingSchema = z.object({
   sessionDate: z.string().min(1, "Select meeting date."),
@@ -94,6 +95,8 @@ const escalationSchema = z.object({
 })
 
 type EscalationFormValues = z.infer<typeof escalationSchema>
+
+const getTodayDate = () => new Date().toISOString().split("T")[0]
 
 function RiskPill({ level }: { level: Mentee["riskLevel"] }) {
   if (level === "at_risk") {
@@ -152,6 +155,8 @@ function TrendBadge({ trend }: { trend?: Mentee["iaTrend"] }) {
 }
 
 export default function TeacherMentoringPage() {
+  const { user } = useTeacherRole()
+  const cohortLabel = user?.homeroomClass ? `Cohort across ${user.homeroomClass}` : "Assigned Student Cohort"
   const [mentees, setMentees] = React.useState<Mentee[]>([])
   const [sessions, setSessions] = React.useState<MentoringSession[]>([])
   const [selectedId, setSelectedId] = React.useState<string>("")
@@ -171,7 +176,7 @@ export default function TeacherMentoringPage() {
   const meetingForm = useForm<MeetingFormValues>({
     resolver: zodResolver(meetingSchema),
     defaultValues: {
-      sessionDate: "2026-11-12",
+      sessionDate: getTodayDate(),
       mode: "in_person",
       topic: "",
       observations: "",
@@ -292,7 +297,7 @@ export default function TeacherMentoringPage() {
       )
       setMeetingDialogOpen(false)
       meetingForm.reset({
-        sessionDate: "2026-11-12",
+        sessionDate: getTodayDate(),
         mode: "in_person",
         topic: "",
         observations: "",
@@ -377,7 +382,7 @@ export default function TeacherMentoringPage() {
           icon={<Users />}
           variant="dark"
           tone="darkNavy"
-          description="Cohort across Class 10-A"
+          description={cohortLabel}
         />
         <StatCard
           label="At-Risk Flags (Red)"
@@ -559,7 +564,7 @@ export default function TeacherMentoringPage() {
                     <Button
                       size="sm"
                       onClick={() => setMeetingDialogOpen(true)}
-                      className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]"
+                      className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                     >
                       <MessageSquarePlus className="size-4" />
                       Log Mentoring Meeting
@@ -875,7 +880,7 @@ export default function TeacherMentoringPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingMeeting} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+              <Button type="submit" disabled={savingMeeting} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]">
                 {savingMeeting ? "Saving..." : "Save Meeting Log"}
               </Button>
             </DialogFooter>
