@@ -10,12 +10,15 @@ import {
   projectStudentDirectoryItem,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId, userRole } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.STUDENTS_READ,
     });
+    await requireReadReq(req, institutionId);
     const search = req.nextUrl.searchParams.get("search") || undefined;
     const status = req.nextUrl.searchParams.get("status") || undefined;
     const take = parseInt(req.nextUrl.searchParams.get("take") || "100", 10);
@@ -45,6 +48,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await requireActiveSubscription(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body.fullName || !body.email || !body.rollNumber) {
@@ -94,6 +98,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await requireActiveSubscription(req);
+    await requireWriteReq(req, institutionId);
     const { id, ...data } = await req.json();
 
     if (!id) {
@@ -117,6 +122,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await requireActiveSubscription(req);
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
     const mode = (req.nextUrl.searchParams.get("mode") || "ARCHIVE").toUpperCase() as "ARCHIVE" | "DELETE" | "RESTORE";
 
@@ -148,6 +154,7 @@ export async function DELETE(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await requireActiveSubscription(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { id, action } = body;
 

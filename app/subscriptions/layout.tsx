@@ -14,7 +14,13 @@ export default async function SubscriptionsLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   await connection();
-  const session = await getSession();
+  let session;
+  try {
+    session = await getSession();
+  } catch (error) {
+    if (error instanceof ForbiddenError) redirect("/login?error=institution_inactive");
+    throw error;
+  }
 
   // Super Admin takes precedence. This prevents a Super Admin identity with an
   // institution-bound session field from entering the Institution Admin layout.

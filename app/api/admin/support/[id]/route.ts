@@ -7,6 +7,8 @@ import {
   reopenInstitutionTicket,
 } from "@/lib/services/support-ticket.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(
   req: NextRequest,
@@ -14,6 +16,7 @@ export async function GET(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const { id: ticketId } = await params;
 
     const data = await getInstitutionTicketDetails({
@@ -36,6 +39,7 @@ export async function POST(
 ) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id: ticketId } = await params;
     const body = await req.json();
 

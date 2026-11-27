@@ -14,6 +14,7 @@ import {
 } from "@/lib/services/division.service";
 import { DivisionType, DivisionStatus } from "@prisma/client";
 import { describeInstitutionType, isPlanCompatible, schoolCategories } from "@/lib/institution-type-config";
+import { assertSupportAccess, SUPPORT_WRITE } from "@/lib/security/support-access";
 
 const institutionFields = z.object({
   name: z.string().trim().min(2).max(160),
@@ -251,6 +252,7 @@ export async function provisionAdminForInstitution(_previous: InstitutionFormSta
   if (!actor.developmentMode && !auditUserId) {
     return { error: "A valid Super Admin UUID is required for platform audit attribution.", success: null };
   }
+  await assertSupportAccess({ actorId: actor.id, institutionId: id.data, requiredAction: SUPPORT_WRITE, developmentMode: actor.developmentMode });
   const adminName = formData.get("adminName")?.toString().trim() || undefined;
   const adminEmail = formData.get("adminEmail")?.toString().trim() || undefined;
   const adminPhone = formData.get("adminPhone")?.toString().trim() || undefined;
@@ -279,6 +281,7 @@ export async function revokeInstitutionInvitation(formData: FormData) {
   const actor = await requireSuperAdmin();
   const id = z.uuid().safeParse(formData.get("institutionId"));
   if (!id.success) throw new Error("Invalid institution ID.");
+  await assertSupportAccess({ actorId: actor.id, institutionId: id.data, requiredAction: SUPPORT_WRITE, developmentMode: actor.developmentMode });
   await prisma.$transaction(async (tx) => {
     await tx.institutionAdminInvitation.updateMany({
       where: { institutionId: id.data, status: { in: ["PENDING", "SENT", "FAILED"] } },
@@ -490,6 +493,7 @@ export async function setInstitutionFeatureOverride(formData: FormData) {
   if (!input.success) throw new Error("Provide a valid feature override and a reason.");
   const expiresAt = input.data.expiresAt ? new Date(`${input.data.expiresAt}T00:00:00.000Z`) : null;
   if (expiresAt && (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date())) throw new Error("Override expiry must be a future date.");
+  await assertSupportAccess({ actorId: actor.id, institutionId: input.data.institutionId, requiredAction: SUPPORT_WRITE, developmentMode: actor.developmentMode });
 
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
   await prisma.$transaction(async (tx) => {
@@ -522,6 +526,7 @@ export async function createInstitutionDivision(formData: FormData) {
 
   const { institutionId, name, code, slug, type, description, logoUrl, brandColor, isDefault } = input.data;
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+  await assertSupportAccess({ actorId: actor.id, institutionId, requiredAction: SUPPORT_WRITE, developmentMode: actor.developmentMode });
 
   const division = await createDivision(institutionId, {
     name,
@@ -567,6 +572,7 @@ export async function updateInstitutionDivisionStatus(formData: FormData) {
 
   const { institutionId, divisionId, status } = input.data;
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+  await assertSupportAccess({ actorId: actor.id, institutionId, requiredAction: SUPPORT_WRITE, developmentMode: actor.developmentMode });
 
   const updated = await updateDivision(institutionId, divisionId, { status });
 
@@ -602,6 +608,7 @@ export async function setDefaultInstitutionDivision(formData: FormData) {
 
   const { institutionId, divisionId } = input.data;
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+  await assertSupportAccess({ actorId: actor.id, institutionId, requiredAction: SUPPORT_WRITE, developmentMode: actor.developmentMode });
 
   const updated = await updateDivision(institutionId, divisionId, { isDefault: true });
 
@@ -637,6 +644,7 @@ export async function archiveInstitutionDivision(formData: FormData) {
 
   const { institutionId, divisionId } = input.data;
   const auditUserId = actor.id && UUID_REGEX.test(actor.id) ? actor.id : null;
+  await assertSupportAccess({ actorId: actor.id, institutionId, requiredAction: SUPPORT_WRITE, developmentMode: actor.developmentMode });
 
   const result = await deleteDivision(institutionId, divisionId, { forceArchive: true });
 

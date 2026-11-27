@@ -2,6 +2,7 @@ import { SessionUser } from "@/types";
 import { ForbiddenError } from "../auth/session";
 import db from "../db";
 import { assertTenant } from "./tenant";
+import { requireRead } from "./support-access";
 
 /**
  * Validates whether the authenticated user is authorized to view or mutate a specific student's record.
@@ -28,6 +29,18 @@ export async function authorizeStudentOrParentAccess(
   }
 
   assertTenant(session, student.institutionId);
+
+  // SAF-007: A Super Admin accessing institution-specific student data is performing
+  // support troubleshooting and must hold an approved READ_SUPPORT_CONTEXT session
+  // for that institution. Normal tenant users are unaffected (handled below).
+  if ((session.role || "").toUpperCase() === "SUPER_ADMIN") {
+    await requireRead({
+      userRole: session.role,
+      userId: session.userId,
+      institutionId: student.institutionId,
+    });
+    return { studentId: targetStudentId, isParent: false };
+  }
 
   // Student role check
   if (session.role === "STUDENT") {

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
@@ -18,13 +18,16 @@ import { EditInstitutionForm } from "@/components/super-admin/edit-institution-f
 import { DestructiveActionDialog } from "@/components/super-admin/destructive-action-dialog";
 import { connection } from "next/server";
 import { describeInstitutionType } from "@/lib/institution-type-config";
+import { assertSupportAccess, SUPPORT_READ } from "@/lib/security/support-access";
 
 export const instant = false;
 
 export default async function InstitutionDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
-  await requireSuperAdmin();
+  const actor = await requireSuperAdmin();
   const { id } = await params;
+  // SAF-007: viewing an institution's details is institution-scoped READ.
+  await assertSupportAccess({ actorId: actor.id, institutionId: id, requiredAction: SUPPORT_READ, developmentMode: actor.developmentMode });
   const institution = await prisma.platformInstitution.findUnique({ where: { id }, include: {
     invitations: { take: 10, orderBy: { createdAt: "desc" } },
     memberships: { take: 20, orderBy: { createdAt: "desc" }, include: { user: { select: { id: true, name: true, email: true, status: true } } } },

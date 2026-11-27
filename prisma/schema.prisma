@@ -3170,6 +3170,8 @@ model PlatformInstitution {
   supportAccessSessions SupportAccessSession[]
   notificationTargets PlatformNotificationTarget[]
   deletionRequests InstitutionDeletionRequest[]
+  storageUsage     InstitutionStorageUsage?
+  storageReservations StorageUploadReservation[]
   invitations InstitutionAdminInvitation[]
 
   @@index([status])
@@ -3632,6 +3634,7 @@ model SupportAccessSession {
   approvedById   String?             @db.Uuid
   reason         String
   allowedActions Json
+  requestedDurationMinutes Int      @default(60)
   status         SupportAccessStatus @default(REQUESTED)
   startsAt       DateTime?
   expiresAt      DateTime
@@ -3828,4 +3831,38 @@ model OtpRateLimit {
   lastSentAt  DateTime
   sendCount   Int      @default(0)
   windowStart DateTime
+}
+
+enum StorageReservationStatus {
+  RESERVED
+  FINALIZED
+  RELEASED
+  EXPIRED
+}
+
+model InstitutionStorageUsage {
+  institutionId String   @id @db.Uuid
+  usedBytes     BigInt   @default(0)
+  reservedBytes BigInt   @default(0)
+  updatedAt     DateTime @updatedAt
+
+  institution PlatformInstitution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+}
+
+model StorageUploadReservation {
+  id             String                  @id @default(uuid()) @db.Uuid
+  institutionId  String                  @db.Uuid
+  fileSizeBytes  BigInt
+  objectPath     String
+  status         StorageReservationStatus @default(RESERVED)
+  expiresAt      DateTime
+  heartbeatAt    DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  institution PlatformInstitution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@index([institutionId, status])
+  @@index([expiresAt])
+  @@unique([institutionId, objectPath])
 }

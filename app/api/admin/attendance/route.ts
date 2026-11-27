@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
 import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getAttendanceRecords,
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireReadReq(req, institutionId);
     const studentId = req.nextUrl.searchParams.get("studentId") || undefined;
     const subjectId = req.nextUrl.searchParams.get("subjectId") || undefined;
     const academicYearId = req.nextUrl.searchParams.get("academicYearId") || undefined;
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     // 1. Direct Attendance Correction for a single record

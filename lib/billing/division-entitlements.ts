@@ -84,6 +84,16 @@ export const DEFAULT_PLAN_DIVISION_CONFIG: Record<
   },
 };
 
+const ALL_DIVISION_TYPES: DivisionType[] = [
+  DivisionType.MONTESSORI,
+  DivisionType.SCHOOL,
+  DivisionType.HIGHER_SECONDARY,
+  DivisionType.COLLEGE,
+  DivisionType.ACADEMY,
+];
+
+const ALL_DIVISION_TYPE_FEATURE_CODES = ALL_DIVISION_TYPES.map((t) => `DIVISION_TYPE_${t}`);
+
 /**
  * Resolves the full division subscription entitlements for a given institution.
  */
@@ -94,7 +104,7 @@ export async function getDivisionSubscriptionEntitlements(
   const now = new Date();
 
   // 1. Fetch active/trialing subscription with plan features and overrides
-  const [subscription, activeDivisionsCount, featureOverrides] = await Promise.all([
+  const [subscription, activeDivisionsCount, featureOverrides, globalFeatures] = await Promise.all([
     txOrDb.institutionSubscription.findFirst({
       where: {
         institutionId,
@@ -130,15 +140,23 @@ export async function getDivisionSubscriptionEntitlements(
         feature: true,
       },
     }),
+    // Global PlatformFeature catalogue for the relevant division codes. This is
+    // the authoritative source for isAvailable and takes precedence over plan
+    // features, institution overrides, and tier defaults.
+    txOrDb.platformFeature.findMany({
+      where: {
+        code: {
+          in: [
+            "MULTI_DIVISION_ACCESS",
+            ...ALL_DIVISION_TYPE_FEATURE_CODES,
+          ],
+        },
+      },
+      select: { code: true, isAvailable: true },
+    }),
   ]);
 
-  const allDivisionTypes = [
-    DivisionType.MONTESSORI,
-    DivisionType.SCHOOL,
-    DivisionType.HIGHER_SECONDARY,
-    DivisionType.COLLEGE,
-    DivisionType.ACADEMY,
-  ];
+  const allDivisionTypes = ALL_DIVISION_TYPES;
 
   if (!subscription || !subscription.plan.isActive) {
     return {
@@ -158,37 +176,52 @@ export async function getDivisionSubscriptionEntitlements(
   const planCode = (subscription.plan.code || "").toUpperCase();
   const planName = subscription.plan.name || planCode;
 
+  // Authoritative global availability from the PlatformFeature catalogue.
+  // A record with isAvailable === false hard-disables the feature regardless of
+  // plan tier, plan feature, or institution override. A missing record preserves
+  // existing tier fallback behaviour.
+  const globalFeatureByCode = new Map<string, boolean>(
+    globalFeatures.map((f) => [f.code, f.isAvailable])
+  );
+  const isGloballyDisabled = (code: string): boolean =>
+    globalFeatureByCode.get(code) === false;
+
   // 2. Resolve max divisions limit
-  // Priority: 1. Feature override for MULTI_DIVISION_ACCESS
+  // Priority: 0. Global hard-disable (MULTI_DIVISION_ACCESS unavailable -> 1)
+  //           1. Feature override for MULTI_DIVISION_ACCESS
   //           2. Plan feature for MULTI_DIVISION_ACCESS
   //           3. Tier default configuration
   let maxDivisions: number | null = 1;
-  const multiDivOverride = featureOverrides.find(
-    (o) => o.feature?.code === "MULTI_DIVISION_ACCESS"
-  );
-  const multiDivPlanFeature = subscription.plan.features.find(
-    (pf) => pf.feature?.code === "MULTI_DIVISION_ACCESS"
-  );
-
-  if (multiDivOverride) {
-    if (!multiDivOverride.enabled) {
-      maxDivisions = 1;
-    } else {
-      maxDivisions = null; // Override explicitly grants multi-division
-    }
-  } else if (multiDivPlanFeature) {
-    if (!multiDivPlanFeature.enabled) {
-      maxDivisions = 1;
-    } else {
-      maxDivisions = multiDivPlanFeature.limitValue ?? null;
-    }
+  if (isGloballyDisabled("MULTI_DIVISION_ACCESS")) {
+    maxDivisions = 1;
   } else {
-    // Fall back to plan tier defaults
-    const tierConfig = DEFAULT_PLAN_DIVISION_CONFIG[planCode] || {
-      maxDivisions: 1,
-      allowedTypes: [DivisionType.COLLEGE, DivisionType.SCHOOL],
-    };
-    maxDivisions = tierConfig.maxDivisions;
+    const multiDivOverride = featureOverrides.find(
+      (o) => o.feature?.code === "MULTI_DIVISION_ACCESS"
+    );
+    const multiDivPlanFeature = subscription.plan.features.find(
+      (pf) => pf.feature?.code === "MULTI_DIVISION_ACCESS"
+    );
+
+    if (multiDivOverride) {
+      if (!multiDivOverride.enabled) {
+        maxDivisions = 1;
+      } else {
+        maxDivisions = null; // Override explicitly grants multi-division
+      }
+    } else if (multiDivPlanFeature) {
+      if (!multiDivPlanFeature.enabled) {
+        maxDivisions = 1;
+      } else {
+        maxDivisions = multiDivPlanFeature.limitValue ?? null;
+      }
+    } else {
+      // Fall back to plan tier defaults
+      const tierConfig = DEFAULT_PLAN_DIVISION_CONFIG[planCode] || {
+        maxDivisions: 1,
+        allowedTypes: [DivisionType.COLLEGE, DivisionType.SCHOOL],
+      };
+      maxDivisions = tierConfig.maxDivisions;
+    }
   }
 
   // 3. Resolve allowed division types
@@ -199,9 +232,15 @@ export async function getDivisionSubscriptionEntitlements(
   };
   const baseAllowedTypes = new Set<DivisionType>(tierConfig.allowedTypes);
 
-  // Apply feature overrides and plan features for specific types
+  // Apply feature overrides and plan features for specific types. A globally
+  // unavailable feature (isAvailable === false in the catalogue) hard-excludes the
+  // type regardless of tier default, override, or plan feature.
   for (const type of allDivisionTypes) {
     const featureCode = `DIVISION_TYPE_${type}`;
+    if (isGloballyDisabled(featureCode)) {
+      baseAllowedTypes.delete(type);
+      continue;
+    }
     const override = featureOverrides.find((o) => o.feature?.code === featureCode);
     const planFeature = subscription.plan.features.find((pf) => pf.feature?.code === featureCode);
 

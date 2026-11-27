@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSession, getAuthErrorStatus } from "@/lib/auth/session";
 import db from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
       activeDivision: activeDivision || null,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message }, { status: getAuthErrorStatus(error) ?? 500 });
   }
 }
 
@@ -209,6 +209,6 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message }, { status: getAuthErrorStatus(error) ?? 500 });
   }
 }

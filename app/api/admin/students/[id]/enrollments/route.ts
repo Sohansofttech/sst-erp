@@ -7,6 +7,8 @@ import {
   withdrawDivisionEnrollment,
   CrossDivisionError,
 } from "@/lib/services/student-cross-division.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(
   req: NextRequest,
@@ -14,6 +16,7 @@ export async function GET(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const { id: studentId } = await params;
 
     const data = await listStudentDivisionEnrollments(institutionId, studentId);
@@ -32,6 +35,7 @@ export async function POST(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id: studentId } = await params;
     const body = await req.json();
 
@@ -71,6 +75,7 @@ export async function PATCH(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id: studentId } = await params;
     const body = await req.json();
 
@@ -105,6 +110,7 @@ export async function DELETE(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id: studentId } = await params;
     const { searchParams } = new URL(req.url);
     const enrollmentId = searchParams.get("enrollmentId");

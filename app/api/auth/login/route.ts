@@ -28,6 +28,7 @@ import {
 } from "@/lib/auth/roles";
 import { isKnownPortalRole, portalRoleAllows } from "@/lib/auth/portal-roles";
 import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context";
+import { isInstitutionOperational } from "@/lib/services/institution-lifecycle";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 
@@ -172,6 +173,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Account is inactive, suspended, or archived." },
         { status: 401 }
+      );
+    }
+    if (
+      user.institutionId &&
+      (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase() !== "SUPER_ADMIN" &&
+      user.platformRole !== "SUPER_ADMIN" &&
+      !(await isInstitutionOperational(user.institutionId))
+    ) {
+      return NextResponse.json(
+        { success: false, error: "This institution is not currently operational." },
+        { status: 403 }
       );
     }
     if (

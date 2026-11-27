@@ -12,12 +12,15 @@ import {
   createHostelOperationRecord,
   updateHostelOperationStatus,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.HOSTEL_READ,
     });
+    await requireReadReq(req, institutionId);
     const [allocations, rooms, operations] = await Promise.all([
       getHostelAllocations(institutionId),
       getHostelCatalog(institutionId),
@@ -40,6 +43,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.HOSTEL_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (body.type === "SAVE_ROOM") {
@@ -106,6 +110,7 @@ export async function PUT(req: NextRequest) {
     const { institutionId, userId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.HOSTEL_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     if (body.action === "UPDATE_OPERATION" && body.operationId) {
       const updatedOp = await updateHostelOperationStatus(
@@ -147,6 +152,7 @@ export async function DELETE(req: NextRequest) {
     const { institutionId, userId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.HOSTEL_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

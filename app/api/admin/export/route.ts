@@ -3,6 +3,8 @@ import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-a
 import { recordAuditLog, getStaff } from "@/lib/services/institution-admin.service";
 import { getLibraryBooks } from "@/lib/services/library.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 function toCsv(rows: Record<string, any>[]): string {
   if (rows.length === 0) return "";
@@ -26,6 +28,7 @@ function toCsv(rows: Record<string, any>[]): string {
 export async function GET(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const type = (req.nextUrl.searchParams.get("type") || "students").toLowerCase();
     const format = (req.nextUrl.searchParams.get("format") || "json").toLowerCase();
 
