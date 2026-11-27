@@ -1,7 +1,9 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import db from "@/lib/db";
+import { prisma as platformDb } from "@/lib/super-admin/prisma";
+import { getPortalAccessIssue } from "@/lib/super-admin/portal-access-message";
 import { getSession } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import {
@@ -13,6 +15,10 @@ import {
   isFullAdminRole,
 } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
+import {
+  SUPPORT_ACCESS_COOKIE_NAME,
+  verifySuperAdminSupportToken,
+} from "@/lib/auth/jwt";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -81,6 +87,11 @@ export interface VerifiedAdminPageAuth {
   fullName: string;
   email: string;
   institutionName?: string;
+  supportAccess?: {
+    institutionId: string;
+    institutionName: string;
+    expiresAt: string;
+  };
 }
 
 /**
@@ -98,6 +109,29 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
   const session = await getSession();
   if (!session || !session.userId) {
     redirect(`/admin/login?from=${encodeURIComponent(pathname)}`);
+  }
+
+  if (session.supportSessionId && session.supportInstitutionId) {
+    const supportInstitution = await platformDb.platformInstitution.findUnique({
+      where: { id: session.supportInstitutionId },
+      select: { id: true, name: true, status: true, archivedAt: true },
+    });
+    const supportIssue = getPortalAccessIssue(supportInstitution);
+    if (!supportInstitution || supportIssue) {
+      redirect(`/super-admin/institutions?portalIssue=${supportIssue ?? "not_found"}&portalInstitution=${session.supportInstitutionId}`);
+    }
+    return {
+      role: "ADMIN",
+      permissions: ["ADMIN_ALL"],
+      fullName: session.fullName,
+      email: session.email,
+      institutionName: supportInstitution.name,
+      supportAccess: {
+        institutionId: supportInstitution.id,
+        institutionName: supportInstitution.name,
+        expiresAt: session.supportExpiresAt || new Date().toISOString(),
+      },
+    };
   }
 
   const dbUser = await db.user.findUnique({
@@ -157,11 +191,57 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
     redirect(landingRoute || "/admin/login?error=forbidden");
   }
 
+  let supportAccess: VerifiedAdminPageAuth["supportAccess"];
+  try {
+    const supportCookie = (await cookies()).get(SUPPORT_ACCESS_COOKIE_NAME)?.value;
+    if (supportCookie) {
+      const supportToken = await verifySuperAdminSupportToken(supportCookie);
+      if (supportToken && supportToken.expiresAt > Date.now() && supportToken.superAdminId === dbUser.id) {
+        const [superAdmin, supportSession, institution] = await Promise.all([
+          db.user.findUnique({
+            where: { id: supportToken.superAdminId },
+            select: { id: true, role: true, platformRole: true, isActive: true, status: true },
+          }),
+          db.supportAccessSession.findUnique({
+            where: { id: supportToken.supportSessionId },
+            select: { id: true, institutionId: true, requestedById: true, status: true, expiresAt: true },
+          }),
+          db.platformInstitution.findUnique({
+            where: { id: institutionId },
+            select: { id: true, name: true },
+          }),
+        ]);
+        if (
+          superAdmin &&
+          superAdmin.isActive &&
+          superAdmin.status === "ACTIVE" &&
+          (superAdmin.role === "SUPER_ADMIN" || superAdmin.platformRole === "SUPER_ADMIN") &&
+          supportSession &&
+          supportSession.status === "ACTIVE" &&
+          supportSession.requestedById === supportToken.superAdminId &&
+          supportSession.institutionId === institutionId &&
+          supportSession.institutionId === supportToken.institutionId &&
+          supportSession.expiresAt > new Date() &&
+          institution
+        ) {
+          supportAccess = {
+            institutionId: institution.id,
+            institutionName: institution.name,
+            expiresAt: supportSession.expiresAt.toISOString(),
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("[AdminSupportAccess] Support context could not be verified:", error);
+  }
+
   return {
     role: liveRole,
     permissions,
     fullName: dbUser.fullName || session.fullName || "",
     email: dbUser.email || session.email || "",
     institutionName: session.institutionName || undefined,
+    supportAccess,
   };
 }

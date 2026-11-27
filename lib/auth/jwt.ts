@@ -5,6 +5,45 @@ import { getAuthJwtKey } from "@/lib/auth/jwt-secret";
 import { normalizeEmail } from "@/lib/auth/email";
 
 export const AUTH_COOKIE_NAME = "erp_session";
+export const SUPPORT_ACCESS_COOKIE_NAME = "sst_super_admin_support";
+
+export interface SuperAdminSupportToken {
+  purpose: "super_admin_support";
+  superAdminId: string;
+  institutionId: string;
+  supportSessionId: string;
+  expiresAt: number;
+}
+
+export async function signSuperAdminSupportToken(payload: Omit<SuperAdminSupportToken, "purpose" | "expiresAt"> & { expiresAt: number }): Promise<string> {
+  return await new SignJWT({
+    purpose: "super_admin_support",
+    superAdminId: payload.superAdminId,
+    institutionId: payload.institutionId,
+    supportSessionId: payload.supportSessionId,
+    expiresAt: payload.expiresAt,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(payload.expiresAt / 1000))
+    .sign(getAuthJwtKey());
+}
+
+export async function verifySuperAdminSupportToken(token: string): Promise<SuperAdminSupportToken | null> {
+  try {
+    const { payload } = await jwtVerify(token, getAuthJwtKey(), { algorithms: ["HS256"] });
+    if (
+      payload.purpose !== "super_admin_support" ||
+      typeof payload.superAdminId !== "string" ||
+      typeof payload.institutionId !== "string" ||
+      typeof payload.supportSessionId !== "string" ||
+      typeof payload.expiresAt !== "number"
+    ) return null;
+    return payload as unknown as SuperAdminSupportToken;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Generate a deterministic SHA-256 fingerprint from a bcrypt password hash.

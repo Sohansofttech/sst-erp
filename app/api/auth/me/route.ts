@@ -16,6 +16,34 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    if (session.supportSessionId && session.supportInstitutionId) {
+      const institutionDetails = session.institution || null;
+      const safeSession: any = {
+        ...session,
+        role: "ADMIN",
+        name: session.fullName,
+        fullName: session.fullName,
+        institution: institutionDetails,
+        institutionName: institutionDetails?.name || session.institutionName,
+        institutionCode: institutionDetails?.code || session.institutionCode || null,
+        institutionSlug: institutionDetails?.slug || session.institutionSlug || null,
+        supportSessionId: session.supportSessionId,
+        supportInstitutionId: session.supportInstitutionId,
+      };
+      delete safeSession.passwordSig;
+      return NextResponse.json({
+        success: true,
+        data: {
+          session: safeSession,
+          institution: institutionDetails,
+        },
+      }, {
+        headers: {
+          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        },
+      });
+    }
+
     let additionalInfo: any = {};
 
     // Verify account active status (Safeguard: invalidates disabled sessions immediately)

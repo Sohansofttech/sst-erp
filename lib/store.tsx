@@ -1162,13 +1162,17 @@ export function InstitutionProvider({
       }
 
       setProfile((prev) => {
-        const merged = {
-          ...prev,
-          ...serverProfile,
-          id: serverProfile.id || prev.id,
-          name: serverProfile.name || prev.name,
-          code: serverProfile.code || prev.code,
-        };
+        // Never carry fields over from a cached profile of a different institution.
+        const sameTenant = !prev.id || !serverProfile.id || prev.id === serverProfile.id;
+        const merged = sameTenant
+          ? {
+              ...prev,
+              ...serverProfile,
+              id: serverProfile.id || prev.id,
+              name: serverProfile.name || prev.name,
+              code: serverProfile.code || prev.code,
+            }
+          : { ...initialInstitutionProfile, ...serverProfile };
         saveState("profile", merged);
         return merged;
       });

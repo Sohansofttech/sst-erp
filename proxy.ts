@@ -272,5 +272,6 @@ export const config = {
     "/api/campus/:slug/:path*",
     "/admin/:path*",
     "/super-admin/:path*",
+    "/api/super-admin/:path*",
   ],
 }

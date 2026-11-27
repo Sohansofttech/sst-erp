@@ -44,6 +44,9 @@ export interface SessionUser {
   assignedRoles?: string[]; // Server-resolved institutional role codes
   mustChangePassword?: boolean; // Force password change flag
   passwordSig?: string; // Full SHA-256 fingerprint of passwordHash for zero-migration session revocation
+  supportInstitutionId?: string;
+  supportSessionId?: string;
+  supportExpiresAt?: string;
 }
 
 export interface ApiResponse<T = any> {

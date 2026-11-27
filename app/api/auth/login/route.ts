@@ -4,6 +4,7 @@ import db from "@/lib/db";
 import {
   signToken,
   AUTH_COOKIE_NAME,
+  SUPPORT_ACCESS_COOKIE_NAME,
   computePasswordSignature,
   verifyOtpLoginProof,
   verifyGoogleLoginProof,
@@ -88,15 +89,22 @@ export async function POST(req: NextRequest) {
     let resolvedInstitutionName = "";
     const trimmedCode = typeof institutionCode === "string" ? institutionCode.trim() : "";
     if (trimmedCode) {
-      let inst = await db.institution.findFirst({
+      const matches = await db.institution.findMany({
         where: {
           OR: [
             { code: { equals: trimmedCode, mode: "insensitive" } },
-            { id: { equals: trimmedCode, mode: "insensitive" } },
             { slug: { equals: trimmedCode, mode: "insensitive" } },
           ],
         },
+        take: 2,
       });
+      if (matches.length > 1) {
+        return NextResponse.json(
+          { success: false, error: "This College Code is ambiguous. Contact your platform administrator." },
+          { status: 409 }
+        );
+      }
+      let inst: any = matches[0] || null;
 
       if (!inst) {
         // Fallback: check table "Institution" (PlatformInstitution)
@@ -106,10 +114,15 @@ export async function POST(req: NextRequest) {
             FROM "Institution"
             WHERE LOWER(code) = LOWER(${trimmedCode})
                OR LOWER(slug) = LOWER(${trimmedCode})
-               OR id::text = ${trimmedCode}
-            LIMIT 1
+            LIMIT 2
           `;
-          if (rawInst && rawInst.length > 0) {
+          if (rawInst && rawInst.length > 1) {
+            return NextResponse.json(
+              { success: false, error: "This College Code is ambiguous. Contact your platform administrator." },
+              { status: 409 }
+            );
+          }
+          if (rawInst && rawInst.length === 1) {
             inst = rawInst[0];
             await syncInstitutionToAppDb(rawInst[0].id);
           }
@@ -629,6 +642,17 @@ export async function POST(req: NextRequest) {
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24, // 24 hours
+    });
+
+    // A normal login must never inherit a Super Admin support context.
+    response.cookies.set({
+      name: SUPPORT_ACCESS_COOKIE_NAME,
+      value: "",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(0),
     });
 
     if (teacherToken) {

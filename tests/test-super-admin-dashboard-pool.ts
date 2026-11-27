@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
-import db from "../lib/db";
+import dotenv from "dotenv";
+import { prisma as db } from "../lib/super-admin/prisma";
+
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 async function testSuperAdminDashboardPool() {
   console.log("==================================================================");
   console.log("TESTING SUPER ADMIN DASHBOARD WITH UPDATED DB POOL CONFIGURATION");
   console.log("==================================================================");
 
-  // 1. Verify pool settings in db.ts
+  // 1. Verify the dedicated Super Admin database pool
   console.log("\n1. Verifying DB Pool configuration...");
   assert.ok(db, "Prisma Client with pg adapter must be initialized");
   const testPing = await db.$queryRaw<Array<{ ping: number }>>`SELECT 1 as ping`;
@@ -129,6 +133,13 @@ async function testSuperAdminDashboardPool() {
 
   const elapsed = Date.now() - start;
   console.log(`[PASS] All 31 dashboard queries resolved in ${elapsed}ms.`);
+  const institutionList = await db.platformInstitution.findMany({
+    where: { archivedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: { _count: { select: { memberships: true, subscriptions: true } } },
+  });
+  assert.ok(institutionList.length > 0, "Institution Management should load existing platform institutions.");
   assert.ok(totalInstitutions > 0, "totalInstitutions must be > 0");
   assert.ok(totalStudents > 0, "totalStudents must be > 0");
   assert.ok(totalUsers > 0, "totalUsers must be > 0");

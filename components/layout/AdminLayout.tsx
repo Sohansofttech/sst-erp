@@ -23,8 +23,9 @@ const AdminLayoutInner: React.FC<{
   userRole?: string;
   userPermissions?: string[];
   initialUser?: { fullName: string; email: string; role: string } | null;
+  supportAccess?: VerifiedAdminPageAuth["supportAccess"];
   children: React.ReactNode;
-}> = ({ sidebarOpen, setSidebarOpen, userRole, userPermissions, initialUser, children }) => {
+}> = ({ sidebarOpen, setSidebarOpen, userRole, userPermissions, initialUser, supportAccess, children }) => {
   const { theme, institutionKind } = useInstitution();
   const activeTheme = theme || DEFAULT_INSTITUTION_THEME;
   const pathname = usePathname();
@@ -79,6 +80,21 @@ const AdminLayoutInner: React.FC<{
             initialUser={initialUser}
           />
         </Suspense>
+        {supportAccess && (
+          <div className="shrink-0 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+              <div>
+                <strong>Super Admin Support Access</strong>
+                <span className="ml-2">{supportAccess.institutionName}</span>
+              </div>
+              <form action="/api/super-admin/support-access/exit" method="post">
+                <button type="submit" className="rounded-md border border-amber-400 bg-white px-3 py-1 font-semibold">
+                Return to Super Admin
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
         <MustChangePasswordBanner />
         <main
           className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8"
@@ -199,6 +215,7 @@ export const AdminLayout: React.FC<{
           userRole={userRole}
           userPermissions={userPermissions}
           initialUser={initialAuth ? { fullName: initialAuth.fullName, email: initialAuth.email, role: initialAuth.role } : null}
+          supportAccess={initialAuth?.supportAccess}
         >
           {children}
         </AdminLayoutInner>

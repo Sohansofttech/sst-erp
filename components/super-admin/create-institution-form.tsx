@@ -5,6 +5,7 @@ import { ChevronDown, Plus } from "lucide-react";
 import Link from "next/link";
 import { InlineBrandSpinner } from "@/components/shared/BrandLoadingScreen";
 import { createInstitution, type InstitutionFormState } from "@/app/super-admin/(protected)/institutions/actions";
+import { CopyPortalUrlButton } from "@/components/super-admin/copy-portal-url";
 
 const initial: InstitutionFormState = { error: null, success: null };
 
@@ -76,7 +77,18 @@ export function CreateInstitutionForm({
         <label>Administrator phone<input name="adminPhone" maxLength={40} /></label>
         {state.error && <p className="sa-form-message sa-form-error" role="alert">{state.error}</p>}
         {state.success && <p className="sa-form-message sa-form-success" role="status">{state.success}</p>}
-        {state.institutionId && <Link className="sa-small-link" href={`/super-admin/institutions/${state.institutionId}`}>Open institution details</Link>}
+        {state.institutionId && state.portalUrl && (
+          <div className="sa-card sa-form-card" style={{ gridColumn: "1 / -1" }} role="status">
+            <strong>{state.institutionName}</strong>
+            <p className="sa-muted-copy">Institution code: {state.institutionCode || "Not configured"} · Type: {state.institutionType}</p>
+            <p className="sa-muted-copy" style={{ wordBreak: "break-all" }}>Portal URL: {state.portalUrl}</p>
+            <div className="sa-action-row">
+              <Link className="sa-button sa-button-primary" href={state.portalUrl}>Open Institution Portal</Link>
+              <CopyPortalUrlButton url={state.portalUrl} />
+              <Link className="sa-button sa-button-secondary" href={`/super-admin/institutions/${state.institutionId}`}>View Institution</Link>
+            </div>
+          </div>
+        )}
         <button className="sa-button sa-button-primary" disabled={pending || !!state.institutionId || plansUnavailable || plans.length === 0}>
           {pending ? <><InlineBrandSpinner size={14} /> Saving…</> : "Create institution"}
         </button>

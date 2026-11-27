@@ -1,13 +1,35 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextRequest } from "next/server";
 import { SessionUser } from "@/types";
 import { AUTH_COOKIE_NAME, verifyToken, computePasswordSignature } from "./jwt";
 import { UnauthorizedError, ForbiddenError } from "./errors";
 import db from "@/lib/db";
+import { resolveSuperAdminSupportSession } from "@/lib/auth/support-access";
 
 export { UnauthorizedError, ForbiddenError };
 
+const PLATFORM_PATH_PATTERN = /^\/(?:api\/)?super-admin(?:\/|$)/;
+
+// Support access only reshapes the session for institution-portal requests;
+// platform (Super Admin) routes must always see the real Super Admin identity.
+async function isPlatformRequest(req?: NextRequest): Promise<boolean> {
+  let pathname = req?.nextUrl?.pathname;
+  if (!pathname) {
+    try {
+      pathname = (await headers()).get("x-pathname") || undefined;
+    } catch {
+      // Non-request context
+    }
+  }
+  return !!pathname && PLATFORM_PATH_PATTERN.test(pathname);
+}
+
 export async function getSession(req?: NextRequest): Promise<SessionUser | null> {
+  if (!(await isPlatformRequest(req))) {
+    const supportSession = await resolveSuperAdminSupportSession();
+    if (supportSession) return supportSession;
+  }
+
   let token: string | undefined;
 
   if (req) {
