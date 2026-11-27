@@ -6,6 +6,10 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
+import {
+  FREE_TRIAL_PLAN_CODE,
+  getFreeTrialEnd,
+} from "@/lib/billing/subscription-period";
 import { getInitialSubscriptionStatus, optionalPlanLimit } from "@/lib/billing/subscription-plan";
 import { manageInstitutionSubscription } from "@/app/subscriptions/actions";
 import { describeInstitutionType, isPlanCompatible } from "@/lib/institution-type-config";
@@ -105,12 +109,35 @@ export async function createInstitutionSubscription(formData: FormData) {
     await tx.$queryRaw`SELECT id FROM "SubscriptionPlan" WHERE id = ${input.data.planId}::uuid FOR UPDATE`;
     const plan = await tx.subscriptionPlan.findFirst({
       where: { id: input.data.planId, isActive: true, archivedAt: null },
-      select: { id: true, price: true, institutionTypes: true },
+      select: { id: true, code: true, price: true, institutionTypes: true },
     });
     if (!plan) throw new Error("The selected plan is not active.");
     const targetInstitution = await tx.platformInstitution.findUnique({ where: { id: input.data.institutionId }, select: { type: true } });
     if (!isPlanCompatible(plan.institutionTypes, targetInstitution?.type)) {
       throw new Error(`The selected plan is not available for ${describeInstitutionType(targetInstitution?.type)} institutions.`);
+    }
+    if (plan.code === FREE_TRIAL_PLAN_CODE) {
+      const activeSubscription = await tx.institutionSubscription.findFirst({
+        where: {
+          institutionId: input.data.institutionId,
+          status: { in: ["ACTIVE", "TRIALING"] },
+        },
+        select: { id: true },
+      });
+      if (activeSubscription) {
+        throw new Error("The institution already has an active subscription.");
+      }
+
+      const previousTrial = await tx.institutionSubscription.findFirst({
+        where: {
+          institutionId: input.data.institutionId,
+          plan: { is: { code: FREE_TRIAL_PLAN_CODE } },
+        },
+        select: { id: true },
+      });
+      if (previousTrial) {
+        throw new Error("The institution already has a free trial record.");
+      }
     }
     const status = getInitialSubscriptionStatus(Number(plan.price));
     const pending = await tx.institutionSubscription.findFirst({
@@ -118,19 +145,22 @@ export async function createInstitutionSubscription(formData: FormData) {
       select: { id: true },
     });
     if (pending) throw new Error("This institution already has a pending subscription.");
+    const subscriptionEnd = plan.code === FREE_TRIAL_PLAN_CODE
+      ? getFreeTrialEnd(startsAt)
+      : endsAt;
     if (status === "ACTIVE") {
       const overlap = await tx.institutionSubscription.findFirst({
         where: {
           institutionId: input.data.institutionId,
           status: { in: ["ACTIVE", "TRIALING"] },
-          ...(endsAt ? { startsAt: { lt: endsAt } } : {}),
+          ...(subscriptionEnd ? { startsAt: { lt: subscriptionEnd } } : {}),
           OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }],
         },
         select: { id: true },
       });
       if (overlap) throw new Error("The selected period overlaps an existing subscription.");
     }
-    const subscription = await tx.institutionSubscription.create({ data: { institutionId: input.data.institutionId, planId: input.data.planId, createdById: actor.id, startsAt, endsAt, status } });
+    const subscription = await tx.institutionSubscription.create({ data: { institutionId: input.data.institutionId, planId: input.data.planId, createdById: actor.id, startsAt, endsAt: subscriptionEnd, status } });
     await tx.subscriptionEvent.create({ data: { subscriptionId: subscription.id, actorId: actor.id, action: status === "ACTIVE" ? "ASSIGNED" : "ASSIGNED_PENDING_PAYMENT", details: { planId: input.data.planId, status } } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUBSCRIPTION_ASSIGNED", entity: "InstitutionSubscription", entityId: subscription.id, result: "SUCCESS", metadata: { status } } });
   });
@@ -304,8 +334,14 @@ export async function renewSubscription(formData: FormData) {
   await requireSuperAdmin();
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) throw new Error("Invalid subscription.");
-  const current = await prisma.institutionSubscription.findUnique({ where: { id: id.data }, select: { institutionId: true } });
+  const current = await prisma.institutionSubscription.findUnique({
+    where: { id: id.data },
+    select: { institutionId: true, status: true, plan: { select: { code: true } } },
+  });
   if (!current) throw new Error("This subscription cannot be renewed because it no longer exists.");
+  if (current.plan.code === FREE_TRIAL_PLAN_CODE || current.status === "TRIALING") {
+    throw new Error("Free trial subscriptions cannot be renewed or extended. Assign a paid plan instead.");
+  }
   const result = await manageInstitutionSubscription({ institutionId: current.institutionId, subscriptionId: id.data, action: "renew" });
   if (!result.success) throw new Error(result.message);
   revalidatePath("/super-admin/billing");

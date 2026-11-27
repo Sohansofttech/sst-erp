@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useInstitution } from "@/lib/store";
 import { useDivision, ALL_DIVISIONS_ID } from "@/lib/division-store";
@@ -41,6 +41,42 @@ import {
 import { TrialSubscriptionBanner } from "@/components/admin/TrialSubscriptionBanner";
 import { getTerminology, isFeatureEnabled } from "@/lib/institution-type-config";
 
+function getShortInstitutionLabel(name?: string | null, code?: string | null): string {
+  const codePrefix = (code || "").trim().match(/^[A-Za-z]+/)?.[0];
+  if (codePrefix && codePrefix.length >= 2) {
+    return codePrefix.toUpperCase();
+  }
+  const cleanName = (name || "").replace(/\([^)]*\)/g, "").trim();
+  const words = cleanName
+    .split(/\s+/)
+    .filter((w) => w.length > 0 && !["of", "and", "the", "for", "in"].includes(w.toLowerCase()));
+  if (words.length >= 2) {
+    return words.map((w) => w[0].toUpperCase()).join("").slice(0, 6);
+  }
+  return cleanName || "Campus";
+}
+
+function formatDivisionDashboardTitle(
+  divisionName: string,
+  institutionName?: string | null,
+  institutionCode?: string | null
+): string {
+  const trimmedDiv = divisionName.trim();
+  const trimmedInst = (institutionName || "").trim();
+  const shortInst = getShortInstitutionLabel(trimmedInst, institutionCode);
+
+  if (trimmedInst && trimmedDiv.toLowerCase().startsWith(trimmedInst.toLowerCase())) {
+    const suffix = trimmedDiv
+      .slice(trimmedInst.length)
+      .trim()
+      .replace(/\s+Division$/i, "")
+      .trim();
+    return suffix ? `${shortInst} ${suffix} Dashboard` : `${shortInst} Dashboard`;
+  }
+
+  return `${trimmedDiv} Dashboard`;
+}
+
 export default function DashboardPage() {
   const {
     profile,
@@ -68,8 +104,12 @@ export default function DashboardPage() {
   const [multiDivData, setMultiDivData] = useState<any | null>(null);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const dashboardRequestGeneration = useRef(0);
 
   const fetchDashboardMetrics = async () => {
+    const generation = ++dashboardRequestGeneration.current;
+    const isCurrentRequest = () =>
+      generation === dashboardRequestGeneration.current;
     try {
       setLoadingDashboard(true);
       setDashboardError(null);
@@ -77,8 +117,11 @@ export default function DashboardPage() {
       // If viewing all divisions, fetch multi-division aggregate
       if (activeDivisionId === ALL_DIVISIONS_ID) {
         try {
-          const mRes = await fetch("/api/admin/dashboard/multi-division");
+          const mRes = await fetch("/api/admin/dashboard/multi-division", {
+            cache: "no-store",
+          });
           const mJson = await mRes.json();
+          if (!isCurrentRequest()) return;
           if (mJson.success && mJson.data) {
             setMultiDivData(mJson.data);
           }
@@ -93,18 +136,20 @@ export default function DashboardPage() {
       const url = activeDivisionId && activeDivisionId !== ALL_DIVISIONS_ID
         ? `/api/admin/dashboard?divisionId=${encodeURIComponent(activeDivisionId)}`
         : "/api/admin/dashboard";
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: "no-store" });
       const json = await res.json();
+      if (!isCurrentRequest()) return;
       if (json.success && json.data) {
         setDashboardData(json.data);
       } else if (json.error) {
         setDashboardError(json.error);
       }
     } catch (err: any) {
+      if (!isCurrentRequest()) return;
       console.warn("Could not load live dashboard API metrics:", err);
       setDashboardError(err.message || "Network error fetching dashboard metrics.");
     } finally {
-      setLoadingDashboard(false);
+      if (isCurrentRequest()) setLoadingDashboard(false);
     }
   };
 
@@ -126,6 +171,9 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchDashboardMetrics();
     fetchPendingApprovals();
+    return () => {
+      dashboardRequestGeneration.current += 1;
+    };
   }, [activeDivisionId]);
 
   const handleQuickDecision = async (id: string, status: "APPROVED" | "REJECTED") => {
@@ -191,11 +239,11 @@ export default function DashboardPage() {
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#E2E8F0]">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#1E293B] tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl lg:whitespace-nowrap font-extrabold text-[#1E293B] tracking-tight">
             {activeDivisionId === ALL_DIVISIONS_ID
               ? "Multi-Division Executive Dashboard"
               : activeDivision
-              ? `${activeDivision.name} Dashboard`
+              ? formatDivisionDashboardTitle(activeDivision.name, profile.name, profile.code)
               : terms.dashboardTitle}
           </h1>
           <p className="text-xs text-[#64748B] mt-0.5">

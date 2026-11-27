@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import { getDashboardMetrics } from "@/lib/services/institution-admin.service";
-import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
-
+import { requireReadReq } from "@/lib/security/support-access";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,6 +13,10 @@ export async function GET(req: NextRequest) {
       success: true,
       institutionId,
       data,
+    }, {
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      },
     });
   } catch (error) {
     return handleAdminApiError(error);

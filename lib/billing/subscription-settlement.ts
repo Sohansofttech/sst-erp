@@ -2,7 +2,12 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import db from "@/lib/db";
 import { BillingIntegrationError } from "@/lib/billing/razorpay";
-import { getSubscriptionEnd, InvalidBillingCycleError } from "@/lib/billing/subscription-period";
+import {
+  FREE_TRIAL_PLAN_CODE,
+  getFreeTrialEnd,
+  getSubscriptionEnd,
+  InvalidBillingCycleError,
+} from "@/lib/billing/subscription-period";
 import type { SubscriptionPlanCycle } from "@/lib/billing/subscription-period";
 export { getSubscriptionEnd } from "@/lib/billing/subscription-period";
 
@@ -21,12 +26,16 @@ export async function applySubscriptionPurchase(
   await tx.$queryRaw`SELECT id FROM "Institution" WHERE id = ${input.institutionId}::uuid FOR UPDATE`;
   const plan = await tx.subscriptionPlan.findUnique({
     where: { id: input.planId },
-    select: { id: true, name: true, billingCycle: true, customCycleDays: true },
+    select: { id: true, name: true, code: true, billingCycle: true, customCycleDays: true },
   });
   if (!plan) {
     throw new BillingIntegrationError("The subscription plan no longer exists.", 409, "PLAN_NOT_FOUND");
   }
   const cycle = input.cycle ?? plan;
+  const calculateEnd = (start: Date) =>
+    plan.code === FREE_TRIAL_PLAN_CODE
+      ? getFreeTrialEnd(start)
+      : getSubscriptionEnd(start, cycle);
 
   let appliedPeriod: {
     subscriptionId: string;
@@ -47,7 +56,7 @@ export async function applySubscriptionPurchase(
       const startsAt = existing.endsAt > input.paidAt ? existing.endsAt : input.paidAt;
       let endsAt: Date;
       try {
-        endsAt = getSubscriptionEnd(startsAt, cycle);
+        endsAt = calculateEnd(startsAt);
       } catch (error) {
         if (error instanceof InvalidBillingCycleError) {
           throw new BillingIntegrationError(error.message, 409, "INVALID_BILLING_CYCLE");
@@ -106,7 +115,7 @@ export async function applySubscriptionPurchase(
     );
     let endsAt: Date;
     try {
-      endsAt = getSubscriptionEnd(startsAt, cycle);
+      endsAt = calculateEnd(startsAt);
     } catch (error) {
       if (error instanceof InvalidBillingCycleError) {
         throw new BillingIntegrationError(error.message, 409, "INVALID_BILLING_CYCLE");

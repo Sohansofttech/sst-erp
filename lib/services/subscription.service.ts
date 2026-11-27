@@ -1,12 +1,29 @@
 import db from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import {
+  FREE_TRIAL_DURATION_DAYS,
+  FREE_TRIAL_PLAN_CODE,
+  getFreeTrialEnd,
+} from "@/lib/billing/subscription-period";
+import {
+  calculateSubscriptionRemainingDays,
+  isSubscriptionCurrentlyEffective,
+  SUBSCRIPTION_LIFECYCLE_EVENT_ACTIONS,
+  selectCurrentSubscription,
+} from "@/lib/billing/subscription-selection";
 import { planCompatibilityWhere } from "@/lib/institution-type-config";
 
 const prisma = db;
 
-export const FREE_TRIAL_PLAN_CODE = "FREE_TRIAL";
-export const TRIAL_DURATION_DAYS = 14;
+export { FREE_TRIAL_PLAN_CODE };
+export const TRIAL_DURATION_DAYS = FREE_TRIAL_DURATION_DAYS;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidSubscriptionInstitutionId(
+  institutionId: unknown
+): institutionId is string {
+  return typeof institutionId === "string" && UUID_REGEX.test(institutionId);
+}
 
 export interface InstitutionTrialStatus {
   hasSubscription: boolean;
@@ -83,6 +100,7 @@ export async function assignInstitutionTrial(
       status: { in: ["TRIALING", "ACTIVE"] },
     },
     include: { plan: true },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
 
   if (existingSub) {
@@ -93,12 +111,32 @@ export async function assignInstitutionTrial(
     };
   }
 
+  const previousTrial = await dbClient.institutionSubscription.findFirst({
+    where: {
+      institutionId,
+      plan: {
+        is: {
+          OR: [{ code: FREE_TRIAL_PLAN_CODE }, { name: "Free Trial" }],
+        },
+      },
+    },
+    include: { plan: true },
+    orderBy: [{ startsAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+  });
+  if (previousTrial) {
+    return {
+      created: false,
+      subscription: previousTrial,
+      message: "Institution already has a free trial record.",
+    };
+  }
+
   // 2. Resolve or create Free Trial Plan
   const trialPlan = await getOrCreateFreeTrialPlan(dbClient);
 
   // 3. Compute Dates (Start Date = Institution creation date, Expiry Date = Start Date + 14 days)
   const trialStartDate = new Date(startsAt);
-  const trialEndDate = new Date(trialStartDate.getTime() + TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  const trialEndDate = getFreeTrialEnd(trialStartDate);
   const now = new Date();
   const initialStatus = trialEndDate <= now ? "EXPIRED" : "TRIALING";
 
@@ -152,82 +190,24 @@ export async function assignInstitutionTrial(
 export async function getInstitutionSubscriptionStatus(
   institutionId: string
 ): Promise<InstitutionTrialStatus> {
-  if (!institutionId || typeof institutionId !== "string") {
-    return {
-      hasSubscription: false,
-      isTrial: false,
-      status: "NONE",
-      statusLabel: "No Subscription",
-      planName: "None",
-      planCode: "NONE",
-      planPrice: 0,
-      currency: "INR",
-      startsAt: null,
-      endsAt: null,
-      remainingDays: 0,
-      isExpired: true,
-      canAccessErp: false,
-      canAccessSubscription: true,
-      upgradeUrl: "/subscription",
-    };
-  }
-
-  // Handle non-UUID development identifiers gracefully without crashing PostgreSQL
-  if (!UUID_REGEX.test(institutionId)) {
-    try {
-      const platformInst = await prisma.platformInstitution.findFirst({
-        select: { id: true, createdAt: true },
-      });
-      if (platformInst) {
-        institutionId = platformInst.id;
-      } else {
-        return {
-          hasSubscription: false,
-          isTrial: false,
-          status: "NONE",
-          statusLabel: "No Subscription",
-          planName: "None",
-          planCode: "NONE",
-          planPrice: 0,
-          currency: "INR",
-          startsAt: null,
-          endsAt: null,
-          remainingDays: 0,
-          isExpired: false,
-          canAccessErp: true,
-          canAccessSubscription: true,
-          upgradeUrl: "/subscription",
-        };
-      }
-    } catch {
-      return {
-        hasSubscription: false,
-        isTrial: false,
-        status: "NONE",
-        statusLabel: "No Subscription",
-        planName: "None",
-        planCode: "NONE",
-        planPrice: 0,
-        currency: "INR",
-        startsAt: null,
-        endsAt: null,
-        remainingDays: 0,
-        isExpired: false,
-        canAccessErp: true,
-        canAccessSubscription: true,
-        upgradeUrl: "/subscription",
-      };
-    }
+  if (!isValidSubscriptionInstitutionId(institutionId)) {
+    throw new Error("A valid institution ID is required to retrieve subscription status.");
   }
 
   const now = new Date();
 
-  // Find latest subscription record for institution
-  let sub = await prisma.institutionSubscription.findFirst({
+  // Select an effective subscription before falling back to historical or upcoming records.
+  const subscriptions = await prisma.institutionSubscription.findMany({
     where: { institutionId },
-    orderBy: { startsAt: "desc" },
-    include: { plan: true },
+    include: {
+      plan: true,
+      events: {
+        where: { action: { in: [...SUBSCRIPTION_LIFECYCLE_EVENT_ACTIONS] } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      },
+    },
   });
+  let sub = selectCurrentSubscription(subscriptions, institutionId, now);
 
   // If no subscription exists, check if we should auto-assign a trial for existing institutions
   if (!sub) {
@@ -269,12 +249,21 @@ export async function getInstitutionSubscriptionStatus(
   // Authoritative server-side expiration check:
   // If subscription is TRIALING or ACTIVE with an endsAt in the past, transition to EXPIRED
   const isTimeExpired = Boolean(sub.endsAt && sub.endsAt.getTime() <= now.getTime());
-  if (isTimeExpired && sub.status === "TRIALING") {
+  const isExpiredTrial =
+    sub.status === "TRIALING" ||
+    (sub.status === "ACTIVE" && sub.plan.code === FREE_TRIAL_PLAN_CODE);
+  if (isTimeExpired && isExpiredTrial) {
     try {
       sub = await prisma.institutionSubscription.update({
         where: { id: sub.id },
         data: { status: "EXPIRED" },
-        include: { plan: true },
+        include: {
+          plan: true,
+          events: {
+            where: { action: { in: [...SUBSCRIPTION_LIFECYCLE_EVENT_ACTIONS] } },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          },
+        },
       });
 
       await prisma.subscriptionEvent.create({
@@ -295,17 +284,19 @@ export async function getInstitutionSubscriptionStatus(
   const isTrial = sub.plan.code === FREE_TRIAL_PLAN_CODE || sub.status === "TRIALING";
   const isExpired = sub.status === "EXPIRED" || isTimeExpired;
 
-  // Calculate remaining days authoritatively from server endsAt
-  let remainingDays = 0;
-  if (sub.endsAt && !isExpired) {
-    const diffMs = sub.endsAt.getTime() - now.getTime();
-    remainingDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  }
+  const remainingDays =
+    isTrial && (sub.status === "TRIALING" || sub.status === "ACTIVE") && !isExpired
+      ? calculateSubscriptionRemainingDays(sub, now)
+      : 0;
 
-  const canAccessErp = !isExpired && (sub.status === "TRIALING" || sub.status === "ACTIVE");
+  const canAccessErp = !isExpired && isSubscriptionCurrentlyEffective(sub, now);
 
-  let statusLabel = "Active";
-  if (sub.status === "TRIALING") {
+  let statusLabel =
+    sub.startsAt.getTime() > now.getTime() &&
+    (sub.status === "TRIALING" || sub.status === "ACTIVE")
+      ? "Scheduled"
+      : "Active";
+  if (sub.status === "TRIALING" && statusLabel !== "Scheduled") {
     statusLabel = "Free Trial";
   } else if (sub.status === "EXPIRED") {
     statusLabel = "Trial Expired";

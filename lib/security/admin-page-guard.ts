@@ -16,6 +16,10 @@ import {
 } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 import {
+  resolveInstitutionBranding,
+  type ResolvedInstitutionBranding,
+} from "@/lib/services/institution-branding.service";
+import {
   SUPPORT_ACCESS_COOKIE_NAME,
   verifySuperAdminSupportToken,
 } from "@/lib/auth/jwt";
@@ -82,11 +86,14 @@ export function getAuthorizedAdminLandingRoute(role: string, permissions: string
 }
 
 export interface VerifiedAdminPageAuth {
+  userId: string;
+  sessionIdentity: string;
   role: string;
   permissions: string[];
   fullName: string;
   email: string;
   institutionName?: string;
+  branding?: ResolvedInstitutionBranding | null;
   supportAccess?: {
     institutionId: string;
     institutionName: string;
@@ -127,6 +134,8 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
       redirect(`/super-admin/institutions?portalIssue=${supportIssue ?? "not_found"}&portalInstitution=${session.supportInstitutionId}`);
     }
     return {
+      userId: session.userId,
+      sessionIdentity: `${session.userId}:${supportInstitution.id}:SUPPORT`,
       role: "ADMIN",
       permissions: ["ADMIN_ALL"],
       fullName: session.fullName,
@@ -169,8 +178,11 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
   if (!isAdminPortalRole(liveRole)) {
     redirect("/login?error=forbidden");
   }
+  if (liveRole === "SUPER_ADMIN") {
+    redirect(getRoleLandingRoute(liveRole));
+  }
 
-  const institutionId = session.institutionId || dbUser.institutionId;
+  const institutionId = dbUser.institutionId || session.institutionId;
   if (!institutionId) {
     redirect("/admin/login?error=no_institution");
   }
@@ -191,6 +203,26 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
   }
 
   const { permissions } = await resolveUserPermissionsFromDb(dbUser.id, institutionId, liveRole);
+  let branding: ResolvedInstitutionBranding | null = null;
+  try {
+    branding = await resolveInstitutionBranding(institutionId);
+  } catch (err) {
+    console.warn("[AdminPageGuard] Branding resolution fallback:", err);
+  }
+  const sessionClaims = session as typeof session & {
+    jti?: string;
+    iat?: number;
+    exp?: number;
+  };
+  const sessionIdentity = JSON.stringify([
+    dbUser.id,
+    sessionClaims.jti || null,
+    sessionClaims.iat ?? null,
+    sessionClaims.exp ?? null,
+    branding?.institutionId || institutionId,
+    liveRole,
+    [...permissions].sort(),
+  ]);
 
   if (isDepartmentalRole(liveRole) && !isAdminPageAuthorized(pathname, liveRole, permissions)) {
     const landingRoute = getAuthorizedAdminLandingRoute(liveRole, permissions);
@@ -243,11 +275,14 @@ export async function verifyAdminPageAccess(): Promise<VerifiedAdminPageAuth | n
   }
 
   return {
+    userId: dbUser.id,
+    sessionIdentity,
     role: liveRole,
     permissions,
     fullName: dbUser.fullName || session.fullName || "",
     email: dbUser.email || session.email || "",
     institutionName: session.institutionName || undefined,
+    branding,
     supportAccess,
   };
 }

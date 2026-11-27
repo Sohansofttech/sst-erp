@@ -990,14 +990,25 @@ const STORAGE_KEY_PREFIX = "sst_erp_inst_admin_";
 export function InstitutionProvider({
   children,
   initialTheme = DEFAULT_INSTITUTION_THEME,
+  initialProfile,
 }: {
   children: React.ReactNode;
   initialTheme?: InstitutionThemeConfig;
+  initialProfile?: Partial<InstitutionProfile>;
 }) {
-  const [profile, setProfile] = useState<InstitutionProfile>(initialInstitutionProfile);
+  const [profile, setProfile] = useState<InstitutionProfile>(() => ({
+    ...initialInstitutionProfile,
+    ...initialProfile,
+    id: initialProfile?.id || "",
+    name: initialProfile?.name || "Campus Portal",
+    code: initialProfile?.code || "",
+    logoUrl: initialProfile?.logoUrl || "",
+  }));
   // SSR-deterministic theme state: initialized from server cookie (or default).
   // Strictly avoiding localStorage in useState initializer eliminates hydration mismatch.
-  const [theme, setTheme] = useState<InstitutionThemeConfig>(initialTheme);
+  const [theme, setTheme] = useState<InstitutionThemeConfig>(
+    initialProfile?.themeConfig ?? initialTheme,
+  );
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isAcademicYearsLoading, setIsAcademicYearsLoading] = useState<boolean>(true);
   const [academicYearsError, setAcademicYearsError] = useState<string | null>(null);

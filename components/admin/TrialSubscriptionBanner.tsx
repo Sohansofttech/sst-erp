@@ -80,6 +80,62 @@ export const TrialSubscriptionBanner: React.FC<TrialSubscriptionBannerProps> = (
   const startDateFormatted = formatDate(subscription.startsAt);
   const expiryDateFormatted = formatDate(subscription.endsAt);
 
+  if (subscription.status === "CANCELED") {
+    return (
+      <Card className="border-red-200 bg-red-50 shadow-sm">
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold text-red-900">Subscription Canceled</h3>
+                  <Badge variant="destructive">Canceled</Badge>
+                </div>
+                <p className="text-xs text-red-800">
+                  This subscription is not active. Visit the subscription portal to review available plans.
+                </p>
+                <p className="text-[11px] text-red-700">
+                  Started {startDateFormatted}
+                  {subscription.endsAt ? ` · Scheduled end ${expiryDateFormatted}` : ""}
+                </p>
+              </div>
+            </div>
+            <Link href="/subscription">
+              <Button className="bg-red-700 hover:bg-red-800 text-white font-semibold text-xs h-9 px-4">
+                <CreditCard className="w-4 h-4 mr-1.5" /> Review Subscription
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (subscription.statusLabel === "Scheduled") {
+    return (
+      <Card className="border-blue-200 bg-blue-50 shadow-sm">
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-blue-900">
+                Upcoming Subscription: {subscription.planName}
+              </h3>
+              <p className="text-xs text-blue-800">
+                This subscription starts on {startDateFormatted}; it is not active yet.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit border-blue-700 text-blue-800">
+              Scheduled
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // 1. EXPIRED TRIAL BANNER
   if (subscription.isExpired || subscription.status === "EXPIRED") {
     return (

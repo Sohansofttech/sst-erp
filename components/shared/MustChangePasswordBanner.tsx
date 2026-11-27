@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { ShieldAlert, ArrowRight, X } from "lucide-react";
 import { ChangePasswordModal } from "./ChangePasswordModal";
+import { fetchClientSession } from "@/lib/auth/client-session";
 
 export function MustChangePasswordBanner() {
   const [mustChange, setMustChange] = useState(false);
@@ -21,8 +22,7 @@ export function MustChangePasswordBanner() {
       return;
     }
 
-    fetch("/api/auth/me")
-      .then((res) => res.json())
+    fetchClientSession()
       .then((data) => {
         if (data.success && data.data?.session?.mustChangePassword) {
           setMustChange(true);
