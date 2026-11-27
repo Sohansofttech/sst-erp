@@ -6,7 +6,11 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
-import { getSubscriptionEnd } from "@/lib/billing/subscription-period";
+import {
+  FREE_TRIAL_PLAN_CODE,
+  getFreeTrialEnd,
+  getSubscriptionEnd,
+} from "@/lib/billing/subscription-period";
 import { getInitialSubscriptionStatus, optionalPlanLimit } from "@/lib/billing/subscription-plan";
 
 async function audited(actorId: string | null, action: string, entity: string, entityId: string | null, change: (tx: Prisma.TransactionClient) => Promise<unknown>) {
@@ -88,11 +92,37 @@ export async function createInstitutionSubscription(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const plan = await tx.subscriptionPlan.findFirst({
       where: { id: input.data.planId, isActive: true, archivedAt: null },
-      select: { id: true, price: true },
+      select: { id: true, code: true, price: true },
     });
     if (!plan) throw new Error("The selected plan is not active.");
+    if (plan.code === FREE_TRIAL_PLAN_CODE) {
+      const activeSubscription = await tx.institutionSubscription.findFirst({
+        where: {
+          institutionId: input.data.institutionId,
+          status: { in: ["ACTIVE", "TRIALING"] },
+        },
+        select: { id: true },
+      });
+      if (activeSubscription) {
+        throw new Error("The institution already has an active subscription.");
+      }
+
+      const previousTrial = await tx.institutionSubscription.findFirst({
+        where: {
+          institutionId: input.data.institutionId,
+          plan: { is: { code: FREE_TRIAL_PLAN_CODE } },
+        },
+        select: { id: true },
+      });
+      if (previousTrial) {
+        throw new Error("The institution already has a free trial record.");
+      }
+    }
     const status = getInitialSubscriptionStatus(Number(plan.price));
-    const subscription = await tx.institutionSubscription.create({ data: { institutionId: input.data.institutionId, planId: input.data.planId, createdById: actor.id, startsAt, endsAt, status } });
+    const subscriptionEnd = plan.code === FREE_TRIAL_PLAN_CODE
+      ? getFreeTrialEnd(startsAt)
+      : endsAt;
+    const subscription = await tx.institutionSubscription.create({ data: { institutionId: input.data.institutionId, planId: input.data.planId, createdById: actor.id, startsAt, endsAt: subscriptionEnd, status } });
     await tx.subscriptionEvent.create({ data: { subscriptionId: subscription.id, actorId: actor.id, action: status === "ACTIVE" ? "ASSIGNED" : "ASSIGNED_PENDING_PAYMENT", details: { planId: input.data.planId, status } } });
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUBSCRIPTION_ASSIGNED", entity: "InstitutionSubscription", entityId: subscription.id, result: "SUCCESS", metadata: { status } } });
   });
@@ -268,8 +298,11 @@ export async function renewSubscription(formData: FormData) {
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) throw new Error("Invalid subscription.");
   await prisma.$transaction(async (tx) => {
-    const current = await tx.institutionSubscription.findUnique({ where: { id: id.data }, include: { plan: { select: { billingCycle: true, customCycleDays: true, price: true } } } });
+    const current = await tx.institutionSubscription.findUnique({ where: { id: id.data }, include: { plan: { select: { code: true, billingCycle: true, customCycleDays: true, price: true } } } });
     if (!current) throw new Error("This subscription cannot be renewed because it no longer exists.");
+    if (current.plan.code === FREE_TRIAL_PLAN_CODE || current.status === "TRIALING") {
+      throw new Error("Free trial subscriptions cannot be renewed or extended. Assign a paid plan instead.");
+    }
     if (Number(current.plan.price) > 0) throw new Error("Paid subscriptions must be renewed through the Institution Admin checkout.");
     const now = new Date();
     const cycleStart = current.endsAt && current.endsAt > now ? current.endsAt : now;

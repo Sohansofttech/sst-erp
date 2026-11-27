@@ -11,6 +11,10 @@ export async function GET(req: NextRequest) {
       success: true,
       institutionId,
       data,
+    }, {
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      },
     });
   } catch (error) {
     return handleAdminApiError(error);

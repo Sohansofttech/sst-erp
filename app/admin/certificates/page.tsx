@@ -3,6 +3,7 @@
 import React, { useState, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { fetchClientSession } from "@/lib/auth/client-session";
 import {
   CertificateType,
   CertificatePriority,
@@ -155,26 +156,17 @@ function CertificatesContent() {
   });
 
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("erp_institution_name");
-        const instProfile = localStorage.getItem("sst_erp_inst_admin_profile");
-        if (instProfile) {
-          const parsed = JSON.parse(instProfile);
-          setProfile((p) => ({ ...p, ...parsed, name: parsed.name || stored || p.name }));
-        } else if (stored) {
-          setProfile((p) => ({ ...p, name: stored }));
-        }
-      } catch {}
-    }
-
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => res.json())
+    fetchClientSession()
       .then((json) => {
         if (json.success && json.data?.session?.institution) {
-          const inst = json.data.session.institution;
+          const inst = json.data.session.institution as typeof json.data.session.institution & {
+            address?: string | null;
+            city?: string | null;
+            state?: string | null;
+            postalCode?: string | null;
+          };
           setProfile({
-            name: inst.name,
+            name: inst.name || json.data.session.institutionName || "Campus Portal",
             code: inst.code || "INST",
             addressLine1: inst.address || "Campus Main",
             city: inst.city || "",
@@ -182,7 +174,8 @@ function CertificatesContent() {
             postalCode: inst.postalCode || "",
           });
         } else if (json.success && json.data?.session?.institutionName) {
-          setProfile((p) => ({ ...p, name: json.data.session.institutionName }));
+          const instName = json.data.session.institutionName;
+          setProfile((p) => ({ ...p, name: instName }));
         }
       })
       .catch(() => {});

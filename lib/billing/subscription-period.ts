@@ -3,6 +3,13 @@ export type SubscriptionPlanCycle = {
   customCycleDays: number | null;
 };
 
+export const FREE_TRIAL_PLAN_CODE = "FREE_TRIAL";
+export const FREE_TRIAL_DURATION_DAYS = 14;
+
+export function getFreeTrialEnd(start: Date): Date {
+  return new Date(start.getTime() + FREE_TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
+}
+
 export class InvalidBillingCycleError extends Error {
   constructor() {
     super("The selected subscription plan has an invalid billing cycle.");

@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { InstitutionProvider, useInstitution } from "@/lib/store";
 import { DivisionProvider } from "@/lib/division-store";
+import {
+  fetchClientSession,
+  getClientSessionIdentityFromResponse,
+  type ClientSessionResponse,
+} from "@/lib/auth/client-session";
 import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
@@ -15,6 +20,12 @@ import {
   isAdminPortalRole,
   isDepartmentalRole,
 } from "@/lib/security/rbac";
+
+const AdminRoleContext = React.createContext<string | undefined>(undefined);
+
+export function useAdminRole(): string | undefined {
+  return React.useContext(AdminRoleContext);
+}
 
 const AdminLayoutInner: React.FC<{
   sidebarOpen: boolean;
@@ -92,36 +103,60 @@ export const AdminLayout: React.FC<{
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | undefined>(initialAuth?.role);
   const [userPermissions, setUserPermissions] = useState<string[]>(initialAuth?.permissions || []);
+  const [sessionSnapshot, setSessionSnapshot] = useState<ClientSessionResponse | null>(null);
+  const sessionIdentityRef = useRef<string | null>(initialAuth?.sessionIdentity ?? null);
+  const hasObservedSessionRef = useRef(Boolean(initialAuth?.sessionIdentity));
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === "/admin/login";
 
   useEffect(() => {
     if (isLoginPage) {
+      sessionIdentityRef.current = null;
+      hasObservedSessionRef.current = false;
+      setSessionSnapshot(null);
+      setUserRole(undefined);
+      setUserPermissions([]);
       return;
     }
 
-    // Guard: Verify authenticated role on admin portal routes
-    fetch("/api/auth/me", { credentials: "include" })
-      .then(async (res) => {
-        if (res.status === 401) {
-          router.replace("/admin/login");
-          return null;
-        }
-        return res.json();
-      })
-      .then((json) => {
-        if (!json) return;
+    let cancelled = false;
+    let requestGeneration = 0;
+
+    const verifySession = async () => {
+      const currentRequestGeneration = ++requestGeneration;
+      try {
+        const json = await fetchClientSession(undefined, sessionIdentityRef.current);
+        if (cancelled || currentRequestGeneration !== requestGeneration) return;
         if (!json.success || !json.data?.session) {
+          if (hasObservedSessionRef.current) {
+            sessionIdentityRef.current = null;
+            hasObservedSessionRef.current = false;
+            setSessionSnapshot(json);
+          }
+          setUserRole(undefined);
+          setUserPermissions([]);
           router.replace("/admin/login");
           return;
         }
-        const role = (json.data.session.role || "").toUpperCase();
+
+        const session = json.data.session;
+        const role = (session.role || "").toUpperCase();
         const perms: string[] = Array.isArray(json.data.session.permissions)
           ? json.data.session.permissions
           : [];
+        const nextSessionIdentity = getClientSessionIdentityFromResponse(json);
+        if (!hasObservedSessionRef.current || nextSessionIdentity !== sessionIdentityRef.current) {
+          sessionIdentityRef.current = nextSessionIdentity;
+          hasObservedSessionRef.current = true;
+          setSessionSnapshot(json);
+        }
         setUserRole(role);
-        setUserPermissions(perms);
+        setUserPermissions((previous) =>
+          previous.length === perms.length && previous.every((permission, index) => permission === perms[index])
+            ? previous
+            : perms
+        );
 
         if (role === "STUDENT" || role === "PARENT") {
           router.replace("/dashboard");
@@ -133,10 +168,32 @@ export const AdminLayout: React.FC<{
         } else if (isDepartmentalRole(role) && !canAccessAdminPage(role, perms, pathname)) {
           router.replace(getRoleLandingRoute(role));
         }
-      })
-      .catch(() => {
+      } catch {
+        if (cancelled || currentRequestGeneration !== requestGeneration) return;
         router.replace("/login");
-      });
+      }
+    };
+
+    const refreshVisibleSession = () => {
+      if (document.visibilityState === "visible") {
+        void verifySession();
+      }
+    };
+
+    void verifySession();
+    const intervalId = window.setInterval(() => {
+      void verifySession();
+    }, 60_000);
+    window.addEventListener("focus", refreshVisibleSession);
+    document.addEventListener("visibilitychange", refreshVisibleSession);
+
+    return () => {
+      cancelled = true;
+      requestGeneration += 1;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshVisibleSession);
+      document.removeEventListener("visibilitychange", refreshVisibleSession);
+    };
   }, [isLoginPage, pathname, router]);
 
   if (isLoginPage) {
@@ -152,18 +209,37 @@ export const AdminLayout: React.FC<{
   }
 
   return (
-    <InstitutionProvider>
-      <DivisionProvider>
-        <AdminLayoutInner
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          userRole={userRole}
-          userPermissions={userPermissions}
-          initialUser={initialAuth ? { fullName: initialAuth.fullName, email: initialAuth.email, role: initialAuth.role } : null}
-        >
-          {children}
-        </AdminLayoutInner>
-      </DivisionProvider>
-    </InstitutionProvider>
+    <AdminRoleContext.Provider value={userRole}>
+      <InstitutionProvider
+        key={initialAuth?.sessionIdentity || "anonymous"}
+        initialProfile={
+          initialAuth?.branding
+            ? {
+                id: initialAuth.branding.institutionId,
+                name: initialAuth.branding.displayName,
+                code: initialAuth.branding.code || "",
+                logoUrl: initialAuth.branding.logoUrl || "",
+                primaryColor: initialAuth.branding.primaryColor,
+                accentColor: initialAuth.branding.secondaryColor,
+                themeConfig: initialAuth.branding.themeConfig,
+              }
+            : undefined
+        }
+        initialTheme={initialAuth?.branding?.themeConfig}
+        sessionSnapshot={sessionSnapshot}
+      >
+        <DivisionProvider userRole={userRole}>
+          <AdminLayoutInner
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            userRole={userRole}
+            userPermissions={userPermissions}
+            initialUser={initialAuth ? { fullName: initialAuth.fullName, email: initialAuth.email, role: initialAuth.role } : null}
+          >
+            {children}
+          </AdminLayoutInner>
+        </DivisionProvider>
+      </InstitutionProvider>
+    </AdminRoleContext.Provider>
   );
 };
