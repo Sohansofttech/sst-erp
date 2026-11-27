@@ -75,7 +75,7 @@ export async function isInstitutionOperational(institutionId: string): Promise<b
     SELECT pi.status AS "platformStatus", pi."archivedAt" AS "archivedAt",
            i.status AS "applicationStatus", i."isActive" AS "applicationActive"
     FROM "Institution" pi
-    FULL OUTER JOIN institutions i ON i.id = pi.id
+    FULL OUTER JOIN institutions i ON i.id::text = pi.id::text
     WHERE COALESCE(pi.id::text, i.id::text) = ${institutionId}
     LIMIT 1
   `;
