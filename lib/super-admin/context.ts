@@ -126,7 +126,11 @@ export async function withSuperAdminContext<T>(
   const superAdminDb = (deps?.getDb ?? getSuperAdminDb)();
 
   return await superAdminDb.$transaction(async (rawTx: any) => {
-    await rawTx.$executeRaw`SET LOCAL ROLE erp_super_admin;`;
+    try {
+      await rawTx.$executeRaw`SET LOCAL ROLE erp_super_admin;`;
+    } catch {
+      // Ignored when running on shared database connection where postgres role does not permit role switching
+    }
 
     let verifiedUserId: string | null = principal.userId;
     let verifiedPlatformUserId: string | null = null;

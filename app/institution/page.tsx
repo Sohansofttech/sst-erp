@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getSession } from "@/lib/auth/session";
 
 export default function InstitutionEntryPage() {
@@ -11,6 +12,7 @@ export default function InstitutionEntryPage() {
 }
 
 async function InstitutionSessionRedirect() {
+  await connection();
   const session = await getSession();
 
   if (!session) {
