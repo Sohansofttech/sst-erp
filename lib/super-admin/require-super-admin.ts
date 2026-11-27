@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import { emailsMatch } from "@/lib/auth/email";
 import { prisma } from "@/lib/super-admin/prisma";
+import { getAdminMfaRecord } from "@/lib/security/totp-mfa";
 
 export interface SuperAdminActor {
   id: string | null;
@@ -94,6 +95,20 @@ export async function requireSuperAdmin(): Promise<SuperAdminActor> {
 
   if (!(await hasSuperAdminRole(user.id))) {
     throw new Error("Super Admin access is required: independent database authorization failed.");
+  }
+
+  // Check MFA enrollment: A raw Supabase Auth session cannot bypass enrolled MFA
+  try {
+    const mfaRecord = await getAdminMfaRecord(user.id);
+    if (mfaRecord && mfaRecord.isEnrolled) {
+      redirect("/super-admin/login?error=mfa_required");
+    }
+  } catch (mfaErr: any) {
+    if (mfaErr?.digest?.startsWith("NEXT_REDIRECT")) {
+      throw mfaErr;
+    }
+    console.error("[RequireSuperAdmin] Database failure checking MFA enrollment (failing closed):", mfaErr);
+    redirect("/super-admin/login?error=security_verification_failed");
   }
 
   const platformUser = await prisma.platformUser.findUnique({
