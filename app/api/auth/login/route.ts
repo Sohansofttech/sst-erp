@@ -34,6 +34,17 @@ import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
 import { getRequestHostname, isMainErpHostname } from "@/lib/tenant-hostname";
 import { resolveInstitutionDomain } from "@/lib/institution-domain";
+import {
+  checkLoginRateLimit,
+  recordFailedLogin,
+  recordSuccessfulLogin,
+} from "@/lib/security/login-rate-limiter";
+import {
+  getAdminMfaRecord,
+  signMfaChallengeToken,
+  MFA_CHALLENGE_COOKIE,
+} from "@/lib/security/totp-mfa";
+import { getClientIp } from "@/lib/security/client-ip";
 
 export async function POST(req: NextRequest) {
   try {
@@ -83,7 +94,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let accountLookupEmail =
+    const clientIp = getClientIp(req);
+
+    const rateLimit = await checkLoginRateLimit({ ip: clientIp, identifier: email });
+    if (!rateLimit.allowed) {
+      const isDbDown = rateLimit.reason === "DATABASE_UNAVAILABLE";
+      return NextResponse.json(
+        {
+          success: false,
+          error: isDbDown
+            ? "Authentication service temporarily unavailable. Rate limit check failed."
+            : "Too many failed login attempts. Please wait before trying again.",
+        },
+        {
+          status: isDbDown ? 503 : 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds ?? (isDbDown ? 60 : 900)) },
+        }
+      );
+    }
+
+    const accountLookupEmail =
       verifiedGoogleProof?.role === "SUPER_ADMIN"
         ? normalizeEmail(verifiedGoogleProof.email)
         : email.trim();
@@ -214,9 +244,9 @@ export async function POST(req: NextRequest) {
 
 
     if (!user || !user.isActive || user.status !== "ACTIVE") {
-
+      await recordFailedLogin({ ip: clientIp, identifier: email });
       return NextResponse.json(
-        { success: false, error: "Account is inactive, suspended, or archived." },
+        { success: false, error: "Invalid email or password." },
         { status: 401 }
       );
     }
@@ -305,12 +335,15 @@ export async function POST(req: NextRequest) {
     if (loginType !== "OTP" && loginType !== "GOOGLE") {
       const isPwValid = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
       if (!isPwValid) {
+        await recordFailedLogin({ ip: clientIp, identifier: email });
         return NextResponse.json(
           { success: false, error: "Invalid email or password." },
           { status: 401 }
         );
       }
     }
+
+    await recordSuccessfulLogin({ identifier: email });
 
     // Normalize and verify role from trusted database record
     const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
@@ -636,6 +669,41 @@ export async function POST(req: NextRequest) {
       mustChangePassword,
       passwordSig,
     };
+
+    // For SUPER_ADMIN role: Check if MFA is required
+    if (userRole === "SUPER_ADMIN") {
+      try {
+        const mfaRecord = await getAdminMfaRecord(user.id);
+        if (mfaRecord && mfaRecord.isEnrolled) {
+          const challengeToken = await signMfaChallengeToken({ userId: user.id, email: user.email });
+          const mfaRes = NextResponse.json({
+            success: true,
+            mfaRequired: true,
+            message: "Two-factor authentication code required.",
+            redirectTo: "/super-admin/mfa/verify",
+          });
+          mfaRes.cookies.set({
+            name: MFA_CHALLENGE_COOKIE,
+            value: challengeToken,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 300,
+          });
+          return mfaRes;
+        }
+      } catch (mfaErr) {
+        console.error("[Login] Database failure checking Super Admin MFA status (failing closed):", mfaErr);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Authentication service temporarily unavailable. Super Admin security verification could not be completed.",
+          },
+          { status: 503 }
+        );
+      }
+    }
 
     const token = await signToken(sessionUser);
 
