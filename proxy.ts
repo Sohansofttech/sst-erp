@@ -4,6 +4,7 @@ import { jwtVerify } from "jose"
 import { AUTH_COOKIE_NAME, verifyToken } from "@/lib/auth/jwt"
 import { isAdminPortalRole } from "@/lib/security/rbac"
 import { getAuthJwtKey } from "@/lib/auth/jwt-secret"
+import { getRequestHostname, isMainErpHostname } from "@/lib/tenant-hostname"
 
 const TEACHER_AUTH_COOKIE = "sst_teacher_session"
 
@@ -18,6 +19,23 @@ interface DecodedTeacherToken {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const hostname = getRequestHostname(request.headers)
+  const isInstitutionHost = !!hostname && !isMainErpHostname(hostname)
+
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set("x-pathname", pathname)
+  requestHeaders.set("x-tenant-hostname", hostname)
+
+  if (isInstitutionHost && (pathname === "/" || pathname === "/login" || pathname.startsWith("/login/"))) {
+    const loginUrl = new URL("/admin/login", request.url)
+    if (pathname !== "/login") {
+      const from = pathname
+      loginUrl.searchParams.set("from", from)
+    }
+    return NextResponse.rewrite(loginUrl, {
+      request: { headers: requestHeaders },
+    })
+  }
 
   // ---------------------------------------------------------------------------
   // 1. Campus Teacher Portal & Workspace Security
@@ -211,9 +229,6 @@ export async function proxy(request: NextRequest) {
   // ---------------------------------------------------------------------------
   // 2. Admin & Super-Admin Proxy Handling
   // ---------------------------------------------------------------------------
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set("x-pathname", pathname)
-
   // The admin layout enforces live database permissions after the session check.
   if (pathname.startsWith("/admin") && pathname !== "/admin/login" && !pathname.startsWith("/admin/login/")) {
     const adminToken =
@@ -266,6 +281,9 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
+    "/login/:path*",
+    "/admin/login/:path*",
     "/campus/:slug/teacher/:path*",
     "/campus/:slug/class-teacher/:path*",
     "/campus/:slug/hod/:path*",

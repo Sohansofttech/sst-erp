@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import db from "@/lib/db";
+import { resolveInstitutionDomain } from "@/lib/institution-domain";
+import { getRequestHostname, isMainErpHostname } from "@/lib/tenant-hostname";
 
 async function resolveLogo(instId?: string | null): Promise<string | null> {
   if (!instId) return null;
@@ -22,6 +24,42 @@ export async function GET(req: NextRequest) {
     const code = searchParams.get("code")?.trim();
     const email = searchParams.get("email")?.trim().toLowerCase();
     const slug = searchParams.get("slug")?.trim().toLowerCase();
+    const hostname = getRequestHostname(req.headers);
+
+    if (hostname && !isMainErpHostname(hostname) && !code && !slug && !email) {
+      const tenant = await resolveInstitutionDomain(hostname);
+      if (tenant.status === "ACTIVE") {
+        return NextResponse.json({
+          success: true,
+          tenantScoped: true,
+          id: tenant.institutionId,
+          name: tenant.institutionName,
+          code: tenant.institutionCode,
+          slug: tenant.institutionSlug,
+          type: tenant.institutionType,
+          logo: tenant.logo,
+        });
+      }
+
+      const messages: Record<string, string> = {
+        PENDING: "This institution domain is pending verification.",
+        VERIFIED: "This institution domain is verified but not activated yet.",
+        SUSPENDED: "This institution domain is suspended.",
+        REMOVED: "This institution domain is no longer available.",
+        ARCHIVED: "This institution portal is archived.",
+        UNKNOWN: "This domain is not registered to an institution.",
+      };
+
+      return NextResponse.json(
+        {
+          success: false,
+          tenantScoped: true,
+          status: tenant.status,
+          error: messages[tenant.status] || "This institution domain is not available.",
+        },
+        { status: tenant.status === "UNKNOWN" ? 404 : 403 }
+      );
+    }
 
     // 1. If explicit college code or slug provided, resolve that institution
     if (code || slug) {
