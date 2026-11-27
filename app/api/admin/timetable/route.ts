@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import { getTimetableSlots, createTimetableSlot } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const sectionId = req.nextUrl.searchParams.get("sectionId") || undefined;
     const dayOfWeek = req.nextUrl.searchParams.get("dayOfWeek") || undefined;
     const courseId = req.nextUrl.searchParams.get("courseId") || req.nextUrl.searchParams.get("classId") || undefined;
@@ -57,6 +60,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body.subjectId || !body.dayOfWeek || !body.startTime || !body.endTime) {
@@ -168,6 +172,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

@@ -4,10 +4,13 @@ import {
   getStudentFeedbacks,
   updateStudentFeedback,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const status = req.nextUrl.searchParams.get("status") || undefined;
     const feedbacks = await getStudentFeedbacks(institutionId, status);
 
@@ -25,6 +28,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id, status, response } = await req.json();
 
     if (!id) {

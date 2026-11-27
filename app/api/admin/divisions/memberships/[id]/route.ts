@@ -7,6 +7,8 @@ import {
   deleteDivisionMembership,
 } from "@/lib/services/division-membership.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(
   req: NextRequest,
@@ -14,6 +16,7 @@ export async function GET(
 ) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireReadReq(req, context.institutionId);
     const { id } = await params;
 
     const membership = await db.divisionMembership.findFirst({
@@ -49,6 +52,7 @@ export async function PATCH(
 ) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireWriteReq(req, context.institutionId);
     const { id } = await params;
     const body = await req.json();
 
@@ -86,6 +90,7 @@ export async function DELETE(
 ) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireWriteReq(req, context.institutionId);
     const { id } = await params;
 
     const existing = await db.divisionMembership.findFirst({

@@ -39,6 +39,16 @@ let centralConfigCache: CentralEmailProviderConfig | null = null;
 const deliveryLogBuffer: EmailDeliveryLogRecord[] = [];
 const MAX_LOG_BUFFER_SIZE = 1000;
 
+/**
+ * Test-only helper: clears the in-memory configuration caches so tests can
+ * exercise the authoritative database read path (cache reset). Not used in
+ * production code paths.
+ */
+export function __resetEmailConfigCachesForTests(): void {
+  institutionConfigCache.clear();
+  centralConfigCache = null;
+}
+
 function createDefaultInstitutionConfig(institutionId: string): InstitutionEmailConfig {
   return {
     institutionId,
@@ -255,57 +265,57 @@ export async function saveInstitutionEmailConfig(
     updatedAt: new Date().toISOString(),
   };
 
-  // Update in-memory cache
+  // Persist to PlatformSetting first. Persistence is authoritative: if the write
+  // fails we must NOT update the cache or report success, otherwise the in-memory
+  // copy diverges from the database and the configuration appears "saved" until a
+  // cold start reveals it was never persisted. Errors propagate to the caller.
+  const settingKey = `email_config:${institutionId}`;
+  const valueToStore = {
+    institutionId,
+    provider: updatedConfig.provider,
+    isEnabled: updatedConfig.isEnabled,
+    senderEmail: updatedConfig.senderEmail,
+    senderName: updatedConfig.senderName,
+    replyToEmail: updatedConfig.replyToEmail,
+    status: updatedConfig.status,
+    encryptedCredentials: updatedConfig.encryptedCredentials,
+    lastVerifiedAt: updatedConfig.lastVerifiedAt,
+    lastError: updatedConfig.lastError,
+    updatedAt: updatedConfig.updatedAt,
+  };
+
+  await db.platformSetting.upsert({
+    where: { key: settingKey },
+    create: {
+      key: settingKey,
+      value: valueToStore,
+      description: `Institution Email Configuration for ${institutionId} (Option C)`,
+      updatedAt: new Date(),
+    },
+    update: {
+      value: valueToStore,
+      updatedAt: new Date(),
+    },
+  });
+
+  // Only cache after the database write has durably succeeded.
   institutionConfigCache.set(institutionId, updatedConfig);
 
-  // Persist to PlatformSetting
-  try {
-    const settingKey = `email_config:${institutionId}`;
-    const valueToStore = {
-      institutionId,
+  // Audit is best-effort (recordAudit swallows its own failures) and must never
+  // affect the already-committed persistence result.
+  await recordAudit({
+    institutionId,
+    actorUserId: actorUserId || null,
+    action: "UPDATE",
+    entityType: "INSTITUTION_EMAIL_CONFIG",
+    entityId: institutionId,
+    newValues: {
       provider: updatedConfig.provider,
       isEnabled: updatedConfig.isEnabled,
       senderEmail: updatedConfig.senderEmail,
-      senderName: updatedConfig.senderName,
-      replyToEmail: updatedConfig.replyToEmail,
       status: updatedConfig.status,
-      encryptedCredentials: updatedConfig.encryptedCredentials,
-      lastVerifiedAt: updatedConfig.lastVerifiedAt,
-      lastError: updatedConfig.lastError,
-      updatedAt: updatedConfig.updatedAt,
-    };
-
-    await db.platformSetting.upsert({
-      where: { key: settingKey },
-      create: {
-        key: settingKey,
-        value: valueToStore,
-        description: `Institution Email Configuration for ${institutionId} (Option C)`,
-        updatedAt: new Date(),
-      },
-      update: {
-        value: valueToStore,
-        updatedAt: new Date(),
-      },
-    });
-
-    // Record audit event
-    await recordAudit({
-      institutionId,
-      actorUserId: actorUserId || null,
-      action: "UPDATE",
-      entityType: "INSTITUTION_EMAIL_CONFIG",
-      entityId: institutionId,
-      newValues: {
-        provider: updatedConfig.provider,
-        isEnabled: updatedConfig.isEnabled,
-        senderEmail: updatedConfig.senderEmail,
-        status: updatedConfig.status,
-      },
-    });
-  } catch (err: any) {
-    console.warn(`[EmailConfig] Could not persist to PlatformSetting (${err.message}). Cached in memory.`);
-  }
+    },
+  });
 
   return updatedConfig;
 }
@@ -382,8 +392,9 @@ export async function saveCentralEmailConfig(
     updatedAt: new Date().toISOString(),
   };
 
-  centralConfigCache = updatedConfig;
-
+  // Persist to PlatformSetting first; persistence is authoritative. On failure we
+  // log a generic message (never credentials/secrets) and rethrow so the caller
+  // does not report a false success. The cache is updated only after success.
   try {
     const settingKey = "central_email_provider";
     const valueToStore = {
@@ -422,7 +433,14 @@ export async function saveCentralEmailConfig(
         senderEmail: updatedConfig.senderEmail,
       },
     });
-  } catch {}
+  } catch (err: any) {
+    // Generic log only — never include credentials, secrets, or config payloads.
+    console.error("[EmailConfig] Failed to persist central email provider configuration.");
+    throw err;
+  }
+
+  // Only cache after the database write has durably succeeded.
+  centralConfigCache = updatedConfig;
 
   return updatedConfig;
 }
@@ -542,29 +560,52 @@ export async function testInstitutionEmailConnection(
 
   institutionConfigCache.set(institutionId, config);
 
-  // Persist updated status
+  // Persist updated status. Use upsert so verification succeeds even when the
+  // setting row does not yet exist (e.g. test before the first save). A failed
+  // write must surface as a failed test result rather than a false success.
   try {
     const settingKey = `email_config:${institutionId}`;
-    await db.platformSetting.update({
+    const valueToStore = {
+      institutionId,
+      provider: config.provider,
+      isEnabled: config.isEnabled,
+      senderEmail: config.senderEmail,
+      senderName: config.senderName,
+      replyToEmail: config.replyToEmail,
+      status: newStatus,
+      encryptedCredentials: config.encryptedCredentials,
+      lastVerifiedAt: config.lastVerifiedAt,
+      lastError: config.lastError,
+      updatedAt: config.updatedAt,
+    };
+    await db.platformSetting.upsert({
       where: { key: settingKey },
-      data: {
-        value: {
-          institutionId,
-          provider: config.provider,
-          isEnabled: config.isEnabled,
-          senderEmail: config.senderEmail,
-          senderName: config.senderName,
-          replyToEmail: config.replyToEmail,
-          status: newStatus,
-          encryptedCredentials: config.encryptedCredentials,
-          lastVerifiedAt: config.lastVerifiedAt,
-          lastError: config.lastError,
-          updatedAt: config.updatedAt,
-        },
+      create: {
+        key: settingKey,
+        value: valueToStore,
+        description: `Institution Email Configuration for ${institutionId} (Option C)`,
+        updatedAt: new Date(),
+      },
+      update: {
+        value: valueToStore,
         updatedAt: new Date(),
       },
     });
-  } catch {}
+  } catch (err: any) {
+    // Do not report a verified/persisted status when the write failed.
+    console.error("[EmailConfig] Failed to persist institution email verification status.");
+    config.status = "FAILED";
+    config.lastError = testMessage;
+    institutionConfigCache.set(institutionId, config);
+    return {
+      success: false,
+      provider: config.provider,
+      senderVerified: false,
+      message: "Connection test could not be saved. Please try again.",
+      testedAt: new Date().toISOString(),
+      details,
+    };
+  }
 
   return {
     success: testSuccess,
@@ -590,31 +631,65 @@ export async function recordEmailDeliveryLog(
     timestamp: new Date().toISOString(),
   };
 
+  // Keep the in-memory buffer only as a non-authoritative compatibility cache.
+  // The database (AuditLog) is the source of truth for reads.
   deliveryLogBuffer.unshift(record);
   if (deliveryLogBuffer.length > MAX_LOG_BUFFER_SIZE) {
     deliveryLogBuffer.pop();
   }
 
-  // Persist to physical PostgreSQL AuditLog table for auditable compliance
+  // Persist durably to the physical audit_logs table. Only safe delivery metadata
+  // is stored — never credentials, API keys, passwords, or auth secrets.
+  const safeMetadata = {
+    recipientEmail: record.recipientEmail,
+    recipientName: record.recipientName ?? null,
+    senderIdentity: record.senderIdentity,
+    replyTo: record.replyTo ?? null,
+    subject: record.subject,
+    purpose: record.purpose,
+    provider: record.provider,
+    fallbackUsed: record.fallbackUsed,
+    providerMessageId: record.providerMessageId ?? null,
+    deliveryStatus: record.deliveryStatus,
+    failureReason: record.failureReason ?? null,
+    retryCount: record.retryCount,
+    timestamp: record.timestamp,
+  };
+
   try {
-    await recordAudit({
-      institutionId: log.institutionId || "SUPER_ADMIN",
-      action: log.deliveryStatus === "FAILED" ? "EMAIL_DELIVERY_FAILED" : "EMAIL_DISPATCH",
-      entityType: "EMAIL_DELIVERY",
-      entityId: record.id,
-      newValues: {
-        recipientEmail: log.recipientEmail,
-        subject: log.subject,
-        purpose: log.purpose,
-        provider: log.provider,
-        fallbackUsed: log.fallbackUsed,
-        providerMessageId: log.providerMessageId,
-        deliveryStatus: log.deliveryStatus,
-        failureReason: log.failureReason,
-        retryCount: log.retryCount,
-      },
-    });
-  } catch {}
+    if (log.institutionId) {
+      // Institution-scoped delivery: AuditLog requires a real institution UUID FK.
+      await db.auditLog.create({
+        data: {
+          institutionId: log.institutionId,
+          action: log.deliveryStatus === "FAILED" ? "EMAIL_DELIVERY_FAILED" : "EMAIL_DISPATCH",
+          entityType: "EMAIL_DELIVERY",
+          entityId: record.id,
+          newValuesJson: JSON.stringify(safeMetadata),
+        },
+      });
+    } else {
+      // Central (Super Admin) delivery: no institution, so use PlatformAuditLog
+      // with a null institutionId. Never use "SUPER_ADMIN" as a UUID.
+      await db.platformAuditLog.create({
+        data: {
+          institutionId: null,
+          action: log.deliveryStatus === "FAILED" ? "EMAIL_DELIVERY_FAILED" : "EMAIL_DISPATCH",
+          entity: "EMAIL_DELIVERY",
+          entityId: record.id,
+          metadata: safeMetadata,
+        },
+      });
+    }
+  } catch (err: any) {
+    // Report the persistence failure via safe server-side logging (no secrets),
+    // but do NOT throw: a logging failure must never make a successfully sent
+    // email appear to have failed.
+    console.error(
+      `[EmailConfig] Failed to persist email delivery log ${record.id}:`,
+      err?.message || "unknown error"
+    );
+  }
 
   return record;
 }
@@ -632,11 +707,61 @@ export async function getEmailDeliveryLogs(options: {
   limit?: number;
   offset?: number;
 }): Promise<{ logs: EmailDeliveryLogRecord[]; total: number }> {
-  let filtered = deliveryLogBuffer;
+  // Authoritative sources are the durable audit tables. Institution-scoped logs
+  // live in AuditLog; central (no-institution) logs live in PlatformAuditLog.
+  // The in-memory buffer is NOT used as a fallback, so database failures surface
+  // as errors rather than presenting incomplete results as complete.
+  const parsed: EmailDeliveryLogRecord[] = [];
 
   if (options.institutionId) {
-    filtered = filtered.filter((l) => l.institutionId === options.institutionId);
+    // Specific institution requested: only that institution's AuditLog rows.
+    const rows = await db.auditLog.findMany({
+      where: { entityType: "EMAIL_DELIVERY", institutionId: options.institutionId },
+      orderBy: { createdAt: "desc" },
+    });
+    for (const row of rows) {
+      let meta: any = null;
+      try {
+        meta = row.newValuesJson ? JSON.parse(row.newValuesJson) : null;
+      } catch {
+        meta = null;
+      }
+      if (!meta || typeof meta !== "object") continue;
+      parsed.push(normalizeAuditLogRow(row.entityId, row.institutionId, meta, row.createdAt));
+    }
+  } else {
+    // Unfiltered Super Admin view: combine institution + central logs.
+    const [instRows, centralRows] = await Promise.all([
+      db.auditLog.findMany({
+        where: { entityType: "EMAIL_DELIVERY" },
+        orderBy: { createdAt: "desc" },
+      }),
+      db.platformAuditLog.findMany({
+        where: { entity: "EMAIL_DELIVERY" },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+    for (const row of instRows) {
+      let meta: any = null;
+      try {
+        meta = row.newValuesJson ? JSON.parse(row.newValuesJson) : null;
+      } catch {
+        meta = null;
+      }
+      if (!meta || typeof meta !== "object") continue;
+      parsed.push(normalizeAuditLogRow(row.entityId, row.institutionId, meta, row.createdAt));
+    }
+    for (const row of centralRows) {
+      const meta = (row.metadata && typeof row.metadata === "object" ? row.metadata : null) as any;
+      if (!meta) continue;
+      parsed.push(normalizeAuditLogRow(row.entityId ?? "", row.institutionId ?? null, meta, row.createdAt));
+    }
   }
+
+  // Newest first (sources are already sorted, but the combined list is not).
+  parsed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  let filtered = parsed;
 
   if (options.status) {
     filtered = filtered.filter((l) => l.deliveryStatus === options.status);
@@ -650,9 +775,9 @@ export async function getEmailDeliveryLogs(options: {
     const q = options.search.toLowerCase();
     filtered = filtered.filter(
       (l) =>
-        l.recipientEmail.toLowerCase().includes(q) ||
-        l.subject.toLowerCase().includes(q) ||
-        l.senderIdentity.toLowerCase().includes(q) ||
+        (l.recipientEmail || "").toLowerCase().includes(q) ||
+        (l.subject || "").toLowerCase().includes(q) ||
+        (l.senderIdentity || "").toLowerCase().includes(q) ||
         (l.providerMessageId && l.providerMessageId.toLowerCase().includes(q))
     );
   }
@@ -663,4 +788,31 @@ export async function getEmailDeliveryLogs(options: {
   const logs = filtered.slice(offset, offset + limit);
 
   return { logs, total };
+}
+
+function normalizeAuditLogRow(
+  id: string,
+  institutionId: string | null,
+  meta: any,
+  createdAt: Date
+): EmailDeliveryLogRecord {
+  return {
+    id,
+    institutionId: institutionId ?? null,
+    institutionName: meta.institutionName ?? null,
+    recipientEmail: meta.recipientEmail ?? "",
+    recipientName: meta.recipientName ?? null,
+    senderIdentity: meta.senderIdentity ?? "",
+    replyTo: meta.replyTo ?? null,
+    subject: meta.subject ?? "",
+    purpose: meta.purpose,
+    provider: meta.provider ?? "",
+    fallbackUsed: Boolean(meta.fallbackUsed),
+    providerMessageId: meta.providerMessageId ?? null,
+    deliveryStatus: meta.deliveryStatus,
+    failureReason: meta.failureReason ?? null,
+    retryCount: typeof meta.retryCount === "number" ? meta.retryCount : 0,
+    timestamp: meta.timestamp || createdAt.toISOString(),
+    metadata: undefined,
+  };
 }

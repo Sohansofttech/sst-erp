@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 import { verifyPortalPageAccess } from "@/lib/security/portal-page-guard";
 
 async function StudentAccessGuard({ children }: { children: React.ReactNode }) {

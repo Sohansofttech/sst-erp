@@ -4,6 +4,7 @@ import { sendAnnouncementNotification, sendPasswordSetupInvitation, sendRoleCred
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
 import { isValidUuid } from "@/lib/utils/credential-helpers";
 import { assertStudentRegistrationCapacity } from "@/lib/billing/student-capacity";
+import { assertUserRegistrationCapacity } from "@/lib/billing/user-capacity";
 import {
   loadAllPersistedFeedbacks,
   addOrUpdatePersistedFeedback,
@@ -1849,6 +1850,7 @@ export async function createGuardian(
         throw new Error(`User already exists with an incompatible role: ${userRecord.role}.`);
       }
     } else {
+      await assertUserRegistrationCapacity(tx, institutionId);
       userRecord = await tx.user.create({
         data: {
           institutionId,
@@ -2460,6 +2462,7 @@ export async function createStaff(
         include: { teacherProfile: true },
       });
     } else {
+      await assertUserRegistrationCapacity(tx, institutionId);
       userRecord = await tx.user.create({
         data: {
           institutionId,
@@ -6490,6 +6493,7 @@ export async function processApprovalRequest(
 
         // If no user found, create dormant PARENT user
         if (!guardianUser) {
+          await assertUserRegistrationCapacity(tx, institutionId);
           const effectiveEmail =
             gEmail || `guardian_${institutionId.slice(0, 8)}_${student.id.slice(0, 8)}@guardian.internal`;
 

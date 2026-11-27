@@ -11,6 +11,8 @@ import {
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 import { PERMISSIONS, RESERVED_PRIVILEGED_ROLE_CODES } from "@/lib/security/rbac";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 const ALLOWED_STAFF_ROLES = [
   "TEACHER",
@@ -27,6 +29,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, { requiredPermission: PERMISSIONS.ADMIN_ALL });
+    await requireReadReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
     const checkDependencies = req.nextUrl.searchParams.get("dependencies") === "true";
 
@@ -54,6 +57,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body.fullName || !body.email || !body.role) {
@@ -136,6 +140,7 @@ export async function PUT(req: NextRequest) {
     const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const { id, fullName, phone, role, roleIds, isActive, designation, departmentId, department, employeeId } = await req.json();
 
     if (!id) {
@@ -338,6 +343,7 @@ export async function DELETE(req: NextRequest) {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
     const force = req.nextUrl.searchParams.get("force") === "true";
 
@@ -391,6 +397,7 @@ export async function PATCH(req: NextRequest) {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { id, action } = body;
 

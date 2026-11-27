@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import { getQueries, respondToQuery, QueryStatus } from "@/lib/services/query-management.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const searchParams = req.nextUrl.searchParams;
 
     const role = searchParams.get("role") || undefined;
@@ -32,6 +35,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     const { id, status, adminRemarks, assignedToUserId, assignedToName } = body;

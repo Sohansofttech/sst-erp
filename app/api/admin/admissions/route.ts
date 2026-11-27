@@ -16,12 +16,15 @@ import {
   verifyAdmissionDocuments,
   getAuditLogs,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMISSIONS_READ,
     });
+    await requireReadReq(req, institutionId);
     const status = req.nextUrl.searchParams.get("status") || undefined;
     const includeMeta = req.nextUrl.searchParams.get("includeMeta") === "true";
     const includeHistory = req.nextUrl.searchParams.get("includeHistory") === "true";
@@ -69,6 +72,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.ADMISSIONS_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (body.type === "FOLLOWUP" || body.action === "FOLLOWUP") {
@@ -117,6 +121,7 @@ export async function PUT(req: NextRequest) {
     const { institutionId, userId, permissions, userRole } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.ADMISSIONS_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { status, remarks, action, classId, sectionId, rollNumber, ...details } = body;
 
@@ -207,6 +212,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const { institutionId } = await resolveAdminContext(req);
+  await requireWriteReq(req, institutionId);
   return PUT(req);
 }
 
@@ -215,6 +222,7 @@ export async function DELETE(req: NextRequest) {
     const { institutionId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.ADMISSIONS_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
     if (!id) {
       return NextResponse.json({ success: false, error: "Application ID is required." }, { status: 400 });

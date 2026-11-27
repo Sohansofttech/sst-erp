@@ -11,10 +11,13 @@ import {
   getRolePortalLoginUrl,
 } from "@/lib/services/email.service";
 import { signPasswordSetupToken } from "@/lib/auth/jwt";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const searchParams = req.nextUrl.searchParams;
     const action = searchParams.get("action") || "recipients";
 
@@ -265,6 +268,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId: actorUserId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { action, recipientIds, title, message, category, cc } = body;
 

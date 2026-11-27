@@ -9,6 +9,7 @@ import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import { getInitialSubscriptionStatus, optionalPlanLimit } from "@/lib/billing/subscription-plan";
 import { manageInstitutionSubscription } from "@/app/subscriptions/actions";
 import { describeInstitutionType, isPlanCompatible } from "@/lib/institution-type-config";
+import { SUPPORT_READ, SUPPORT_WRITE, validateDurationMinutes } from "@/lib/security/support-access";
 
 async function audited(actorId: string | null, action: string, entity: string, entityId: string | null, change: (tx: Prisma.TransactionClient) => Promise<unknown>) {
   await prisma.$transaction(async (tx) => {
@@ -540,16 +541,42 @@ export async function requestSupportAccess(formData: FormData) {
   const actor = await requireSuperAdmin();
   if (!actor.id) throw new Error("Support access requests require an identified requester. Sign in with a provisioned Super Admin account.");
   const actorId = actor.id;
-  const input = z.object({ institutionId: z.uuid(), ticketId: z.union([z.uuid(), z.literal("")]).optional(), reason: z.string().trim().min(20).max(2000), durationHours: z.coerce.number().int().min(1).max(8) }).safeParse(Object.fromEntries(formData.entries()));
-  if (!input.success) throw new Error("Provide an institution, a detailed reason and a duration of at most eight hours.");
-  const expiresAt = new Date(Date.now() + input.data.durationHours * 60 * 60 * 1000);
+  const input = z.object({
+    institutionId: z.uuid(),
+    ticketId: z.union([z.uuid(), z.literal("")]).optional(),
+    reason: z.string().trim().min(20).max(2000),
+    requestedDurationMinutes: z.coerce.number().int().min(1).max(480),
+    permission: z.enum(["READ_SUPPORT_CONTEXT", "WRITE_SUPPORT_CONTEXT", "BOTH"]),
+  }).safeParse(Object.fromEntries(formData.entries()));
+  if (!input.success) throw new Error("Provide an institution, a detailed reason, a duration of 1-480 minutes and a permission scope.");
+  if (!validateDurationMinutes(input.data.requestedDurationMinutes)) {
+    throw new Error("Duration must be between 1 and 480 minutes.");
+  }
   if (input.data.ticketId) {
     const ticket = await prisma.supportTicket.findUnique({ where: { id: input.data.ticketId }, select: { institutionId: true } });
     if (!ticket || ticket.institutionId !== input.data.institutionId) throw new Error("The support ticket must belong to the selected institution.");
   }
+  const allowedActions =
+    input.data.permission === "BOTH"
+      ? [SUPPORT_READ, SUPPORT_WRITE]
+      : [input.data.permission];
+  // REQUESTED rows keep a non-null expiresAt placeholder (schema requires it); the
+  // actual approval window starts at approval time using requestedDurationMinutes.
+  const placeholderExpiry = new Date(Date.now() + input.data.requestedDurationMinutes * 60 * 1000);
   await prisma.$transaction(async (tx) => {
-    const session = await tx.supportAccessSession.create({ data: { institutionId: input.data.institutionId, ticketId: input.data.ticketId || null, requestedById: actorId, reason: input.data.reason, allowedActions: ["READ_SUPPORT_CONTEXT"], expiresAt } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUPPORT_ACCESS_REQUESTED", entity: "SupportAccessSession", entityId: session.id, result: "SUCCESS" } });
+    const session = await tx.supportAccessSession.create({
+      data: {
+        institutionId: input.data.institutionId,
+        ticketId: input.data.ticketId || null,
+        requestedById: actorId,
+        reason: input.data.reason,
+        allowedActions,
+        requestedDurationMinutes: input.data.requestedDurationMinutes,
+        status: "REQUESTED",
+        expiresAt: placeholderExpiry,
+      },
+    });
+    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: input.data.institutionId, action: "SUPPORT_ACCESS_REQUESTED", entity: "SupportAccessSession", entityId: session.id, result: "SUCCESS", metadata: { requestedDurationMinutes: input.data.requestedDurationMinutes, allowedActions } } });
   });
   revalidatePath("/super-admin/support-access");
 }
@@ -559,11 +586,24 @@ export async function approveSupportAccess(formData: FormData) {
   if (!actor.id) throw new Error("Support access approval requires a real Super Admin identity to enforce second-person review.");
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) throw new Error("Invalid support access request.");
-  const session = await prisma.supportAccessSession.findUnique({ where: { id: id.data }, select: { id: true, requestedById: true, status: true, expiresAt: true, institutionId: true } });
-  if (!session || session.status !== "REQUESTED" || session.requestedById === actor.id || session.expiresAt <= new Date()) throw new Error("This request is not eligible for approval. A different Super Admin must approve it before expiry.");
+  const session = await prisma.supportAccessSession.findUnique({
+    where: { id: id.data },
+    select: { id: true, requestedById: true, status: true, expiresAt: true, institutionId: true, requestedDurationMinutes: true, allowedActions: true, endedAt: true },
+  });
+  if (!session || session.status !== "REQUESTED" || session.requestedById === actor.id || session.endedAt) {
+    throw new Error("This request is not eligible for approval. A different Super Admin must approve it.");
+  }
+  const approverId = actor.id;
+  // Concurrency-safe: conditional update guarded on REQUESTED + not self + not ended.
+  const now = new Date();
+  const newExpiry = new Date(now.getTime() + session.requestedDurationMinutes * 60 * 1000);
   await prisma.$transaction(async (tx) => {
-    await tx.supportAccessSession.update({ where: { id: id.data }, data: { status: "APPROVED", approvedById: actor.id } });
-    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: session.institutionId, action: "SUPPORT_ACCESS_APPROVED", entity: "SupportAccessSession", entityId: session.id, result: "SUCCESS" } });
+    const updated = await tx.supportAccessSession.updateMany({
+      where: { id: id.data, status: "REQUESTED", requestedById: { not: approverId }, endedAt: null },
+      data: { status: "APPROVED", approvedById: approverId, startsAt: now, expiresAt: newExpiry },
+    });
+    if (updated.count !== 1) throw new Error("This request was already processed or is no longer eligible for approval.");
+    await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: session.institutionId, action: "SUPPORT_ACCESS_APPROVED", entity: "SupportAccessSession", entityId: session.id, result: "SUCCESS", metadata: { startsAt: now.toISOString(), expiresAt: newExpiry.toISOString(), allowedActions: session.allowedActions } } });
   });
   revalidatePath("/super-admin/support-access");
 }
@@ -573,11 +613,20 @@ export async function closeSupportAccess(formData: FormData) {
   if (!actor.id) throw new Error("Support access decisions require an identified Super Admin for audit attribution.");
   const input = z.object({ id: z.uuid(), decision: z.enum(["deny", "revoke"]) }).safeParse(Object.fromEntries(formData.entries()));
   if (!input.success) throw new Error("Invalid support access action.");
+  const now = new Date();
   await prisma.$transaction(async (tx) => {
-    const current = await tx.supportAccessSession.findUnique({ where: { id: input.data.id }, select: { institutionId: true, status: true, expiresAt: true } });
-    const allowed = input.data.decision === "deny" ? current?.status === "REQUESTED" : current?.status === "APPROVED" || current?.status === "ACTIVE";
-    if (!current || !allowed || current.expiresAt <= new Date()) throw new Error("This support access request is no longer eligible for that action.");
-    await tx.supportAccessSession.update({ where: { id: input.data.id }, data: { status: input.data.decision === "deny" ? "DENIED" : "REVOKED", endedAt: new Date() } });
+    const current = await tx.supportAccessSession.findUnique({ where: { id: input.data.id }, select: { institutionId: true, status: true, expiresAt: true, endedAt: true } });
+    const eligible = input.data.decision === "deny"
+      ? current?.status === "REQUESTED"
+      : current?.status === "APPROVED" || current?.status === "ACTIVE";
+    if (!current || !eligible || current.endedAt) throw new Error("This support access request is no longer eligible for that action.");
+    const updated = await tx.supportAccessSession.updateMany({
+      where: input.data.decision === "deny"
+        ? { id: input.data.id, status: "REQUESTED", endedAt: null }
+        : { id: input.data.id, status: { in: ["APPROVED", "ACTIVE"] }, endedAt: null },
+      data: { status: input.data.decision === "deny" ? "DENIED" : "REVOKED", endedAt: now },
+    });
+    if (updated.count !== 1) throw new Error("This support access request was already processed.");
     await tx.platformAuditLog.create({ data: { userId: actor.id, institutionId: current.institutionId, action: input.data.decision === "deny" ? "SUPPORT_ACCESS_DENIED" : "SUPPORT_ACCESS_REVOKED", entity: "SupportAccessSession", entityId: input.data.id, result: "SUCCESS" } });
   });
   revalidatePath("/super-admin/support-access");

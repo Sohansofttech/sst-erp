@@ -4,10 +4,13 @@ import {
   getCampusServicesOverview,
   updateResourceBookingStatus,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const overview = await getCampusServicesOverview(institutionId);
 
     return NextResponse.json({
@@ -22,6 +25,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { bookingId, status } = body;
 

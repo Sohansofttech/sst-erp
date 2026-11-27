@@ -4,10 +4,13 @@ import {
   getApprovalRequests,
   processApprovalRequest,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const status = req.nextUrl.searchParams.get("status") || undefined;
     const requests = await getApprovalRequests(institutionId, status);
 
@@ -23,6 +26,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId, userId } = await requireActiveSubscription(req);
+    await requireWriteReq(req, institutionId);
     const { id, status, adminRemarks } = await req.json();
 
     if (!id || !status) {

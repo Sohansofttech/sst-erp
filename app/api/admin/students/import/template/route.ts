@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
 import { PERMISSIONS } from "@/lib/security/rbac";
 import { buildCsvTemplate, buildXlsxTemplateBuffer } from "@/lib/services/student-import.service";
+import { requireReadReq } from "@/lib/security/support-access";
 
 export async function GET(req: NextRequest) {
   try {
-    await resolveAdminContext(req, { requiredPermission: PERMISSIONS.ADMIN_ALL });
+    const { institutionId } = await resolveAdminContext(req, { requiredPermission: PERMISSIONS.ADMIN_ALL });
+    await requireReadReq(req, institutionId);
     const format = (req.nextUrl.searchParams.get("format") || "csv").toLowerCase();
 
     if (format === "xlsx") {

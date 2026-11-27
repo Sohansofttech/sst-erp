@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { redirect } from "next/navigation"
-import { getSession } from "@/lib/auth/session"
+import { ForbiddenError, getSession } from "@/lib/auth/session"
 import { getTeacherSession } from "@/lib/auth/teacher-session"
 import { LoadingState } from "@/components/shared/StateViews"
 import { TeacherPortalShell } from "./teacher-portal-shell"
@@ -36,7 +36,15 @@ async function TeacherLayoutResolver({
   const { slug } = await params
 
   // 1. Check if user is a student attempting to access faculty portal
-  const erpSession = await getSession()
+  let erpSession = null
+  try {
+    erpSession = await getSession()
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      redirect("/login?error=institution_inactive")
+    }
+    throw error
+  }
   if (erpSession && erpSession.role === "STUDENT") {
     redirect("/dashboard")
   }

@@ -13,12 +13,15 @@ import {
   getFeeRefunds,
   processFeeRefund,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.FEES_READ,
     });
+    await requireReadReq(req, institutionId);
     const studentId = req.nextUrl.searchParams.get("studentId") || undefined;
     const statusFilter = req.nextUrl.searchParams.get("status") || undefined;
 
@@ -75,6 +78,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId, permissions, userRole } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.FEES_WRITE,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     // 1. Bulk Assign Fee Structure

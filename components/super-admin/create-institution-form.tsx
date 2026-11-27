@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { useActionState, useState, useEffect, useRef } from "react";
+import { ChevronDown, Eye, EyeOff, KeyRound, Plus } from "lucide-react";
 import Link from "next/link";
 import { InlineBrandSpinner } from "@/components/shared/BrandLoadingScreen";
 import { createInstitution, type InstitutionFormState } from "@/app/super-admin/(protected)/institutions/actions";
@@ -27,14 +27,62 @@ export function CreateInstitutionForm({
 }) {
   const [state, action, pending] = useActionState(createInstitution, initial);
   const [institutionType, setInstitutionType] = useState("COLLEGE");
+  const [isOpen, setIsOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Keep disclosure open whenever validation errors or success feedback is present
+  useEffect(() => {
+    if (state.error || state.success) {
+      setIsOpen(true);
+    }
+    if (state.success && formRef.current) {
+      formRef.current.reset();
+      setPassword("");
+    }
+  }, [state]);
+
+  function generateSecurePassword() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+    let gen = "";
+    if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+      const array = new Uint32Array(14);
+      window.crypto.getRandomValues(array);
+      for (let i = 0; i < 14; i++) {
+        gen += chars[array[i] % chars.length];
+      }
+    } else {
+      for (let i = 0; i < 14; i++) {
+        gen += chars[Math.floor(Math.random() * chars.length)];
+      }
+    }
+    setPassword(gen);
+    setShowPassword(true);
+  }
+
   return (
-    <details className="sa-form-disclosure">
-      <summary className="sa-button sa-button-primary sa-create-institution-trigger">
+    <details
+      className="sa-form-disclosure"
+      open={isOpen}
+      onToggle={(e) => setIsOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary
+        className="sa-button sa-button-primary sa-create-institution-trigger"
+        onClick={(e) => {
+          e.preventDefault();
+          setIsOpen(!isOpen);
+        }}
+      >
         <Plus size={16} aria-hidden="true" />
         Create institution
-        <ChevronDown size={16} aria-hidden="true" />
+        <ChevronDown
+          size={16}
+          aria-hidden="true"
+          style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .2s ease" }}
+        />
       </summary>
-      <form className="sa-card sa-form-card sa-form-grid sa-create-institution-form" action={action}>
+      <form ref={formRef} className="sa-card sa-form-card sa-form-grid sa-create-institution-form" action={action}>
         <label>Subscription plan
           <select name="planId" required defaultValue="" disabled={plansUnavailable || plans.length === 0}>
             <option value="" disabled>Select an active plan</option>
@@ -73,7 +121,45 @@ export function CreateInstitutionForm({
         <label>Website<input name="website" type="url" /></label>
         <label>Administrator full name<input name="adminName" required minLength={2} maxLength={160} /></label>
         <label>Administrator email<input name="adminEmail" type="email" required /></label>
-        <label>Administrator password<input name="adminPassword" type="password" required minLength={6} placeholder="Min 6 characters" defaultValue="Password@123" /></label>
+        <label>
+          Administrator password
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem" }}>
+            <input
+              name="adminPassword"
+              type={showPassword ? "text" : "password"}
+              required
+              minLength={6}
+              placeholder="Min 6 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              className="sa-button sa-button-secondary"
+              style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
+              onClick={() => setShowPassword(!showPassword)}
+              title={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+            <button
+              type="button"
+              className="sa-button sa-button-secondary"
+              style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "0.25rem", whiteSpace: "nowrap" }}
+              onClick={generateSecurePassword}
+              title="Generate strong random password"
+            >
+              <KeyRound size={15} /> Generate
+            </button>
+          </div>
+          {password && (
+            <span style={{ fontSize: "0.75rem", display: "block", marginTop: "0.25rem", color: password.length < 6 ? "#dc2626" : password.length < 8 ? "#d97706" : "#16a34a" }}>
+              {password.length < 6 ? "Too short (minimum 6 characters required)" : password.length < 8 ? "Moderate strength" : "Strong password"}
+            </span>
+          )}
+        </label>
         <label>Administrator phone<input name="adminPhone" maxLength={40} /></label>
         {state.error && <p className="sa-form-message sa-form-error" role="alert">{state.error}</p>}
         {state.success && <p className="sa-form-message sa-form-success" role="status">{state.success}</p>}

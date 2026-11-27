@@ -5,6 +5,8 @@ import {
   assignStaffToDivision,
   removeStaffDivisionAssignment,
 } from "@/lib/services/division-membership.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(
   req: NextRequest,
@@ -12,6 +14,7 @@ export async function GET(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const { id: staffId } = await params;
 
     const assignments = await listStaffDivisionAssignments(institutionId, { staffId });
@@ -30,6 +33,7 @@ export async function POST(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id: staffId } = await params;
     const body = await req.json();
 
@@ -67,6 +71,7 @@ export async function DELETE(
 ) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id: staffId } = await params;
     const { searchParams } = new URL(req.url);
     const assignmentId = searchParams.get("assignmentId");

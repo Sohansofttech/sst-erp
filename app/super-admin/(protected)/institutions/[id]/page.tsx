@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
@@ -14,19 +14,23 @@ import {
   archiveInstitutionDivision,
   openInstitutionSupportPortal,
 } from "../actions";
-import { ProvisionAdminForm } from "@/components/super-admin/provision-admin-form";
-import { EditInstitutionForm } from "@/components/super-admin/edit-institution-form";
-import { connection } from "next/server";
-import { describeInstitutionType } from "@/lib/institution-type-config";
 import { getInstitutionPortalUrl } from "@/lib/super-admin/institution-portal";
 import { CopyPortalUrlButton } from "@/components/super-admin/copy-portal-url";
+import { ProvisionAdminForm } from "@/components/super-admin/provision-admin-form";
+import { EditInstitutionForm } from "@/components/super-admin/edit-institution-form";
+import { DestructiveActionDialog } from "@/components/super-admin/destructive-action-dialog";
+import { connection } from "next/server";
+import { describeInstitutionType } from "@/lib/institution-type-config";
+import { assertSupportAccess, SUPPORT_READ } from "@/lib/security/support-access";
 
 export const instant = false;
 
 export default async function InstitutionDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
-  await requireSuperAdmin();
+  const actor = await requireSuperAdmin();
   const { id } = await params;
+  // SAF-007: viewing an institution's details is institution-scoped READ.
+  await assertSupportAccess({ actorId: actor.id, institutionId: id, requiredAction: SUPPORT_READ, developmentMode: actor.developmentMode });
   const institution = await prisma.platformInstitution.findUnique({ where: { id }, include: {
     invitations: { take: 10, orderBy: { createdAt: "desc" } },
     memberships: { take: 20, orderBy: { createdAt: "desc" }, include: { user: { select: { id: true, name: true, email: true, status: true } } } },
@@ -111,8 +115,35 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
           <input type="hidden" name="institutionId" value={institution.id} />
           <button type="submit" className="sa-button sa-button-secondary">Open Institution Portal</button>
         </form>
-        <form action={updateInstitutionStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={institution.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"} /><button className="sa-button sa-button-secondary">{institution.status === "ACTIVE" ? "Suspend institution" : "Activate institution"}</button></form>
-        <form action={archiveInstitution}><input type="hidden" name="id" value={id} /><button className="sa-button sa-button-danger">Archive institution</button></form>
+        <DestructiveActionDialog
+          action={updateInstitutionStatus}
+          buttonText={institution.status === "ACTIVE" ? "Suspend institution" : "Activate institution"}
+          buttonClass="sa-button sa-button-secondary"
+          dialogTitle={institution.status === "ACTIVE" ? "Suspend Institution" : "Activate Institution"}
+          dialogDescription={
+            institution.status === "ACTIVE"
+              ? `Are you sure you want to suspend "${institution.name}"? Users belonging to this institution will immediately lose access to their portals until it is reactivated.`
+              : `Are you sure you want to reactivate "${institution.name}"? This will restore portal access for users in this institution.`
+          }
+          confirmButtonText={institution.status === "ACTIVE" ? "Suspend Institution" : "Activate Institution"}
+          isDestructive={institution.status === "ACTIVE"}
+        >
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="status" value={institution.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"} />
+        </DestructiveActionDialog>
+        <DestructiveActionDialog
+          action={archiveInstitution}
+          buttonText="Archive institution"
+          buttonClass="sa-button sa-button-danger"
+          dialogTitle="Archive Institution"
+          dialogDescription={`Archiving "${institution.name}" is a critical operation. It will permanently disable portal access, suspend all subscriptions, and mark this tenant as archived.`}
+          confirmButtonText="Archive Institution"
+          confirmInputMatch={institution.name}
+          confirmInputLabel={`Type the institution name "${institution.name}" to confirm archival:`}
+          isDestructive={true}
+        >
+          <input type="hidden" name="id" value={id} />
+        </DestructiveActionDialog>
       </div>
     )}
     <section className="sa-card sa-module-panel" style={{ marginTop: "1rem" }}>
@@ -194,22 +225,40 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
                       </button>
                     </form>
                   )}
-                  <form action={updateInstitutionDivisionStatus}>
+                  <DestructiveActionDialog
+                    action={updateInstitutionDivisionStatus}
+                    buttonText={div.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                    buttonClass="sa-button sa-button-secondary"
+                    buttonStyle={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                    dialogTitle={div.status === "ACTIVE" ? "Deactivate Division" : "Activate Division"}
+                    dialogDescription={
+                      div.status === "ACTIVE"
+                        ? `Are you sure you want to deactivate the "${div.name}" division? Students and staff linked to this division will not be able to access division-specific resources.`
+                        : `Are you sure you want to activate the "${div.name}" division?`
+                    }
+                    confirmButtonText={div.status === "ACTIVE" ? "Deactivate Division" : "Activate Division"}
+                    isDestructive={div.status === "ACTIVE"}
+                  >
                     <input type="hidden" name="institutionId" value={institution.id} />
                     <input type="hidden" name="divisionId" value={div.id} />
                     <input type="hidden" name="status" value={div.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"} />
-                    <button type="submit" className="sa-button sa-button-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
-                      {div.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                    </button>
-                  </form>
+                  </DestructiveActionDialog>
                   {div.status !== "ARCHIVED" && (
-                    <form action={archiveInstitutionDivision}>
+                    <DestructiveActionDialog
+                      action={archiveInstitutionDivision}
+                      buttonText="Archive"
+                      buttonClass="sa-button sa-button-danger"
+                      buttonStyle={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                      dialogTitle="Archive Educational Division"
+                      dialogDescription={`Archiving division "${div.name}" will make it inactive and hide it from active selections. Associated class records will be retained.`}
+                      confirmButtonText="Archive Division"
+                      confirmInputMatch={div.name}
+                      confirmInputLabel={`Type the division name "${div.name}" to confirm archival:`}
+                      isDestructive={true}
+                    >
                       <input type="hidden" name="institutionId" value={institution.id} />
                       <input type="hidden" name="divisionId" value={div.id} />
-                      <button type="submit" className="sa-button sa-button-danger" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
-                        Archive
-                      </button>
-                    </form>
+                    </DestructiveActionDialog>
                   )}
                 </div>
               </div>
