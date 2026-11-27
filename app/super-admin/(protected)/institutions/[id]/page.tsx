@@ -12,7 +12,10 @@ import {
   updateInstitutionDivisionStatus,
   setDefaultInstitutionDivision,
   archiveInstitutionDivision,
+  openInstitutionSupportPortal,
 } from "../actions";
+import { getInstitutionPortalUrl } from "@/lib/super-admin/institution-portal";
+import { CopyPortalUrlButton } from "@/components/super-admin/copy-portal-url";
 import { ProvisionAdminForm } from "@/components/super-admin/provision-admin-form";
 import { EditInstitutionForm } from "@/components/super-admin/edit-institution-form";
 import { DestructiveActionDialog } from "@/components/super-admin/destructive-action-dialog";
@@ -35,26 +38,35 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
     usageMetrics: { take: 10, orderBy: { measuredAt: "desc" } },
     featureOverrides: { include: { feature: { select: { name: true, code: true } } } },
     auditLogs: { take: 10, orderBy: { createdAt: "desc" }, select: { id: true, action: true, createdAt: true, result: true } },
+    domains: { where: { status: { not: "REMOVED" } }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, domain: true, status: true } },
   } });
   if (!institution) notFound();
-  const [features, primarySetting, divisions] = await Promise.all([
+  const [featuresResult, primarySettingResult, divisionsResult] = await Promise.allSettled([
     prisma.platformFeature.findMany({ where: { isAvailable: true }, orderBy: { name: "asc" }, select: { id: true, name: true }, take: 200 }),
     prisma.platformSetting.findUnique({ where: { key: "primary_institution_id" } }),
     prisma.institutionDivision.findMany({
       where: { institutionId: id },
-      include: {
-        _count: {
-          select: {
-            classes: true,
-            students: true,
-            enrollments: true,
-            feeInvoices: true,
-          },
-        },
-      },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     }),
   ]);
+
+  const secondaryWarnings: string[] = [];
+  const features = featuresResult.status === "fulfilled" ? featuresResult.value : [];
+  const primarySetting = primarySettingResult.status === "fulfilled" ? primarySettingResult.value : null;
+  const divisions = divisionsResult.status === "fulfilled" ? divisionsResult.value : [];
+
+  if (featuresResult.status === "rejected") {
+    console.error(`[SuperAdmin] Failed to load institution ${id} feature options`, featuresResult.reason);
+    secondaryWarnings.push("Feature options could not be loaded.");
+  }
+  if (primarySettingResult.status === "rejected") {
+    console.error(`[SuperAdmin] Failed to load institution ${id} primary setting`, primarySettingResult.reason);
+    secondaryWarnings.push("Default portal institution status could not be verified.");
+  }
+  if (divisionsResult.status === "rejected") {
+    console.error(`[SuperAdmin] Failed to load institution ${id} divisions`, divisionsResult.reason);
+    secondaryWarnings.push("Educational divisions could not be loaded.");
+  }
   const isPrimary = primarySetting?.value === id;
   const editableInstitution = {
     id: institution.id,
@@ -72,8 +84,21 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
     country: institution.country,
     website: institution.website,
   };
+  const portalUrl = getInstitutionPortalUrl({
+    id: institution.id,
+    name: institution.name,
+    code: institution.code,
+    slug: institution.slug,
+    type: institution.type,
+  });
   return <div className="sa-module-page"><Link href="/super-admin/institutions" className="sa-small-link">← Institution Management</Link><div className="sa-page-intro"><div><h2>{institution.name}</h2><p>{institution.code ?? institution.slug} · {describeInstitutionType(institution.type)}{institution.category ? ` · ${institution.category}` : ""} · registered {institution.createdAt.toLocaleDateString("en-IN")}</p></div><span className={`sa-status-badge sa-status-${institution.status.toLowerCase()}`}>{institution.status}</span></div>
     {institution.archivedAt && <p className="sa-form-message sa-warning-box">Archived on {institution.archivedAt.toLocaleDateString("en-IN")}.</p>}
+    {secondaryWarnings.length > 0 && (
+      <div className="sa-form-message sa-warning-box" role="alert">
+        <strong>Some secondary details could not be loaded.</strong>
+        <div>{secondaryWarnings.join(" ")}</div>
+      </div>
+    )}
     {!institution.archivedAt && (
       <div className="sa-action-row">
         <form action={setPrimaryInstitution}>
@@ -86,7 +111,10 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
             {isPrimary ? "★ Default Portal Institution" : "Set as Default Portal Institution"}
           </button>
         </form>
-        <Link className="sa-button sa-button-secondary" href={`/login?${new URLSearchParams({ role: "admin", institutionCode: institution.code || institution.slug }).toString()}`}>Open Institution Portal</Link>
+        <form action={openInstitutionSupportPortal}>
+          <input type="hidden" name="institutionId" value={institution.id} />
+          <button type="submit" className="sa-button sa-button-secondary">Open Institution Portal</button>
+        </form>
         <DestructiveActionDialog
           action={updateInstitutionStatus}
           buttonText={institution.status === "ACTIVE" ? "Suspend institution" : "Activate institution"}
@@ -118,6 +146,24 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
         </DestructiveActionDialog>
       </div>
     )}
+    <section className="sa-card sa-module-panel" style={{ marginTop: "1rem" }}>
+      <h3 className="sa-section-title" style={{ marginTop: 0 }}>Institution Portal Access</h3>
+      <div className="sa-module-grid">
+        <div><strong>Institution name</strong><p>{institution.name}</p></div>
+        <div><strong>Institution code</strong><p>{institution.code ?? "Not configured"}</p></div>
+        <div><strong>Institution type</strong><p>{describeInstitutionType(institution.type)}</p></div>
+        <div><strong>Domain/subdomain status</strong><p>{institution.domains.length ? institution.domains.map((domain) => `${domain.domain} — ${domain.status}`).join(", ") : "No domain configured"}</p></div>
+      </div>
+      <p className="sa-muted-copy" style={{ wordBreak: "break-all" }}>Current portal URL: {portalUrl}</p>
+      <div className="sa-action-row">
+        <form action={openInstitutionSupportPortal}>
+          <input type="hidden" name="institutionId" value={institution.id} />
+          <button type="submit" className="sa-button sa-button-primary">Open Institution Portal</button>
+        </form>
+        <CopyPortalUrlButton url={portalUrl} />
+        <Link className="sa-button sa-button-secondary" href="/super-admin/domains">Manage Domain</Link>
+      </div>
+    </section>
     <h3 className="sa-section-title">Institution details</h3><EditInstitutionForm institution={editableInstitution} />
     <div className="sa-module-grid">
       <section className="sa-card sa-module-panel" style={{ gridColumn: "1 / -1" }}>
@@ -165,7 +211,7 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
                     </span>
                   </div>
                   <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.25rem" }}>
-                    /{div.slug} · {div._count?.classes ?? 0} classes · {div._count?.students ?? 0} students · {div._count?.enrollments ?? 0} enrollments · {div._count?.feeInvoices ?? 0} invoices
+                    /{div.slug}
                   </div>
                 </div>
 

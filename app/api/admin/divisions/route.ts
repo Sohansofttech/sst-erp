@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         status: statusParam && Object.values(DivisionStatus).includes(statusParam) ? statusParam : undefined,
         type: typeParam && Object.values(DivisionType).includes(typeParam) ? typeParam : undefined,
         search: searchParam,
-        includeCounts: true,
+        includeCounts: false,
       }),
       getDivisionSubscriptionEntitlements(context.institutionId),
     ]);

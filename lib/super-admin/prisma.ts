@@ -1,19 +1,12 @@
 import "server-only";
-import { db } from "@/lib/db";
-import { wrapWithMapping } from "@/lib/prisma";
-import { hasRoleDatabaseConfig, getRoleDb, type RolePrismaClient } from "@/lib/db/role-pools";
+import { createLazyRoleDbProxy, getRoleDb, type RolePrismaClient } from "@/lib/db/role-pools";
 
 /**
- * Super Admin database client.
- * Uses dedicated SUPER_ADMIN_DATABASE_URL pool if explicitly configured;
- * otherwise seamlessly uses the shared DATABASE_URL connection.
+ * Server-only Prisma client for Super Admin operations. Uses SUPER_ADMIN_DATABASE_URL when set,
+ * otherwise the single project DATABASE_URL, provided that role is privileged (checked on connect).
  */
-export const prisma: RolePrismaClient = (
-  hasRoleDatabaseConfig("SUPER_ADMIN")
-    ? getRoleDb("SUPER_ADMIN")
-    : wrapWithMapping(db)
-) as RolePrismaClient;
+export const prisma: RolePrismaClient = createLazyRoleDbProxy("SUPER_ADMIN");
 
 export function getSuperAdminDb(): RolePrismaClient {
-  return prisma;
+  return getRoleDb("SUPER_ADMIN");
 }

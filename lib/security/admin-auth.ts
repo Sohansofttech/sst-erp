@@ -3,6 +3,8 @@ import { getSession, requireRole, UnauthorizedError, ForbiddenError } from "@/li
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import { assertInstitutionAdminMembership } from "@/lib/security/institution-admin";
 import db from "@/lib/db";
+import { prisma as platformDb } from "@/lib/super-admin/prisma";
+import { getPortalAccessIssue } from "@/lib/super-admin/portal-access-message";
 import { assertActiveSubscription, SubscriptionExpiredError } from "./subscription-guard";
 import { hasPermission, isAdminPortalRole, isFullAdminRole } from "./rbac";
 import { resolveUserPermissionsFromDb } from "./rbac-server";
@@ -51,6 +53,31 @@ export async function resolveAdminContext(
 
   if (!session.userId) {
     throw new UnauthorizedError("Session is missing a user identity. Please log in again.");
+  }
+
+  if (session.supportSessionId && session.supportInstitutionId) {
+    const supportInstitution = await platformDb.platformInstitution.findUnique({
+      where: { id: session.supportInstitutionId },
+      select: { id: true, name: true, status: true, archivedAt: true },
+    });
+    if (!supportInstitution || getPortalAccessIssue(supportInstitution)) {
+      throw new ForbiddenError("Super Admin support access is no longer valid.");
+    }
+
+    const resolvedContext: ResolvedAdminContext = {
+      institutionId: supportInstitution.id,
+      institutionName: supportInstitution.name,
+      userId: session.userId,
+      userRole: "ADMIN",
+      assignedRoles: ["INSTITUTION_ADMIN"],
+      permissions: ["ADMIN_ALL"],
+      isDevFallback: false,
+    };
+
+    if (shouldEnforceActiveSubscription(req, options)) {
+      await assertActiveSubscription(resolvedContext.institutionId, resolvedContext.userRole);
+    }
+    return resolvedContext;
   }
 
   // Live account verification and password revocation verification

@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/super-admin/prisma";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
@@ -14,6 +16,12 @@ import {
 } from "@/lib/services/division.service";
 import { DivisionType, DivisionStatus } from "@prisma/client";
 import { describeInstitutionType, isPlanCompatible, schoolCategories } from "@/lib/institution-type-config";
+import { getInstitutionPortalUrl } from "@/lib/super-admin/institution-portal";
+import { getPortalAccessIssue, type PortalAccessIssue } from "@/lib/super-admin/portal-access-message";
+import {
+  signSuperAdminSupportToken,
+  SUPPORT_ACCESS_COOKIE_NAME,
+} from "@/lib/auth/jwt";
 import { assertSupportAccess, SUPPORT_WRITE } from "@/lib/security/support-access";
 
 const institutionFields = z.object({
@@ -39,7 +47,16 @@ const institutionFields = z.object({
 // Creating an institution also assigns its first subscription plan; editing does not.
 const institutionInput = institutionFields.extend({ planId: z.uuid() });
 
-export type InstitutionFormState = { error: string | null; success: string | null; institutionId?: string };
+export type InstitutionFormState = {
+  error: string | null;
+  success: string | null;
+  institutionId?: string;
+  institutionName?: string;
+  institutionCode?: string | null;
+  institutionSlug?: string;
+  institutionType?: string;
+  portalUrl?: string;
+};
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -84,6 +101,10 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
 
   let newSubscriptionStatus: string | null = null;
   let createdInstitutionId: string | undefined;
+  let createdInstitutionName: string | undefined;
+  let createdInstitutionCode: string | null = null;
+  let createdInstitutionSlug: string | undefined;
+  let createdInstitutionType: string | undefined;
   try {
     const created = await prisma.$transaction(
       async (tx) => {
@@ -182,12 +203,23 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
             },
           });
         }
-        return { institutionId: institution.id, status: subscriptionAssignment.status };
+        return {
+          institutionId: institution.id,
+          institutionName: institution.name,
+          institutionCode: institution.code,
+          institutionSlug: institution.slug,
+          institutionType: institution.type,
+          status: subscriptionAssignment.status,
+        };
       },
       { maxWait: 15000, timeout: 20000 }
     );
     newSubscriptionStatus = created.status;
     createdInstitutionId = created.institutionId;
+    createdInstitutionName = created.institutionName;
+    createdInstitutionCode = created.institutionCode;
+    createdInstitutionSlug = created.institutionSlug;
+    createdInstitutionType = created.institutionType;
     revalidatePath("/super-admin");
     revalidatePath("/super-admin/institutions");
     revalidatePath("/subscriptions");
@@ -240,7 +272,97 @@ export async function createInstitution(_previous: InstitutionFormState, formDat
       : newSubscriptionStatus === "ACTIVE"
         ? "The selected free plan is active."
         : "The selected paid plan remains pending verified payment.";
-  return { error: null, success: `Institution created (College Code: ${collegeCode}); administrator account created and invitation accepted by the email provider. ${planNotice}`, institutionId: createdInstitutionId };
+  const portalUrl = getInstitutionPortalUrl({
+    id: createdInstitutionId || "",
+    name: createdInstitutionName || data.name,
+    code: createdInstitutionCode,
+    slug: createdInstitutionSlug || data.slug,
+    type: createdInstitutionType || data.type,
+  });
+  return {
+    error: null,
+    success: `Institution created successfully. Administrator account created and invitation accepted by the email provider. ${planNotice}`,
+    institutionId: createdInstitutionId,
+    institutionName: createdInstitutionName || data.name,
+    institutionCode: createdInstitutionCode,
+    institutionSlug: createdInstitutionSlug || data.slug,
+    institutionType: createdInstitutionType || data.type,
+    portalUrl,
+  };
+}
+
+export async function openInstitutionSupportPortal(formData: FormData): Promise<void> {
+  const rawId = formData.get("institutionId");
+  const id = z.uuid().safeParse(rawId);
+  let issue: PortalAccessIssue | null = null;
+  let issueInstitutionId: string | null = id.success ? id.data : null;
+
+  try {
+    const actor = await requireSuperAdmin();
+    if (!actor.id || !id.success) {
+      issue = id.success ? "failed" : "not_found";
+    } else {
+      const institution = await prisma.platformInstitution.findUnique({
+        where: { id: id.data },
+        select: { id: true, name: true, status: true, archivedAt: true },
+      });
+      issue = getPortalAccessIssue(institution);
+
+      if (!issue && institution) {
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+        // Session and audit record are written atomically; failure aborts before any cookie is set.
+        const supportSession = await prisma.$transaction(async (tx) => {
+          const created = await tx.supportAccessSession.create({
+            data: {
+              institutionId: institution.id,
+              requestedById: actor.id!,
+              reason: "Super Admin explicitly opened institution portal support access",
+              allowedActions: ["READ_SUPPORT_CONTEXT", "OPEN_INSTITUTION_LOGIN"],
+              status: "ACTIVE",
+              startsAt: new Date(),
+              expiresAt,
+            },
+          });
+          await tx.platformAuditLog.create({
+            data: {
+              userId: actor.id!,
+              institutionId: institution.id,
+              action: "SUPER_ADMIN_INSTITUTION_PORTAL_OPENED",
+              entity: "SupportAccessSession",
+              entityId: created.id,
+              result: "SUCCESS",
+              metadata: { institutionName: institution.name, expiresAt: expiresAt.toISOString() },
+            },
+          });
+          return created;
+        });
+
+        const token = await signSuperAdminSupportToken({
+          superAdminId: actor.id,
+          institutionId: institution.id,
+          supportSessionId: supportSession.id,
+          expiresAt: expiresAt.getTime(),
+        });
+        (await cookies()).set(SUPPORT_ACCESS_COOKIE_NAME, token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          expires: expiresAt,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("[SupportAccess] Could not open institution portal:", error);
+    issue = "failed";
+  }
+
+  if (issue) {
+    const query = new URLSearchParams({ portalIssue: issue });
+    if (issueInstitutionId) query.set("portalInstitution", issueInstitutionId);
+    redirect(`/super-admin/institutions?${query.toString()}`);
+  }
+  redirect("/admin");
 }
 
 export async function provisionAdminForInstitution(_previous: InstitutionFormState, formData: FormData): Promise<InstitutionFormState> {
