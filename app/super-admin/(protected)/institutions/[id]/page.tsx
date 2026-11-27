@@ -15,6 +15,7 @@ import {
 } from "../actions";
 import { ProvisionAdminForm } from "@/components/super-admin/provision-admin-form";
 import { EditInstitutionForm } from "@/components/super-admin/edit-institution-form";
+import { DestructiveActionDialog } from "@/components/super-admin/destructive-action-dialog";
 import { connection } from "next/server";
 import { describeInstitutionType } from "@/lib/institution-type-config";
 
@@ -83,8 +84,35 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
           </button>
         </form>
         <Link className="sa-button sa-button-secondary" href={`/login?${new URLSearchParams({ role: "admin", institutionCode: institution.code || institution.slug }).toString()}`}>Open Institution Portal</Link>
-        <form action={updateInstitutionStatus}><input type="hidden" name="id" value={id} /><input type="hidden" name="status" value={institution.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"} /><button className="sa-button sa-button-secondary">{institution.status === "ACTIVE" ? "Suspend institution" : "Activate institution"}</button></form>
-        <form action={archiveInstitution}><input type="hidden" name="id" value={id} /><button className="sa-button sa-button-danger">Archive institution</button></form>
+        <DestructiveActionDialog
+          action={updateInstitutionStatus}
+          buttonText={institution.status === "ACTIVE" ? "Suspend institution" : "Activate institution"}
+          buttonClass="sa-button sa-button-secondary"
+          dialogTitle={institution.status === "ACTIVE" ? "Suspend Institution" : "Activate Institution"}
+          dialogDescription={
+            institution.status === "ACTIVE"
+              ? `Are you sure you want to suspend "${institution.name}"? Users belonging to this institution will immediately lose access to their portals until it is reactivated.`
+              : `Are you sure you want to reactivate "${institution.name}"? This will restore portal access for users in this institution.`
+          }
+          confirmButtonText={institution.status === "ACTIVE" ? "Suspend Institution" : "Activate Institution"}
+          isDestructive={institution.status === "ACTIVE"}
+        >
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="status" value={institution.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"} />
+        </DestructiveActionDialog>
+        <DestructiveActionDialog
+          action={archiveInstitution}
+          buttonText="Archive institution"
+          buttonClass="sa-button sa-button-danger"
+          dialogTitle="Archive Institution"
+          dialogDescription={`Archiving "${institution.name}" is a critical operation. It will permanently disable portal access, suspend all subscriptions, and mark this tenant as archived.`}
+          confirmButtonText="Archive Institution"
+          confirmInputMatch={institution.name}
+          confirmInputLabel={`Type the institution name "${institution.name}" to confirm archival:`}
+          isDestructive={true}
+        >
+          <input type="hidden" name="id" value={id} />
+        </DestructiveActionDialog>
       </div>
     )}
     <h3 className="sa-section-title">Institution details</h3><EditInstitutionForm institution={editableInstitution} />
@@ -148,22 +176,40 @@ export default async function InstitutionDetailsPage({ params }: { params: Promi
                       </button>
                     </form>
                   )}
-                  <form action={updateInstitutionDivisionStatus}>
+                  <DestructiveActionDialog
+                    action={updateInstitutionDivisionStatus}
+                    buttonText={div.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                    buttonClass="sa-button sa-button-secondary"
+                    buttonStyle={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                    dialogTitle={div.status === "ACTIVE" ? "Deactivate Division" : "Activate Division"}
+                    dialogDescription={
+                      div.status === "ACTIVE"
+                        ? `Are you sure you want to deactivate the "${div.name}" division? Students and staff linked to this division will not be able to access division-specific resources.`
+                        : `Are you sure you want to activate the "${div.name}" division?`
+                    }
+                    confirmButtonText={div.status === "ACTIVE" ? "Deactivate Division" : "Activate Division"}
+                    isDestructive={div.status === "ACTIVE"}
+                  >
                     <input type="hidden" name="institutionId" value={institution.id} />
                     <input type="hidden" name="divisionId" value={div.id} />
                     <input type="hidden" name="status" value={div.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"} />
-                    <button type="submit" className="sa-button sa-button-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
-                      {div.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                    </button>
-                  </form>
+                  </DestructiveActionDialog>
                   {div.status !== "ARCHIVED" && (
-                    <form action={archiveInstitutionDivision}>
+                    <DestructiveActionDialog
+                      action={archiveInstitutionDivision}
+                      buttonText="Archive"
+                      buttonClass="sa-button sa-button-danger"
+                      buttonStyle={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                      dialogTitle="Archive Educational Division"
+                      dialogDescription={`Archiving division "${div.name}" will make it inactive and hide it from active selections. Associated class records will be retained.`}
+                      confirmButtonText="Archive Division"
+                      confirmInputMatch={div.name}
+                      confirmInputLabel={`Type the division name "${div.name}" to confirm archival:`}
+                      isDestructive={true}
+                    >
                       <input type="hidden" name="institutionId" value={institution.id} />
                       <input type="hidden" name="divisionId" value={div.id} />
-                      <button type="submit" className="sa-button sa-button-danger" style={{ padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}>
-                        Archive
-                      </button>
-                    </form>
+                    </DestructiveActionDialog>
                   )}
                 </div>
               </div>

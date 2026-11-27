@@ -110,7 +110,7 @@ export async function requireRole(
 ): Promise<SessionUser> {
   const session = await requireAuth(req);
   if (!allowedRoles.includes(session.role)) {
-    throw new ForbiddenError(`Access restricted to roles: ${allowedRoles.join(", ")}`);
+    throw new ForbiddenError(`Access denied: restricted to roles: ${allowedRoles.join(", ")}`);
   }
   return session;
 }

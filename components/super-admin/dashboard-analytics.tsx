@@ -12,12 +12,12 @@ function formatNumber(value: number) {
   return numberFormat.format(Math.round(value));
 }
 
-function chartPoints(values: number[], width = 760, height = 220, padding = 28) {
-  const max = Math.max(1, ...values);
+function chartPoints(values: number[], maxValue?: number, width = 760, height = 220, padding = 28) {
+  const max = Math.max(1, maxValue ?? Math.max(0, ...values));
   const step = values.length > 1 ? (width - padding * 2) / (values.length - 1) : 0;
   return values.map((value, index) => ({
     x: padding + index * step,
-    y: height - padding - (value / max) * (height - padding * 2),
+    y: height - padding - (Math.max(0, value) / max) * (height - padding * 2),
   }));
 }
 
@@ -40,13 +40,29 @@ function LineChart({ data }: { data: DashboardSummary["timeline"] }) {
         <svg className="sa-line-chart" viewBox="0 0 760 250" role="img" aria-label="Platform growth line chart">
           {[0, 1, 2, 3, 4].map((line) => <line key={line} x1="28" x2="732" y1={28 + line * 48} y2={28 + line * 48} className="sa-chart-grid-line" />)}
           {series.filter((item) => visible[item.key]).map((item) => {
-            const points = chartPoints(data.map((point) => point[item.key] / max), 760, 220, 28);
+            const points = chartPoints(data.map((point) => point[item.key]), max, 760, 220, 28);
             return <polyline key={item.key} points={points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={item.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sa-chart-line" />;
           })}
           {data.map((point, index) => <rect key={point.label} x={28 + index * (data.length > 1 ? 704 / (data.length - 1) : 0) - 18} y="20" width="36" height="205" fill="transparent" onMouseEnter={() => setHovered(index)} onMouseLeave={() => setHovered(null)} />)}
         </svg>
         <div className="sa-chart-x-labels">{data.map((point) => <span key={point.label}>{point.label}</span>)}</div>
-        {hovered !== null && <div className="sa-chart-tooltip" style={{ left: `${Math.min(82, Math.max(12, 12 + hovered * (76 / Math.max(1, data.length - 1))))}%` }}><strong>{data[hovered].label}</strong>{series.filter((item) => visible[item.key]).map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.label}: {formatNumber(data[hovered][item.key])}</span>)}</div>}
+        {hovered !== null && (
+          <div
+            className="sa-chart-tooltip"
+            style={{
+              left: `${Math.min(84, Math.max(16, ((hovered + 0.5) / Math.max(1, data.length)) * 100))}%`,
+              transform: "translateX(-50%)",
+            }}
+          >
+            <strong>{data[hovered].label}</strong>
+            {series.filter((item) => visible[item.key]).map((item) => (
+              <span key={item.key}>
+                <i style={{ background: item.color }} />
+                {item.label}: {formatNumber(data[hovered][item.key])}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
