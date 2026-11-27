@@ -1,13 +1,36 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextRequest } from "next/server";
 import { SessionUser } from "@/types";
 import { AUTH_COOKIE_NAME, verifyToken, computePasswordSignature } from "./jwt";
 import { UnauthorizedError, ForbiddenError } from "./errors";
 import db from "@/lib/db";
+import { resolveSuperAdminSupportSession } from "@/lib/auth/support-access";
+import { isInstitutionOperational } from "@/lib/services/institution-lifecycle";
 
 export { UnauthorizedError, ForbiddenError };
 
+const PLATFORM_PATH_PATTERN = /^\/(?:api\/)?super-admin(?:\/|$)/;
+
+// Support access only reshapes the session for institution-portal requests;
+// platform (Super Admin) routes must always see the real Super Admin identity.
+async function isPlatformRequest(req?: NextRequest): Promise<boolean> {
+  let pathname = req?.nextUrl?.pathname;
+  if (!pathname) {
+    try {
+      pathname = (await headers()).get("x-pathname") || undefined;
+    } catch {
+      // Non-request context
+    }
+  }
+  return !!pathname && PLATFORM_PATH_PATTERN.test(pathname);
+}
+
 export async function getSession(req?: NextRequest): Promise<SessionUser | null> {
+  if (!(await isPlatformRequest(req))) {
+    const supportSession = await resolveSuperAdminSupportSession();
+    if (supportSession) return supportSession;
+  }
+
   let token: string | undefined;
 
   if (req) {
@@ -38,6 +61,13 @@ export async function getSession(req?: NextRequest): Promise<SessionUser | null>
 
   if (!token) return null;
   const session = await verifyToken(token);
+  if (
+    session?.institutionId &&
+    session.role?.toUpperCase() !== "SUPER_ADMIN" &&
+    !(await isInstitutionOperational(session.institutionId))
+  ) {
+    throw new ForbiddenError("This institution is not currently operational.");
+  }
   if (session && session.role === "PARENT" && req) {
     const activeChildHeader = req.headers.get("x-active-child");
     let activeChildCookie = req.cookies.get("erp_active_child")?.value;
@@ -55,6 +85,16 @@ export async function getSession(req?: NextRequest): Promise<SessionUser | null>
     }
   }
   return session;
+}
+
+export function getAuthErrorStatus(error: unknown): number | null {
+  if (error instanceof UnauthorizedError || (error instanceof Error && error.name === "UnauthorizedError")) {
+    return 401;
+  }
+  if (error instanceof ForbiddenError || (error instanceof Error && error.name === "ForbiddenError")) {
+    return 403;
+  }
+  return null;
 }
 
 export async function requireAuth(req?: NextRequest): Promise<SessionUser> {
@@ -110,7 +150,7 @@ export async function requireRole(
 ): Promise<SessionUser> {
   const session = await requireAuth(req);
   if (!allowedRoles.includes(session.role)) {
-    throw new ForbiddenError(`Access restricted to roles: ${allowedRoles.join(", ")}`);
+    throw new ForbiddenError(`Access denied: restricted to roles: ${allowedRoles.join(", ")}`);
   }
   return session;
 }

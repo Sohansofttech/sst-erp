@@ -7,6 +7,8 @@ import {
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
 import { parseDateSafely, DateValidationError } from "@/lib/utils/date-parser";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 class ApiError extends Error {
   statusCode: number;
@@ -20,6 +22,7 @@ class ApiError extends Error {
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const academicYears = await getAcademicYears(institutionId);
 
     return NextResponse.json({
@@ -34,6 +37,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body.name || !body.startDate || !body.endDate) {
@@ -104,6 +108,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
     const { id, isCurrent, isActive, name, startDate, endDate, terms } = body;
 
@@ -324,6 +329,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

@@ -1,4 +1,7 @@
-import { getInstitutionSubscriptionStatus } from "@/lib/services/subscription.service";
+import {
+  getInstitutionSubscriptionStatus,
+  isValidSubscriptionInstitutionId,
+} from "@/lib/services/subscription.service";
 
 export class SubscriptionExpiredError extends Error {
   code = "SUBSCRIPTION_EXPIRED";
@@ -29,8 +32,10 @@ export async function assertActiveSubscription(
     return { allowed: true, status: "SUPER_ADMIN_EXEMPT" };
   }
 
-  if (!institutionId) {
-    return { allowed: true, status: "NO_INSTITUTION" };
+  if (!isValidSubscriptionInstitutionId(institutionId)) {
+    throw new SubscriptionExpiredError(
+      "A valid institutional tenant is required to access ERP operational features."
+    );
   }
 
   const subStatus = await getInstitutionSubscriptionStatus(institutionId);
@@ -44,6 +49,14 @@ export async function assertActiveSubscription(
   if (["PAST_DUE", "SUSPENDED", "CANCELED"].includes(subStatus.status)) {
     throw new SubscriptionExpiredError(
       `Institutional subscription status is ${subStatus.statusLabel || subStatus.status}. Please visit the subscription portal to restore access.`
+    );
+  }
+
+  if (!subStatus.canAccessErp) {
+    throw new SubscriptionExpiredError(
+      subStatus.statusLabel === "Scheduled"
+        ? "The institutional subscription has not started yet."
+        : "The institutional subscription is not currently effective."
     );
   }
 

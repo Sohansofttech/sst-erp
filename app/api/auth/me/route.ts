@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSession, getAuthErrorStatus } from "@/lib/auth/session";
 import db from "@/lib/db";
 import { AUTH_COOKIE_NAME } from "@/lib/auth/jwt";
 import { isTemporaryPasswordActive } from "@/lib/services/credential-management.service";
@@ -14,6 +14,34 @@ export async function GET(req: NextRequest) {
         { success: false, error: "Not authenticated" },
         { status: 401 }
       );
+    }
+
+    if (session.supportSessionId && session.supportInstitutionId) {
+      const institutionDetails = session.institution || null;
+      const safeSession: any = {
+        ...session,
+        role: "ADMIN",
+        name: session.fullName,
+        fullName: session.fullName,
+        institution: institutionDetails,
+        institutionName: institutionDetails?.name || session.institutionName,
+        institutionCode: institutionDetails?.code || session.institutionCode || null,
+        institutionSlug: institutionDetails?.slug || session.institutionSlug || null,
+        supportSessionId: session.supportSessionId,
+        supportInstitutionId: session.supportInstitutionId,
+      };
+      delete safeSession.passwordSig;
+      return NextResponse.json({
+        success: true,
+        data: {
+          session: safeSession,
+          institution: institutionDetails,
+        },
+      }, {
+        headers: {
+          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        },
+      });
     }
 
     let additionalInfo: any = {};
@@ -189,9 +217,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    const authStatus = getAuthErrorStatus(err);
     return NextResponse.json(
       { success: false, error: err.message || "Failed to get session" },
-      { status: 500 }
+      { status: authStatus ?? 500 }
     );
   }
 }

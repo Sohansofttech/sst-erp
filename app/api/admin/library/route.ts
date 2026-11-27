@@ -10,10 +10,13 @@ import {
   getLibraryCirculationReport,
 } from "@/lib/services/library.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const view = req.nextUrl.searchParams.get("view") || "books";
 
     if (view === "report") {
@@ -43,6 +46,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (body.type === "ISSUE_BOOK") {
@@ -108,6 +112,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (body.type === "RETURN_BOOK") {
@@ -147,6 +152,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

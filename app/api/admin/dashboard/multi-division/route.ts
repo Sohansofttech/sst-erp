@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveDivisionContext } from "@/lib/security/division-context";
 import { handleAdminApiError } from "@/lib/security/admin-auth";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireReadReq(req, context.institutionId);
     const institutionId = context.institutionId;
 
     // Filter divisions to only those permitted for the user

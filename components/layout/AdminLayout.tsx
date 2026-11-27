@@ -7,9 +7,8 @@ import { DivisionProvider } from "@/lib/division-store";
 import {
   fetchClientSession,
   getClientSessionIdentityFromResponse,
-  type ClientSessionResponse,
 } from "@/lib/auth/client-session";
-import { DEFAULT_INSTITUTION_THEME, InstitutionThemeConfig } from "@/lib/theme-utils";
+import { DEFAULT_INSTITUTION_THEME } from "@/lib/theme-utils";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import { MustChangePasswordBanner } from "@/components/shared/MustChangePasswordBanner";
@@ -20,6 +19,7 @@ import {
   isAdminPortalRole,
   isDepartmentalRole,
 } from "@/lib/security/rbac";
+import { isAdminPathAllowed, isGatedAdminPath } from "@/lib/institution-type-config";
 
 const AdminRoleContext = React.createContext<string | undefined>(undefined);
 
@@ -33,10 +33,20 @@ const AdminLayoutInner: React.FC<{
   userRole?: string;
   userPermissions?: string[];
   initialUser?: { fullName: string; email: string; role: string } | null;
+  supportAccess?: VerifiedAdminPageAuth["supportAccess"];
   children: React.ReactNode;
-}> = ({ sidebarOpen, setSidebarOpen, userRole, userPermissions, initialUser, children }) => {
-  const { theme } = useInstitution();
+}> = ({ sidebarOpen, setSidebarOpen, userRole, userPermissions, initialUser, supportAccess, children }) => {
+  const { theme, institutionKind } = useInstitution();
   const activeTheme = theme || DEFAULT_INSTITUTION_THEME;
+  const pathname = usePathname();
+  const router = useRouter();
+  // Modules that do not apply to this institution type are blocked by URL as well as hidden in navigation.
+  const gatedPath = isGatedAdminPath(pathname);
+  const pathAllowed = isAdminPathAllowed(institutionKind, pathname);
+
+  useEffect(() => {
+    if (gatedPath && institutionKind !== null && !pathAllowed) router.replace("/admin");
+  }, [gatedPath, institutionKind, pathAllowed, router]);
 
   return (
     <div
@@ -80,6 +90,21 @@ const AdminLayoutInner: React.FC<{
             initialUser={initialUser}
           />
         </Suspense>
+        {supportAccess && (
+          <div className="shrink-0 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+              <div>
+                <strong>Super Admin Support Access</strong>
+                <span className="ml-2">{supportAccess.institutionName}</span>
+              </div>
+              <form action="/api/super-admin/support-access/exit" method="post">
+                <button type="submit" className="rounded-md border border-amber-400 bg-white px-3 py-1 font-semibold">
+                Return to Super Admin
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
         <MustChangePasswordBanner />
         <main
           className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8"
@@ -87,7 +112,15 @@ const AdminLayoutInner: React.FC<{
         >
           <div className="max-w-7xl w-full mx-auto">
             <Suspense fallback={<div className="p-6 text-sm text-[#64748B]">Loading...</div>}>
-              {children}
+              {gatedPath && !pathAllowed ? (
+                <div className="p-6 text-sm text-[#64748B]" role="status">
+                  {institutionKind === null
+                    ? "Checking which modules are available for your institution..."
+                    : "This module is not available for your institution type. Redirecting..."}
+                </div>
+              ) : (
+                children
+              )}
             </Suspense>
           </div>
         </main>
@@ -103,9 +136,9 @@ export const AdminLayout: React.FC<{
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | undefined>(initialAuth?.role);
   const [userPermissions, setUserPermissions] = useState<string[]>(initialAuth?.permissions || []);
-  const [sessionSnapshot, setSessionSnapshot] = useState<ClientSessionResponse | null>(null);
   const sessionIdentityRef = useRef<string | null>(initialAuth?.sessionIdentity ?? null);
   const hasObservedSessionRef = useRef(Boolean(initialAuth?.sessionIdentity));
+  const [sessionVerified, setSessionVerified] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === "/admin/login";
@@ -114,7 +147,6 @@ export const AdminLayout: React.FC<{
     if (isLoginPage) {
       sessionIdentityRef.current = null;
       hasObservedSessionRef.current = false;
-      setSessionSnapshot(null);
       setUserRole(undefined);
       setUserPermissions([]);
       return;
@@ -132,7 +164,6 @@ export const AdminLayout: React.FC<{
           if (hasObservedSessionRef.current) {
             sessionIdentityRef.current = null;
             hasObservedSessionRef.current = false;
-            setSessionSnapshot(json);
           }
           setUserRole(undefined);
           setUserPermissions([]);
@@ -149,7 +180,6 @@ export const AdminLayout: React.FC<{
         if (!hasObservedSessionRef.current || nextSessionIdentity !== sessionIdentityRef.current) {
           sessionIdentityRef.current = nextSessionIdentity;
           hasObservedSessionRef.current = true;
-          setSessionSnapshot(json);
         }
         setUserRole(role);
         setUserPermissions((previous) =>
@@ -161,16 +191,22 @@ export const AdminLayout: React.FC<{
         if (role === "STUDENT" || role === "PARENT") {
           router.replace("/dashboard");
         } else if (role === "TEACHER") {
-          const slug = (json.data.session.institutionSlug || json.data.session.institutionCode || json.data.session.institutionId || "vidyaniketan").toLowerCase();
-          router.replace(`/campus/${slug}/teacher`);
+          const institutionRoute = json.data.session.institutionSlug || json.data.session.institutionCode || json.data.session.institutionId;
+          router.replace(institutionRoute ? `/campus/${encodeURIComponent(institutionRoute)}/teacher` : "/login?role=teacher");
+        } else if (role === "SUPER_ADMIN") {
+          router.replace("/super-admin");
         } else if (!isAdminPortalRole(role)) {
-          router.replace("/login");
-        } else if (isDepartmentalRole(role) && !canAccessAdminPage(role, perms, pathname)) {
-          router.replace(getRoleLandingRoute(role));
+          router.replace("/admin/login");
+        } else {
+          if (isDepartmentalRole(role) && !canAccessAdminPage(role, perms, pathname)) {
+            router.replace(getRoleLandingRoute(role));
+          } else {
+            setSessionVerified(true);
+          }
         }
       } catch {
         if (cancelled || currentRequestGeneration !== requestGeneration) return;
-        router.replace("/login");
+        router.replace("/admin/login");
       }
     };
 
@@ -208,6 +244,14 @@ export const AdminLayout: React.FC<{
     );
   }
 
+  if (!sessionVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#EEF1F5] text-sm text-[#64748B]">
+        Verifying Institution Admin access…
+      </div>
+    );
+  }
+
   return (
     <AdminRoleContext.Provider value={userRole}>
       <InstitutionProvider
@@ -226,15 +270,15 @@ export const AdminLayout: React.FC<{
             : undefined
         }
         initialTheme={initialAuth?.branding?.themeConfig}
-        sessionSnapshot={sessionSnapshot}
       >
-        <DivisionProvider userRole={userRole}>
+        <DivisionProvider>
           <AdminLayoutInner
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             userRole={userRole}
             userPermissions={userPermissions}
             initialUser={initialAuth ? { fullName: initialAuth.fullName, email: initialAuth.email, role: initialAuth.role } : null}
+            supportAccess={initialAuth?.supportAccess}
           >
             {children}
           </AdminLayoutInner>

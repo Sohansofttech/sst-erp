@@ -7,10 +7,13 @@ import {
   TicketPriority,
 } from "@/lib/services/support-ticket.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const searchParams = req.nextUrl.searchParams;
 
     const status = searchParams.get("status") || undefined;
@@ -44,6 +47,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId, userId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     const { subject, category, priority, description, relatedModule, attachmentUrl, attachmentName } = body;

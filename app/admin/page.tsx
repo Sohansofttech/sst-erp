@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Users,
   Briefcase,
-  Calendar,
   Building2,
   Clock,
   ArrowRight,
@@ -40,6 +39,7 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { TrialSubscriptionBanner } from "@/components/admin/TrialSubscriptionBanner";
+import { getTerminology, isFeatureEnabled } from "@/lib/institution-type-config";
 
 function getShortInstitutionLabel(name?: string | null, code?: string | null): string {
   const codePrefix = (code || "").trim().match(/^[A-Za-z]+/)?.[0];
@@ -84,8 +84,16 @@ export default function DashboardPage() {
     activeAcademicYear,
     isAcademicYearsLoading,
     getClassAttendanceSummaries,
+    institutionKind,
+    classes,
   } = useInstitution();
   const { activeDivisionId, activeDivision } = useDivision();
+  const terms = getTerminology(institutionKind);
+  const isCollegeTemplate = institutionKind === "COLLEGE";
+  const isGroupTemplate = institutionKind === "SCHOOL" || institutionKind === "ACADEMY";
+  const showHostelShortcut = isFeatureEnabled(institutionKind, "hostel");
+  const peopleLabel = terms.learners;
+  const staffLabel = terms.staff;
 
   const [activeChartTab, setActiveChartTab] = useState<"enrollment" | "finance" | "attendance">("enrollment");
   const [approvals, setApprovals] = useState<any[]>([]);
@@ -236,14 +244,14 @@ export default function DashboardPage() {
               ? "Multi-Division Executive Dashboard"
               : activeDivision
               ? formatDivisionDashboardTitle(activeDivision.name, profile.name, profile.code)
-              : "Institutional Dashboard"}
+              : terms.dashboardTitle}
           </h1>
           <p className="text-xs text-[#64748B] mt-0.5">
             {activeDivisionId === ALL_DIVISIONS_ID
               ? "Consolidated cross-division institutional performance & division status"
               : activeDivision
               ? `Operational metrics for ${activeDivision.code} • ${activeDivision.type}`
-              : "Institutional governance, academic operations, and analytics"}
+              : profile?.institutionCategory || "Institutional governance, academic operations, and analytics"}
           </p>
         </div>
 
@@ -333,7 +341,7 @@ export default function DashboardPage() {
         <Card className="bg-[#123B5A] text-white border-[#123B5A] shadow-xs hover:shadow-md transition-shadow">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8EA4C2]">Students</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8EA4C2]">{peopleLabel}</span>
               <div className="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center">
                 <Users className="w-4 h-4" />
               </div>
@@ -343,7 +351,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-[#38BDF8] font-bold mt-1">
               <TrendingUp className="w-3 h-3" />
-              <span>{totalStudents > 0 ? (liveStats?.studentGrowth || "Growth data unavailable") : "No active students"}</span>
+              <span>{totalStudents > 0 ? (liveStats?.studentGrowth || "Growth data unavailable") : `No active ${peopleLabel.toLowerCase()}`}</span>
             </div>
           </CardContent>
         </Card>
@@ -412,7 +420,7 @@ export default function DashboardPage() {
         <Card className="border-[#E2E8F0] shadow-xs hover:shadow-md transition-shadow">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">Faculty</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">{staffLabel}</span>
               <div className="w-8 h-8 rounded-lg bg-[#E0E7FF] text-[#123B5A] flex items-center justify-center">
                 <Briefcase className="w-4 h-4" />
               </div>
@@ -422,7 +430,11 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-[#64748B] font-medium mt-1">
               <span>
-                {dashboardData?.schemaStatus?.departments === "PENDING_MIGRATION"
+                {isGroupTemplate
+                  ? classes.length === 0
+                    ? `No ${terms.groupPlural} configured`
+                    : `Across ${classes.length} ${classes.length === 1 ? terms.group : terms.groupPlural}`
+                  : dashboardData?.schemaStatus?.departments === "PENDING_MIGRATION"
                   ? "Departments pending setup"
                   : totalDepartments === 1
                   ? "Across 1 department"
@@ -514,7 +526,41 @@ export default function DashboardPage() {
         </CardHeader>
 
         <CardContent className="p-5">
-          {activeChartTab === "enrollment" && (
+          {activeChartTab === "enrollment" && isGroupTemplate && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-xs text-[#64748B]">
+                <span>Registered {terms.learners} by {terms.group}</span>
+                <span className="font-semibold text-[#1E293B]">
+                  {totalStudents > 0 ? `${totalStudents.toLocaleString()} Enrolled` : `No active ${terms.learners.toLowerCase()}`}
+                </span>
+              </div>
+              {classes.length === 0 ? (
+                <div className="text-center py-8 space-y-2 border border-dashed border-[#CBD5E1] rounded-xl bg-[#F8FAFC]">
+                  <Layers className="w-8 h-8 text-[#94A3B8] mx-auto opacity-60" />
+                  <p className="text-xs font-semibold text-[#1E293B]">No {terms.groupPlural} configured</p>
+                  <p className="text-[11px] text-[#64748B]">
+                    <Link href="/admin/academics/classes" className="underline">Create {terms.groupPlural}</Link> to see enrollment here.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {classes.slice(0, 12).map((cls) => (
+                    <div key={cls.id} className="p-3.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="font-bold text-[#1E293B] truncate max-w-[200px]" title={cls.name}>{cls.name}</span>
+                        <span className="font-mono font-bold text-[#F5A000]">{cls.totalStudents}</span>
+                      </div>
+                      <div className="text-[11px] text-[#64748B]">
+                        {cls.courseName || cls.code} · {cls.sectionsCount} {cls.sectionsCount === 1 ? "section" : "sections"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeChartTab === "enrollment" && isCollegeTemplate && (
             <div className="space-y-4">
               <div className="flex items-center justify-between text-xs text-[#64748B]">
                 <span>Department Enrollment Quota vs Registered Students</span>
@@ -633,7 +679,32 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {activeChartTab === "attendance" && (
+          {activeChartTab === "attendance" && isGroupTemplate && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(getClassAttendanceSummaries ? getClassAttendanceSummaries() : []).length === 0 ? (
+                <div className="col-span-full text-center py-6 text-xs text-[#64748B] border border-dashed border-[#CBD5E1] rounded-xl bg-[#F8FAFC]">
+                  No attendance sessions recorded for any {terms.group} yet.
+                </div>
+              ) : (
+                (getClassAttendanceSummaries ? getClassAttendanceSummaries() : []).slice(0, 8).map((summary) => {
+                  const pct = summary.averagePercentage ?? null;
+                  return (
+                    <div key={summary.className} className="p-3 text-center rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
+                      <div className="text-[11px] font-bold text-[#64748B] truncate" title={summary.className}>{summary.className}</div>
+                      <div className={`text-xl font-black mt-1 ${pct !== null ? "text-[#16466C]" : "text-[#94A3B8]"}`}>
+                        {pct !== null ? `${pct}%` : "N/A"}
+                      </div>
+                      <div className="text-[10px] text-[#64748B] mt-0.5">
+                        {pct !== null ? (pct >= 75 ? "Optimal attendance" : "Attendance shortage") : "No session records"}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {activeChartTab === "attendance" && isCollegeTemplate && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: "1st Year (Semester 1 & 2)", key: "1" },
@@ -770,6 +841,7 @@ export default function DashboardPage() {
               </div>
             </Link>
 
+            {showHostelShortcut && (
             <Link href="/admin/hostel" className="group">
               <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] group-hover:border-[#F5A000] group-hover:shadow-xs transition-all text-center h-full flex flex-col items-center justify-center">
                 <div className="w-9 h-9 rounded-lg bg-[#E0E7FF] text-[#123B5A] flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
@@ -779,6 +851,7 @@ export default function DashboardPage() {
                 <span className="text-[10px] text-[#64748B]">Rooms & Beds</span>
               </div>
             </Link>
+            )}
 
             <Link href="/admin/transport" className="group">
               <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] group-hover:border-[#F5A000] group-hover:shadow-xs transition-all text-center h-full flex flex-col items-center justify-center">

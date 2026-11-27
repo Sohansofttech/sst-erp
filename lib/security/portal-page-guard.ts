@@ -4,7 +4,6 @@ import db from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 
 export type PortalRole = "STUDENT" | "PARENT";
 
@@ -14,6 +13,10 @@ export interface PortalAuthContext {
   institutionId: string;
   fullName: string;
   email: string;
+}
+
+function getPortalLoginPath(requiredRole: PortalRole): string {
+  return requiredRole === "STUDENT" ? "/login?role=student" : "/login";
 }
 
 /**
@@ -26,7 +29,7 @@ export function getPortalRedirectTarget(
 ): string | null {
   const roleUpper = (role || "").toUpperCase();
   if (!roleUpper) {
-    return "/login";
+    return getPortalLoginPath(requiredRole);
   }
   if (roleUpper === requiredRole) {
     return null;
@@ -55,13 +58,10 @@ export async function verifyPortalPageAccess(
 ): Promise<PortalAuthContext | null> {
   await connection();
 
-  if (isDevelopmentBypassEnabled()) {
-    return null;
-  }
-
+  const loginPath = getPortalLoginPath(requiredRole);
   const session = await getSession();
   if (!session || !session.userId || !session.passwordSig) {
-    redirect("/login");
+    redirect(loginPath);
   }
 
   const dbUser = await db.user.findUnique({
@@ -79,12 +79,12 @@ export async function verifyPortalPageAccess(
   });
 
   if (!dbUser || !dbUser.isActive || dbUser.status !== "ACTIVE" || !dbUser.institutionId) {
-    redirect("/login");
+    redirect(loginPath);
   }
 
   const currentSig = computePasswordSignature(dbUser.passwordHash || "");
   if (session.passwordSig !== currentSig) {
-    redirect("/login");
+    redirect(loginPath);
   }
 
   const liveRole = (dbUser.role || session.role || "").toUpperCase();

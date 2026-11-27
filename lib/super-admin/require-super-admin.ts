@@ -1,14 +1,12 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { hasSuperAdminRole } from "@/lib/super-admin/authorization";
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
+import { hasSuperAdminRole, isDatabaseUuid } from "@/lib/super-admin/authorization";
 import { getSession } from "@/lib/auth/session";
 import { computePasswordSignature } from "@/lib/auth/jwt";
 import { emailsMatch } from "@/lib/auth/email";
 import { prisma } from "@/lib/super-admin/prisma";
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { getAdminMfaRecord } from "@/lib/security/totp-mfa";
 
 export interface SuperAdminActor {
   id: string | null;
@@ -28,8 +26,6 @@ export interface SuperAdminActor {
  * 4. Never auto-provisions, repairs, or creates `PlatformUser` records.
  */
 export async function requireSuperAdmin(): Promise<SuperAdminActor> {
-  if (isDevelopmentBypassEnabled()) return { id: null, email: null, developmentMode: true as const };
-
   // 1. Check ERP JWT Session (unified login / cookie auth)
   const session = await getSession();
   if (session) {
@@ -37,7 +33,7 @@ export async function requireSuperAdmin(): Promise<SuperAdminActor> {
       throw new Error("Super Admin access is required.");
     }
 
-    if (!UUID_REGEX.test(session.userId)) {
+    if (!isDatabaseUuid(session.userId)) {
       throw new Error("Super Admin access is required: invalid user UUID.");
     }
 
@@ -70,10 +66,8 @@ export async function requireSuperAdmin(): Promise<SuperAdminActor> {
     ) {
       throw new Error("Super Admin access is required: database account is inactive or unauthorized.");
     }
-
-    const currentSig = computePasswordSignature(dbUser.passwordHash || "");
-    if (session.passwordSig !== currentSig) {
-      throw new Error("Super Admin access is required: session signature is invalid or revoked.");
+    if (!session.passwordSig || session.passwordSig !== computePasswordSignature(dbUser.passwordHash || "")) {
+      throw new Error("Super Admin access is required: session is invalid or expired.");
     }
 
     // Require exact PlatformUser.id === dbUser.id correspondence (no email fallback, no auto-provisioning)
@@ -97,10 +91,24 @@ export async function requireSuperAdmin(): Promise<SuperAdminActor> {
   // 2. Check Supabase Auth
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) redirect("/login");
+  if (error || !user) redirect("/super-admin/login");
 
   if (!(await hasSuperAdminRole(user.id))) {
     throw new Error("Super Admin access is required: independent database authorization failed.");
+  }
+
+  // Check MFA enrollment: A raw Supabase Auth session cannot bypass enrolled MFA
+  try {
+    const mfaRecord = await getAdminMfaRecord(user.id);
+    if (mfaRecord && mfaRecord.isEnrolled) {
+      redirect("/super-admin/login?error=mfa_required");
+    }
+  } catch (mfaErr: any) {
+    if (mfaErr?.digest?.startsWith("NEXT_REDIRECT")) {
+      throw mfaErr;
+    }
+    console.error("[RequireSuperAdmin] Database failure checking MFA enrollment (failing closed):", mfaErr);
+    redirect("/super-admin/login?error=security_verification_failed");
   }
 
   const platformUser = await prisma.platformUser.findUnique({

@@ -7,10 +7,13 @@ import {
   createVisitorPass,
   checkoutVisitorPass,
 } from "@/lib/services/institution-admin.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const tab = req.nextUrl.searchParams.get("tab") || "visitors";
     const take = parseInt(req.nextUrl.searchParams.get("take") || "50", 10);
 
@@ -29,6 +32,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (body.type === "CAMPUS_STUDENT_LOG") {
@@ -63,6 +67,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { passId } = await req.json();
 
     if (!passId) {

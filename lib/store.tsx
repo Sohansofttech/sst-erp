@@ -5,6 +5,7 @@ import {
   InstitutionThemeConfig,
   DEFAULT_INSTITUTION_THEME,
 } from "@/lib/theme-utils";
+import type { InstitutionTypeKey } from "@/lib/institution-type-config";
 import {
   InstitutionProfile,
   AcademicYear,
@@ -139,6 +140,8 @@ interface InstitutionContextType {
   refreshProfile: () => Promise<void>;
   isProfileLoading: boolean;
   profileError: string | null;
+  /** Template key from the database-backed profile; null while loading or if the profile could not be loaded. */
+  institutionKind: InstitutionTypeKey | null;
   theme: InstitutionThemeConfig;
   updateTheme: (newTheme: Partial<InstitutionThemeConfig>) => void;
   resetThemeToDefaults: () => void;
@@ -987,14 +990,25 @@ const STORAGE_KEY_PREFIX = "sst_erp_inst_admin_";
 export function InstitutionProvider({
   children,
   initialTheme = DEFAULT_INSTITUTION_THEME,
+  initialProfile,
 }: {
   children: React.ReactNode;
   initialTheme?: InstitutionThemeConfig;
+  initialProfile?: Partial<InstitutionProfile>;
 }) {
-  const [profile, setProfile] = useState<InstitutionProfile>(initialInstitutionProfile);
+  const [profile, setProfile] = useState<InstitutionProfile>(() => ({
+    ...initialInstitutionProfile,
+    ...initialProfile,
+    id: initialProfile?.id || "",
+    name: initialProfile?.name || "Campus Portal",
+    code: initialProfile?.code || "",
+    logoUrl: initialProfile?.logoUrl || "",
+  }));
   // SSR-deterministic theme state: initialized from server cookie (or default).
   // Strictly avoiding localStorage in useState initializer eliminates hydration mismatch.
-  const [theme, setTheme] = useState<InstitutionThemeConfig>(initialTheme);
+  const [theme, setTheme] = useState<InstitutionThemeConfig>(
+    initialProfile?.themeConfig ?? initialTheme,
+  );
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isAcademicYearsLoading, setIsAcademicYearsLoading] = useState<boolean>(true);
   const [academicYearsError, setAcademicYearsError] = useState<string | null>(null);
@@ -1113,6 +1127,8 @@ export function InstitutionProvider({
 
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const institutionKind: InstitutionTypeKey | null =
+    isProfileLoading || profileError ? null : profile.institutionType ?? null;
 
   // Save state helper
   const saveState = useCallback((key: string, data: unknown) => {
@@ -1157,13 +1173,17 @@ export function InstitutionProvider({
       }
 
       setProfile((prev) => {
-        const merged = {
-          ...prev,
-          ...serverProfile,
-          id: serverProfile.id || prev.id,
-          name: serverProfile.name || prev.name,
-          code: serverProfile.code || prev.code,
-        };
+        // Never carry fields over from a cached profile of a different institution.
+        const sameTenant = !prev.id || !serverProfile.id || prev.id === serverProfile.id;
+        const merged = sameTenant
+          ? {
+              ...prev,
+              ...serverProfile,
+              id: serverProfile.id || prev.id,
+              name: serverProfile.name || prev.name,
+              code: serverProfile.code || prev.code,
+            }
+          : { ...initialInstitutionProfile, ...serverProfile };
         saveState("profile", merged);
         return merged;
       });
@@ -7076,6 +7096,7 @@ export function InstitutionProvider({
         refreshProfile,
         isProfileLoading,
         profileError,
+        institutionKind,
         theme,
         updateTheme,
         resetThemeToDefaults,

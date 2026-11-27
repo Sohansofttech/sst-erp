@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
+import { Pool, type ClientBase } from "pg";
 import type { BiometricPrismaModels } from "@/lib/db";
 import { wrapWithMapping } from "@/lib/prisma";
 
@@ -36,19 +36,43 @@ declare global {
   var rolePrismaClients: Partial<Record<PrivilegedDbRole, PrismaClient>> | undefined;
 }
 
+// The Super Admin pool may reuse the single project database URL when no dedicated
+// login is configured; onConnect then verifies the role is actually privileged.
+function resolveRoleUrl(role: PrivilegedDbRole): { url: string | undefined; shared: boolean } {
+  const dedicated = process.env[ROLE_ENV_CONFIG[role].envVar]?.trim();
+  if (dedicated) return { url: dedicated, shared: false };
+  if (role === "SUPER_ADMIN") return { url: process.env.DATABASE_URL?.trim(), shared: true };
+  return { url: undefined, shared: false };
+}
+
 function getConnectionString(role: PrivilegedDbRole): string {
-  const { envVar } = ROLE_ENV_CONFIG[role];
-  const raw = process.env[envVar];
-  if (!raw || raw.trim() === "") {
-    throw new DatabaseConfigurationError(role, envVar);
+  const { url } = resolveRoleUrl(role);
+  if (!url) {
+    throw new DatabaseConfigurationError(role, ROLE_ENV_CONFIG[role].envVar);
   }
-  return raw.trim();
+  return url;
 }
 
 export function hasRoleDatabaseConfig(role: PrivilegedDbRole): boolean {
-  const { envVar } = ROLE_ENV_CONFIG[role];
-  const raw = process.env[envVar];
-  return Boolean(raw && raw.trim() !== "");
+  return Boolean(resolveRoleUrl(role).url);
+}
+
+async function prepareSuperAdminConnection(client: ClientBase, shared: boolean) {
+  if (!shared) {
+    await client.query("SET ROLE erp_super_admin");
+    return;
+  }
+  const { rows } = await client.query(
+    `select r.rolsuper or r.rolbypassrls as bypass, pg_has_role(current_user, 'erp_super_admin', 'USAGE') as can_set
+       from pg_roles r where r.rolname = current_user`
+  );
+  if (rows[0]?.can_set) {
+    await client.query("SET ROLE erp_super_admin");
+  } else if (!rows[0]?.bypass) {
+    throw new Error(
+      "DATABASE_URL role lacks Super Admin privileges (needs erp_super_admin membership or BYPASSRLS)."
+    );
+  }
 }
 
 export function getRoleDb(role: PrivilegedDbRole): RolePrismaClient {
@@ -73,6 +97,11 @@ export function getRoleDb(role: PrivilegedDbRole): RolePrismaClient {
         query_timeout: 15000,
         idleTimeoutMillis: 3000,
         allowExitOnIdle: true,
+        ...(role === "SUPER_ADMIN"
+          ? { onConnect: async (client: ClientBase) => {
+              await prepareSuperAdminConnection(client, resolveRoleUrl(role).shared);
+            } }
+          : {}),
       });
 
     if (!global.rolePgPools[role]) {

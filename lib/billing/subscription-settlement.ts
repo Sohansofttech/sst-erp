@@ -23,6 +23,7 @@ export async function applySubscriptionPurchase(
     paidAt: Date;
   },
 ) {
+  await tx.$queryRaw`SELECT id FROM "Institution" WHERE id = ${input.institutionId}::uuid FOR UPDATE`;
   const plan = await tx.subscriptionPlan.findUnique({
     where: { id: input.planId },
     select: { id: true, name: true, code: true, billingCycle: true, customCycleDays: true },
@@ -62,6 +63,14 @@ export async function applySubscriptionPurchase(
         }
         throw error;
       }
+      const overlap = await tx.institutionSubscription.findFirst({
+        where: {
+          institutionId: input.institutionId, id: { not: existing.id }, status: { in: ["ACTIVE", "TRIALING"] },
+          startsAt: { lt: endsAt }, OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }],
+        },
+        select: { id: true },
+      });
+      if (overlap) throw new BillingIntegrationError("The renewal overlaps another subscription.", 409, "SUBSCRIPTION_PERIOD_CONFLICT");
       await tx.institutionSubscription.update({
         where: { id: existing.id },
         data: { status: "ACTIVE", endsAt, renewsAt: endsAt, cancelledAt: null },
@@ -80,11 +89,13 @@ export async function applySubscriptionPurchase(
       where: {
         institutionId: input.institutionId,
         status: { in: ["ACTIVE", "TRIALING"] },
-        startsAt: { lte: input.paidAt },
         OR: [{ endsAt: null }, { endsAt: { gt: input.paidAt } }],
       },
-      select: { id: true, endsAt: true },
+      select: { id: true, startsAt: true, endsAt: true },
     });
+    if (activeSubscriptions.some((subscription) => subscription.startsAt > input.paidAt && subscription.endsAt === null)) {
+      throw new BillingIntegrationError("A scheduled subscription has no expiry and requires administrator review.", 409, "SUBSCRIPTION_PERIOD_CONFLICT");
+    }
     for (const item of activeSubscriptions.filter((subscription) => subscription.endsAt === null)) {
       await tx.institutionSubscription.update({
         where: { id: item.id },
@@ -111,22 +122,40 @@ export async function applySubscriptionPurchase(
       }
       throw error;
     }
-    const subscription = await tx.institutionSubscription.create({
-      data: {
-        institutionId: input.institutionId,
-        planId: input.planId,
-        status: "ACTIVE",
-        startsAt,
-        endsAt,
-        renewsAt: endsAt,
-      },
+    const pending = await tx.institutionSubscription.findMany({
+      where: { institutionId: input.institutionId, planId: input.planId, status: "PAST_DUE", endsAt: null },
       select: { id: true },
+      take: 2,
     });
+    if (pending.length > 1) {
+      throw new BillingIntegrationError("Multiple pending assignments require administrator review.", 409, "DUPLICATE_PENDING_SUBSCRIPTIONS");
+    }
+    let subscription: { id: string };
+    if (pending.length === 1) {
+      const updated = await tx.institutionSubscription.updateMany({
+        where: { id: pending[0].id, status: "PAST_DUE", endsAt: null },
+        data: { status: "ACTIVE", startsAt, endsAt, renewsAt: endsAt, cancelledAt: null },
+      });
+      if (updated.count !== 1) throw new BillingIntegrationError("The pending assignment changed during payment settlement.", 409, "PENDING_SUBSCRIPTION_CONFLICT");
+      subscription = pending[0];
+    } else {
+      subscription = await tx.institutionSubscription.create({
+        data: {
+          institutionId: input.institutionId,
+          planId: input.planId,
+          status: "ACTIVE",
+          startsAt,
+          endsAt,
+          renewsAt: endsAt,
+        },
+        select: { id: true },
+      });
+    }
     appliedPeriod = {
       subscriptionId: subscription.id,
       startsAt,
       endsAt,
-      eventAction: "PURCHASED",
+      eventAction: pending.length ? "ASSIGNMENT_PAID" : "PURCHASED",
     };
   }
 

@@ -76,6 +76,8 @@ import type { ApprovalStatus } from "@/types/common"
 import type { InternalAssessment, SubjectAllocation } from "@/types/teacher"
 import { useTeacherRole } from "../teacher-role-context"
 
+const getTodayDate = () => new Date().toISOString().split("T")[0]
+
 const defineIASchema = z
   .object({
     subjectAllocationId: z.string().min(1, "Select a class & subject"),
@@ -173,7 +175,7 @@ export default function TeacherAssessmentsPage() {
       maxMarks: 40,
       passingMarks: 14,
       weightagePercent: 20,
-      conductedDate: "2026-11-18",
+      conductedDate: getTodayDate(),
     },
   })
 
@@ -451,7 +453,7 @@ export default function TeacherAssessmentsPage() {
         maxMarks: 40,
         passingMarks: 14,
         weightagePercent: 20,
-        conductedDate: "2026-11-18",
+        conductedDate: getTodayDate(),
       })
       toast.success(`Defined IA component "${created.componentName}"`, {
         description: `Ready for marks entry in ${created.className}-${created.section}.`,
@@ -861,7 +863,7 @@ export default function TeacherAssessmentsPage() {
                       </Button>
                       <Button
                         type="button"
-                        className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                        className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                         disabled={savingMarks}
                         onClick={() => void handlePublishToStudents()}
                       >
@@ -1023,7 +1025,7 @@ export default function TeacherAssessmentsPage() {
                       <Button
                         type="button"
                         size="sm"
-                        className="rounded-xl bg-[#F5A000] text-white font-bold hover:bg-[#E09200]"
+                        className="rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                         onClick={() => {
                           handleSelectAssessment(ia.id)
                           setActiveTab("enter")

@@ -7,12 +7,15 @@ import {
   validateStudentImportRows,
   type ImportTargetField,
 } from "@/lib/services/student-import.service";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await requireActiveSubscription(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
 
     const contentType = req.headers.get("content-type") || "";
     let fileType: "CSV" | "XLSX" = "CSV";

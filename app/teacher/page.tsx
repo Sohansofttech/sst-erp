@@ -1,38 +1,52 @@
-"use client";
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
+import { getSession } from "@/lib/auth/session";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-export default function TeacherRedirectPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if ((data.authenticated && data.user) || (data.success && data.data?.session)) {
-          const sess = data.data?.session || data.user;
-          const slug = (sess.institutionSlug || sess.institutionCode || sess.institutionName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-          if (slug) {
-            router.replace(`/campus/${slug}/teacher`);
-          } else {
-            router.replace("/login");
-          }
-        } else {
-          router.replace("/login");
-        }
-      })
-      .catch(() => {
-        router.replace("/login");
-      });
-  }, [router]);
-
+export default function TeacherPortalEntry() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#EEF1F5]">
-      <div className="flex flex-col items-center gap-3 text-sm text-[#788391]">
-        <div className="w-6 h-6 border-2 border-[#123B5A] border-t-transparent rounded-full animate-spin" />
-        Redirecting to Teacher Portal...
-      </div>
-    </div>
+    <Suspense fallback={<PortalEntryFallback />}>
+      <TeacherPortalRedirect />
+    </Suspense>
+  );
+}
+
+async function TeacherPortalRedirect() {
+  await connection();
+  const session = await getSession();
+
+  if (!session) {
+    redirect("/login?role=teacher");
+  }
+
+  switch (session.role) {
+    case "TEACHER": {
+      const institutionRoute = session.institutionId;
+      if (!institutionRoute) {
+        redirect("/login?role=teacher");
+      }
+      redirect(`/campus/${encodeURIComponent(institutionRoute)}/teacher`);
+    }
+    case "STUDENT":
+      redirect("/student/dashboard");
+    case "PARENT":
+      redirect("/parent");
+    case "ADMIN":
+    case "INSTITUTION_ADMIN":
+      redirect("/admin");
+    case "SUPER_ADMIN":
+      redirect("/super-admin");
+    default:
+      redirect("/login?role=teacher");
+  }
+
+  return null;
+}
+
+function PortalEntryFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#EEF1F5] text-sm text-[#64748B]">
+      Opening Teacher Portal…
+    </main>
   );
 }

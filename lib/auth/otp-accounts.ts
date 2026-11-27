@@ -1,5 +1,6 @@
 import "server-only";
 import db from "@/lib/db";
+import { portalRoleAllows } from "@/lib/auth/portal-roles";
 
 export type OtpPortalRole = "STUDENT" | "TEACHER" | "ADMIN" | "SUPER_ADMIN";
 
@@ -76,7 +77,7 @@ export async function findOtpLoginAccount(
 
   const matchingAccounts = accounts.filter((account) => {
     const accountRole = (account.role || (account.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
-    return accountRole === role;
+    return portalRoleAllows(role, accountRole);
   });
   if (matchingAccounts.length === 0) {
     if (accounts.length === 0) {

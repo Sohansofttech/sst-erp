@@ -90,3 +90,75 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO erp_super
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO erp_super_admin;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO erp_super_admin;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO erp_super_admin;
+
+-- Allow the isolated super-admin role to access the platform user table.
+-- Tenant application users remain restricted by tenant_isolation_erp_user.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'users'
+      AND policyname = 'super_admin_users_all'
+  ) THEN
+    CREATE POLICY super_admin_users_all
+      ON public.users
+      FOR ALL
+      TO erp_super_admin
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END
+$$;
+
+-- Super Admin support sessions are platform-wide and managed only through
+-- the dedicated erp_super_admin role.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'SupportAccessSession'
+      AND policyname = 'super_admin_support_access_all'
+  ) THEN
+    CREATE POLICY super_admin_support_access_all
+      ON public."SupportAccessSession"
+      FOR ALL
+      TO erp_super_admin
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END
+$$;
+
+-- Every RLS-enabled data table is platform-readable by the dedicated
+-- Super Admin role. Tenant application users retain their existing
+-- erp_app_user tenant-isolation policies.
+DO $$
+DECLARE
+  platform_table TEXT;
+BEGIN
+  FOR platform_table IN
+    SELECT c.relname
+    FROM pg_class c
+    WHERE c.relnamespace = 'public'::regnamespace
+      AND c.relkind = 'r'
+      AND c.relrowsecurity = true
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = platform_table
+        AND policyname = 'super_admin_platform_all'
+    ) THEN
+      EXECUTE format(
+        'CREATE POLICY super_admin_platform_all ON public.%I FOR ALL TO erp_super_admin USING (true) WITH CHECK (true)',
+        platform_table
+      );
+    END IF;
+  END LOOP;
+END
+$$;

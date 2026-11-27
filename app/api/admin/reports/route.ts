@@ -13,6 +13,8 @@ import {
   getDivisionSpecificReport,
 } from "@/lib/services/division-reporting.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +23,7 @@ export async function GET(req: NextRequest) {
       allowUnscoped: true,
       ...(reportType === "finance" ? { requiredPermission: PERMISSIONS.REPORTS_FINANCE } : {}),
     });
+    await requireReadReq(req, context.institutionId);
     const institutionId = context.institutionId;
     const divisionIdParam = req.nextUrl.searchParams.get("divisionId");
     const academicYearId = req.nextUrl.searchParams.get("academicYearId") || undefined;

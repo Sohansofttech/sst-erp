@@ -13,10 +13,10 @@ type SendInvitationInput = {
 
 export type EmailSendResult = { sent: true; fallbackUsed?: boolean } | { sent: false; reason: string };
 
-export async function sendInstitutionInvitationEmail(input: SendInvitationInput): Promise<EmailSendResult> {
+export async function sendInstitutionInvitationEmail(input: SendInvitationInput, send = sendEmail): Promise<EmailSendResult> {
   const message = institutionInvitationEmail(input);
 
-  const res = await sendEmail({
+  const res = await send({
     to: input.to,
     subject: message.subject,
     html: message.html,
@@ -31,6 +31,9 @@ export async function sendInstitutionInvitationEmail(input: SendInvitationInput)
       sent: false,
       reason: res.error || "Email provider rejected the invitation.",
     };
+  }
+  if (res.simulated || res.provider === "ethereal" || res.provider === "simulated") {
+    return { sent: false, reason: "Invitation was only sent to a test transport, not to the administrator." };
   }
 
   return { sent: true, fallbackUsed: res.fallbackUsed };

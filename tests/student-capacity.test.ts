@@ -11,6 +11,9 @@ function makeTransaction(options: {
   studentLimit?: number | null;
   registeredStudents?: number;
   hasActiveSubscription?: boolean;
+  subscriptionStatus?: string;
+  subscriptionStartsInFuture?: boolean;
+  subscriptionExpired?: boolean;
 } = {}) {
   const calls: string[] = [];
   const transaction = {
@@ -19,11 +22,18 @@ function makeTransaction(options: {
       return options.institutionExists === false ? [] : [{ id: "institution-1" }];
     },
     institutionSubscription: {
-      findFirst: async () => {
+      findFirst: async (args: { where?: { status?: string | { in: string[] } } } = {}) => {
         calls.push("subscription");
-        return options.hasActiveSubscription === false
-          ? null
-          : { plan: { studentLimit: options.studentLimit ?? null } };
+        if (options.hasActiveSubscription === false) return null;
+        const statusFilter = args?.where?.status;
+        const allowed = Array.isArray((statusFilter as { in?: string[] })?.in)
+          ? (statusFilter as { in: string[] }).in
+          : [statusFilter as string];
+        const status = options.subscriptionStatus ?? "ACTIVE";
+        if (!allowed.includes(status)) return null;
+        if (options.subscriptionStartsInFuture) return null;
+        if (options.subscriptionExpired) return null;
+        return { plan: { studentLimit: options.studentLimit ?? null } };
       },
     },
     student: {
@@ -67,6 +77,38 @@ test("blocks registration when an institution has no active subscription", async
   );
   assert.equal(calls.includes("count"), false);
 });
+
+test("accepts TRIALING subscription within valid date window", async () => {
+  const { transaction } = makeTransaction({ subscriptionStatus: "TRIALING", studentLimit: 5, registeredStudents: 2 });
+  const capacity = await assertStudentRegistrationCapacity(transaction, "institution-1");
+  assert.deepEqual(capacity, { registeredStudents: 2, studentLimit: 5 });
+});
+
+test("rejects TRIALING subscription with future startsAt", async () => {
+  const { transaction } = makeTransaction({ subscriptionStatus: "TRIALING", subscriptionStartsInFuture: true });
+  await assert.rejects(
+    () => assertStudentRegistrationCapacity(transaction, "institution-1"),
+    (error: unknown) => error instanceof StudentCapacityError && error.statusCode === 403,
+  );
+});
+
+test("rejects TRIALING subscription with expired endsAt", async () => {
+  const { transaction } = makeTransaction({ subscriptionStatus: "TRIALING", subscriptionExpired: true });
+  await assert.rejects(
+    () => assertStudentRegistrationCapacity(transaction, "institution-1"),
+    (error: unknown) => error instanceof StudentCapacityError && error.statusCode === 403,
+  );
+});
+
+for (const status of ["EXPIRED", "CANCELED", "CANCELLED", "SUSPENDED"]) {
+  test(`rejects ${status} subscription`, async () => {
+    const { transaction } = makeTransaction({ subscriptionStatus: status });
+    await assert.rejects(
+      () => assertStudentRegistrationCapacity(transaction, "institution-1"),
+      (error: unknown) => error instanceof StudentCapacityError && error.statusCode === 403,
+    );
+  });
+}
 
 test("allows unlimited active plans and rejects missing institution rows", async () => {
   const unlimited = makeTransaction({ studentLimit: null, registeredStudents: 5000 });

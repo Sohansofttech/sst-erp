@@ -4,7 +4,6 @@ import { SuperAdminShell } from "@/components/super-admin/super-admin-shell";
 import { LogoutButton } from "@/components/super-admin/logout-button";
 import { hasSuperAdminRole } from "@/lib/super-admin/authorization";
 import { createClient } from "@/lib/supabase/server";
-import { isDevelopmentBypassEnabled } from "@/lib/super-admin/development-access";
 import { connection } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import "../super-admin.css";
@@ -17,16 +16,16 @@ export const metadata: Metadata = {
 export const instant = false;
 
 export default async function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
-  if (isDevelopmentBypassEnabled()) {
-    return <SuperAdminShell userEmail="No authenticated user" developmentMode>{children}</SuperAdminShell>;
-  }
-
   await connection();
 
   // 1. Check ERP session (sst_session cookie)
   const erpSession = await getSession();
   if (erpSession) {
-    if (erpSession.role === "SUPER_ADMIN") {
+    const isAuthorized = erpSession.role === "SUPER_ADMIN" && await hasSuperAdminRole({
+      userId: erpSession.userId,
+      email: erpSession.email,
+    });
+    if (isAuthorized) {
       return (
         <SuperAdminShell userEmail={erpSession.email || "kiran@junkitout.in"}>
           {children}
@@ -48,7 +47,7 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (error || !user) redirect("/login");
+  if (error || !user) redirect("/super-admin/login");
 
   let isSuperAdmin = false;
   try {

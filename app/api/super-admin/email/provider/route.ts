@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { connection, NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/super-admin/require-super-admin";
 import {
   getCentralEmailConfig,
@@ -8,6 +8,7 @@ import {
 import nodemailer from "nodemailer";
 
 export async function GET(req: NextRequest) {
+  await connection();
   try {
     await requireSuperAdmin();
     const config = await getCentralEmailConfig();
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  await connection();
   try {
     const admin = await requireSuperAdmin();
     const { searchParams } = new URL(req.url);

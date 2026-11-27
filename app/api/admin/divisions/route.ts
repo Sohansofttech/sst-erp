@@ -24,10 +24,13 @@ import {
   DivisionSubscriptionError,
 } from "@/lib/billing/division-entitlements";
 import { DivisionType, DivisionStatus } from "@prisma/client";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireReadReq(req, context.institutionId);
     const { searchParams } = new URL(req.url);
 
     const statusParam = searchParams.get("status") as DivisionStatus | null;
@@ -39,7 +42,7 @@ export async function GET(req: NextRequest) {
         status: statusParam && Object.values(DivisionStatus).includes(statusParam) ? statusParam : undefined,
         type: typeParam && Object.values(DivisionType).includes(typeParam) ? typeParam : undefined,
         search: searchParam,
-        includeCounts: true,
+        includeCounts: false,
       }),
       getDivisionSubscriptionEntitlements(context.institutionId),
     ]);
@@ -59,6 +62,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireWriteReq(req, context.institutionId);
     const body = await req.json();
 
     const {
@@ -130,6 +134,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireWriteReq(req, context.institutionId);
     const { searchParams } = new URL(req.url);
     const body = await req.json();
 
@@ -178,6 +183,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireWriteReq(req, context.institutionId);
     const { searchParams } = new URL(req.url);
 
     const divisionId = searchParams.get("id");

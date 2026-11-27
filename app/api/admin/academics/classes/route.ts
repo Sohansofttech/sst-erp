@@ -3,10 +3,13 @@ import { resolveDivisionContext } from "@/lib/security/division-context";
 import { handleAdminApiError } from "@/lib/security/admin-auth";
 import { getClasses, createClass } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req, undefined, { allowUnscoped: true });
+    await requireReadReq(req, context.institutionId);
     const institutionId = context.institutionId;
     const requestedDiv = context.activeDivisionId;
 
@@ -24,6 +27,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireWriteReq(req, context.institutionId);
     const institutionId = context.institutionId;
     const body = await req.json();
 
@@ -77,6 +81,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireWriteReq(req, context.institutionId);
     const institutionId = context.institutionId;
     const body = await req.json();
     const { id, name, courseId, academicYearId, semester, gradeLevel, stream, divisionId } = body;
@@ -112,6 +117,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireWriteReq(req, context.institutionId);
     const institutionId = context.institutionId;
     const id = req.nextUrl.searchParams.get("id");
 

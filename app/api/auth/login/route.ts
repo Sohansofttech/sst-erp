@@ -4,6 +4,7 @@ import db from "@/lib/db";
 import {
   signToken,
   AUTH_COOKIE_NAME,
+  SUPPORT_ACCESS_COOKIE_NAME,
   computePasswordSignature,
   verifyOtpLoginProof,
   verifyGoogleLoginProof,
@@ -26,9 +27,22 @@ import {
   findDeterministicAccount,
   type TeacherRole,
 } from "@/lib/auth/roles";
+import { isKnownPortalRole, portalRoleAllows } from "@/lib/auth/portal-roles";
 import { resolveTeacherAssignmentsFromDb } from "@/lib/security/tenant-context";
+import { isInstitutionOperational } from "@/lib/services/institution-lifecycle";
 import { getRoleLandingRoute, isAdminPortalRole } from "@/lib/security/rbac";
 import { resolveUserPermissionsFromDb } from "@/lib/security/rbac-server";
+import {
+  checkLoginRateLimit,
+  recordFailedLogin,
+  recordSuccessfulLogin,
+} from "@/lib/security/login-rate-limiter";
+import {
+  getAdminMfaRecord,
+  signMfaChallengeToken,
+  MFA_CHALLENGE_COOKIE,
+} from "@/lib/security/totp-mfa";
+import { getClientIp } from "@/lib/security/client-ip";
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,6 +51,7 @@ export async function POST(req: NextRequest) {
       password,
       loginType,
       institutionCode,
+      portalRole: requestedPortalRole,
       otpProof,
       googleProof,
     } = await req.json();
@@ -76,6 +91,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const clientIp = getClientIp(req);
+
+    const rateLimit = await checkLoginRateLimit({ ip: clientIp, identifier: email });
+    if (!rateLimit.allowed) {
+      const isDbDown = rateLimit.reason === "DATABASE_UNAVAILABLE";
+      return NextResponse.json(
+        {
+          success: false,
+          error: isDbDown
+            ? "Authentication service temporarily unavailable. Rate limit check failed."
+            : "Too many failed login attempts. Please wait before trying again.",
+        },
+        {
+          status: isDbDown ? 503 : 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds ?? (isDbDown ? 60 : 900)) },
+        }
+      );
+    }
+
     const accountLookupEmail =
       verifiedGoogleProof?.role === "SUPER_ADMIN"
         ? normalizeEmail(verifiedGoogleProof.email)
@@ -86,15 +120,22 @@ export async function POST(req: NextRequest) {
     let resolvedInstitutionName = "";
     const trimmedCode = typeof institutionCode === "string" ? institutionCode.trim() : "";
     if (trimmedCode) {
-      let inst = await db.institution.findFirst({
+      const matches = await db.institution.findMany({
         where: {
           OR: [
             { code: { equals: trimmedCode, mode: "insensitive" } },
-            { id: { equals: trimmedCode, mode: "insensitive" } },
             { slug: { equals: trimmedCode, mode: "insensitive" } },
           ],
         },
+        take: 2,
       });
+      if (matches.length > 1) {
+        return NextResponse.json(
+          { success: false, error: "This College Code is ambiguous. Contact your platform administrator." },
+          { status: 409 }
+        );
+      }
+      let inst: any = matches[0] || null;
 
       if (!inst) {
         // Fallback: check table "Institution" (PlatformInstitution)
@@ -104,10 +145,15 @@ export async function POST(req: NextRequest) {
             FROM "Institution"
             WHERE LOWER(code) = LOWER(${trimmedCode})
                OR LOWER(slug) = LOWER(${trimmedCode})
-               OR id::text = ${trimmedCode}
-            LIMIT 1
+            LIMIT 2
           `;
-          if (rawInst && rawInst.length > 0) {
+          if (rawInst && rawInst.length > 1) {
+            return NextResponse.json(
+              { success: false, error: "This College Code is ambiguous. Contact your platform administrator." },
+              { status: 409 }
+            );
+          }
+          if (rawInst && rawInst.length === 1) {
             inst = rawInst[0];
             await syncInstitutionToAppDb(rawInst[0].id);
           }
@@ -166,10 +212,21 @@ export async function POST(req: NextRequest) {
 
 
     if (!user || !user.isActive || user.status !== "ACTIVE") {
-
+      await recordFailedLogin({ ip: clientIp, identifier: email });
       return NextResponse.json(
-        { success: false, error: "Account is inactive, suspended, or archived." },
+        { success: false, error: "Invalid email or password." },
         { status: 401 }
+      );
+    }
+    if (
+      user.institutionId &&
+      (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase() !== "SUPER_ADMIN" &&
+      user.platformRole !== "SUPER_ADMIN" &&
+      !(await isInstitutionOperational(user.institutionId))
+    ) {
+      return NextResponse.json(
+        { success: false, error: "This institution is not currently operational." },
+        { status: 403 }
       );
     }
     if (
@@ -185,10 +242,11 @@ export async function POST(req: NextRequest) {
     if (verifiedOtpProof) {
       const storedMobile = (user.phone || "").replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
       const actualRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
+      const roleMatches = portalRoleAllows(verifiedOtpProof.role, actualRole);
       if (
         user.id !== verifiedOtpProof.userId ||
         storedMobile !== verifiedOtpProof.mobile ||
-        actualRole !== verifiedOtpProof.role
+        !roleMatches
       ) {
         return NextResponse.json(
           { success: false, error: "OTP verification no longer matches an active account." },
@@ -198,7 +256,7 @@ export async function POST(req: NextRequest) {
     }
     if (verifiedGoogleProof) {
       const actualRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
-      if (actualRole !== verifiedGoogleProof.role) {
+      if (!portalRoleAllows(verifiedGoogleProof.role, actualRole)) {
         return NextResponse.json(
           { success: false, error: "This Google account does not belong to the selected portal." },
           { status: 403 }
@@ -245,6 +303,7 @@ export async function POST(req: NextRequest) {
     if (loginType !== "OTP" && loginType !== "GOOGLE") {
       const isPwValid = user.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false;
       if (!isPwValid) {
+        await recordFailedLogin({ ip: clientIp, identifier: email });
         return NextResponse.json(
           { success: false, error: "Invalid email or password." },
           { status: 401 }
@@ -252,8 +311,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await recordSuccessfulLogin({ identifier: email });
+
     // Normalize and verify role from trusted database record
     const userRole = (user.role || (user.platformRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "")).toUpperCase();
+    if (
+      requestedPortalRole !== undefined &&
+      !isKnownPortalRole(requestedPortalRole)
+    ) {
+      return NextResponse.json({ success: false, error: "Select a valid portal." }, { status: 400 });
+    }
+    const requestedRole =
+      typeof requestedPortalRole === "string"
+        ? requestedPortalRole.trim().toUpperCase()
+        : verifiedOtpProof?.role || verifiedGoogleProof?.role;
+    if (requestedRole && !portalRoleAllows(requestedRole, userRole)) {
+      return NextResponse.json(
+        { success: false, error: "This account does not have access to the selected portal." },
+        { status: 403 }
+      );
+    }
     let redirectUrl = "";
 
     const isInstitutionalPortalUser = isAdminPortalRole(userRole) && userRole !== "SUPER_ADMIN";
@@ -561,6 +638,41 @@ export async function POST(req: NextRequest) {
       passwordSig,
     };
 
+    // For SUPER_ADMIN role: Check if MFA is required
+    if (userRole === "SUPER_ADMIN") {
+      try {
+        const mfaRecord = await getAdminMfaRecord(user.id);
+        if (mfaRecord && mfaRecord.isEnrolled) {
+          const challengeToken = await signMfaChallengeToken({ userId: user.id, email: user.email });
+          const mfaRes = NextResponse.json({
+            success: true,
+            mfaRequired: true,
+            message: "Two-factor authentication code required.",
+            redirectTo: "/super-admin/mfa/verify",
+          });
+          mfaRes.cookies.set({
+            name: MFA_CHALLENGE_COOKIE,
+            value: challengeToken,
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 300,
+          });
+          return mfaRes;
+        }
+      } catch (mfaErr) {
+        console.error("[Login] Database failure checking Super Admin MFA status (failing closed):", mfaErr);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Authentication service temporarily unavailable. Super Admin security verification could not be completed.",
+          },
+          { status: 503 }
+        );
+      }
+    }
+
     const token = await signToken(sessionUser);
 
     // Update last login timestamp without corrupting audit history
@@ -610,6 +722,17 @@ export async function POST(req: NextRequest) {
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24, // 24 hours
+    });
+
+    // A normal login must never inherit a Super Admin support context.
+    response.cookies.set({
+      name: SUPPORT_ACCESS_COOKIE_NAME,
+      value: "",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(0),
     });
 
     if (teacherToken) {

@@ -10,7 +10,7 @@ import { StudentDivisionSwitcher } from "@/components/student/StudentDivisionSwi
 import { ParentChildDivisionSwitcher } from "@/components/parent/ParentChildDivisionSwitcher";
 
 interface HeaderProps {
-  portalType: "STUDENT" | "PARENT";
+  portalType: "STUDENT" | "PARENT" | "INSTITUTION_ADMIN" | "SUPER_ADMIN";
   userFullName?: string;
   userRole?: string;
   userEmail?: string;
@@ -80,13 +80,23 @@ export const Header: React.FC<HeaderProps> = ({
               {institutionName}
             </h1>
             <p className="text-[11px] text-[#64748B] font-medium hidden sm:block">
-              {portalType === "STUDENT" ? "Student Portal" : "Parent Portal"}
+              {portalType === "INSTITUTION_ADMIN"
+                ? "Institution Subscription Center"
+                : portalType === "SUPER_ADMIN"
+                  ? "Subscription Center"
+                  : portalType === "STUDENT"
+                    ? "Student Portal"
+                    : "Parent Portal"}
               {institutionCode ? ` • ${institutionCode}` : ""}
               {academicYearName ? ` • AY ${academicYearName}` : ""}
             </p>
           </div>
           <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#123B5A] text-white ml-1">
-            {portalType === "STUDENT" ? "Active Student" : "Active Parent"}
+            {(() => {
+              if (portalType === "INSTITUTION_ADMIN") return "Institution Admin";
+              if (portalType === "SUPER_ADMIN") return "Super Admin";
+              return portalType === "STUDENT" ? "Active Student" : "Active Parent";
+            })()}
           </span>
         </div>
       </div>

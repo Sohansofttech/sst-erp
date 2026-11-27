@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { resolveAdminContext, handleAdminApiError } from "@/lib/security/admin-auth";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
 import { PERMISSIONS, RESERVED_PRIVILEGED_ROLE_CODES } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
@@ -13,6 +14,7 @@ function isValidUuid(id: string): boolean {
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req, { requiredPermission: PERMISSIONS.ADMIN_ALL });
+    await requireReadReq(req, institutionId);
 
     if (!isValidUuid(institutionId)) {
       return NextResponse.json({
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
     const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     if (!body.name) {
@@ -125,6 +128,7 @@ export async function PUT(req: NextRequest) {
     const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const { id, name, description, permissionIds } = await req.json();
 
     if (!id) {
@@ -228,6 +232,7 @@ export async function DELETE(req: NextRequest) {
     const { institutionId, userId: adminUserId } = await resolveAdminContext(req, {
       requiredPermission: PERMISSIONS.ADMIN_ALL,
     });
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
 
     if (!id) {

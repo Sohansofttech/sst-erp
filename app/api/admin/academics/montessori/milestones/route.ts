@@ -3,10 +3,13 @@ import { resolveDivisionContext } from "@/lib/security/division-context";
 import { handleAdminApiError } from "@/lib/security/admin-auth";
 import db from "@/lib/db";
 import { MONTESSORI_MILESTONES } from "@/lib/academics/montessori-milestones";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireReadReq(req, context.institutionId);
     const institutionId = context.institutionId;
 
     const { searchParams } = new URL(req.url);
@@ -158,6 +161,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const context = await resolveDivisionContext(req);
+    await requireWriteReq(req, context.institutionId);
     const institutionId = context.institutionId;
     const body = await req.json();
 

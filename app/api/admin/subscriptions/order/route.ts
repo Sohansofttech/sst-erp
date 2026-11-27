@@ -6,7 +6,9 @@ import db from "@/lib/db";
 import { UnauthorizedError, ForbiddenError } from "@/lib/auth/session";
 import { requireInstitutionAdminSession } from "@/lib/security/admin-auth";
 import { BillingIntegrationError, createRazorpayOrder } from "@/lib/billing/razorpay";
+import { createAndPersistOrder } from "@/lib/billing/order-persistence";
 import { applySubscriptionPurchase } from "@/lib/billing/subscription-settlement";
+import { isPlanCompatible } from "@/lib/institution-type-config";
 
 const requestSchema = z.object({
   planId: z.uuid(),
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     const institution = await db.platformInstitution.findFirst({
       where: { id: institutionId.data, archivedAt: null, status: { not: "SUSPENDED" } },
-      select: { id: true },
+      select: { id: true, type: true },
     });
     if (!institution) {
       return NextResponse.json({ success: false, error: "This institution is unavailable for subscription billing." }, { status: 403 });
@@ -66,10 +68,14 @@ export async function POST(req: NextRequest) {
         customCycleDays: true,
         price: true,
         currency: true,
+        institutionTypes: true,
       },
     });
     if (!plan) {
       return NextResponse.json({ success: false, error: "The selected plan is unavailable." }, { status: 404 });
+    }
+    if (!isPlanCompatible(plan.institutionTypes, institution.type)) {
+      return NextResponse.json({ success: false, error: "The selected plan is not available for your institution type." }, { status: 409 });
     }
 
     const renewalSubscriptionId = input.data.renewalSubscriptionId ?? null;
@@ -205,16 +211,25 @@ export async function POST(req: NextRequest) {
     });
     created = { ...saved, invoiceNumber };
 
-    const order = await createRazorpayOrder({
-      amount,
-      currency,
-      receipt: invoiceNumber,
-      notes: { invoice_id: saved.invoiceId, institution_id: institution.id },
-    });
-
-    await db.payment.update({
-      where: { id: saved.paymentId },
-      data: { providerOrderId: order.id },
+    const order = await createAndPersistOrder({
+      invoiceNumber,
+      create: () => createRazorpayOrder({
+        amount,
+        currency,
+        receipt: invoiceNumber,
+        notes: { invoice_id: saved.invoiceId, institution_id: institution.id },
+      }),
+      persist: async (orderId) => (await db.payment.updateMany({
+        where: { id: saved.paymentId, provider: "RAZORPAY_TEST", status: "PENDING", providerOrderId: null },
+        data: { providerOrderId: orderId },
+      })).count,
+      lookup: async () => (await db.payment.findUnique({
+        where: { id: saved.paymentId },
+        select: { providerOrderId: true },
+      }))?.providerOrderId,
+      onOrderReceived: (orderId) => console.info("[SubscriptionBilling] Razorpay order received", {
+        invoiceNumber, invoiceId: saved.invoiceId, paymentId: saved.paymentId, orderId,
+      }),
     });
 
     return NextResponse.json({
@@ -230,20 +245,28 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    if (created) {
-      await db.$transaction([
-        db.payment.updateMany({
-          where: { id: created.paymentId, status: "PENDING", providerOrderId: null },
-          data: { status: "FAILED", failureReason: "Razorpay order creation failed." },
-        }),
-        db.invoice.updateMany({
-          where: { id: created.invoiceId, status: "ISSUED" },
-          data: { status: "VOID" },
-        }),
-      ]).catch((cleanupError) => {
+    if (created && error instanceof BillingIntegrationError &&
+      ["RAZORPAY_NOT_CONFIGURED", "RAZORPAY_TEST_MODE_REQUIRED"].includes(error.code)) {
+      await db.$transaction(async (tx) => {
+        const closed = await tx.payment.updateMany({
+          where: { id: created!.paymentId, status: "PENDING", providerOrderId: null },
+          data: { status: "FAILED", failureReason: "Razorpay checkout was not configured." },
+        });
+        if (closed.count === 1) {
+          await tx.invoice.updateMany({
+            where: { id: created!.invoiceId, status: "ISSUED" },
+            data: { status: "VOID" },
+          });
+        }
+      }).catch((cleanupError) => {
         console.error("[SubscriptionBilling] Failed to close an incomplete invoice", {
           name: cleanupError instanceof Error ? cleanupError.name : "UnknownError",
         });
+      });
+    } else if (created) {
+      console.error("[SubscriptionBilling] Order requires reconciliation", {
+        invoiceNumber: created.invoiceNumber, invoiceId: created.invoiceId, paymentId: created.paymentId,
+        code: error instanceof BillingIntegrationError ? error.code : "UNKNOWN",
       });
     }
     return errorResponse(error);

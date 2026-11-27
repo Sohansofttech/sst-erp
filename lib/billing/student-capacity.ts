@@ -26,7 +26,7 @@ export async function assertStudentRegistrationCapacity(
   const subscription = await tx.institutionSubscription.findFirst({
     where: {
       institutionId,
-      status: "ACTIVE",
+      status: { in: ["ACTIVE", "TRIALING"] },
       startsAt: { lte: now },
       OR: [{ endsAt: null }, { endsAt: { gt: now } }],
     },

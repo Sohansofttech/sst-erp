@@ -6,10 +6,13 @@ import {
   saveExamResults,
 } from "@/lib/services/institution-admin.service";
 import db from "@/lib/db";
+import { requireReadReq, requireWriteReq } from "@/lib/security/support-access";
+
 
 export async function GET(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireReadReq(req, institutionId);
     const batches = await getResultBatches(institutionId);
 
     return NextResponse.json({
@@ -24,6 +27,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const body = await req.json();
 
     // 1. Direct exam results entry
@@ -90,6 +94,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const { id, action } = await req.json();
 
     if (!id) {
@@ -128,6 +133,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { institutionId } = await resolveAdminContext(req);
+    await requireWriteReq(req, institutionId);
     const id = req.nextUrl.searchParams.get("id");
     if (!id) {
       return NextResponse.json({ success: false, error: "Result batch ID required." }, { status: 400 });

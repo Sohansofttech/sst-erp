@@ -1,0 +1,10 @@
+ALTER TYPE "InstitutionType" ADD VALUE IF NOT EXISTS 'ACADEMY';
+
+ALTER TABLE "Institution"
+ADD COLUMN IF NOT EXISTS "category" TEXT;
+
+ALTER TABLE "institutions"
+ADD COLUMN IF NOT EXISTS "category" TEXT;
+
+ALTER TABLE "SubscriptionPlan"
+ADD COLUMN IF NOT EXISTS "institutionTypes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

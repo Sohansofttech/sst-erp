@@ -104,6 +104,8 @@ const logEntrySchema = z.object({
 
 type LogEntryFormValues = z.infer<typeof logEntrySchema>
 
+const getTodayDate = () => new Date().toISOString().split("T")[0]
+
 function mapApprovalStatus(status: ApprovalStatus | StudentLogReview["status"]) {
   if (status === "approved") return "Approved" as const
   if (status === "locked") return "Locked" as const
@@ -136,7 +138,7 @@ export default function TeacherLogBookPage() {
     resolver: zodResolver(logEntrySchema),
     defaultValues: {
       allocationId: "",
-      date: "2026-11-12",
+      date: getTodayDate(),
       period: 1,
       unit: "",
       topicCovered: "",
@@ -235,7 +237,7 @@ export default function TeacherLogBookPage() {
       setAddOpen(false)
       form.reset({
         allocationId: alloc.id,
-        date: "2026-11-12",
+        date: getTodayDate(),
         period: 1,
         unit: "",
         topicCovered: "",
@@ -333,7 +335,7 @@ export default function TeacherLogBookPage() {
         title="Teaching & Project Log Book"
         subtitle="Maintain daily lecture/lab syllabus logs and review periodic student project & internship logs."
         action={
-          <Button onClick={() => setAddOpen(true)} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+          <Button onClick={() => setAddOpen(true)} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]">
             <Plus className="size-4" />
             Log Lecture / Lab Topic
           </Button>
@@ -575,7 +577,7 @@ export default function TeacherLogBookPage() {
                             "w-full sm:w-auto rounded-xl",
                             isLocked
                               ? "border-[#E5E9EF] text-[#202936] hover:bg-[#EEF1F5]"
-                              : "bg-[#F5A000] text-white hover:bg-[#E09200]"
+                              : "bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]"
                           )}
                         >
                           {isLocked ? (
@@ -737,7 +739,7 @@ export default function TeacherLogBookPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingEntry} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-white hover:bg-[#E09200]">
+              <Button type="submit" disabled={savingEntry} className="w-full sm:w-auto rounded-xl bg-[#F5A000] text-[#123B5A] font-bold hover:bg-[#E09200]">
                 {savingEntry ? "Submitting..." : "Submit Log Entry"}
               </Button>
             </DialogFooter>
